@@ -50,7 +50,7 @@ func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequ
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
-	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
@@ -79,7 +79,7 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
-	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
@@ -108,7 +108,7 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
-	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
@@ -137,7 +137,7 @@ func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
-	if err := ac.plugin.emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
@@ -201,7 +201,7 @@ func (ac *cloudWithRoles) SendAccountRecovered(ctx context.Context, req *v1.Send
 
 // UpdateAccountUpgradeWindowStartHour updates the start of the account upgrade window for cloud users.
 func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStartHour(ctx context.Context, req *v1.UpdateAccountUpgradeWindowStartHourRequest) (*v1.EmptyResponse, error) {
-	_, err := ac.plugin.authorizer.Authorize(ctx)
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -211,7 +211,7 @@ func (ac *cloudWithRoles) UpdateAccountUpgradeWindowStartHour(ctx context.Contex
 
 // GetAccountUpgradeWindowStartHour returns the start of the account upgrade window for cloud users.
 func (ac *cloudWithRoles) GetAccountUpgradeWindowStartHour(ctx context.Context, req *v1.EmptyRequest) (*v1.GetAccountUpgradeWindowStartHourResponse, error) {
-	_, err := ac.plugin.authorizer.Authorize(ctx)
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -221,7 +221,7 @@ func (ac *cloudWithRoles) GetAccountUpgradeWindowStartHour(ctx context.Context, 
 
 // GetFeatures returns the features enabled in the Teleport Cloud cluster
 func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-	_, err := ac.plugin.authorizer.Authorize(ctx)
+	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -234,7 +234,7 @@ func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, actio
 		return trace.AccessDenied("cloud features are disabled")
 	}
 
-	authCtx, err := ac.plugin.authorizer.Authorize(ctx)
+	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.AccessDenied("access denied")
 	}
@@ -249,7 +249,7 @@ func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, actio
 
 // hasBuiltinProxyRole checks if context contains built in role proxy
 func (ac *cloudWithRoles) hasBuiltinProxyRole(ctx context.Context) error {
-	authCtx, err := ac.plugin.authorizer.Authorize(ctx)
+	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.AccessDenied("access denied")
 	}

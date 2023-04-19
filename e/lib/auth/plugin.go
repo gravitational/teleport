@@ -14,7 +14,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
@@ -25,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
@@ -77,10 +75,9 @@ type Plugin struct {
 	Config
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
-	// authorizer authorizes identity and returns auth context
-	authorizer authz.Authorizer
-	// emitter is events emitter, used to submit discrete events.
-	emitter apievents.Emitter
+	// authServer is the authServer passed into RegisterAuthServices on
+	// startup.
+	authServer *auth.GRPCServer
 }
 
 // GetName returns plugin name
@@ -100,21 +97,20 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 // RegisterAuthServices registers Auth Services (GRPC)
 func (p *Plugin) RegisterAuthServices(server interface{}) error {
-	authServer, ok := server.(*auth.GRPCServer)
+	var ok bool
+	p.authServer, ok = server.(*auth.GRPCServer)
 	if !ok {
 		return trace.BadParameter("unsupported auth server type %T", server)
 	}
-	p.authorizer = authServer.Authorizer
-	p.emitter = authServer.Emitter
 
-	gRPCServer, err := authServer.GetServer()
+	gRPCServer, err := p.authServer.GetServer()
 	if err != nil {
 		return trace.BadParameter("missing proto server")
 	}
 
 	keypair := p.Config.License.GetKeyPair()
 	if keypair != nil {
-		authServer.AuthServer.SetLicense(keypair)
+		p.authServer.AuthServer.SetLicense(keypair)
 	}
 
 	// Register Cloud APIs.
@@ -123,14 +119,14 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	})
 
 	// Register Device Trust.
-	deviceStorage, err := dtstorage.New(authServer.GetBackend())
+	deviceStorage, err := dtstorage.New(p.authServer.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	deviceService, err := devicetrustv1.New(devicetrustv1.ServiceParams{
-		AuthServer: authServer.AuthServer,
-		Authorizer: p.authorizer,
-		Emitter:    p.emitter,
+		AuthServer: p.authServer.AuthServer,
+		Authorizer: p.authServer.Authorizer,
+		Emitter:    p.authServer.Emitter,
 		Storage:    deviceStorage,
 	})
 	if err != nil {
@@ -138,31 +134,31 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	}
 	devicepb.RegisterDeviceTrustServiceServer(gRPCServer, deviceService)
 
-	if err := p.registerLoginRuleService(authServer); err != nil {
+	if err := p.registerLoginRuleService(p.authServer); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Create a SAMLService and register it with the auth.Server
 	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
-		Auth:    authServer.AuthServer,
-		Emitter: authServer.Emitter,
+		Auth:    p.authServer.AuthServer,
+		Emitter: p.authServer.Emitter,
 		License: p.Config.License,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authServer.AuthServer.SetSAMLService(sas)
+	p.authServer.AuthServer.SetSAMLService(sas)
 
 	// Create a OIDCService and register it with the auth.Server
 	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
-		Auth:    authServer.AuthServer,
-		Emitter: authServer.Emitter,
+		Auth:    p.authServer.AuthServer,
+		Emitter: p.authServer.Emitter,
 		License: p.Config.License,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	authServer.AuthServer.SetOIDCService(oas)
+	p.authServer.AuthServer.SetOIDCService(oas)
 
 	// Create the ReleaseClient
 	if keypair != nil {
@@ -180,18 +176,18 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authServer.AuthServer.SetReleaseService(*releaseClient)
+		p.authServer.AuthServer.SetReleaseService(*releaseClient)
 	}
 
 	// Create plugins service
-	if err := p.registerPluginsService(authServer); err != nil {
+	if err := p.registerPluginsService(p.authServer); err != nil {
 		return trace.Wrap(err)
 	}
 
 	signingService, err := saml.NewSigningService(&saml.SigningServiceConfig{
-		Client:     authServer.AuthServer,
-		KeyStore:   authServer.AuthServer.GetKeyStore(),
-		Authorizer: p.authorizer,
+		Client:     p.authServer.AuthServer,
+		KeyStore:   p.authServer.AuthServer.GetKeyStore(),
+		Authorizer: p.authServer.Authorizer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -200,7 +196,7 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 
 	// register the start hour getter so that auth can use it during periodic MaintenanceWindow
 	// resource sync.
-	authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
+	p.authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
 
 	return nil
 }
@@ -217,7 +213,7 @@ func (p *Plugin) registerLoginRuleService(server *auth.GRPCServer) error {
 	}
 	service, err := loginrulev1.NewService(&loginrulev1.ServiceConfig{
 		Storage:    storage,
-		Authorizer: p.authorizer,
+		Authorizer: p.authServer.Authorizer,
 		Emitter:    server.Emitter,
 	})
 	if err != nil {
@@ -242,7 +238,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
 	backendService := local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
-		Authorizer:        p.authorizer,
+		Authorizer:        p.authServer.Authorizer,
 		BackendService:    backendService,
 		PluginAuthorizers: authorizers,
 	})

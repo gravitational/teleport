@@ -19,7 +19,6 @@ package okta
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -44,7 +43,7 @@ func TestAssignmentReconciler(t *testing.T) {
 		reconciler.stop()
 	})
 
-	waitForResult(t, onReconcileCh, struct{}{}, "initial reconciliation never completed")
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// Reconciler should be empty to start
 	require.Empty(t, reconciler.getAssignments())
@@ -79,7 +78,7 @@ func TestAssignmentReconciler(t *testing.T) {
 
 	_, err = ap.CreateOktaAssignment(ctx, assignment)
 	require.NoError(t, err)
-	waitForResult(t, onReconcileCh, struct{}{}, "assignment-accept-create reconciliation never completed")
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Equal(t, types.ResourcesWithLabelsMap{assignment.GetName(): assignment}, reconciler.getAssignments())
 	require.Equal(t, types.ResourcesWithLabelsMap{assignment.GetName(): assignment}, reconciler.getNewAssignments())
@@ -94,7 +93,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	assignment.GetActions()[0].SetStatus(constants.OktaAssignmentActionStatusCleanupPending)
 	_, err = ap.UpdateOktaAssignment(ctx, assignment)
 	require.NoError(t, err)
-	waitForResult(t, onReconcileCh, struct{}{}, "assignment-accept-create reconciliation never completed")
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	assignment.SetResourceID(1)
 
@@ -113,21 +112,11 @@ func TestAssignmentReconciler(t *testing.T) {
 
 	// This delete be recognized.
 	require.NoError(t, ap.DeleteOktaAssignment(ctx, assignment.GetName()))
-	waitForResult(t, onReconcileCh, struct{}{}, "delete-assignment reconciliation never completed")
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	require.Empty(t, reconciler.getAssignments())
 	require.Empty(t, reconciler.getNewAssignments())
 
 	_, err = ap.GetOktaAssignment(ctx, assignment.GetName())
 	require.True(t, trace.IsNotFound(err))
-}
-
-// waitForResult will wait for a value on a channel and see if the value matches the expected value.
-func waitForResult[T any](t *testing.T, ch chan T, expected T, errorMsg string) {
-	select {
-	case val := <-ch:
-		require.Equal(t, expected, val)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, errorMsg)
-	}
 }

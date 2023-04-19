@@ -16,18 +16,15 @@ limitations under the License.
 
 package teleport
 
+import "github.com/gravitational/teleport/api/types"
+
 const (
-	// ComponentSAMLIdP is a SAML identity provider component.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	ComponentSAMLIdP = "idp:saml"
+	// OktaOrgURLLabel is the label for which Okta organization an object belongs to.
+	OktaOrgURLLabel = "okta/org"
 
-	// ComponentOkta is an Okta service component.
-	ComponentOkta = "okta"
+	// OktaGroupIDLabel is the label for the Okta group ID on user group objects.
+	OktaGroupIDLabel = types.TeleportHiddenLabelPrefix + "okta-group-id"
 
-	// ComponentOktaAssignmentReconciler is an Okta assignment reconciler component.
-	ComponentOktaAssignmentReconciler = "okta:assignment-reconciler"
-
-	// ComponentOktaAccessRequestReconciler is an access request reconciler component.
-	ComponentOktaAccessRequestReconciler = "okta:access-request-reconciler"
+	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
+	OktaAppIDLabel = types.TeleportHiddenLabelPrefix + "okta-app-id"
 )

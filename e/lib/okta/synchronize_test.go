@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 )
 
@@ -117,7 +118,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	addApp(t, "app2", types.OriginOkta, svc.orgURL, svc)
 
 	// Add an app to be updated.
-	app3Name, err := svc.appName("app3", "applink-name1")
+	app3Name, err := appName(svc.hash, "app3", "applink-name1")
 	require.NoError(t, err)
 	addApp(t, app3Name, types.OriginOkta, svc.orgURL, svc)
 
@@ -191,11 +192,11 @@ func TestSynchronizeApplications(t *testing.T) {
 	require.Equal(t, "https://www.link1.com", app3.GetURI())
 
 	// This should have been created
-	app4Link1Name, err := svc.appName("app4", "applink-name1")
+	app4Link1Name, err := appName(svc.hash, "app4", "applink-name1")
 	require.NoError(t, err)
 	app4Link1 := apps[app4Link1Name]
 	require.Equal(t, "https://www.link1.com", app4Link1.GetURI())
-	app4Link2Name, err := svc.appName("app4", "applink-name2")
+	app4Link2Name, err := appName(svc.hash, "app4", "applink-name2")
 	require.NoError(t, err)
 	app4Link2 := apps[app4Link2Name]
 	require.Equal(t, "https://www.link2.com", app4Link2.GetURI())
@@ -206,7 +207,7 @@ func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
 		types.OriginLabel: types.OriginOkta,
 	}
 	if orgURL != "" {
-		labels[oktaOrgURLLabel] = orgURL
+		labels[teleport.OktaOrgURLLabel] = orgURL
 	}
 
 	app, err := types.NewAppV3(types.Metadata{
@@ -227,7 +228,7 @@ func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint
 		types.OriginLabel: types.OriginOkta,
 	}
 	if orgURL != "" {
-		labels[oktaOrgURLLabel] = orgURL
+		labels[teleport.OktaOrgURLLabel] = orgURL
 	}
 
 	userGroup, err := types.NewUserGroup(types.Metadata{

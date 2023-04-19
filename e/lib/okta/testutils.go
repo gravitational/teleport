@@ -18,8 +18,10 @@ package okta
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -59,8 +61,8 @@ var (
 type testAccessPoint struct {
 	events.Streamer
 	io.Closer
+	*local.DynamicAccessService
 	services.Access
-	services.Apps
 	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
 	services.DatabaseServices
@@ -98,6 +100,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	require.NoError(t, err)
 	connectionsDiagnostic := local.NewConnectionsDiagnosticService(backend)
 	databaseServices := local.NewDatabaseServicesService(backend)
+	dynamicAccess := local.NewDynamicAccessService(backend)
 	identity := local.NewIdentityService(backend)
 	okta, err := local.NewOktaService(backend)
 	require.NoError(t, err)
@@ -123,6 +126,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 		ClusterConfiguration:  clusterConfiguration,
 		ConnectionsDiagnostic: connectionsDiagnostic,
 		DatabaseServices:      databaseServices,
+		DynamicAccessService:  dynamicAccess,
 		Identity:              identity,
 		Okta:                  okta,
 		Presence:              presence,
@@ -251,4 +255,83 @@ func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions
 		ServerName:         name,
 		InsecureSkipVerify: true,
 	}
+}
+
+// waitForResult will wait for a value on a channel and see if the value matches the expected value.
+func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
+	select {
+	case val := <-ch:
+		require.Equal(t, expected, val)
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out")
+	}
+}
+
+func mustAppName(t *testing.T, hash crypto.Hash, name, appLinkName string) string {
+	appName, err := appName(hash, name, appLinkName)
+	require.NoError(t, err)
+	return appName
+}
+
+func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
+	app, err := types.NewAppV3(metadata, appSpec)
+	require.NoError(t, err)
+
+	return app
+}
+
+func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin string) types.AppServer {
+	metadata := types.Metadata{
+		Name: mustAppName(t, hash, name, appLinkName),
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	}
+
+	app := newApp(t, metadata, types.AppSpecV3{
+		URI:        "https://www.link1.com",
+		PublicAddr: "public-addr",
+	})
+	appServer, err := types.NewAppServerV3(metadata, types.AppServerSpecV3{
+		Hostname: testHostname,
+		HostID:   testHostID,
+		App:      app,
+	})
+	require.NoError(t, err)
+	return appServer
+}
+
+func group(t *testing.T, name, origin string) types.UserGroup {
+	userGroup, err := types.NewUserGroup(types.Metadata{
+		Name: name,
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	})
+	require.NoError(t, err)
+	return userGroup
+}
+
+func action(status string, targetType types.OktaAssignmentActionTargetV1_OktaAssignmentActionTargetType, id string) *types.OktaAssignmentActionV1 {
+	action := &types.OktaAssignmentActionV1{Target: &types.OktaAssignmentActionTargetV1{Type: targetType, Id: id}}
+	action.SetStatus(status)
+	return action
+}
+
+func assignment(t *testing.T, accessRequestName, user string, cleanupTime *time.Time, actions ...*types.OktaAssignmentActionV1) types.OktaAssignment {
+	assignment, err := types.NewOktaAssignment(types.Metadata{
+		Name: accessRequestName,
+		Labels: map[string]string{
+			assignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequestName),
+		},
+	},
+		types.OktaAssignmentSpecV1{
+			User:        user,
+			Actions:     actions,
+			CleanupTime: cleanupTime,
+		},
+	)
+
+	require.NoError(t, err)
+	return assignment
 }

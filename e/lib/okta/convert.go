@@ -17,6 +17,7 @@ limitations under the License.
 package okta
 
 import (
+	"crypto"
 	"encoding/base64"
 	"fmt"
 
@@ -25,19 +26,13 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/srv/app"
 )
 
 const (
 	oktaActive       = "ACTIVE"
 	oktaAdminConsole = "Okta Admin Console"
-	oktaOrgURLLabel  = "okta/org"
-)
-
-var (
-	// these labels are hidden so they don't show up in the UI.
-	oktaGroupIDLabel = fmt.Sprintf("%s/okta-group-id", types.TeleportHiddenLabelPrefix)
-	oktaAppIDLabel   = fmt.Sprintf("%s/okta-app-id", types.TeleportHiddenLabelPrefix)
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
@@ -48,8 +43,8 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 
 	labels := s.getGroupLabels(oktaGroup.Id)
 	labels[types.OriginLabel] = types.OriginOkta
-	labels[oktaOrgURLLabel] = s.orgURL
-	labels[oktaGroupIDLabel] = oktaGroup.Id
+	labels[teleport.OktaOrgURLLabel] = s.orgURL
+	labels[teleport.OktaGroupIDLabel] = oktaGroup.Id
 
 	userGroup, err := types.NewUserGroup(
 		types.Metadata{
@@ -103,13 +98,13 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV
 
 	labels := s.getApplicationLabels(oktaApplication.Id)
 	labels[types.OriginLabel] = types.OriginOkta
-	labels[oktaOrgURLLabel] = s.orgURL
-	labels[oktaAppIDLabel] = oktaApplication.Id
+	labels[teleport.OktaOrgURLLabel] = s.orgURL
+	labels[teleport.OktaAppIDLabel] = oktaApplication.Id
 
 	// Create an app for each app link. This is required because there can be multiple
 	// app links per Okta application.
 	for _, appLink := range embeddedLinks.AppLinks {
-		appID, err := s.appName(oktaApplication.Id, appLink.Name)
+		appID, err := appName(s.hash, oktaApplication.Id, appLink.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -141,9 +136,9 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV
 }
 
 // appName returns an app name based on the ID and app link name.
-func (s *Service) appName(id, appLinkName string) (string, error) {
+func appName(hash crypto.Hash, id, appLinkName string) (string, error) {
 	// Let's create a short unique string for the app ID.
-	hasher := s.hash.New()
+	hasher := hash.New()
 	_, err := hasher.Write([]byte(fmt.Sprintf("%s-%s", id, appLinkName)))
 	if err != nil {
 		return "", trace.Wrap(err)

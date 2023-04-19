@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -165,7 +166,7 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 			labels := userGroup.GetStaticLabels()
 
 			// Only look for Okta sourced user groups for this org URL.
-			if userGroup.Origin() == types.OriginOkta && labels[oktaOrgURLLabel] == s.orgURL {
+			if userGroup.Origin() == types.OriginOkta && labels[teleport.OktaOrgURLLabel] == s.orgURL {
 				groups[userGroup.GetName()] = userGroup
 			}
 		}

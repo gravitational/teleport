@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/teleport"
 )
 
 func TestOktaGroupToUserGroup(t *testing.T) {
@@ -53,9 +54,9 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 		Name:        "okta-group-id",
 		Description: "group description",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginOkta,
-			oktaOrgURLLabel:   service.orgURL,
-			oktaGroupIDLabel:  "okta-group-id",
+			types.OriginLabel:         types.OriginOkta,
+			teleport.OktaOrgURLLabel:  service.orgURL,
+			teleport.OktaGroupIDLabel: "okta-group-id",
 		},
 	})
 	require.NoError(t, err)
@@ -102,9 +103,9 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "hleAaWyYRHhA",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel: types.OriginOkta,
-							oktaOrgURLLabel:   testOrgURL,
-							oktaAppIDLabel:    "app-id",
+							types.OriginLabel:        types.OriginOkta,
+							teleport.OktaOrgURLLabel: testOrgURL,
+							teleport.OktaAppIDLabel:  "app-id",
 						},
 					},
 					types.AppSpecV3{
@@ -117,9 +118,9 @@ func TestOktaAppToApplications(t *testing.T) {
 						Name:        "utGMAFLgNkBj",
 						Description: "app label",
 						Labels: map[string]string{
-							types.OriginLabel: types.OriginOkta,
-							oktaOrgURLLabel:   testOrgURL,
-							oktaAppIDLabel:    "app-id",
+							types.OriginLabel:        types.OriginOkta,
+							teleport.OktaOrgURLLabel: testOrgURL,
+							teleport.OktaAppIDLabel:  "app-id",
 						},
 					},
 					types.AppSpecV3{
@@ -263,11 +264,4 @@ func TestIsAppValid(t *testing.T) {
 			test.errAssertionFunc(t, isAppValid(test.app))
 		})
 	}
-}
-
-func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
-	app, err := types.NewAppV3(metadata, appSpec)
-	require.NoError(t, err)
-
-	return app
 }
