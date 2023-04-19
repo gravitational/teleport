@@ -28,7 +28,7 @@ const getOwnPendingText = (request: FileTransferRequest) => {
 
 const getPendingText = (request: FileTransferRequest) => {
   if (request.download) {
-    return `${request.requester} is requesting download: ${request.location}`;
+    return `${request.requester} wants to download ${request.location}`;
   }
   return `${request.requester} wants to upload ${request.filename} to ${request.location}`;
 };
