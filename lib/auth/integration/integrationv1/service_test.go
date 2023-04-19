@@ -402,13 +402,13 @@ func initSvc(t *testing.T, kind string, ca types.CertAuthority, clusterName stri
 	}, resourceSvc
 }
 
+// mockCAGetter implements CAGetter.
 type mockCAGetter struct {
 	domainName string
 	ca         types.CertAuthority
 	keystore   *keystore.Manager
 }
 
-// CAGetter describes the required methods to sign a JWT to be used for AWS OIDC Integration.
 // GetDomainName returns local auth domain of the current auth server
 func (m *mockCAGetter) GetDomainName() (string, error) {
 	return m.domainName, nil
