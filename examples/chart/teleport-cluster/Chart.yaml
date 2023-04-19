@@ -1,4 +1,4 @@
-.version: &version "12.2.3"
+.version: &version "12.2.3-joerger.1"
 
 name: teleport-cluster
 apiVersion: v2
