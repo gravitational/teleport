@@ -234,6 +234,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -285,6 +286,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -375,6 +377,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
@@ -480,6 +483,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
@@ -572,6 +576,7 @@ func TestRoleParse(t *testing.T) {
 						BPF:                     apidefaults.EnhancedEvents(),
 						DesktopClipboard:        types.NewBoolOption(true),
 						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
