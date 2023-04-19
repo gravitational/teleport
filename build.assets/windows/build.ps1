@@ -117,7 +117,7 @@ function Install-Node {
     <#
     .SYNOPSIS
         Downloads ands installs Node into the supplied toolchain dir
-    #>`
+    #>
     [CmdletBinding()]
     param(
         [string] $ToolchainDir,
