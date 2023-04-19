@@ -4707,7 +4707,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test:    "test exact match, one sudoer entry, one role",
+			test: "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 
@@ -4716,7 +4716,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4786,7 +4786,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4810,7 +4810,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test:    "line deny",
+			test: "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{
@@ -4897,11 +4897,11 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		{
 			test:    "duplication handled",
 			sudoers: []string{"sudoers entry 2"},
-			roles: NewRoleSet(&types.RoleV6{
+			roles: NewRoleSet(&types.RoleV5{
 				Metadata: types.Metadata{
 					Name: "a",
 				},
-				Spec: types.RoleSpecV6{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
 					},
@@ -4910,11 +4910,11 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						HostSudoers: []string{"sudoers entry 1"},
 					},
 				},
-			}, &types.RoleV6{ // DENY sudoers entry 1
+			}, &types.RoleV5{ // DENY sudoers entry 1
 				Metadata: types.Metadata{
 					Name: "d",
 				},
-				Spec: types.RoleSpecV6{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
 					},
@@ -4923,11 +4923,11 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						HostSudoers: []string{"sudoers entry 1"},
 					},
 				},
-			}, &types.RoleV6{ // duplicate sudoers entry 1 case also gets removed
+			}, &types.RoleV5{ // duplicate sudoers entry 1 case also gets removed
 				Metadata: types.Metadata{
 					Name: "c",
 				},
-				Spec: types.RoleSpecV6{
+				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
 					},

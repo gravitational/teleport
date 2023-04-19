@@ -2276,8 +2276,8 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	roleSet := make([]types.Role, len(set))
 	copy(roleSet, set)
-	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
-		return strings.Compare(a.GetName(), b.GetName()) == -1
+	sort.SliceStable(roleSet, func(i, j int) bool {
+		return strings.Compare(roleSet[i].GetName(), roleSet[j].GetName()) == -1
 	})
 
 	seenSudoers := make(map[string]struct{})
