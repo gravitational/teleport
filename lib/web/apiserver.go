@@ -714,10 +714,8 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
-	// h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
-	// h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
-	h.GET("/.well-known/openid-configuration", httplib.MakeHandler(h.openidConfiguration))
-	h.GET(OIDCJWKWURI, httplib.MakeHandler(h.jwksOIDC))
+	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
+	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))

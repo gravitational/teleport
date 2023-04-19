@@ -252,7 +252,7 @@ type Database struct {
 type AWS struct {
 	// embeds types.AWS fields into this struct when des/serializing.
 	types.AWS `json:""`
-	// Status describes the current server status as reported by the
+	// Status describes the current server status as reported by AWS.
 	// Currently this field is populated for AWS RDS Databases when Listing Databases using the AWS OIDC Integration
 	Status string `json:"status,omitempty"`
 }
@@ -266,7 +266,7 @@ const (
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
-	ret := Database{
+	db := Database{
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -283,13 +283,13 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
 			dbStatus = statusLabel
 		}
-		ret.AWS = &AWS{
+		db.AWS = &AWS{
 			AWS:    database.GetAWS(),
 			Status: dbStatus,
 		}
 	}
 
-	return ret
+	return db
 }
 
 // MakeDatabases creates database objects.
