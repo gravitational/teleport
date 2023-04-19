@@ -6,25 +6,6 @@
 # Toggle this via flags in your main script.
 DRY_RUN_PREFIX=''
 
-# Teleport / tsh certificates/info.
-# Used by other scripts.
-#shellcheck disable=SC2034
-readonly DEVELOPER_ID_APPLICATION='0FFD3E3413AB4C599C53FBB1D8CA690915E33D83'
-#shellcheck disable=SC2034
-readonly DEVELOPER_ID_INSTALLER='82B625AD327C241B378A54B4B254BB08CE71B5DF'
-readonly TEAMID='QH8AA5B8UP'
-#shellcheck disable=SC2034
-readonly TSH_BUNDLEID="$TEAMID.com.gravitational.teleport.tsh"
-#shellcheck disable=SC2034
-readonly TSH_SKELETON='tsh' # relative to build.assets/macos/
-
-# tshdev certs/info.
-#readonly DEVELOPER_ID_APPLICATION='A5604F285B0957134EA099AC515BD9E0787228AC'
-#readonly DEVELOPER_ID_INSTALLER='C1A831A974DF69563432C87A4979F7982DD91FBE'
-#readonly TEAMID='K497G57PDJ'
-#readonly TSH_BUNDLEID="$TEAMID.com.goteleport.tshdev"
-#readonly TSH_SKELETON='tshdev' # relative to build.assets/macos/
-
 # TARBALL_CACHE is used by find_or_fetch_tarball.
 readonly TARBALL_CACHE=/tmp/teleport-tarballs
 
