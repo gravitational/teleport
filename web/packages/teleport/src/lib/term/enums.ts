@@ -21,7 +21,7 @@ export enum EventType {
   PRINT = 'print',
   RESIZE = 'resize',
   FILE_TRANSFER_REQUEST = 'file_transfer_request',
-  FILE_TRANSFER_REQUEST_RESPONSE = 'file_transfer_request_response',
+  FILE_TRANSFER_DECISION = 'file_transfer_decision',
   FILE_TRANSFER_REQUEST_APPROVE = 'file_transfer_request_approve',
   FILE_TRANSFER_REQUEST_DENY = 'file_transfer_request_deny',
 }

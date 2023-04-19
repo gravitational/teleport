@@ -54,10 +54,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     refTerminal.current.terminal.term.focus();
   }
 
-  function handleFileTransferRequestResponse(
-    requestId: string,
-    approve: boolean
-  ) {
+  function handleFileTransferDecision(requestId: string, approve: boolean) {
     tty.approveFileTransferRequest(requestId, approve);
   }
 
@@ -88,8 +85,8 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         <FileTransferContainer>
           {fileTransferRequests.length > 0 && (
             <FileTransferRequests
-              onDeny={handleFileTransferRequestResponse}
-              onApprove={handleFileTransferRequestResponse}
+              onDeny={handleFileTransferDecision}
+              onApprove={handleFileTransferDecision}
               requests={fileTransferRequests}
             />
           )}

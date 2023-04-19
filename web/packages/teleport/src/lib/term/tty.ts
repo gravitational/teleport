@@ -100,11 +100,11 @@ class Tty extends EventEmitterWebAuthnSender {
 
   approveFileTransferRequest(requestId: string, approved: boolean) {
     const message = JSON.stringify({
-      event: EventType.FILE_TRANSFER_REQUEST_RESPONSE,
+      event: EventType.FILE_TRANSFER_DECISION,
       requestId,
       approved,
     });
-    const encoded = this._proto.encodeFileTransferRequestResponse(message);
+    const encoded = this._proto.encodeFileTransferDecision(message);
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
