@@ -255,6 +255,12 @@ chartMode: standalone
 # Deploy Teleport using a Deployment or StatefulSet. The default is "deployment". Options:
 # - "deployment": will deploy both the auth and proxy using a deployment.
 # - "statefulset" will deploy both the auth as a statefulSet and proxy as a deployment
+# Deploying auth as a statefulset can be useful in certain situations, for example: to temporarily persist
+# audit logs and session recordings on disk across cluster restarts when using etcd as your cluster backend,
+# until they are picked up by an external SIEM collector.
+# It is important to note that using a statefulset WILL NOT enable high availability for your Teleport
+# cluster - this can _only_ be done by using a distributed backend like DynamoDB, Firestore or etcd.
+# See https://goteleport.com/docs/deploy-a-cluster/high-availability/ for more details on supported HA setups.
 resourceType: deployment
 
 # validateConfigOnDeploy enables a Kubernetes job before install and upgrade that will verify
@@ -291,13 +297,21 @@ podMonitor:
 ######################################################################
 persistence:
   # Enable persistence using a PersistentVolumeClaim
+  # This value is ignored when resourceType is statefulset; in that situation, a persistent volume for each
+  # auth pod will always be created.
   enabled: true
+  # Size of persistent volume to request when created by Teleport.
+  # This value is ignored if existingClaimName is provided.
+  volumeSize: 10Gi
   # Leave blank to automatically create a PersistentVolumeClaim for Teleport storage.
   # If you would like to use a pre-existing PersistentVolumeClaim, put its name here.
+  # Behaviour when resourceType=deployment: Can be used to provide an existing persistentVolumeClaim.
+  # This value is ignored when resourceType is statefulset; in that situation, each auth pod in a statefulset
+  # MUST be able to create and use its own persistent volume using a volumeClaimTemplate.
   existingClaimName: ""
-  # Size of persistent volume to request when created by Teleport.
-  # Ignored if existingClaimName is provided.
-  volumeSize: 10Gi
+  # Leave blank to automatically use the default storageClassName for persistent volumes.
+  # If you would like to override the storageClassName used by any created persistentVolumeClaims, put its name here.
+  storageClassName: ""
 
 ##################################################
 # AWS-specific settings (only used in "aws" mode)
@@ -437,14 +451,10 @@ tls:
 
 # Modify the persistent volume retention policy. By default PV will be retained on scale and deletion
 # https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
-# set between "Retain" or "Delete". Retain is the default.
+# Can be set to either "Retain" or "Delete". Retain is the default.
 persistentVolumeClaimRetentionPolicy:
   whenDeleted: Retain
   whenScaled: Retain
-
-# set the updatestrategy to RollingUpdate or OnDelete
-updateStrategy:
-  type: RollingUpdate
 
 ##################################################
 # Values that you shouldn't need to change.

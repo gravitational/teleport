@@ -1,5 +1,6 @@
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
-{{- if $auth.persistence.enabled }}
+{{/* Persistence is handled by volumeClaimTemplates when resourceType=statefulset */}}
+{{- if (and $auth.persistence.enabled (not (eq .Values.resourceType "statefulset"))) }}
   {{/* Disable persistence for aws and gcp modes */}}
   {{- if and (not (eq $auth.chartMode "aws")) (not (eq $auth.chartMode "gcp")) }}
     {{/* No need to create a PVC if we reuse an existing claim */}}
@@ -16,6 +17,7 @@ spec:
   resources:
     requests:
       storage: {{ required "persistence.volumeSize is required in chart values" $auth.persistence.volumeSize }}
+  storageClassName: "{{ $auth.persistence.storageClassName }}"
     {{- end }}
   {{- end }}
 {{- end }}

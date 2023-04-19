@@ -1,6 +1,9 @@
 {{ if eq .Values.resourceType "statefulset" }}
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
+{{- if (or (eq .Values.chartMode "aws") (eq .Values.chartMode "gcp")) }}
+  {{- fail "Cannot use chartMode=aws or chartMode=gcp when resourceType is statefulset, persistent volumes are not required in these chart modes, use resourceType=deployment instead" }}
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -18,12 +21,10 @@ spec:
 {{- if and $replicated $auth.highAvailability.minReadySeconds }}
   minReadySeconds: {{ $auth.highAvailability.minReadySeconds }}
 {{- end }}
-  updateStrategy:
-    type: {{ .Values.updateStrategy.type  }}
 {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
   persistentVolumeClaimRetentionPolicy:
-    whenDeleted: {{ .Values.persistentVolumeClaimRetentionPolicy.whenDeleted }}
-    whenScaled: {{ .Values.persistentVolumeClaimRetentionPolicy.whenScaled }}
+    whenDeleted: {{ $auth.persistentVolumeClaimRetentionPolicy.whenDeleted }}
+    whenScaled: {{ $auth.persistentVolumeClaimRetentionPolicy.whenScaled }}
 {{- end}}
   selector:
     matchLabels: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 6 }}
@@ -158,7 +159,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to start
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         readinessProbe:
           httpGet:
             path: /readyz
@@ -166,7 +167,7 @@ spec:
           initialDelaySeconds: 5 # wait 5s for agent to register
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
-          timeoutSeconds: {{ .Values.probeTimeoutSeconds }}
+          timeoutSeconds: {{ $auth.probeTimeoutSeconds }}
         lifecycle:
           # waiting during preStop ensures no new request will hit the Terminating pod
           # on clusters using kube-proxy (kube-proxy syncs the node iptables rules every 30s)
@@ -260,12 +261,14 @@ spec:
         configMap:
           name: {{ .Release.Name }}-auth
       - name: "data"
-        {{- if and ($auth.persistence.enabled) ( and (not (eq $auth.chartMode "gcp")) (not (eq $auth.chartMode "aws"))) }}
-        persistentVolumeClaim:
-          claimName: {{ if $auth.persistence.existingClaimName }}{{ $auth.persistence.existingClaimName }}{{ else }}{{ .Release.Name }}{{ end }}
-        {{- else }}
-        emptyDir: {}
+        {{- if (not $auth.persistence.enabled) }}
+          {{- fail "Cannot set persistence.enabled=false when resourceType is statefulset; volumes are required in this mode" }}
         {{- end }}
+        {{- if $auth.persistence.existingClaimName }}
+          {{- fail "Cannot set persistence.existingClaimName when resourceType is statefulset; volumes must be provisioned dynamically on a per-pod basis in this mode" }}
+        {{- end }}
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-auth
 {{- if $auth.extraVolumes }}
   {{- toYaml $auth.extraVolumes | nindent 6 }}
 {{- end }}
@@ -274,4 +277,13 @@ spec:
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Release.Name }}-auth
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: "{{ $auth.persistence.storageClassName }}"
+      resources:
+        requests:
+          storage: {{ $auth.persistence.volumeSize }}
 {{ end }}

@@ -66,3 +66,36 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+
+  - it: does not create a PersistentVolumeClaim when resourceType=statefulset
+    set:
+      resourceType: statefulset
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates a PersistentVolumeClaim with correct storageClassName when chartMode=standalone and storageClassName is set
+    set:
+      chartMode: standalone
+      persistence:
+        storageClassName: my-storage-class
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: my-storage-class
+
+  - it: creates a PersistentVolumeClaim with blank storageClassName when chartMode=standalone and storageClassName is not set
+    set:
+      chartMode: standalone
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: spec.storageClassName
+          value: ""

@@ -340,6 +340,11 @@
                     "$id": "#/properties/standalone/properties/volumeSize",
                     "type": "string",
                     "default": ""
+                },
+                "storageClassName": {
+                    "$id": "#/properties/standalone/properties/storageClassName",
+                    "type": "string",
+                    "default": ""
                 }
             }
         },
@@ -363,6 +368,11 @@
                 },
                 "volumeSize": {
                     "$id": "#/properties/persistence/properties/volumeSize",
+                    "type": "string",
+                    "default": ""
+                },
+                "storageClassName": {
+                    "$id": "#/properties/standalone/properties/storageClassName",
                     "type": "string",
                     "default": ""
                 }

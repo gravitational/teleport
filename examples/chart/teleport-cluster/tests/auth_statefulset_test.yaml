@@ -233,25 +233,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  - it: should mount GCP credentials in GCP mode
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/gcp-ha.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            mountPath: /etc/teleport-secrets
-            name: "gcp-credentials"
-            readOnly: true
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: gcp-credentials
-            secret:
-              secretName: teleport-gcp-credentials
-
   - it: should not mount secret when credentialSecretName is blank in values
     template: auth/statefulset.yaml
     values:
@@ -270,20 +251,6 @@ tests:
             name: gcp-credentials
             secret:
               secretName: teleport-gcp-credentials
-
-  - it: should mount GCP credentials for initContainer in GCP mode
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/gcp-ha.yaml
-      - ../.lint/initcontainers.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.initContainers[0].volumeMounts
-          content:
-            mountPath: /etc/teleport-secrets
-            name: "gcp-credentials"
-            readOnly: true
 
   - it: should mount ConfigMap containing Teleport config
     template: auth/statefulset.yaml
@@ -497,23 +464,7 @@ tests:
           content:
             name: data
             persistentVolumeClaim:
-              claimName: RELEASE-NAME
-
-  - it: should not add PersistentVolumeClaim as volume when in standalone mode and persistence.enabled is false
-    template: auth/statefulset.yaml
-    set:
-      chartMode: standalone
-      clusterName: helm-lint.example.com
-      resourceType: statefulset
-      persistence:
-        enabled: false
-    asserts:
-      - notContains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+              claimName: RELEASE-NAME-auth
 
   - it: should add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is true
     template: auth/statefulset.yaml
@@ -529,23 +480,7 @@ tests:
           content:
             name: data
             persistentVolumeClaim:
-              claimName: RELEASE-NAME
-
-  - it: should not add PersistentVolumeClaim as volume when in scratch mode and persistence.enabled is false
-    template: auth/statefulset.yaml
-    set:
-      chartMode: scratch
-      clusterName: helm-lint.example.com
-      resourceType: statefulset
-      persistence:
-        enabled: false
-    asserts:
-      - notContains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: RELEASE-NAME
+              claimName: RELEASE-NAME-auth
 
   - it: should add an operator side-car when operator is enabled
     template: auth/statefulset.yaml
@@ -558,90 +493,6 @@ tests:
           value: operator
       - matchSnapshot:
           path: spec.template.spec.containers[1]
-
-  - it: should add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set and persistence.enabled is true
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/standalone-existingpvc.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: teleport-storage
-
-  - it: should not add named PersistentVolumeClaim as volume when in standalone mode, persistence.existingClaimName is set but persistence.enabled is false
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/standalone-existingpvc.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    set:
-      persistence:
-        enabled: false
-    asserts:
-      - notContains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: teleport-storage
-
-  - it: should add named PersistentVolumeClaim as volume when in scratch mode and persistence.existingClaimName is set
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/standalone-existingpvc.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: teleport-storage
-
-  - it: should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName is set and persistence.enabled is false
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/standalone-existingpvc.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    set:
-      persistence:
-        enabled: false
-    asserts:
-      - notContains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            persistentVolumeClaim:
-              claimName: teleport-storage
-      - matchSnapshot:
-          path: spec.template.spec
-
-  - it: should add emptyDir for data in AWS mode
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/aws-ha.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            emptyDir: {}
-
-  - it: should add emptyDir for data in GCP mode
-    template: auth/statefulset.yaml
-    values:
-      - ../.lint/gcp-ha.yaml
-      - ../.lint/resourcetype-statefulset.yaml
-    asserts:
-      - contains:
-          path: spec.template.spec.volumes
-          content:
-            name: data
-            emptyDir: {}
 
   - it: should set priorityClassName when set in values
     template: auth/statefulset.yaml
@@ -746,41 +597,48 @@ tests:
           path: spec.minReadySeconds
           value: null
 
-  - it: should use Recreate strategy when replicaCount = 1
+  - it: should create a volumeClaimTemplate when deploymentMode is statefulset
     template: auth/statefulset.yaml
-    set:
-      chartMode: scratch
-      resourceType: statefulset
-      highAvailability:
-        replicaCount: 1
+    values:
+      - ../.lint/resourcetype-statefulset.yaml
     asserts:
       - equal:
-          path: spec.strategy.type
-          value: Recreate
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: RELEASE-NAME-auth
+      - contains:
+          path: spec.volumeClaimTemplates
+          content:
+            metadata:
+              name: RELEASE-NAME-auth
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              storageClassName: ""
+              resources:
+                requests:
+                  storage: 10Gi
 
-  - it: should not set strategy when replicaCount > 1
+  - it: should set storageClassName in volumeClaimTemplate when deploymentMode is statefulset
     template: auth/statefulset.yaml
+    values:
+      - ../.lint/resourcetype-statefulset.yaml
     set:
-      chartMode: scratch
-      resourceType: statefulset
-      highAvailability:
-        replicaCount: 2
+      persistence:
+        enabled: true
+        storageClassName: "my-storage-class"
     asserts:
       - equal:
-          path: spec.strategy.type
-          value: RollingUpdate
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: "my-storage-class"
 
-  - it: should not perform surge rolling updates when replicaCount > 1
+  - it: should set volumeSize in volumeClaimTemplate when deploymentMode is statefulset
     template: auth/statefulset.yaml
+    values:
+      - ../.lint/resourcetype-statefulset.yaml
     set:
-      chartMode: scratch
-      resourceType: statefulset
-      highAvailability:
-        replicaCount: 2
+      persistence:
+        enabled: true
+        volumeSize: 20Gi
     asserts:
       - equal:
-          path: spec.strategy.rollingUpdate.maxSurge
-          value: 0
-      - equal:
-          path: spec.strategy.rollingUpdate.maxUnavailable
-          value: 1
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: "20Gi"

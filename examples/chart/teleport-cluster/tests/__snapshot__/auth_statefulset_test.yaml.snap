@@ -21,66 +21,6 @@ should add an operator side-car when operator is enabled:
       readOnly: true
     - mountPath: /var/lib/teleport
       name: data
-? should not add named PersistentVolumeClaim as volume when in scratch mode, persistence.existingClaimName
-  is set and persistence.enabled is false
-: 1: |
-    affinity:
-      podAntiAffinity: null
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
-      imagePullPolicy: IfNotPresent
-      lifecycle:
-        preStop:
-          exec:
-            command:
-            - teleport
-            - wait
-            - duration
-            - 30s
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      - containerPort: 3025
-        name: auth
-        protocol: TCP
-      - containerPort: 3026
-        name: kube
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    serviceAccountName: RELEASE-NAME
-    terminationGracePeriodSeconds: 60
-    volumes:
-    - configMap:
-        name: RELEASE-NAME-auth
-      name: config
-    - emptyDir: {}
-      name: data
 should provision initContainer correctly when set in values:
   1: |
     - args:
@@ -192,7 +132,7 @@ should set nodeSelector when set in values:
       name: config
     - name: data
       persistentVolumeClaim:
-        claimName: RELEASE-NAME
+        claimName: RELEASE-NAME-auth
 should set required affinity when highAvailability.requireAntiAffinity is set:
   1: |
     podAntiAffinity:
@@ -274,7 +214,7 @@ should set resources when set in values:
       name: config
     - name: data
       persistentVolumeClaim:
-        claimName: RELEASE-NAME
+        claimName: RELEASE-NAME-auth
 should set securityContext when set in values:
   1: |
     affinity:
@@ -341,7 +281,7 @@ should set securityContext when set in values:
       name: config
     - name: data
       persistentVolumeClaim:
-        claimName: RELEASE-NAME
+        claimName: RELEASE-NAME-auth
 should set tolerations when set in values:
   1: |
     - effect: NoExecute
@@ -411,4 +351,4 @@ should use OSS image and not mount license when enterprise is not set in values:
       name: config
     - name: data
       persistentVolumeClaim:
-        claimName: RELEASE-NAME
+        claimName: RELEASE-NAME-auth
