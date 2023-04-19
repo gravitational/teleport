@@ -101,6 +101,42 @@ jobs:
       release-version: ${{ inputs.release-version }}
       environment: ${{ inputs.build-environment }}
 
+  upload-artifacts-to-dronestaging:
+    name: Upload Artifacts to Drone staging bucket
+    if: inputs.release-artifacts
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+    needs: [ build-artifacts, version ]
+    steps:
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: artifacts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-skip-session-tagging: true
+          aws-region:  us-west-2
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-session-name: "gha-teleport-build-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to staging area
+        working-directory: ${{ steps.download.outputs.download-path }}
+        env:
+          TARGET_BUCKET: ${{ secrets.STAGING_AWS_S3_BUCKET }}
+          TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
+        run: |
+          aws s3 sync . s3://${TARGET_BUCKET}/teleport/tag/${TELEPORT_VERSION}
+
   register-assets-with-release-server:
     name: Register artifacts with releases API
     if: inputs.release-artifacts
