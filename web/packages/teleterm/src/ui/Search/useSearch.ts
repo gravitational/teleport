@@ -48,7 +48,7 @@ export function useResourceSearch() {
   return useCallback(
     async (
       search: string,
-      restrictions: SearchFilter[]
+      filters: SearchFilter[]
     ): Promise<{
       results: resourcesServiceTypes.SearchResult[];
       errors: resourcesServiceTypes.ResourceSearchError[];
@@ -67,10 +67,10 @@ export function useResourceSearch() {
         return { results: [], errors: [], search };
       }
 
-      const clusterSearchFilter = restrictions.find(
+      const clusterSearchFilter = filters.find(
         s => s.filter === 'cluster'
       ) as ClusterSearchFilter;
-      const resourceTypeSearchFilter = restrictions.find(
+      const resourceTypeSearchFilter = filters.find(
         s => s.filter === 'resource-type'
       ) as ResourceTypeSearchFilter;
 
@@ -129,7 +129,7 @@ export function useFilterSearch() {
   workspacesService.useState();
 
   return useCallback(
-    (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
+    (search: string, filters: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
         // Cluster filter should not be visible if there is only one cluster
@@ -179,10 +179,8 @@ export function useFilterSearch() {
         }));
       };
 
-      const shouldReturnClusters = !restrictions.some(
-        r => r.filter === 'cluster'
-      );
-      const shouldReturnResourceTypes = !restrictions.some(
+      const shouldReturnClusters = !filters.some(r => r.filter === 'cluster');
+      const shouldReturnResourceTypes = !filters.some(
         r => r.filter === 'resource-type'
       );
 
