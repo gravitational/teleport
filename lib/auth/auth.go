@@ -2073,6 +2073,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		UserType: req.user.GetUserType(),
 	}
 
 	var signedTLSCert []byte
@@ -4314,7 +4315,17 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}

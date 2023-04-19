@@ -3439,7 +3439,8 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.toObject = function(opt_includeI
 proto.prehog.v1alpha.DiscoverMetadata.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    userName: jspb.Message.getFieldWithDefault(msg, 2, "")
+    userName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    sso: jspb.Message.getBooleanFieldWithDefault(msg, 3, false)
   };
 
   if (includeInstance) {
@@ -3484,6 +3485,10 @@ proto.prehog.v1alpha.DiscoverMetadata.deserializeBinaryFromReader = function(msg
       var value = /** @type {string} */ (reader.readString());
       msg.setUserName(value);
       break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSso(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3527,6 +3532,13 @@ proto.prehog.v1alpha.DiscoverMetadata.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getSso();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -3563,6 +3575,24 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.getUserName = function() {
  */
 proto.prehog.v1alpha.DiscoverMetadata.prototype.setUserName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bool sso = 3;
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.getSso = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.prehog.v1alpha.DiscoverMetadata} returns this
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.setSso = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
 };
 
 

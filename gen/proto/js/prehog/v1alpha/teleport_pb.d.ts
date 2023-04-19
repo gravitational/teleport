@@ -391,6 +391,9 @@ export class DiscoverMetadata extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): DiscoverMetadata;
 
+    getSso(): boolean;
+    setSso(value: boolean): DiscoverMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
@@ -406,6 +409,7 @@ export namespace DiscoverMetadata {
     export type AsObject = {
         id: string,
         userName: string,
+        sso: boolean,
     }
 }
 
