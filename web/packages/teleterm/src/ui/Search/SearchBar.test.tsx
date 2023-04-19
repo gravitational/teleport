@@ -181,7 +181,7 @@ it('notifies about resource search errors and allows to display details', () => 
     .spyOn(SearchContext, 'useSearchContext')
     .mockImplementation(() => mockedSearchContext);
   jest.spyOn(appContext.modalsService, 'openRegularDialog');
-  jest.spyOn(mockedSearchContext, 'lockOpen');
+  jest.spyOn(mockedSearchContext, 'pauseUserInteraction');
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -204,7 +204,7 @@ it('notifies about resource search errors and allows to display details', () => 
       errors: [resourceSearchError],
     })
   );
-  expect(mockedSearchContext.lockOpen).toHaveBeenCalled();
+  expect(mockedSearchContext.pauseUserInteraction).toHaveBeenCalled();
 });
 
 it('maintains focus on the search input after closing a resource search error modal', async () => {
@@ -271,7 +271,6 @@ const getMockedSearchContext = () => ({
   removeFilter: () => {},
   isOpen: true,
   open: () => {},
-  lockOpen: async () => {},
   close: () => {},
   closeAndResetInput: () => {},
   resetInput: () => {},
@@ -279,4 +278,8 @@ const getMockedSearchContext = () => ({
   onInputValueChange: () => {},
   activePicker: pickers.actionPicker,
   inputRef: undefined,
+  pauseUserInteraction: async cb => {
+    cb();
+  },
+  addWindowEventListener: () => () => {},
 });

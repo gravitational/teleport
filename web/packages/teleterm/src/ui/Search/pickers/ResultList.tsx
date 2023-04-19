@@ -27,6 +27,8 @@ import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
+import { useSearchContext } from '../SearchContext';
+
 type ResultListProps<T> = {
   /**
    * List of attempts containing results to render.
@@ -47,6 +49,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
   const { attempts, ExtraTopComponent, onPick, onBack } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const { addWindowEventListener } = useSearchContext();
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -98,9 +101,8 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    return addWindowEventListener('keydown', handleKeyDown, { capture: true });
+  }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
 
   return (
     <>
