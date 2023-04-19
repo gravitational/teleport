@@ -14,6 +14,8 @@
 
 package main
 
+import "time"
+
 func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
 	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
@@ -23,6 +25,7 @@ func promoteBuildPipelines() []pipeline {
 		trigger:      triggerPromote,
 		pipelineName: "promote-teleport-oci-distroless-images",
 		ghaWorkflow:  "promote-teleport-oci-distroless.yml",
+		timeout:      60 * time.Minute,
 		workflowRef:  "${DRONE_TAG}",
 		inputs: map[string]string{
 			"release-source-tag": "${DRONE_TAG}",
