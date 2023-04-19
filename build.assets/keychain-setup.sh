@@ -69,7 +69,8 @@ create_keychain() {
 	# Add the new keychain to the search path, otherwise codesign does not find the keys
 	local kpath
 	kpath="$(security list-keychains -d user | sed 's/.*"\([^"]*\)"/\1/')"
-	# shellcheck disable=SC2086 # Double quote to prevent globbing and word splitting.
+	# shellcheck disable=SC2086
+	# (Double quote to prevent globbing and word splitting)
 	# We want word splitting on ${kpath}
 	run security list-keychains -d user -s "${keychain}" ${kpath}
 }
@@ -201,7 +202,8 @@ get_key() {
 }
 
 error() {
-	# shellcheck disable=SC2059 # (Don't use variables in the printf format string)
+	# shellcheck disable=SC2059
+	# (Don't use variables in the printf format string)
 	# we take a format string arg - the format string IS a variable
 	printf "$@" >&2
 	printf '\n' >&2
@@ -209,7 +211,8 @@ error() {
 }
 
 error_usage() {
-	# shellcheck disable=SC2059 # (Don't use variables in the printf format string)
+	# shellcheck disable=SC2059
+	# (Don't use variables in the printf format string)
 	# we take a format string arg - the format string IS a variable
 	printf "$@" >&2
 	printf '\n' >&2
