@@ -88,6 +88,10 @@ var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
 
+// ErrSessionMFANotRequired indicates that per session mfa will not grant
+// access to a resource.
+var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -2703,9 +2707,17 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 // a role disallows host user creation
 func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	sudoers := make(map[string]struct{})
+	var sudoers []string
 	serverLabels := s.GetAllLabels()
-	for _, role := range set {
+
+	roleSet := make([]types.Role, len(set))
+	copy(roleSet, set)
+	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
+		return strings.Compare(a.GetName(), b.GetName()) == -1
+	})
+
+	seenSudoers := make(map[string]struct{})
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2724,10 +2736,16 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			groups[group] = struct{}{}
 		}
 		for _, sudoer := range role.GetHostSudoers(types.Allow) {
-			sudoers[sudoer] = struct{}{}
+			if _, ok := seenSudoers[sudoer]; ok {
+				continue
+			}
+			seenSudoers[sudoer] = struct{}{}
+			sudoers = append(sudoers, sudoer)
 		}
 	}
-	for _, role := range set {
+
+	var finalSudoers []string
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2738,18 +2756,25 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Deny) {
 			delete(groups, group)
 		}
-		for _, sudoer := range role.GetHostSudoers(types.Deny) {
-			if sudoer == "*" {
-				sudoers = nil
-				break
+
+	outer:
+		for _, sudoer := range sudoers {
+			for _, deniedSudoer := range role.GetHostSudoers(types.Deny) {
+				if deniedSudoer == "*" {
+					finalSudoers = nil
+					break outer
+				}
+				if sudoer != deniedSudoer {
+					finalSudoers = append(finalSudoers, sudoer)
+				}
 			}
-			delete(sudoers, sudoer)
 		}
+		sudoers = finalSudoers
 	}
 
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: utils.StringsSliceFromSet(sudoers),
+		Sudoers: sudoers,
 	}, nil
 }
 
@@ -3192,23 +3217,5 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
-	}
-}
-
-// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
-// older instances. Makes a shallow copy if the conversion is necessary. The
-// passed in role will not be mutated.
-// DELETE IN 13.0.0
-func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
-	switch r.Version {
-	case types.V3, types.V4, types.V5:
-		return r, nil
-	case types.V6:
-		var downgraded types.RoleV6
-		downgraded = *r
-		downgraded.Version = types.V5
-		return &downgraded, nil
-	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

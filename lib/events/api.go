@@ -489,6 +489,10 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
+	// DatabaseSessionOpenSearchRequestEvent is emitted when OpenSearch client sends
+	// a request.
+	DatabaseSessionOpenSearchRequestEvent = "db.session.opensearch.request"
+
 	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via database-access.
 	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"

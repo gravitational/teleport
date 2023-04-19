@@ -210,7 +210,6 @@ func writeChildError(w io.Writer, err error) {
 		Code:     trace.ErrorToCode(err),
 		RawError: data,
 	})
-
 }
 
 // DecodeChildError consumes the output from a child
@@ -726,11 +725,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
+		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 
 	return nil
@@ -739,7 +738,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 // CheckSFTPAllowed returns an error if remote file operations via SCP
 // or SFTP are not allowed by the user's role or the node's config, or
 // if the user is not allowed to start unattended sessions.
-func (c *ServerContext) CheckSFTPAllowed() error {
+func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	if err := c.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -751,8 +750,21 @@ func (c *ServerContext) CheckSFTPAllowed() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !canStart {
-		return errCannotStartUnattendedSession
+	// canStart will be true for non-moderated sessions. If canStart is false, check to
+	// see if the request has been approved through a moderated session next.
+	if canStart {
+		return nil
+	}
+	if registry == nil {
+		return trace.Wrap(errCannotStartUnattendedSession)
+	}
+
+	approved, err := registry.isApprovedFileTransfer(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !approved {
+		return trace.Wrap(errCannotStartUnattendedSession)
 	}
 
 	return nil

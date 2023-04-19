@@ -51,7 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -353,7 +353,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	// if a sessID and requestID environment variables were not set, return not approved and no error.
 	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
 	// moderated session approval process has completed.
-	sessID, _ := scx.GetEnv(string(scp.ModeratedSessionID))
+	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
 	if sessID == "" {
 		return false, nil
 	}
@@ -364,7 +364,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.NotFound("Session not found")
 	}
 
-	requestID, _ := scx.GetEnv(string(scp.FileTransferRequestID))
+	requestID, _ := scx.GetEnv(string(sftp.FileTransferRequestID))
 	if requestID == "" {
 		return false, nil
 	}
@@ -379,7 +379,10 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
 
-	incomingShellCmd := string(scx.sshRequest.Payload)
+	var incomingShellCmd string
+	if scx.sshRequest != nil {
+		incomingShellCmd = string(scx.sshRequest.Payload)
+	}
 	if incomingShellCmd != req.shellCmd {
 		return false, trace.AccessDenied("Incoming request does not match the approved request")
 	}

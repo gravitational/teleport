@@ -90,5 +90,8 @@ export interface FeatureFlags {
   downloadCenter: boolean;
   discover: boolean;
   plugins: boolean;
+  integrations: boolean;
+  enrollIntegrationsOrPlugins: boolean;
+  enrollIntegrations: boolean;
   deviceTrust: boolean;
 }

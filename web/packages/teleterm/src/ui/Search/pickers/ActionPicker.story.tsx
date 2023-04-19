@@ -17,18 +17,26 @@
 import React from 'react';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { routing } from 'teleterm/ui/uri';
+import { Flex } from 'design';
 
-import { SearchResult } from '../searchResult';
+import { routing } from 'teleterm/ui/uri';
 import {
   makeDatabase,
   makeKube,
-  makeResourceResult,
   makeServer,
   makeLabelsList,
-} from '../searchResultTestHelpers';
+} from 'teleterm/services/tshd/testHelpers';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
-import { ComponentMap } from './ActionPicker';
+import { SearchResult } from '../searchResult';
+import { makeResourceResult } from '../testHelpers';
+
+import {
+  ComponentMap,
+  NoResultsItem,
+  ResourceSearchErrorsItem,
+  TypeToSearchItem,
+} from './ActionPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -38,41 +46,55 @@ export default {
 };
 
 const clusterUri: uri.ClusterUri = '/clusters/teleport-local';
+const longClusterUri: uri.ClusterUri =
+  '/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c';
 
-export const Items = () => {
+export const Items = (props: { maxWidth: string }) => {
+  const { maxWidth = '600px' } = props;
+
   return (
-    <div
-      css={`
-        position: relative;
-        max-width: 600px;
+    <Flex gap={4}>
+      <div
+        css={`
+          max-width: ${maxWidth};
+          min-width: 0;
+          flex: 1;
 
-        > * {
-          max-height: unset;
-        }
-      `}
-    >
-      <List />
-    </div>
+          display: flex;
+          flex-direction: column;
+
+          > * {
+            max-height: unset;
+          }
+        `}
+      >
+        <SearchResultItems />
+      </div>
+      <div
+        css={`
+          max-width: ${maxWidth};
+          min-width: 0;
+          flex: 1;
+
+          display: flex;
+          flex-direction: column;
+
+          > * {
+            max-height: unset;
+          }
+        `}
+      >
+        <AuxiliaryItems />
+      </div>
+    </Flex>
   );
 };
+
 export const ItemsNarrow = () => {
-  return (
-    <div
-      css={`
-        position: relative;
-        max-width: 300px;
-
-        > * {
-          max-height: unset;
-        }
-      `}
-    >
-      <List />
-    </div>
-  );
+  return <Items maxWidth="300px" />;
 };
 
-const List = () => {
+const SearchResultItems = () => {
   const searchResults: SearchResult[] = [
     makeResourceResult({
       kind: 'server',
@@ -114,6 +136,20 @@ const List = () => {
         tunnel: true,
         uri: `${clusterUri}/servers/bbaaceba-6bd1-4750-9d3d-1a80e0cc8a63`,
         name: 'bbaaceba-6bd1-4750-9d3d-1a80e0cc8a63',
+        labelsList: makeLabelsList({
+          internal: '10.0.0.175',
+          service: 'ansible',
+          external: '32.192.113.93',
+          arch: 'aarch64',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        hostname:
+          'super-long-server-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `${longClusterUri}/servers/super-long-desc`,
         labelsList: makeLabelsList({
           internal: '10.0.0.175',
           service: 'ansible',
@@ -195,6 +231,23 @@ const List = () => {
       }),
     }),
     makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase({
+        name: 'super-long-server-db-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `${longClusterUri}/dbs/super-long-desc`,
+        labelsList: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Accounting': 'dev-ops',
+          'aws/Name': 'db-bastion-4-13biz',
+          engine: '🐘',
+          'aws/Owner': 'foobar',
+          'aws/Service': 'teleport-db',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'kube',
       resource: makeKube({
         name: 'short-label-list',
@@ -219,6 +272,18 @@ const List = () => {
         }),
       }),
     }),
+    makeResourceResult({
+      kind: 'kube',
+      resource: makeKube({
+        name: 'super-long-kube-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c/kubes/super-long-desc`,
+        labelsList: makeLabelsList({
+          'im-just-a-smol': 'kube',
+          kube: 'kubersson',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
     {
       kind: 'resource-type-filter',
       resource: 'kubes',
@@ -230,6 +295,19 @@ const List = () => {
       resource: {
         name: 'teleport-local',
         uri: clusterUri,
+        authClusterId: '',
+        connected: true,
+        leaf: false,
+        proxyHost: 'teleport-local.dev:3090',
+      },
+      nameMatch: '',
+      score: 0,
+    },
+    {
+      kind: 'cluster-filter',
+      resource: {
+        name: 'teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: longClusterUri,
         authClusterId: '',
         connected: true,
         leaf: false,
@@ -257,7 +335,7 @@ const List = () => {
           Component: (
             <Component
               searchResult={searchResult}
-              getClusterName={routing.parseClusterName}
+              getOptionalClusterName={routing.parseClusterName}
             />
           ),
         };
@@ -265,3 +343,62 @@ const List = () => {
     />
   );
 };
+
+const AuxiliaryItems = () => (
+  <ResultList<string>
+    onPick={() => {}}
+    onBack={() => {}}
+    render={() => null}
+    attempts={[]}
+    ExtraTopComponent={
+      <>
+        <NoResultsItem
+          clusters={[
+            {
+              uri: clusterUri,
+              name: 'teleport-12-ent.asteroid.earth',
+              connected: false,
+              leaf: false,
+              proxyHost: 'test:3030',
+              authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+            },
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/bar',
+              'database',
+              new Error(
+                '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+              )
+            ),
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
+          ]}
+        />
+        <TypeToSearchItem />
+      </>
+    }
+  />
+);

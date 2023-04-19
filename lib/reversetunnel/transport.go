@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -62,11 +64,16 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// ClusterCAs contains cluster CAs.
+	ClusterCAs *x509.CertPool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	if c.Resolver == nil {
 		return trace.BadParameter("missing tunnel address resolver")
+	}
+	if c.ClusterCAs == nil {
+		return trace.BadParameter("missing cluster CAs")
 	}
 	return nil
 }
@@ -91,8 +98,14 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
+			TLSConfig: &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: t.InsecureSkipTLSVerify,
+			},
+			DialTimeout:             t.ClientConfig.Timeout,
+			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
 		}))
 	}
 
@@ -426,11 +439,13 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
+		// Connections to applications (including Okta applications) and databases should never occur over
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.OktaTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
 		case types.DatabaseTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}

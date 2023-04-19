@@ -245,6 +245,69 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 	require.ErrorContains(t, err, "token is expired")
 }
 
+func TestKey_SignAndVerifyAWSOIDC(t *testing.T) {
+	_, privateBytes, err := GenerateKeyPair()
+	require.NoError(t, err)
+	privateKey, err := utils.ParsePrivateKey(privateBytes)
+	require.NoError(t, err)
+
+	clock := clockwork.NewFakeClockAt(time.Now())
+	const clusterName = "teleport-test"
+
+	// Create a new key that can sign and verify tokens.
+	key, err := New(&Config{
+		PrivateKey:  privateKey,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: clusterName,
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+
+	// Sign a token with the new key.
+	expiresIn := time.Minute * 5
+	token, err := key.SignAWSOIDC(SignParams{
+		Username: "user",
+		Issuer:   "https://localhost/",
+		URI:      "https://localhost/",
+		Subject:  "system:proxy",
+		Audience: "discover.teleport",
+		Expires:  clock.Now().Add(expiresIn),
+	})
+	require.NoError(t, err)
+
+	// Successfully verify
+	_, err = key.VerifyAWSOIDC(AWSOIDCVerifyParams{
+		RawToken: token,
+		Issuer:   "https://localhost/",
+	})
+	require.NoError(t, err, token)
+
+	// Check that if params don't match verification fails
+	_, err = key.VerifyAWSOIDC(AWSOIDCVerifyParams{
+		RawToken: token,
+		Issuer:   "https://localhost/" + "1",
+	})
+	require.ErrorContains(t, err, "invalid issuer")
+
+	// Rewind clock backward and verify that token is not valid yet
+	clock.Advance(time.Minute * -2)
+	_, err = key.VerifyAWSOIDC(AWSOIDCVerifyParams{
+		RawToken: token,
+		Issuer:   "https://localhost/",
+	})
+	require.ErrorContains(t, err, "token not valid yet")
+	// Revert time to before this sub-test.
+	clock.Advance(time.Minute * 2)
+
+	// Advance clock and verify that token is expired now
+	clock.Advance(expiresIn + time.Minute)
+	_, err = key.VerifyAWSOIDC(AWSOIDCVerifyParams{
+		RawToken: token,
+		Issuer:   "https://localhost/",
+	})
+	require.ErrorContains(t, err, "token is expired")
+}
+
 // TestExpiry checks that token expiration works.
 func TestExpiry(t *testing.T) {
 	_, privateBytes, err := GenerateKeyPair()

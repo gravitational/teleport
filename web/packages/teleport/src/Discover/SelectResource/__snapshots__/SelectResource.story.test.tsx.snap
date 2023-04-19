@@ -5,7 +5,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .c20 {
@@ -24,17 +24,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
   height: 90px;
   width: 600px;
-}
-
-.c7 {
-  box-sizing: border-box;
-  margin-left: 4px;
-  margin-right: 4px;
-  height: 18px;
-  width: 18px;
-  background-color: #2d3762;
-  text-align: center;
-  border-radius: 4px;
 }
 
 .c16 {
@@ -69,7 +58,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: #a8afb2;
+  color: rgba(255,255,255,0.56);
 }
 
 .c18 {
@@ -84,7 +73,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  color: white;
+  color: #FFFFFF;
 }
 
 .c23 {
@@ -96,7 +85,7 @@ exports[`render with URL loc state set to "server" 1`] = `
 }
 
 .c21 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -104,7 +93,7 @@ exports[`render with URL loc state set to "server" 1`] = `
 }
 
 .c24 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -153,11 +142,11 @@ exports[`render with URL loc state set to "server" 1`] = `
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.07);
   transition: all 0.3s;
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: #FFFFFF;
   cursor: pointer;
   height: 48px;
   opacity: 1;
@@ -168,12 +157,13 @@ exports[`render with URL loc state set to "server" 1`] = `
 }
 
 .c11:hover {
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.13);
 }
 
 .c12 {
   position: absolute;
-  background: rgb(81,48,201);
+  background: #9F85FF;
+  color: #000000;
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -185,13 +175,13 @@ exports[`render with URL loc state set to "server" 1`] = `
 .c4 {
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
 .c4:hover,
 .c4:focus,
 .c4:active {
-  background: #1C254D;
+  background: rgba(255,255,255,0.07);
 }
 
 .c5 {
@@ -201,17 +191,11 @@ exports[`render with URL loc state set to "server" 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
   padding: 16px;
-  opacity: 0.8;
-}
-
-.c5:placeholder {
-  color: white;
-  opacity: 0.6;
 }
 
 .c6 {
@@ -227,6 +211,17 @@ exports[`render with URL loc state set to "server" 1`] = `
 .c6:hover {
   cursor: pointer;
   opacity: 1;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-right: 4px;
+  height: 18px;
+  width: 18px;
+  text-align: center;
+  border-radius: 4px;
+  background: #FF6257;
 }
 
 <div
@@ -269,8 +264,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <span
           class="c8 icon icon-close "
-          color="light"
-          font-size="15px"
+          font-size="18px"
         />
       </div>
       <div
@@ -311,7 +305,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -352,7 +346,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -393,7 +387,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -434,7 +428,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -465,7 +459,6 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <span
             class="c20 icon icon-apple "
-            color="light"
             font-size="22"
           />
         </div>
@@ -474,7 +467,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -513,14 +506,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c22"
-            color="white"
+            color="text.primary"
           >
             Redshift Serverless
           </div>
@@ -553,14 +546,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c22"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -593,14 +586,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c22"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -671,7 +664,7 @@ exports[`render with all access 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  color: white;
+  color: #FFFFFF;
 }
 
 .c15 {
@@ -686,7 +679,7 @@ exports[`render with all access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: #a8afb2;
+  color: rgba(255,255,255,0.56);
 }
 
 .c19 {
@@ -698,7 +691,7 @@ exports[`render with all access 1`] = `
 }
 
 .c7 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -706,7 +699,7 @@ exports[`render with all access 1`] = `
 }
 
 .c20 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -755,11 +748,11 @@ exports[`render with all access 1`] = `
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.07);
   transition: all 0.3s;
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: #FFFFFF;
   cursor: pointer;
   height: 48px;
   opacity: 1;
@@ -770,12 +763,13 @@ exports[`render with all access 1`] = `
 }
 
 .c8:hover {
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.13);
 }
 
 .c14 {
   position: absolute;
-  background: rgb(81,48,201);
+  background: #9F85FF;
+  color: #000000;
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -787,13 +781,13 @@ exports[`render with all access 1`] = `
 .c4 {
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
 .c4:hover,
 .c4:focus,
 .c4:active {
-  background: #1C254D;
+  background: rgba(255,255,255,0.07);
 }
 
 .c5 {
@@ -803,17 +797,11 @@ exports[`render with all access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
   padding: 16px;
-  opacity: 0.8;
-}
-
-.c5:placeholder {
-  color: white;
-  opacity: 0.6;
 }
 
 <div
@@ -877,7 +865,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Application
           </div>
@@ -947,7 +935,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Windows Desktop
@@ -988,7 +976,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -1029,7 +1017,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -1070,7 +1058,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -1111,7 +1099,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -1142,7 +1130,6 @@ exports[`render with all access 1`] = `
         >
           <span
             class="c18 icon icon-apple "
-            color="light"
             font-size="22"
           />
         </div>
@@ -1151,7 +1138,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -1192,7 +1179,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -1233,7 +1220,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -1274,7 +1261,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -1315,7 +1302,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -1354,14 +1341,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             DynamoDB
           </div>
@@ -1394,14 +1381,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             ElastiCache & MemoryDB
           </div>
@@ -1434,14 +1421,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -1474,14 +1461,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redshift PostgreSQL
           </div>
@@ -1514,14 +1501,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redshift Serverless
           </div>
@@ -1554,14 +1541,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cache for Redis
           </div>
@@ -1594,14 +1581,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             PostgreSQL
           </div>
@@ -1634,14 +1621,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MySQL
           </div>
@@ -1674,14 +1661,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -1714,14 +1701,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -1754,14 +1741,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL MySQL
           </div>
@@ -1794,14 +1781,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -1835,7 +1822,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MongoDB Atlas
           </div>
@@ -1868,14 +1855,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cassandra & ScyllaDB
           </div>
@@ -1908,14 +1895,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             CockroachDB
           </div>
@@ -1948,14 +1935,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Elasticsearch
           </div>
@@ -1988,14 +1975,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MongoDB
           </div>
@@ -2028,14 +2015,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redis
           </div>
@@ -2068,14 +2055,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redis Cluster
           </div>
@@ -2109,7 +2096,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Snowflake (Preview)
           </div>
@@ -2142,14 +2129,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             RDS Proxy
           </div>
@@ -2182,14 +2169,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             High Availability
           </div>
@@ -2222,14 +2209,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Dynamic Registration
           </div>
@@ -2300,7 +2287,7 @@ exports[`render with no access 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  color: white;
+  color: #FFFFFF;
 }
 
 .c15 {
@@ -2315,7 +2302,7 @@ exports[`render with no access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: #a8afb2;
+  color: rgba(255,255,255,0.56);
 }
 
 .c19 {
@@ -2327,7 +2314,7 @@ exports[`render with no access 1`] = `
 }
 
 .c7 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -2335,7 +2322,7 @@ exports[`render with no access 1`] = `
 }
 
 .c20 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -2373,6 +2360,18 @@ exports[`render with no access 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  box-sizing: border-box;
+  background-color: red;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
 .c6 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
@@ -2384,11 +2383,11 @@ exports[`render with no access 1`] = `
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.07);
   transition: all 0.3s;
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: #FFFFFF;
   cursor: pointer;
   height: 48px;
   opacity: 0.45;
@@ -2399,19 +2398,19 @@ exports[`render with no access 1`] = `
 }
 
 .c8:hover {
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.13);
 }
 
 .c4 {
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
 .c4:hover,
 .c4:focus,
 .c4:active {
-  background: #1C254D;
+  background: rgba(255,255,255,0.07);
 }
 
 .c5 {
@@ -2421,28 +2420,11 @@ exports[`render with no access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
   padding: 16px;
-  opacity: 0.8;
-}
-
-.c5:placeholder {
-  color: white;
-  opacity: 0.6;
-}
-
-.c9 {
-  position: absolute;
-  background: red;
-  padding: 0px 6px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
 }
 
 <div
@@ -2487,6 +2469,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2510,7 +2493,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Application
           </div>
@@ -2523,6 +2506,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2558,6 +2542,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2580,7 +2565,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Windows Desktop
@@ -2599,6 +2584,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2621,7 +2607,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -2640,6 +2626,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2662,7 +2649,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -2681,6 +2668,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2703,7 +2691,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -2722,6 +2710,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2744,7 +2733,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -2763,6 +2752,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2775,7 +2765,6 @@ exports[`render with no access 1`] = `
         >
           <span
             class="c18 icon icon-apple "
-            color="light"
             font-size="22"
           />
         </div>
@@ -2784,7 +2773,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -2803,6 +2792,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2825,7 +2815,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -2844,6 +2834,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2866,7 +2857,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -2885,6 +2876,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2907,7 +2899,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -2926,6 +2918,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2948,7 +2941,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -2969,6 +2962,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2991,14 +2985,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             DynamoDB
           </div>
@@ -3013,6 +3007,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3035,14 +3030,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             ElastiCache & MemoryDB
           </div>
@@ -3057,6 +3052,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3079,14 +3075,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -3101,6 +3097,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3123,14 +3120,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Redshift PostgreSQL
           </div>
@@ -3145,6 +3142,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3167,14 +3165,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Redshift Serverless
           </div>
@@ -3189,6 +3187,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3211,14 +3210,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Cache for Redis
           </div>
@@ -3233,6 +3232,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3255,14 +3255,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             PostgreSQL
           </div>
@@ -3277,6 +3277,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3299,14 +3300,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             MySQL
           </div>
@@ -3321,6 +3322,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3343,14 +3345,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -3365,6 +3367,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3387,14 +3390,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -3409,6 +3412,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3431,14 +3435,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL MySQL
           </div>
@@ -3453,6 +3457,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3475,14 +3480,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -3497,6 +3502,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3520,7 +3526,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             MongoDB Atlas
           </div>
@@ -3535,6 +3541,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3557,14 +3564,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Cassandra & ScyllaDB
           </div>
@@ -3579,6 +3586,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3601,14 +3609,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             CockroachDB
           </div>
@@ -3623,6 +3631,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3645,14 +3654,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Elasticsearch
           </div>
@@ -3667,6 +3676,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3689,14 +3699,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             MongoDB
           </div>
@@ -3711,6 +3721,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3733,14 +3744,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Redis
           </div>
@@ -3755,6 +3766,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3777,14 +3789,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Redis Cluster
           </div>
@@ -3799,6 +3811,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3822,7 +3835,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Snowflake (Preview)
           </div>
@@ -3837,6 +3850,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3859,14 +3873,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             RDS Proxy
           </div>
@@ -3881,6 +3895,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3903,14 +3918,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             High Availability
           </div>
@@ -3925,6 +3940,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3947,14 +3963,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c14"
-            color="white"
+            color="text.primary"
           >
             Dynamic Registration
           </div>
@@ -4025,7 +4041,7 @@ exports[`render with partial access 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
-  color: white;
+  color: #FFFFFF;
 }
 
 .c15 {
@@ -4040,7 +4056,7 @@ exports[`render with partial access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: #a8afb2;
+  color: rgba(255,255,255,0.56);
 }
 
 .c21 {
@@ -4052,7 +4068,7 @@ exports[`render with partial access 1`] = `
 }
 
 .c7 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -4060,7 +4076,7 @@ exports[`render with partial access 1`] = `
 }
 
 .c22 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -4098,6 +4114,18 @@ exports[`render with partial access 1`] = `
   justify-content: center;
 }
 
+.c20 {
+  box-sizing: border-box;
+  background-color: red;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
 .c6 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
@@ -4109,11 +4137,11 @@ exports[`render with partial access 1`] = `
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.07);
   transition: all 0.3s;
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: #FFFFFF;
   cursor: pointer;
   height: 48px;
   opacity: 1;
@@ -4124,18 +4152,18 @@ exports[`render with partial access 1`] = `
 }
 
 .c8:hover {
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.13);
 }
 
 .c19 {
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.07);
   transition: all 0.3s;
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: #FFFFFF;
   cursor: pointer;
   height: 48px;
   opacity: 0.45;
@@ -4146,12 +4174,13 @@ exports[`render with partial access 1`] = `
 }
 
 .c19:hover {
-  background: rgba(255,255,255,0.09);
+  background: rgba(255,255,255,0.13);
 }
 
 .c14 {
   position: absolute;
-  background: rgb(81,48,201);
+  background: #9F85FF;
+  color: #000000;
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -4163,13 +4192,13 @@ exports[`render with partial access 1`] = `
 .c4 {
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
 .c4:hover,
 .c4:focus,
 .c4:active {
-  background: #1C254D;
+  background: rgba(255,255,255,0.07);
 }
 
 .c5 {
@@ -4179,28 +4208,11 @@ exports[`render with partial access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
   padding: 16px;
-  opacity: 0.8;
-}
-
-.c5:placeholder {
-  color: white;
-  opacity: 0.6;
-}
-
-.c20 {
-  position: absolute;
-  background: red;
-  padding: 0px 6px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
 }
 
 <div
@@ -4264,7 +4276,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Application
           </div>
@@ -4334,7 +4346,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Windows Desktop
@@ -4375,7 +4387,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -4416,7 +4428,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -4457,7 +4469,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -4498,7 +4510,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -4529,7 +4541,6 @@ exports[`render with partial access 1`] = `
         >
           <span
             class="c18 icon icon-apple "
-            color="light"
             font-size="22"
           />
         </div>
@@ -4538,7 +4549,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Server
@@ -4557,6 +4568,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4579,7 +4591,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4598,6 +4610,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4620,7 +4633,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4639,6 +4652,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4661,7 +4675,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -4680,6 +4694,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4702,7 +4717,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
@@ -4723,6 +4738,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4745,14 +4761,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             DynamoDB
           </div>
@@ -4767,6 +4783,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4789,14 +4806,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             ElastiCache & MemoryDB
           </div>
@@ -4811,6 +4828,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4833,14 +4851,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -4855,6 +4873,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4877,14 +4896,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redshift PostgreSQL
           </div>
@@ -4899,6 +4918,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4921,14 +4941,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redshift Serverless
           </div>
@@ -4943,6 +4963,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4965,14 +4986,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cache for Redis
           </div>
@@ -4987,6 +5008,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5009,14 +5031,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             PostgreSQL
           </div>
@@ -5031,6 +5053,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5053,14 +5076,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MySQL
           </div>
@@ -5075,6 +5098,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5097,14 +5121,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -5119,6 +5143,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5141,14 +5166,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             SQL Server (Preview)
           </div>
@@ -5163,6 +5188,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5185,14 +5211,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL MySQL
           </div>
@@ -5207,6 +5233,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5229,14 +5256,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -5251,6 +5278,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5274,7 +5302,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MongoDB Atlas
           </div>
@@ -5289,6 +5317,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5311,14 +5340,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Cassandra & ScyllaDB
           </div>
@@ -5333,6 +5362,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5355,14 +5385,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             CockroachDB
           </div>
@@ -5377,6 +5407,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5399,14 +5430,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Elasticsearch
           </div>
@@ -5421,6 +5452,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5443,14 +5475,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             MongoDB
           </div>
@@ -5465,6 +5497,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5487,14 +5520,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redis
           </div>
@@ -5509,6 +5542,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5531,14 +5565,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Redis Cluster
           </div>
@@ -5553,6 +5587,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5576,7 +5611,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Snowflake (Preview)
           </div>
@@ -5591,6 +5626,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5613,14 +5649,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             RDS Proxy
           </div>
@@ -5635,6 +5671,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5657,14 +5694,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             High Availability
           </div>
@@ -5679,6 +5716,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5701,14 +5739,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="#a8afb2"
+            color="text.secondary"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="white"
+            color="text.primary"
           >
             Dynamic Registration
           </div>

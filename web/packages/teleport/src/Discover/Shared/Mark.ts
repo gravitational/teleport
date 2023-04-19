@@ -22,6 +22,6 @@ export const Mark = styled.mark`
   font-family: ${props => props.theme.fonts.mono};
   font-size: 12px;
   background-color: ${props =>
-    props.light ? '#d3d3d3' : 'rgb(255 255 255 / 17%)'};
+    props.light ? '#d3d3d3' : props.theme.colors.spotBackground[2]};
   color: inherit;
 `;

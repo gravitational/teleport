@@ -84,9 +84,11 @@ func main() {
 
 	if agentName == "" {
 		ctrl.Log.Error(trace.BadParameter("--agent-name empty"), "agent-name must be provided")
+		os.Exit(1)
 	}
 	if agentNamespace == "" {
 		ctrl.Log.Error(trace.BadParameter("--agent-namespace empty"), "agent-namespace must be provided")
+		os.Exit(1)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
