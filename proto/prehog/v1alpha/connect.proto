@@ -18,8 +18,6 @@ package prehog.v1alpha;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha";
-
 message ConnectClusterLoginEvent {
   // anonymized
   string cluster_name = 1;

@@ -58,7 +58,7 @@ You need to specify at least one of:
 - `cert_path`, `key_path`,`root_ca_path` and `addr` to connect using key files.
 - `cert_base64`, `key_base64`,`root_ca_base64` and `addr` to connect using a base64-encoded key.
 - `identity_file_path` or `identity_file_base64` and `addr` to connect using an identity file.
-- `profile_name` and `profile_dir` (both can be empty) and Teleport will try to connect using current profile from `~/.tsh`
+- `profile_name`, `profile_dir` (both can be empty) and `addr` to connect using current profile from `~/.tsh`
 
 The `retry_*` values are used to retry the API calls to Teleport when the cache is stale.
 
@@ -1720,6 +1720,67 @@ resource "teleport_user" "example" {
       connector_id = "example-saml"
       username     = "example"
     }]
+  }
+}
+```
+
+## teleport_login_rule
+
+|       Name        |  Type  | Required |                                                                            Description                                                                            |
+|-------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata          | object |          | Metadata is resource metadata.                                                                                                                                    |
+| version           | string |          | Version is the resource version.                                                                                                                                  |
+| priority          | number |          | Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first. |
+| traits_expression | string |          | TraitsExpression is a predicate expression which should return the desired traits for the user upon login.                                                        |
+| traits_map        | object |          | TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.                                    |
+
+
+### teleport_login_rule.metadata
+
+Metadata is resource metadata.
+
+|    Name     |      Type      | Required |                                                  Description                                                   |
+|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                              |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
+| labels      | map of strings |          | Labels is a set of labels                                                                                      |
+| name        | string         |          | Name is an object name                                                                                         |
+
+
+### teleport_login_rule.traits_map
+
+TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.
+
+|  Name  |       Type       | Required | Description |
+|--------|------------------|----------|-------------|
+| values | array of strings |          |             |
+
+
+Example:
+
+```
+# Teleport Login Rule resource
+resource "teleport_login_rule" "example" {
+  metadata = {
+    description = "Example Login Rule"
+    labels = {
+      "example" = "yes"
+    }
+  }
+  version  = "v1"
+  priority = 0
+  traits_map = {
+    "logins" = {
+      values = [
+        "external.logins",
+        "external.username",
+      ]
+    }
+    "groups" = {
+      values = [
+        "external.groups",
+      ]
+    }
   }
 }
 ```

@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS DynamoDB
-description: How to access AWS DynamoDB with Teleport Database Access
+description: How to access AWS DynamoDB with Teleport database access
 ---
 
 Access to AWS DynamoDB can be provided by [Teleport Database
@@ -44,10 +44,10 @@ organization's access conventions. You should adjust the AWS IAM permissions to 
 ## Step 1/4. Create IAM roles for DynamoDB access
 
 The setup described in this guide requires two IAM roles:
-- One associated with the EC2 instance running the Teleport Database Access
-  service, which lets it assume additional roles granted to the user.
-- One that can be assumed by the EC2 instance role and grants access to
-  DynamoDB services to users.
+- One associated with the EC2 instance running the Teleport Database Service,
+  which lets it assume additional roles granted to the user.
+- One that can be assumed by the EC2 instance role and grants access to DynamoDB
+  services to users.
 
 ### EC2 instance role
 
