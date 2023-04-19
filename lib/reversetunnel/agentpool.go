@@ -278,7 +278,7 @@ func (p *AgentPool) updateRemoteRuntimeConfig(ctx context.Context) (types.Cluste
 	var tlsRoutingEnabled bool
 	// If we are unable to get the network config from an agent hit the ping endpoint
 	// to determine if tls routing is enabled or not.
-	ping, err := webclient.Ping(&webclient.Config{
+	ping, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: addr.Addr,
 		Insecure:  lib.IsInsecureDevMode(),
@@ -716,6 +716,8 @@ func (c *runtimeConfig) useReverseTunnelV2Unsafe() bool {
 }
 
 func (c *runtimeConfig) keepaliveInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.netconfig.GetKeepAliveInterval()
 }
 
