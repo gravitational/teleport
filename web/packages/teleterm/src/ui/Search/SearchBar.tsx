@@ -58,6 +58,7 @@ function SearchBar() {
     isOpen,
     open,
     close,
+    addWindowEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
@@ -75,10 +76,9 @@ function SearchBar() {
       }
     };
     if (isOpen) {
-      window.addEventListener('click', onClickOutside);
-      return () => window.removeEventListener('click', onClickOutside);
+      return addWindowEventListener('click', onClickOutside, { capture: true });
     }
-  }, [close, isOpen]);
+  }, [close, isOpen, addWindowEventListener]);
 
   function handleOnFocus(e: React.FocusEvent) {
     open(e.relatedTarget);

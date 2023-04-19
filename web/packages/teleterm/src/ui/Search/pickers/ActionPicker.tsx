@@ -62,7 +62,7 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   const {
     changeActivePicker,
-    lockOpen,
+    pauseUserInteraction,
     close,
     inputValue,
     resetInput,
@@ -170,15 +170,16 @@ export function ActionPicker(props: { input: ReactElement }) {
     resourceSearchAttempt.data.errors.length > 0
   ) {
     const showErrorsInModal = () => {
-      lockOpen(
-        new Promise(resolve => {
-          modalsService.openRegularDialog({
-            kind: 'resource-search-errors',
-            errors: resourceSearchAttempt.data.errors,
-            getClusterName,
-            onCancel: () => resolve(undefined),
-          });
-        })
+      pauseUserInteraction(
+        () =>
+          new Promise(resolve => {
+            modalsService.openRegularDialog({
+              kind: 'resource-search-errors',
+              errors: resourceSearchAttempt.data.errors,
+              getClusterName,
+              onCancel: () => resolve(undefined),
+            });
+          })
       );
     };
 
