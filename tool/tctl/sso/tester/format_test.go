@@ -85,6 +85,7 @@ allow:
 deny: {}
 options:
   cert_format: ""
+  create_desktop_user: null
   create_host_user: null
   desktop_clipboard: null
   desktop_directory_sharing: null
