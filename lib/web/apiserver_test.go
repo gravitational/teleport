@@ -6485,6 +6485,7 @@ func TestCreateDatabase(t *testing.T) {
 				Hostname:      "someuri",
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
+				URI:           "someuri:3306",
 			})
 		}
 	}
@@ -6646,6 +6647,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "self-hosted",
 				Hostname: "someuri",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "someuri:3306",
 			},
 		},
 		{
@@ -6659,6 +6661,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "self-hosted",
 				Hostname: "something-else",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "something-else:3306",
 			},
 		},
 		{
@@ -6680,6 +6683,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
 				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
@@ -6707,6 +6711,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
 				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
@@ -6738,6 +6743,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				URI:      "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
 				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-east-1",
