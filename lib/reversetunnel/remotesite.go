@@ -398,7 +398,7 @@ func (s *remoteSite) getLatestConnInfo() (types.TunnelConnection, error) {
 	if latestConn == nil {
 		return nil, trace.NotFound("no connection to site %s", s.name())
 	}
-	return latestConn, nil
+	return latestConn.Clone(), nil
 }
 
 func (s *remoteSite) updateConnInfo(t time.Time) (types.TunnelConnection, error) {
