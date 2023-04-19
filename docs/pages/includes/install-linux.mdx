@@ -62,6 +62,17 @@ Use the appropriate commands for your environment to install your package.
   # $ sudo dnf install teleport
   ```
 
+  <Admonition type="warning" title="Amazon Linux 2023 Installations">
+  Amazon Linux 2023 users should utilize the tarball or RPM file to install Teleport.
+  You can download the matching RPM architecture for your instance
+  from the [Teleport Download](https://goteleport.com/download) page and install with the example command below.
+
+  ```code
+  # Replace <arch> with the architecture type (amd64, arm64,...)
+  $ rpm -i teleport-(=teleport.version=)-1.<arch>.rpm
+  ```
+  </Admonition>
+
   </TabItem>
   <TabItem label="Tarball" scope="oss">
 
