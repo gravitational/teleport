@@ -114,14 +114,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
     [setState, cb, isMounted]
   );
 
-  const setAttempt = useCallback(
-    (attempt: Attempt<AttemptData>) => {
-      setState(attempt);
-    },
-    [setState]
-  );
-
-  return [state, run, setAttempt] as const;
+  return [state, run, setState] as const;
 }
 
 function useIsMounted() {
