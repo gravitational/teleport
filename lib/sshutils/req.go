@@ -39,19 +39,6 @@ type WinChangeReqParams struct {
 	Hpx uint32
 }
 
-// FileTransferReqParams specifics parameters for requesting a file transfer
-type FileTransferReqParams struct {
-	Download bool
-	Location string
-	Filename string
-}
-
-// FileTransferResponseParams specifics params for responding to a file transfer request
-type FileTransferResponseParams struct {
-	RequestID string
-	Approved  bool
-}
-
 // PTYReqParams specifies parameters for pty change window
 type PTYReqParams struct {
 	Env   string

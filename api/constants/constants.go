@@ -416,6 +416,8 @@ const (
 )
 
 const (
-	FileTransferRequest  string = "file-transfer-request@goteleport.com"
-	FileTransferResponse string = "file-transfer-request-response@goteleport.com"
+	// FileTransferRequest is used when creating a new file transfer request
+	FileTransferRequest string = "file-transfer-request@goteleport.com"
+	// FileTransferDecision is a request that will approve or deny an active file transfer
+	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )

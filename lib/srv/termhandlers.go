@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -129,11 +130,11 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	return nil
 }
 
-// HandleFileTransferRequestResponse handles requests of type "file-transfer-request-response" which will
+// HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will
 // approve or deny an existing file transfer request. This response will update an active file transfer request
 // accordingly and emit the updated file transfer request state to other members in the party.
-func (t *TermHandlers) HandleFileTransferRequestResponse(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
-	params, err := parseFileTransferResponseRequest(req)
+func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseFileTransferDecisionRequest(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -264,7 +265,7 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 }
 
 func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestParams, error) {
-	var r sshutils.FileTransferReqParams
+	var r tracingssh.FileTransferRequestReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,13 +278,13 @@ func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestPa
 	return params, nil
 }
 
-func parseFileTransferResponseRequest(req *ssh.Request) (*rsession.FileTransferResponseParams, error) {
-	var r sshutils.FileTransferResponseParams
+func parseFileTransferDecisionRequest(req *ssh.Request) (*rsession.FileTransferDecisionParams, error) {
+	var r tracingssh.FileTransferDecisionReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	params := &rsession.FileTransferResponseParams{
+	params := &rsession.FileTransferDecisionParams{
 		RequestID: r.RequestID,
 		Approved:  r.Approved,
 	}
