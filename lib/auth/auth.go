@@ -4988,7 +4988,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner:
+	case types.JWTSigner, types.OIDCIdPCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)

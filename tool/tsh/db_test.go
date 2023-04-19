@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,6 +63,10 @@ func TestDatabaseLogin(t *testing.T) {
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
 		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withConfig(func(cfg *servicecfg.Config) {
+			// separate MySQL port with TLS routing.
+			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess,
 		servicecfg.Database{
@@ -140,8 +145,8 @@ func TestDatabaseLogin(t *testing.T) {
 		{
 			databaseName:          "mysql",
 			expectCertsLen:        1,
-			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
-			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+			expectErrForConfigCmd: false, // "tsh db config" is supported for MySQL with TLS routing & separate MySQL port.
+			expectErrForEnvCmd:    false, // "tsh db env" not supported for MySQL with TLS routing & separate MySQL port.
 		},
 		{
 			databaseName:          "cassandra",
@@ -165,10 +170,15 @@ func TestDatabaseLogin(t *testing.T) {
 
 	// Note: keystore currently races when multiple tsh clients work in the
 	// same profile dir (e.g. StatusCurrent might fail reading if someone else
-	// is writing a key at the same time). Thus running all `tsh db login` in
-	// sequence first before running other test cases in parallel.
+	// is writing a key at the same time).
+	// Thus, in order to speed up this test, we clone the profile dir for each subtest
+	// to enable parallel test runs.
+	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
+		test := test
 		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
 			err := Run(context.Background(), []string{
 				"db", "login", "--db-user", "admin", test.databaseName,
 			}, setHomePath(tmpHomePath))
@@ -185,38 +195,32 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
 			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
-		})
-	}
 
-	for _, test := range testCases {
-		test := test
+			t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
+				t.Parallel()
+				err := Run(context.Background(), []string{
+					"db", "config", test.databaseName,
+				}, setHomePath(tmpHomePath))
 
-		t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
-			t.Parallel()
+				if test.expectErrForConfigCmd {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 
-			err := Run(context.Background(), []string{
-				"db", "config", test.databaseName,
-			}, setHomePath(tmpHomePath))
+			t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
+				t.Parallel()
+				err := Run(context.Background(), []string{
+					"db", "env", test.databaseName,
+				}, setHomePath(tmpHomePath))
 
-			if test.expectErrForConfigCmd {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-
-		t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
-			t.Parallel()
-
-			err := Run(context.Background(), []string{
-				"db", "env", test.databaseName,
-			}, setHomePath(tmpHomePath))
-
-			if test.expectErrForEnvCmd {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+				if test.expectErrForEnvCmd {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 		})
 	}
 }

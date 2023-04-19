@@ -168,11 +168,11 @@ tests:
     set:
       clusterName: helm-lint.example.com
       enterprise: true
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
+          value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -190,11 +190,11 @@ tests:
     template: auth/deployment.yaml
     set:
       clusterName: helm-lint
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
