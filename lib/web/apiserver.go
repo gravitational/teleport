@@ -2650,11 +2650,6 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
-	var (
-		id   string
-		host string
-		port int
-	)
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
