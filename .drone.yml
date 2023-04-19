@@ -1319,11 +1319,6 @@ image_pull_secrets:
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport11
-  GID: "1000"
-  RUNTIME: go1.20.3
-  UID: "1000"
 trigger:
   event:
     include:
@@ -1366,9 +1361,10 @@ steps:
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "upload-artifacts=false" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -5284,11 +5280,6 @@ image_pull_secrets:
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport11
-  GID: "1000"
-  RUNTIME: go1.20.3
-  UID: "1000"
 trigger:
   event:
     include:
@@ -5303,6 +5294,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5328,9 +5321,10 @@ steps:
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20291,6 +20285,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 5f920d6511d5e89e2bfa788d11b42a8db5b3f6f5c98500b137b6fba4d1ab03ee
+hmac: b797d960837073d77869974db84306e894dc81b4a8cde6e24fdb7056eb15a65e
 
 ...
