@@ -78,7 +78,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1951,53 +1950,6 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	return playSession(sessionEvents, stream)
 }
 
-// ExecuteSCP executes SCP command. It executes scp.Command using
-// lower-level API integrations that mimic SCP CLI command behavior
-func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd scp.Command) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ExecuteSCP",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	// connect to proxy first:
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		proxyClient,
-		// We append the ":0" to tell the server to figure out the port for us.
-		NodeDetails{Addr: serverAddr + ":0", Namespace: tc.Namespace, Cluster: tc.SiteName},
-		tc.Config.HostLogin,
-	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
-	}
-
-	err = nodeClient.ExecuteSCP(ctx, cmd)
-	if err != nil {
-		// converts SSH error code to tc.ExitStatus
-		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
-		if exitError != nil {
-			tc.ExitStatus = exitError.ExitStatus()
-		}
-		return err
-
-	}
-
-	return nil
-}
-
 // SFTP securely copies files between Nodes or SSH servers using SFTP
 func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
 	ctx, span := tc.Tracer.Start(
@@ -2055,7 +2007,7 @@ func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Option
 	// copy everything except the last arg (the destination)
 	dstPath := args[len(args)-1]
 
-	dst, addr, err := getSCPDestination(dstPath, port)
+	dst, addr, err := getSFTPDestination(dstPath, port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2077,7 +2029,7 @@ func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Opti
 	}
 
 	// args are guaranteed to have len(args) > 1
-	src, addr, err := getSCPDestination(args[0], port)
+	src, addr, err := getSFTPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2093,8 +2045,8 @@ func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Opti
 	}, nil
 }
 
-func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
-	dest, err = scp.ParseSCPDestination(target)
+func getSFTPDestination(target string, port int) (dest *sftp.Destination, addr string, err error) {
+	dest, err = sftp.ParseDestination(target)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2131,7 +2083,11 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 	client, err := tc.ConnectToNode(
 		ctx,
 		proxyClient,
-		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: tc.SiteName},
+		NodeDetails{
+			Addr:      nodeAddr,
+			Namespace: tc.Namespace,
+			Cluster:   tc.SiteName,
+		},
 		hostLogin,
 	)
 	if err != nil {
