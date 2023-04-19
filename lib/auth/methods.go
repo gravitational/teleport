@@ -154,6 +154,10 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 	} else {
 		event.Code = events.UserLocalLoginCode
 		event.Status.Success = true
+
+		if err := s.CallLoginHooks(ctx); err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")

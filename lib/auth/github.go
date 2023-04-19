@@ -732,6 +732,10 @@ func (a *Server) calculateGithubUser(ctx context.Context, connector types.Github
 	}
 	p.Traits = evaluationOutput.Traits
 
+	if err := a.CallLoginHooks(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Kube groups and users are ultimately only set in the traits, not any
 	// other property of the User. In case the login rules changed the relevant
 	// traits values, reset the value on the user params for accurate
