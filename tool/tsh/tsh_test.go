@@ -156,6 +156,10 @@ func (p *cliModules) EnableRecoveryCodes() {
 func (p *cliModules) EnablePlugins() {
 }
 
+func (p *cliModules) SetCloudFeatures(f modules.Features) {
+
+}
+
 func TestAlias(t *testing.T) {
 	testExecutable, err := os.Executable()
 	require.NoError(t, err)
