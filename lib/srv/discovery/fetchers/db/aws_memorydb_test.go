@@ -47,12 +47,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 		aws.StringValue(memorydbUnsupported.ARN): memorydbUnsupportedTags,
 	}
 
-	tests := []struct {
-		name          string
-		inputClients  cloud.AWSClients
-		inputLabels   map[string]string
-		wantDatabases types.Databases
-	}{
+	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -61,7 +56,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd, memorydbDatabaseTest},
 		},
 		{
@@ -72,7 +67,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   envProdLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -83,7 +78,7 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 		{
@@ -94,20 +89,11 @@ func TestMemoryDBFetcher(t *testing.T) {
 					TagsByARN: memorydbTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherMemoryDB, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{memorydbDatabaseProd},
 		},
 	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherMemoryDB, "us-east-2", toTypeLabels(test.inputLabels))
-			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
-		})
-	}
+	testAWSFetchers(t, tests...)
 }
 
 func makeMemoryDBCluster(t *testing.T, name, region, env string, opts ...func(*memorydb.Cluster)) (*memorydb.Cluster, types.Database, []*memorydb.Tag) {

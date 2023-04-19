@@ -21,10 +21,12 @@ import (
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
-	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+	return pushCheckoutCommandsWithPath(b, "/go/src/github.com/gravitational/teleport")
+}
 
+func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 	var commands []string
-	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
+	commands = append(commands, cloneRepoCommands(checkoutPath, "${DRONE_COMMIT_SHA}")...)
 	commands = append(commands,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
@@ -78,18 +80,23 @@ func pushPipelines() []pipeline {
 		buildType:    buildType{os: "linux", arch: "arm64"},
 		trigger:      triggerPush,
 		pipelineName: "push-build-linux-arm64",
-		ghaWorkflow:  "release-linux-arm64.yml",
-		timeout:      60 * time.Minute,
-		slackOnError: true,
-		srcRefVar:    "DRONE_COMMIT",
-		workflowRef:  "${DRONE_BRANCH}",
-		inputs:       map[string]string{"upload-artifacts": "false"},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				timeout:           60 * time.Minute,
+				slackOnError:      true,
+				srcRefVar:         "DRONE_COMMIT",
+				ref:               "${DRONE_BRANCH}",
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "false"},
+			},
+		},
 	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
-	ps = append(ps, darwinPushPipeline())
+	ps = append(ps, darwinPushPipelineGHA())
 	ps = append(ps, windowsPushPipeline())
 	return ps
 }
@@ -126,7 +133,7 @@ func pushPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeDocker}
+	p.Volumes = []volume{volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -134,6 +141,7 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -143,8 +151,9 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    pushBuildCommands(b),
 		},
 		sendErrorToSlackStep(),
@@ -158,16 +167,14 @@ func sendErrorToSlackStep() step {
 		Image: "plugins/slack",
 		Settings: map[string]value{
 			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-		},
-		Template: []string{
-			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
+			"template": {raw: `*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
 ` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
 *Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
 Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
 Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
 Author: <https://github.com/{{ build.author }}|{{ build.author }}>
 <{{ build.link }}|Visit Drone build page ↗>
-`,
+`},
 		},
 		When: &condition{Status: []string{"failure"}},
 	}

@@ -1,5 +1,5 @@
 ---
-title: "Export Teleport Audit Events with to Elastic Stack"
+title: "Export Teleport Audit Events to the Elastic Stack"
 description: "How to configure Teleport's Event Handler plugin to send audit events to the Elastic Stack"
 ---
 
@@ -57,36 +57,7 @@ We'll re-purpose the files generated for Fluentd in our Logstash configuration.
 
 ### Define RBAC resources
 
-The `teleport-event-handler configure` command generated a file called
-`teleport-event-handler-role.yaml`. This file defines a `teleport-event-handler`
-role and a user with read-only access to the `event` API:
-
-```yaml
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event', 'session']
-        verbs: ['list','read']
-version: v5
----
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
-```
-
-Use `tctl` to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-# user "teleport-event-handler" has been created
-# role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 <Details title="Using tctl on the Logstash host?">
 
@@ -144,95 +115,7 @@ $ tctl create teleport-event-handler-impersonator.yaml
 
 ### Export the access plugin identity
 
-Like all Teleport users, `teleport-event-handler` needs signed credentials in
-order to connect to your Teleport cluster. You will use the `tctl auth sign`
-command to request these credentials for the plugin. 
-
-<ScopedBlock scope={["enterprise", "oss"]}>
-
-The format of the credentials depends on whether you have set up your network to
-give the plugin direct access to the Teleport Auth Service, or if all Teleport
-clients and services connect to the Teleport Proxy Service instead.
-
-<Tabs>
-<TabItem label="Connect to the Proxy Service">
-
-The following `tctl auth sign` command impersonates the `teleport-event-handler`
-user, generates signed credentials, and writes an identity file to the local
-directory:
-
-```code
-$ tctl auth sign --user=teleport-event-handler --out=auth.pem
-```
-
-The Event Handler plugin listens for audit events by connecting to the Teleport
-Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
-Event Handler plugin uses the SSH credentials to connect to the Proxy Service,
-which establishes a reverse tunnel connection to the Auth Service. The plugin
-uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-
-</TabItem>
-<TabItem label="Connect to the Auth Service">
-
-If your network allows your plugin to access the Auth Service directly, e.g.,
-you are running the plugin on the Auth Service host, the plugin uses TLS
-credentials to connect to the Auth Service's gRPC endpoint and listen for audit
-events.
-
-You can generate TLS credentials with the following command:
-
-```code
-$ tctl auth sign --format=tls --user=teleport-event-handler --out=auth
-```
-
-This command should result in three PEM-encoded files: `auth.crt`,
-`auth.key`, and `auth.cas` (certificate, private key, and CA certs
-respectively). Later, you will configure the plugin to use these credentials to
-connect to the Auth Service.
-
-</TabItem>
-</Tabs>
-
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
-
-The following `tctl auth sign` command impersonates the `teleport-event-handler`
-user, generates signed credentials, and writes an identity file to the local
-directory:
-
-```code
-$ tctl auth sign --user=teleport-event-handler --out=auth.pem
-```
-
-Teleport's Event Handler plugin listens for new and updated audit events by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. The Event
-Handler plugin uses the SSH credentials to connect to the Proxy Service, which
-establishes a reverse tunnel connection to the Auth Service. The plugin uses
-this reverse tunnel, along with your TLS credentials, to connect to the Auth
-Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-
-</ScopedBlock>
-
-<Admonition
-  title="Certificate Lifetime"
->
-
-  By default, `tctl auth sign` produces certificates with a relatively short
-  lifetime. For production deployments, you can use the `--ttl` flag to ensure a
-  more practical certificate lifetime, e.g., `--ttl=8760h` to export a one-year
-  certificate.
-
-</Admonition>
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
 ## Step 2/4. Configure a Logstash pipeline
 
@@ -557,21 +440,7 @@ Change `teleport.addr` to the host and port of your Teleport Proxy Service, or
 the Auth Service if you have configured the Event Handler to connect to it
 directly, e.g., `mytenant.teleport.sh:443`.
 
-<Tabs>
-<TabItem label="Connect to the Proxy Service">
-
-Assign `teleport.identity` to a path to the identity file you exported earlier,
-e.g., `/home/auth.pem`.
-
-</TabItem>
-<TabItem label="Connect to the Auth Service">
-
-Assign `teleport.ca`, `teleport.cert`, and `teleport.key` to the paths of the
-TLS credentials you generated earlier. Respectively, these are the certificate
-authority, certificate, and private key.
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 ### Start the Event Handler
 

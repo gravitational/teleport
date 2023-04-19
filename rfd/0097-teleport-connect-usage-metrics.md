@@ -130,7 +130,7 @@ Event properties:
 - `connect.os_version`: string (set on a user properties)
 - `connect.app_version`: string (set on a user properties)
 
-### `connect.protcol.use`
+### `connect.protocol.use`
 
 Connecting to the protocol.
 

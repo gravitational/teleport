@@ -114,6 +114,9 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -212,6 +215,10 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationExecutePath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -285,6 +292,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -607,6 +618,24 @@ const cfg = {
     });
   },
 
+  getIntegrationsUrl(integrationName?: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.integrationExecutePath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getUIConfig() {
     return cfg.ui;
   },
@@ -693,6 +722,14 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+}
+
+export interface UrlIntegrationExecuteRequestParams {
+  // name is the name of integration to execute (use).
+  name: string;
+  // action is the expected backend string value
+  // used to describe what to use the integration for.
+  action: 'list_databases';
 }
 
 export default cfg;

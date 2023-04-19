@@ -185,6 +185,13 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
+	ElasticsearchRequestFailureCode = "TES00E"
+
+	// OpenSearchRequestCode is the db.session.opensearch.request event code.
+	OpenSearchRequestCode = "TOS00I"
+	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
+	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
@@ -307,6 +314,8 @@ const (
 	SFTPReadlinkFailureCode = "TS017E"
 	SFTPSymlinkCode         = "TS018I"
 	SFTPSymlinkFailureCode  = "TS018E"
+	SFTPLinkCode            = "TS019I"
+	SFTPLinkFailureCode     = "TS019E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"

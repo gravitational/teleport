@@ -28,6 +28,9 @@ const (
 	defaultRequeue        = 30 * time.Minute
 	reconciliationTimeout = 2 * time.Minute
 	kubeClientTimeout     = 1 * time.Minute
+	// skipReconciliationAnnotation is inspired by the tenant-operator one
+	// (from the Teleport Cloud) but namespaced under `teleport.dev`
+	skipReconciliationAnnotation = "teleport.dev/skipreconcile"
 )
 
 var (

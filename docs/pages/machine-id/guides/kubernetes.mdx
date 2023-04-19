@@ -12,29 +12,23 @@ controls that Teleport provides for human users.
 
 ## Prerequisites
 
-<ScopedBlock scope={["cloud"]}>
-You will need Teleport Cloud 10.1.0 or later.
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-You will need a running Teleport cluster version 10.1.0 or later.
-</ScopedBlock>
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-If you have not already connected your Kubernetes cluster to Teleport, follow
-the [Kubernetes Access Getting Started Guide](../../kubernetes-access/getting-started.mdx).
+- If you have not already connected your Kubernetes cluster to Teleport, follow
+  the [Kubernetes Access Getting Started Guide](../../kubernetes-access/getting-started.mdx).
 
-If you're not already familiar with Machine ID, follow the
-[Getting Started Guide](../getting-started.mdx) to familiarize yourself with
-Machine ID. You'll also need `tctl` access to initially configure the bot.
+(!docs/pages/includes/machine-id/kubernetes-machineidnote.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
-Next, ensure the `tbot` binary is installed on your Machine ID client system.
-The client system is any system from which you want to access your Teleport
-cluster and the resources it protects from an automated service. Refer to our
-[Installation guide](../../installation.mdx) for instructions on installing
-Teleport, which includes the necessary `tbot` binary.
-
-Finally, to interact with the connected Kubernetes cluster, your client system
+- If you're not already familiar with Machine ID, follow the
+  [Getting Started Guide](../getting-started.mdx) to familiarize yourself with
+  Machine ID. You'll also need `tctl` access to initially configure the bot.
+- (!docs/pages/includes/tctl.mdx!)
+- Ensure the `tbot` binary is installed on your Machine ID client system.
+  The client system is any system from which you want to access your Teleport
+  cluster and the resources it protects from an automated service. Refer to our
+  [Installation guide](../../installation.mdx) for instructions on installing
+  Teleport, which includes the necessary `tbot` binary.
+- Finally, to interact with the connected Kubernetes cluster, your client system
 will need to have `kubectl` installed. See the
 [Kubernetes documentation](https://kubernetes.io/docs/tasks/tools/) for
 installation instructions.
@@ -45,6 +39,7 @@ In this example, you'll create a bot named "example" and assign it a role
 granting access to a Kubernetes cluster named "example".
 
 First, create a file named `role.yaml` with the following content:
+
 ```yaml
 kind: role
 metadata:

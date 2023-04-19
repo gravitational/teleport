@@ -32,7 +32,7 @@ const (
 	DefaultIOTimeout = 30 * time.Second
 
 	// DefaultIdleTimeout is a default idle connection timeout.
-	DefaultIdleTimeout = 360 * time.Second
+	DefaultIdleTimeout = 30 * time.Second
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is

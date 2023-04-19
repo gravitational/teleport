@@ -19,6 +19,13 @@ import api, {
   getNoCacheHeaders,
   getAccessToken,
   getHostName,
+  getXCSRFToken,
 } from './api';
 export default api;
-export { getAuthHeaders, getNoCacheHeaders, getAccessToken, getHostName };
+export {
+  getAuthHeaders,
+  getNoCacheHeaders,
+  getAccessToken,
+  getHostName,
+  getXCSRFToken,
+};

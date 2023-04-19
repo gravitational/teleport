@@ -97,6 +97,24 @@ func TestConnectorSelection(t *testing.T) {
 				require.Contains(t, err.Error(), "unable to open tcp connection with host")
 			},
 		},
+		{
+			desc: "RDS Proxied database",
+			databaseSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "proxy-sqlserver.proxy-000000000000.us-east-1.rds.amazonaws.com:1433",
+				AWS: types.AWS{
+					RDSProxy: types.RDSProxy{
+						Name: "proxy-sqlserver",
+					},
+				},
+			},
+			// RDS proxies cannot be accessed outside their VPC. So, this test
+			// case should not resolve their host.
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "no such host")
+			},
+		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			database, err := types.NewDatabaseV3(types.Metadata{

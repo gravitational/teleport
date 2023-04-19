@@ -113,7 +113,7 @@ func (c *ReadWriter) Write(b []byte) (int, error) {
 		}
 
 		if err := c.source.Send(chunk); err != nil {
-			return sent, trace.ConnectionProblem(trail.FromGRPC(err), "failed to send on source")
+			return sent, trace.ConnectionProblem(trail.FromGRPC(err), "failed to send on source: %v", err)
 		}
 
 		sent += len(chunk)

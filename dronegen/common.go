@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"path"
 	"strings"
 )
 
@@ -85,6 +84,25 @@ var (
 	volumeRefAwsConfig = volumeRef{
 		Name: "awsconfig",
 		Path: "/root/.aws",
+	}
+
+	// volumeDockerConfig is a temporary volume for storing docker
+	// credentials for use with the Docker-in-Docker service we use
+	// to isolate the host machines docker daemon from the one used
+	// during the build. Mount this any time you use `volumeDocker`
+	//
+	// Drone claims to destroy the the temp volumes after a workflow
+	// has run, so it should be safe to write credentials etc.
+	volumeDockerConfig = volume{
+		Name: "dockerconfig",
+		Temp: &volumeTemp{},
+	}
+
+	// volumeRefDockerConfig is how you reference the docker config
+	// volume in a workflow step
+	volumeRefDockerConfig = volumeRef{
+		Name: "dockerconfig",
+		Path: "/root/.docker",
 	}
 )
 
@@ -242,18 +260,6 @@ func dockerRegistryService() service {
 	}
 }
 
-// dockerVolumes returns a slice of volumes
-// It includes the Docker socket volume by default, plus any extra volumes passed in
-func dockerVolumes(v ...volume) []volume {
-	return append(v, volumeDocker)
-}
-
-// dockerVolumeRefs returns a slice of volumeRefs
-// It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
-func dockerVolumeRefs(v ...volumeRef) []volumeRef {
-	return append(v, volumeRefDocker)
-}
-
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
 func releaseMakefileTarget(b buildType) string {
 	makefileTarget := fmt.Sprintf("release-%s", b.arch)
@@ -283,10 +289,16 @@ func waitForDockerStep() step {
 	return step{
 		Name:  "Wait for docker",
 		Image: "docker",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
+			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
 		},
-		Volumes: []volumeRef{volumeRefDocker},
+		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
+		Environment: map[string]value{
+			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
+			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
+		},
 	}
 }
 
@@ -295,6 +307,7 @@ func waitForDockerRegistryStep() step {
 	return step{
 		Name:  "Wait for docker registry",
 		Image: "alpine",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			"apk add curl",
 			fmt.Sprintf(`timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %%{http_code} http://%s/)" != "200" ]; do sleep 1; done'`, LocalRegistrySocket),
@@ -306,6 +319,7 @@ func verifyTaggedStep() step {
 	return step{
 		Name:  "Verify build is tagged",
 		Image: "alpine:latest",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
 		},
@@ -317,25 +331,8 @@ func cloneRepoStep(clonePath, commit string) step {
 	return step{
 		Name:     "Check out code",
 		Image:    "alpine/git:latest",
+		Pull:     "if-not-exists",
 		Commands: cloneRepoCommands(clonePath, commit),
-	}
-}
-
-func verifyNotPrereleaseStep() step {
-	clonePath := "/tmp/repo"
-	commands := []string{
-		"apk add git",
-	}
-	commands = append(commands, cloneRepoCommands(clonePath, "${DRONE_TAG}")...)
-	commands = append(commands,
-		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
-		"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
-	)
-
-	return step{
-		Name:     "Check if tag is prerelease",
-		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
-		Commands: commands,
 	}
 }
 

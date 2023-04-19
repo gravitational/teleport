@@ -19,8 +19,16 @@ import { OnboardDiscover } from 'teleport/services/user';
 
 import { KeysEnum } from './types';
 
+import type { ThemeOption } from 'design/theme';
+
 const storage = {
   clear() {
+    const themeOption = window.localStorage.getItem(KeysEnum.THEME);
+    window.localStorage.clear();
+    // This is to keep the theme selection in localStorage even when
+    // the rest of it is cleared. This is to prevent theme from
+    // getting reset on logout.
+    window.localStorage.setItem(KeysEnum.THEME, themeOption);
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
 
@@ -84,6 +92,22 @@ const storage = {
       return JSON.parse(item);
     }
     return null;
+  },
+
+  setThemeOption(theme: ThemeOption) {
+    window.localStorage.setItem(KeysEnum.THEME, theme);
+    // This is to trigger the event listener in the current tab
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: KeysEnum.THEME,
+        newValue: theme,
+      })
+    );
+  },
+
+  getThemeOption(): ThemeOption {
+    const theme = window.localStorage.getItem(KeysEnum.THEME) as ThemeOption;
+    return theme || 'light';
   },
 
   broadcast(messageType, messageBody) {

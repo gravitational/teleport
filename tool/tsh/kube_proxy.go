@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type proxyKubeCommand struct {
@@ -257,7 +258,7 @@ func (k *kubeLocalProxy) Start(ctx context.Context) error {
 
 // Close removes the temporary kubeconfig and closes the listeners.
 func (k *kubeLocalProxy) Close() error {
-	removeFileIfExist(k.KubeConfigPath())
+	utils.RemoveFileIfExist(k.KubeConfigPath())
 	return trace.NewAggregate(k.forwardProxy.Close(), k.localProxy.Close())
 }
 

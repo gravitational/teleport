@@ -996,7 +996,7 @@ Use one of the following commands to connect to the database or to the address a
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			templateArgs := map[string]any{}
-			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands)
+			tpl := chooseProxyCommandTemplate(templateArgs, tt.commands, "")
 			require.Equal(t, tt.wantTemplate, tpl)
 			require.Equal(t, tt.wantTemplateArgs, templateArgs)
 
@@ -1012,6 +1012,166 @@ Use one of the following commands to connect to the database or to the address a
 			err := tpl.Execute(buf, templateArgs)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantOutput, buf.String())
+		})
+	}
+}
+
+type fakeAWSAppInfo struct {
+	forwardProxyAddr string
+}
+
+func (f fakeAWSAppInfo) GetAppName() string {
+	return "fake-aws-app"
+}
+func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
+	envVars := map[string]string{
+		"AWS_ACCESS_KEY_ID":     "FAKE_ID",
+		"AWS_SECRET_ACCESS_KEY": "FAKE_KEY",
+		"AWS_CA_BUNDLE":         "FAKE_CA_BUNDLE_PATH",
+	}
+	if f.forwardProxyAddr != "" {
+		envVars["HTTPS_PROXY"] = "http://" + f.forwardProxyAddr
+	}
+	return envVars, nil
+}
+func (f fakeAWSAppInfo) GetEndpointURL() string {
+	return "https://127.0.0.1:12345"
+}
+func (f fakeAWSAppInfo) GetForwardProxyAddr() string {
+	return f.forwardProxyAddr
+}
+
+func TestPrintProxyAWSTemplate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputCLIConf *CLIConf
+		inputAWSApp  awsAppInfo
+		wantSnippets []string
+	}{
+		{
+			name: "HTTPS_PROXY mode",
+			inputCLIConf: &CLIConf{
+				Format: envVarDefaultFormat(),
+			},
+			inputAWSApp: fakeAWSAppInfo{
+				forwardProxyAddr: "127.0.0.1:8888",
+			},
+			wantSnippets: []string{
+				"127.0.0.1:8888",
+				"Use the following credentials and HTTPS proxy setting to connect to the proxy",
+			},
+		},
+		{
+			name: "endpoint URL mode",
+			inputCLIConf: &CLIConf{
+				Format:             envVarDefaultFormat(),
+				AWSEndpointURLMode: true,
+			},
+			inputAWSApp: fakeAWSAppInfo{},
+			wantSnippets: []string{
+				"AWS endpoint URL at https://127.0.0.1:12345",
+			},
+		},
+		{
+			name: "athena-odbc",
+			inputCLIConf: &CLIConf{
+				Format: awsProxyFormatAthenaODBC,
+			},
+			inputAWSApp: fakeAWSAppInfo{
+				forwardProxyAddr: "127.0.0.1:8888",
+			},
+			wantSnippets: []string{
+				"DRIVER=Simba Amazon Athena ODBC Connector;",
+				"UseProxy=1;ProxyScheme=http;ProxyHost=127.0.0.1;ProxyPort=8888;",
+			},
+		},
+		{
+			name: "athena-jdbc",
+			inputCLIConf: &CLIConf{
+				Format: awsProxyFormatAthenaJDBC,
+			},
+			inputAWSApp: fakeAWSAppInfo{
+				forwardProxyAddr: "127.0.0.1:8888",
+			},
+			wantSnippets: []string{
+				"jdbc:awsathena:",
+				"ProxyHost=127.0.0.1;ProxyPort=8888;",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			buf := new(bytes.Buffer)
+			test.inputCLIConf.overrideStdout = buf
+			require.NoError(t, printProxyAWSTemplate(test.inputCLIConf, test.inputAWSApp))
+			for _, wantSnippet := range test.wantSnippets {
+				require.Contains(t, buf.String(), wantSnippet)
+			}
+		})
+	}
+}
+
+func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		input      *CLIConf
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			name: "default format is supported in HTTPS_PROXY mode",
+			input: &CLIConf{
+				Format: envVarDefaultFormat(),
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "default format is supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             envVarDefaultFormat(),
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "athena-odbc is supported in HTTPS_PROXY mode",
+			input: &CLIConf{
+				Format: awsProxyFormatAthenaODBC,
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "athena-odbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaODBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
+		},
+		{
+			name: "athena-jdbc is supported in HTTPS_PROXY mode",
+			input: &CLIConf{
+				Format: awsProxyFormatAthenaJDBC,
+			},
+			checkError: require.NoError,
+		},
+		{
+			name: "athena-jdbc is not supported in endpoint URL mode",
+			input: &CLIConf{
+				Format:             awsProxyFormatAthenaJDBC,
+				AWSEndpointURLMode: true,
+			},
+			checkError: require.Error,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.checkError(t, checkProxyAWSFormatCompatibility(test.input))
 		})
 	}
 }

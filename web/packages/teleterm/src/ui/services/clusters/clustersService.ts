@@ -29,7 +29,6 @@ import {
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
-  ServerSideParams,
 } from 'teleterm/services/tshd/types';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
 import { UsageService } from 'teleterm/ui/services/usage';
@@ -196,6 +195,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getRequestableRoles(params: GetRequestableRolesParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. This check should be done earlier in the
+    // UI rather than be repeated in each ClustersService method.
     if (!cluster.connected) {
       return;
     }
@@ -205,6 +206,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getAssumedRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster?.connected) {
       return {};
     }
@@ -218,6 +220,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async getAccessRequests(rootClusterUri: uri.RootClusterUri) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -230,6 +233,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -242,6 +246,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     dropIds: string[]
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -255,6 +260,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     requestId: string
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -267,6 +273,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     params: ReviewAccessRequestParams
   ) {
     const cluster = this.state.clusters.get(rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -281,6 +288,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createAccessRequest(params: CreateAccessRequestParams) {
     const cluster = this.state.clusters.get(params.rootClusterUri);
+    // TODO(ravicious): Remove check for cluster.connected. See the comment in getRequestableRoles.
     if (!cluster.connected) {
       return;
     }
@@ -320,7 +328,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createGateway(params: tsh.CreateGatewayParams) {
     const gateway = await this.client.createGateway(params);
-    this.usageService.captureProtocolUse(params.targetUri, 'db');
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
     });
@@ -424,16 +431,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   getRootClusters() {
     return this.getClusters().filter(c => !c.leaf);
-  }
-
-  // TODO(ravicious): Use ResourcesService instead.
-  async fetchKubes(params: ServerSideParams) {
-    return await this.client.getKubes(params);
-  }
-
-  // TODO(ravicious): Move to ResourceService.
-  async getDbUsers(dbUri: uri.DatabaseUri): Promise<string[]> {
-    return await this.client.listDatabaseUsers(dbUri);
   }
 
   async removeClusterKubeConfigs(clusterUri: string): Promise<void> {

@@ -228,7 +228,12 @@ func NewFromEnv(ctx context.Context) (*Integration, error) {
 		if !ok {
 			return nil, trace.Errorf("failed to get caller information")
 		}
-		outDir := path.Join(path.Dir(goFile), "..", "..", "..", ".teleport") // subdir in repo root
+		// Use GHA temp directory by default
+		outDir := os.Getenv("RUNNER_TEMP")
+		if outDir == "" {
+			outDir = path.Join(path.Dir(goFile), "..", "..", "..") // gravitational/teleport repo root
+		}
+		outDir = path.Join(outDir, ".teleport")
 		if licenseStr != "" {
 			paths, err = GetEnterprise(ctx, version, outDir)
 			if err != nil {

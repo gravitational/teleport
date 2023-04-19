@@ -63,7 +63,13 @@ func Not(filterFunc FilterFunc) FilterFunc {
 	}
 }
 
-const podReadinessGracePeriod = 10 * time.Minute
+// podReadinessGracePeriod represents how much time we wait before we consider
+// the pod (and a fortiori the workload) unhealthy. We might want to empirically
+// tune this value. A higher value can lead to workloads being stuck longer in
+// case of error. A shorter value might cause false positives and trigger
+// updates because of other cluster-related events like network issues, registry
+// downtime or missing capacity.
+const podReadinessGracePeriod = 5 * time.Minute
 
 // IsUnhealthy checks if a pod has not been ready since at least 10 minutes/
 // This heuristic also detects infrastructure issues like not enough room to

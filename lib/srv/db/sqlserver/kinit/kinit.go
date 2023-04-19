@@ -31,6 +31,7 @@ import (
 	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
 )
 
@@ -208,6 +209,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 	}
 
 	certPEM, keyPEM, caCerts, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
+		CAType:      types.DatabaseCA,
 		Username:    d.UserName,
 		Domain:      d.RealmName,
 		TTL:         certTTL,

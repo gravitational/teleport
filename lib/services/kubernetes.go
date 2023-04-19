@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// KubernetesGetter defines interface for fetching kubernetes cluster resources.
-type KubernetesGetter interface {
+// KubernetesClusterGetter defines interface for fetching kubernetes cluster resources.
+type KubernetesClusterGetter interface {
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
@@ -45,7 +45,7 @@ type KubernetesGetter interface {
 // Kubernetes defines an interface for managing kubernetes clusters resources.
 type Kubernetes interface {
 	// KubernetesGetter provides methods for fetching kubernetes resources.
-	KubernetesGetter
+	KubernetesClusterGetter
 	// CreateKubernetesCluster creates a new kubernetes cluster resource.
 	CreateKubernetesCluster(context.Context, types.KubeCluster) error
 	// UpdateKubernetesCluster updates an existing kubernetes cluster resource.

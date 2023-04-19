@@ -253,12 +253,18 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
+	// TODO(isaiah, zmb3): remove this once a buffer pool
 	// is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
 }
+
+func (f PNG2Frame) Left() uint32   { return binary.BigEndian.Uint32(f[5:9]) }
+func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
+func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
+func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
+func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |

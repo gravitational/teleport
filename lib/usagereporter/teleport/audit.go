@@ -22,12 +22,12 @@ import (
 )
 
 const (
-	// tcpSessionType is the session_type in tp.session.start for TCP
+	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
-	tcpSessionType = "app_tcp"
-	// portSessionType is the session_type in tp.session.start for SSH port
+	TCPSessionType = "app_tcp"
+	// PortSessionType is the session_type in tp.session.start for SSH port
 	// forwarding.
-	portSessionType = "ssh_port"
+	PortSessionType = "ssh_port"
 )
 
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
@@ -66,7 +66,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.PortForward:
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: portSessionType,
+			SessionType: PortSessionType,
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -76,7 +76,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
-			sessionType = tcpSessionType
+			sessionType = TCPSessionType
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,

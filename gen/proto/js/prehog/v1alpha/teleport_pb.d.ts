@@ -528,6 +528,86 @@ export namespace UIDiscoverResourceSelectionEvent {
     }
 }
 
+export class UIDiscoverIntegrationAWSOIDCConnectEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverIntegrationAWSOIDCConnectEvent): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverIntegrationAWSOIDCConnectEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverIntegrationAWSOIDCConnectEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverIntegrationAWSOIDCConnectEvent, reader: jspb.BinaryReader): UIDiscoverIntegrationAWSOIDCConnectEvent;
+}
+
+export namespace UIDiscoverIntegrationAWSOIDCConnectEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDatabaseRDSEnrollEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRDSEnrollEvent;
+
+    getSelectedResourcesCount(): number;
+    setSelectedResourcesCount(value: number): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDatabaseRDSEnrollEvent): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDatabaseRDSEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDatabaseRDSEnrollEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDatabaseRDSEnrollEvent, reader: jspb.BinaryReader): UIDiscoverDatabaseRDSEnrollEvent;
+}
+
+export namespace UIDiscoverDatabaseRDSEnrollEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+        selectedResourcesCount: number,
+    }
+}
+
 export class UIDiscoverDeployServiceEvent extends jspb.Message { 
 
     hasMetadata(): boolean;
@@ -1359,6 +1439,18 @@ export class SubmitEventRequest extends jspb.Message {
     setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverIntegrationAwsOidcConnectEvent(): boolean;
+    clearUiDiscoverIntegrationAwsOidcConnectEvent(): void;
+    getUiDiscoverIntegrationAwsOidcConnectEvent(): UIDiscoverIntegrationAWSOIDCConnectEvent | undefined;
+    setUiDiscoverIntegrationAwsOidcConnectEvent(value?: UIDiscoverIntegrationAWSOIDCConnectEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDatabaseRdsEnrollEvent(): boolean;
+    clearUiDiscoverDatabaseRdsEnrollEvent(): void;
+    getUiDiscoverDatabaseRdsEnrollEvent(): UIDiscoverDatabaseRDSEnrollEvent | undefined;
+    setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1411,6 +1503,8 @@ export namespace SubmitEventRequest {
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
+        uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
+        uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1487,6 +1581,10 @@ export namespace SubmitEventRequest {
     AGENT_METADATA_EVENT = 38,
 
     RESOURCE_HEARTBEAT = 39,
+
+    UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
+
+    UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
 
     }
 
@@ -1612,6 +1710,25 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15,
     DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16,
     DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19,
+    DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22,
+    DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23,
+    DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24,
+    DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25,
+    DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26,
+    DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30,
+    DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31,
+    DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32,
+    DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33,
+    DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
+    DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
+    DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
 }
 
 export enum DiscoverStatus {

@@ -17,9 +17,12 @@ limitations under the License.
 package controller
 
 import (
+	"strconv"
+
 	"github.com/docker/distribution/reference"
 	"github.com/gravitational/trace"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
@@ -64,4 +67,20 @@ func setContainerImageFromPodSpec(spec *v1.PodSpec, container, image string) err
 		}
 	}
 	return trace.NotFound("container %q not found in podSpec", container)
+}
+
+// skipReconciliation checks if the object has an annotation specifying that we
+// must skip the reconciliation. Disabling reconciliation is useful for
+// debugging purposes or when the user wants to suspend the updater for some
+// reason.
+func skipReconciliation(object metav1.Object) bool {
+	annotations := object.GetAnnotations()
+	if reconciliationAnnotation, ok := annotations[skipReconciliationAnnotation]; ok {
+		skip, err := strconv.ParseBool(reconciliationAnnotation)
+		if err != nil {
+			return false
+		}
+		return skip
+	}
+	return false
 }

@@ -80,7 +80,8 @@ const StyledBox = styled(Flex)`
   height: 32px;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255, 255, 255, 0.24);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
+  border-color: ${props => props.theme.colors.spotBackground[1]};
   ${error}
 `;
 

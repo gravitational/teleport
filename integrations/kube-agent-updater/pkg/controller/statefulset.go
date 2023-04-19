@@ -80,6 +80,10 @@ func (r *StatefulSetVersionUpdater) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 		return ctrl.Result{}, trace.Wrap(err)
 	}
+	if skipReconciliation(&obj) {
+		log.Info("Reconciliation disabled by resource annotations. Skipping.")
+		return requeueLater, nil
+	}
 
 	// Get the current and past version
 	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)

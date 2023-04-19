@@ -38,40 +38,33 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 	rdsProxyEndpointVpc1, rdsProxyEndpointDatabaseVpc1 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc1, "endpoint-1", "us-east-1")
 	rdsProxyEndpointVpc2, rdsProxyEndpointDatabaseVpc2 := makeRDSProxyCustomEndpoint(t, rdsProxyVpc2, "endpoint-2", "us-east-1")
 
-	clients := &cloud.TestCloudClients{
-		RDS: &mocks.RDSMock{
-			DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-			DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
-			DBProxyTargetPort: 9999,
-		},
-	}
-
-	tests := []struct {
-		name          string
-		inputLabels   map[string]string
-		wantDatabases types.Databases
-	}{
+	tests := []awsFetcherTest{
 		{
-			name:          "fetch all",
-			inputLabels:   wildcardLabels,
+			name: "fetch all",
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+					DBProxyTargetPort: 9999,
+				},
+			},
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyDatabaseVpc2, rdsProxyEndpointDatabaseVpc1, rdsProxyEndpointDatabaseVpc2},
 		},
 		{
-			name:          "fetch vpc1",
-			inputLabels:   map[string]string{"vpc-id": "vpc1"},
+			name: "fetch vpc1",
+			inputClients: &cloud.TestCloudClients{
+				RDS: &mocks.RDSMock{
+					DBProxies:         []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
+					DBProxyEndpoints:  []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+					DBProxyTargetPort: 9999,
+				},
+			},
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
 			wantDatabases: types.Databases{rdsProxyDatabaseVpc1, rdsProxyEndpointDatabaseVpc1},
 		},
 	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			fetchers := mustMakeAWSFetchersForMatcher(t, clients, services.AWSMatcherRDSProxy, "us-east-2", toTypeLabels(test.inputLabels))
-			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
-		})
-	}
+	testAWSFetchers(t, tests...)
 }
 
 func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {

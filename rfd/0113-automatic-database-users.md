@@ -141,7 +141,7 @@ PostgreSQL users created by Teleport **will not be deleted** by Teleport.
 
 The main reason is dynamic users can have permissions to create database objects
 (depending on their database role) and users that own any database objects can't
-be deleted until the objects are deleted or their ownership is transfered to
+be deleted until the objects are deleted or their ownership is transferred to
 another database user.
 
 PostgreSQL provides commands for deleting objects owned by a user and changing
@@ -273,7 +273,7 @@ end;$$;
 Multiple create/disable procedures for the same user can run simultaneously e.g.
 if sessions are being opened/established at the same time by user or GUI client.
 To avoid races, Teleport database service will use `AcquireSemaphore` to make
-sure only 1 procedure runs for a partucular user:
+sure only 1 procedure runs for a particular user:
 
 https://github.com/gravitational/teleport/blob/v12.1.1/api/client/client.go#L953
 

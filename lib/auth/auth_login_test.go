@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -708,34 +709,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	ctx := context.Background()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
-	type updateHeadlessAuthnFn func(*types.HeadlessAuthentication, *types.MFADevice)
-	updateHeadlessAuthnInGoroutine := func(ctx context.Context, srv *TestTLSServer, mfa *types.MFADevice, update updateHeadlessAuthnFn) chan error {
-		errC := make(chan error)
-		go func() {
-			defer close(errC)
-
-			headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
-			if err != nil {
-				errC <- err
-				return
-			}
-
-			// create a shallow copy and update for the compare and swap below.
-			replaceHeadlessAuthn := *headlessAuthn
-			update(&replaceHeadlessAuthn, mfa)
-
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
-			if err != nil {
-				errC <- err
-				return
-			}
-		}()
-		return errC
-	}
-
 	for _, tc := range []struct {
 		name      string
-		update    updateHeadlessAuthnFn
+		update    func(*types.HeadlessAuthentication, *types.MFADevice)
 		expectErr bool
 	}{
 		{
@@ -800,7 +776,27 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 
-			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
+			// Start a goroutine to catch the headless authentication attempt and update with test case values.
+			errC := make(chan error)
+			go func() {
+				defer close(errC)
+
+				headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
+				if err != nil {
+					errC <- err
+					return
+				}
+
+				// create a shallow copy and update for the compare and swap below.
+				replaceHeadlessAuthn := *headlessAuthn
+				tc.update(&replaceHeadlessAuthn, mfa.WebDev.MFA)
+
+				if _, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn); err != nil {
+					errC <- err
+					return
+				}
+			}()
+
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
@@ -815,7 +811,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				},
 				TTL: defaults.CallbackTimeout,
 			})
-			require.NoError(t, <-errC)
+
+			// Use assert so that we also output any test failures below.
+			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			if tc.expectErr {
 				require.Error(t, err)

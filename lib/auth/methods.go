@@ -347,28 +347,30 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
 	defer cancel()
 
-	headlessAuthn := &types.HeadlessAuthentication{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: req.HeadlessAuthenticationID,
-			},
-		},
-		User:            req.Username,
-		PublicKey:       req.PublicKey,
-		ClientIpAddress: req.ClientMetadata.RemoteAddr,
+	// Headless Authentication should expire when the callback expires.
+	expires := s.clock.Now().Add(defaults.CallbackTimeout)
+	headlessAuthn, err := types.NewHeadlessAuthenticationStub(req.HeadlessAuthenticationID, expires)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Headless Authentication should expire when the callback expires.
-	headlessAuthn.SetExpiry(s.clock.Now().Add(defaults.CallbackTimeout))
-
+	headlessAuthn.User = req.Username
+	headlessAuthn.PublicKey = req.PublicKey
+	headlessAuthn.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(headlessAuthn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	sub, err := s.headlessAuthenticationWatcher.Subscribe(ctx, req.HeadlessAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	// Wait for a headless authenticated stub to be inserted by an authenticated
 	// call to GetHeadlessAuthentication. We do this to avoid immediately inserting
 	// backend items from an unauthenticated endpoint.
-	headlessAuthnStub, err := s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthnStub, err := s.headlessAuthenticationWatcher.WaitForUpdate(ctx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		// Only headless authentication stub can be inserted without the standard validation.
 		if services.ValidateHeadlessAuthentication(ha) == nil {
 			return false, trace.AlreadyExists("headless auth request already exists")
@@ -385,7 +387,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}
 
 	// Wait for the request to be approved/denied.
-	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthn, err = s.headlessAuthenticationWatcher.WaitForUpdate(ctx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		switch ha.State {
 		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
 			if ha.MfaDevice == nil {

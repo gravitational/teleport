@@ -107,7 +107,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := crlDN(req.ClusterName, req.LDAPConfig)
+	crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
 	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
 }
 
@@ -142,6 +142,9 @@ type GenerateCredentialsRequest struct {
 	LDAPConfig LDAPConfig
 	// AuthClient is the windows AuthInterface
 	AuthClient AuthInterface
+	// CAType is the certificate authority type used to generate the certificate.
+	// This is used to proper generate the CRL LDAP path.
+	CAType types.CertAuthType
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given

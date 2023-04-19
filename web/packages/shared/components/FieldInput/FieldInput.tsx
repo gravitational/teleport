@@ -33,6 +33,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       min,
       max,
       rule = defaultRule,
+      name,
       type = 'text',
       autoFocus = false,
       autoComplete = 'off',
@@ -53,6 +54,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
         mt={1}
         ref={ref}
         type={type}
+        name={name}
         hasError={hasError || markAsError}
         placeholder={placeholder}
         autoFocus={autoFocus}

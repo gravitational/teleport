@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -92,6 +92,8 @@ type ProxyServerConfig struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -333,6 +335,9 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
 		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
 	}
+	if enterprise.ProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
+		return trace.Wrap(err)
+	}
 
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
@@ -345,6 +350,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
+
 	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
@@ -397,6 +403,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		Limiter:         s.cfg.Limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
+		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 
@@ -573,18 +580,9 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
-	}
-
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

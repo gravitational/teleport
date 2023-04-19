@@ -30,8 +30,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -74,11 +74,25 @@ type UsageReporter interface {
 	AnonymizeAndSubmit(event ...Anonymizable)
 }
 
-// TeleportUsageReporter submits Teleport usage events
-// anonymized with the cluster name.
-type TeleportUsageReporter struct {
+// GracefulStopper is a UsageReporter that needs to do some work before
+// stopping; this is a separate interface because [UsageReporter] is embedded in
+// auth.Server.Services, and we don't want to expose extraneous methods as part
+// of auth.Server.
+type GracefulStopper interface {
+	UsageReporter
+
+	// GracefulStop gracefully closes and runs any finalization needed by the
+	// UsageReporter; operations can run as long as the context is alive, but
+	// must terminate quickly (even losing data) if the context is closed.
+	// Returns nil if operations have completed cleanly.
+	GracefulStop(context.Context) error
+}
+
+// StreamingUsageReporter submits all Teleport usage events anonymized with the
+// cluster name, with a very short buffer for batches and no persistency.
+type StreamingUsageReporter struct {
 	// usageReporter is an actual reporter that batches and sends events
-	usageReporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest]
+	usageReporter *usagereporter.UsageReporter[prehogv1a.SubmitEventRequest]
 	// anonymizer is the anonymizer used for filtered audit events.
 	anonymizer utils.Anonymizer
 	// clusterName is the cluster's name, used for anonymization and as an event
@@ -87,9 +101,9 @@ type TeleportUsageReporter struct {
 	clock       clockwork.Clock
 }
 
-var _ UsageReporter = (*TeleportUsageReporter)(nil)
+var _ UsageReporter = (*StreamingUsageReporter)(nil)
 
-func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
+func (t *StreamingUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
@@ -98,13 +112,13 @@ func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 	}
 }
 
-func (t *TeleportUsageReporter) Run(ctx context.Context) {
+func (t *StreamingUsageReporter) Run(ctx context.Context) {
 	t.usageReporter.Run(ctx)
 }
 
-type SubmitFunc = usagereporter.SubmitFunc[prehogv1.SubmitEventRequest]
+type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*TeleportUsageReporter, error) {
+func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}
@@ -121,7 +135,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 
 	clock := clockwork.NewRealClock()
 
-	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1.SubmitEventRequest]{
+	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
 		Log:           log,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
@@ -133,7 +147,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 		Clock:         clock,
 	})
 
-	return &TeleportUsageReporter{
+	return &StreamingUsageReporter{
 		usageReporter: reporter,
 		anonymizer:    anonymizer,
 		clusterName:   clusterName,
@@ -177,15 +191,15 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 	}
 	httpClient.Timeout = 5 * time.Second
 
-	client := prehogv1c.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
+	client := prehogv1ac.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest], error) {
-		evs := make([]*prehogv1.SubmitEventRequest, 0, len(events))
+	return func(reporter *usagereporter.UsageReporter[prehogv1a.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1a.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1a.SubmitEventRequest], error) {
+		evs := make([]*prehogv1a.SubmitEventRequest, 0, len(events))
 		for _, e := range events {
 			evs = append(evs, e.Event)
 		}
 
-		req := connect.NewRequest(&prehogv1.SubmitEventsRequest{
+		req := connect.NewRequest(&prehogv1a.SubmitEventsRequest{
 			Events: evs,
 		})
 		if _, err := client.SubmitEvents(ctx, req); err != nil {
@@ -201,6 +215,7 @@ type DiscardUsageReporter struct{}
 
 var _ UsageReporter = DiscardUsageReporter{}
 
+// AnonymizeAndSubmit implements [UsageReporter]
 func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 	// do nothing
 }

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -eu
+
 on_ec2() {
   EC2_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS "http://169.254.169.254/latest/meta-data")
   # EC2 metadata sometimes requires token access, so a successful hit may

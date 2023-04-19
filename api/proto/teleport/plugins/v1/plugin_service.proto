@@ -19,7 +19,20 @@ package teleport.plugins.v1;
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1;pluginsv1";
+
+// PluginType represents a single type of hosted plugin
+// that can be onboarded.
+message PluginType {
+  // Type is a string corresponding to api.PluginTypeXXX constants
+  string type = 1;
+
+  // OAuthClientID contains the client ID of the OAuth application
+  // that is used with this plugin's API provider.
+  // For plugins that are not authenticated via OAuth,
+  // this will be empty.
+  string oauth_client_id = 2;
+}
 
 // CreatePluginRequest creates a new plugin from the given spec and initial credentials.
 message CreatePluginRequest {
@@ -81,6 +94,16 @@ message SetPluginStatusRequest {
   types.PluginStatusV1 status = 2;
 }
 
+// GetAvailablePluginTypesRequest is the request type for GetAvailablePluginTypes
+message GetAvailablePluginTypesRequest {}
+
+// GetAvailablePluginTypesResponse is a response to for GetAvailablePluginTypes
+message GetAvailablePluginTypesResponse {
+  // PluginTypes is a list of hosted plugins
+  // that the auth service supports.
+  repeated PluginType plugin_types = 1;
+}
+
 // PluginService provides CRUD operations for Plugin resources.
 service PluginService {
   // CreatePlugin creates a new plugin instance.
@@ -100,4 +123,8 @@ service PluginService {
 
   // SetPluginCredentials sets the status for the given plugin.
   rpc SetPluginStatus(SetPluginStatusRequest) returns (google.protobuf.Empty);
+
+  // GetAvailablePluginTypes returns the types of plugins
+  // that the auth server supports onboarding.
+  rpc GetAvailablePluginTypes(GetAvailablePluginTypesRequest) returns (GetAvailablePluginTypesResponse);
 }

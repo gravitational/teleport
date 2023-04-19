@@ -8,18 +8,22 @@ on:
       - branch/*
   pull_request:
     paths:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:

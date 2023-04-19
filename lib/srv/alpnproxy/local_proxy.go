@@ -34,6 +34,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -218,7 +220,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
+	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -227,7 +229,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
 		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = NewPingConn(tlsConn)
+		upstreamConn = pingconn.NewTLS(tlsConn)
 	}
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
@@ -243,8 +245,8 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) ALPNDialerConfig {
-	return ALPNDialerConfig{
+func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) client.ALPNDialerConfig {
+	return client.ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
@@ -285,7 +287,7 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.Rev
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig(certs)).DialContext,
+			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(certs)).DialContext,
 		},
 	}
 }

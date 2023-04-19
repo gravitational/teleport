@@ -49,7 +49,7 @@ const Container = styled.div`
 `;
 
 const ActiveValue = styled.div<OpenProps>`
-  border: 1px solid #cccccc;
+  border: 1px solid ${props => props.theme.colors.text.secondary};
   border-radius: 4px;
   padding: 12px 16px;
   width: 190px;
@@ -70,7 +70,7 @@ const Dropdown = styled.div<OpenProps>`
   background: ${({ theme }) => theme.colors.levels.popout};
   border-radius: 4px;
   z-index: 99;
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: ${({ theme }) => theme.boxShadow[1]};
   opacity: ${p => (p.open ? 1 : 0)};
   visibility: ${p => (p.open ? 'visible' : 'hidden')};
   transform-origin: top center;
@@ -80,7 +80,7 @@ const Dropdown = styled.div<OpenProps>`
 `;
 
 const DropdownItem = styled.div<ActiveProps & OpenProps>`
-  color: white;
+  color: ${props => props.theme.colors.text.primary};
   padding: 12px 16px;
   width: 190px;
   font-weight: ${p => (p.active ? 700 : 400)};
@@ -93,7 +93,7 @@ const DropdownItem = styled.div<ActiveProps & OpenProps>`
   &:hover,
   &:focus {
     outline: none;
-    background: ${({ theme }) => theme.colors.levels.popoutHighlighted};
+    background: ${({ theme }) => theme.colors.spotBackground[0]};
   }
 `;
 
@@ -102,12 +102,16 @@ const Arrow = styled.div<OpenProps>`
   top: 50%;
   right: 16px;
   transform: translate(0, -50%);
-  color: white;
+  color: ${props => props.theme.colors.text.primary}
   line-height: 0;
 
   svg {
     transform: ${p => (p.open ? 'rotate(-180deg)' : 'none')};
     transition: 0.1s linear transform;
+
+    path {
+    fill: ${props => props.theme.colors.text.primary}
+  }
   }
 `;
 
