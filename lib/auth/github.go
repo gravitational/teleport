@@ -225,7 +225,10 @@ func orgUsesExternalSSO(ctx context.Context, endpointURL, org string, client htt
 	// supports external SSO. There doesn't seem to be any way to get this
 	// information from the Github REST API without being an owner of the
 	// Github organization, so check if this exists instead.
-	ssoURL := fmt.Sprintf("%s/orgs/%s/sso", endpointURL, url.PathEscape(org))
+	ssoURL, err := url.JoinPath(endpointURL, "orgs", url.PathEscape(org), "sso")
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 
 	const retries = 3
 	var resp *http.Response
@@ -554,19 +557,14 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	// Get the Github organizations the user is a member of so we don't
 	// make unnecessary API requests
-	endpointURL, err := url.Parse(connector.GetEndpointURL())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	apiEndpointURL, err := url.Parse(connector.GetAPIEndpointURL())
+	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ghClient := &githubAPIClient{
-		token:               token.AccessToken,
-		authServer:          a,
-		endpointHostname:    endpointURL.Host,
-		apiEndpointHostname: apiEndpointURL.Host,
+		token:       token.AccessToken,
+		authServer:  a,
+		apiEndpoint: apiEndpoint,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
@@ -678,6 +676,21 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 
 	return &auth, nil
+}
+
+// buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only
+// the joined host and path.
+func buildAPIEndpoint(apiEndpointURLStr string) (string, error) {
+	apiEndpointURL, err := url.Parse(apiEndpointURLStr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	apiEndpoint, err := url.JoinPath(apiEndpointURL.Host, apiEndpointURL.Path)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return apiEndpoint, nil
 }
 
 // CreateUserParams is a set of parameters used to create a user for an
@@ -842,11 +855,9 @@ type githubAPIClient struct {
 	token string
 	// authServer points to the Auth Server.
 	authServer *Server
-	// endpointHostname is the Github hostname to connect to.
-	endpointHostname string
-	// apiEndpointHostname is the API endpoint of the Github instance
+	// apiEndpoint is the API endpoint of the Github instance
 	// to connect to.
-	apiEndpointHostname string
+	apiEndpoint string
 }
 
 // userResponse represents response from "user" API call
@@ -958,7 +969,11 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(page string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
+	apiPath, err := url.JoinPath(c.apiEndpoint, page)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	request, err := http.NewRequest("GET", "https://"+apiPath, nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -972,7 +987,7 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	if response.StatusCode != 200 {
+	if response.StatusCode != http.StatusOK {
 		return nil, "", trace.AccessDenied("bad response: %v %v",
 			response.StatusCode, string(bytes))
 	}

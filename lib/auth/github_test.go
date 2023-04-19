@@ -115,7 +115,6 @@ func TestPopulateClaims(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}))
-
 }
 
 func TestCreateGithubUser(t *testing.T) {
@@ -517,6 +516,43 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, tt.errFunc(err))
 			}
+		})
+	}
+}
+
+func TestBuildAPIEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no path",
+			input:    "https://github.com",
+			expected: "github.com",
+		},
+		{
+			name:     "with path",
+			input:    "https://mykewlapiendpoint/apage",
+			expected: "mykewlapiendpoint/apage",
+		},
+		{
+			name:     "with path and double slashes",
+			input:    "https://mykewlapiendpoint//apage//",
+			expected: "mykewlapiendpoint/apage/",
+		},
+		{
+			name:     "with path and query",
+			input:    "https://mykewlapiendpoint/apage?legit=nope",
+			expected: "mykewlapiendpoint/apage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildAPIEndpoint(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }
