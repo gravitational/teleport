@@ -63,10 +63,8 @@ type CommandRequest struct {
 	Command string `json:"command"`
 	// Login is a Linux username to connect as.
 	Login string `json:"login"`
-	//NodeIDs are the node IDs where the command should be executed.
-	NodeIDs []string `json:"node_ids"`
-	// Labels are the nodes labels where the command should be executed.
-	Labels map[string]string `json:"labels"`
+	// Query is the predicate query to filter nodes where the command will be executed.
+	Query string `json:"query"`
 }
 
 func (h *Handler) executeCommand(
@@ -141,19 +139,9 @@ func (h *Handler) executeCommand(
 		return nil, nil
 	}
 
-	hosts, err := findByLabels(ctx, clt, req.Labels)
+	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
 		log.WithError(err).Warn("failed to find nodes by labels")
-	}
-
-	for _, nodeID := range req.NodeIDs {
-		host, err := findByHost(ctx, clt, nodeID)
-		if err != nil {
-			h.log.WithError(err).Warn("failed to find host by node ID")
-			continue
-		}
-
-		hosts = append(hosts, *host)
 	}
 
 	if len(hosts) == 0 {
@@ -174,8 +162,8 @@ func (h *Handler) executeCommand(
 				return trace.Wrap(err)
 			}
 
-			h.log.Debugf("New command request for server=%s, labels=%v, login=%s, sid=%s, websid=%s.",
-				req.NodeIDs, req.Labels, req.Login, sessionData.ID, sessionCtx.GetSessionID())
+			h.log.Debugf("New command request for server=%s, id=%v, login=%s, sid=%s, websid=%s.",
+				host.hostName, host.id, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 			commandHandlerConfig := CommandHandlerConfig{
 				SessionCtx:         sessionCtx,

@@ -2679,6 +2679,39 @@ type hostInfo struct {
 	port     int
 }
 
+// findByQuery returns all hosts matching the given query/predicate.
+func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
+	if len(query) == 0 {
+		return nil, trace.BadParameter("query must be set")
+	}
+
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType:        types.KindNode,
+		Namespace:           apidefaults.Namespace,
+		PredicateExpression: query,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hosts := make([]hostInfo, 0, len(resources))
+	for _, resource := range resources {
+		server, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+
+		h := hostInfo{
+			hostName: server.GetHostname(),
+			id:       server.GetName(),
+			port:     defaultPort,
+		}
+		hosts = append(hosts, h)
+	}
+
+	return hosts, nil
+}
+
 // findByLabels returns all hosts matching the given labels.
 func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]string) ([]hostInfo, error) {
 	if len(labels) == 0 {
