@@ -36,7 +36,6 @@ export type CreateDatabaseDialogProps = {
   close(): void;
   next(): void;
   dbName: string;
-  alteredRdsDbName?: string;
 };
 
 export function CreateDatabaseDialog({
@@ -46,7 +45,6 @@ export function CreateDatabaseDialog({
   close,
   next,
   dbName,
-  alteredRdsDbName,
 }: CreateDatabaseDialogProps) {
   let content: JSX.Element;
   if (attempt.status === 'failed') {
@@ -56,11 +54,11 @@ export function CreateDatabaseDialog({
           Database Register Failed
         </Text>
         <Text mb={5}>
-          <Icons.Warning ml={1} mr={2} color="danger" />
+          <Icons.Warning ml={1} mr={2} color="error.main" />
           Error: {attempt.statusText}
         </Text>
         <Flex>
-          <ButtonPrimary mr={2} width="50%" onClick={retry}>
+          <ButtonPrimary mr={3} width="50%" onClick={retry}>
             Retry
           </ButtonPrimary>
           <ButtonSecondary width="50%" onClick={close}>
@@ -99,14 +97,7 @@ export function CreateDatabaseDialog({
         </Text>
         <Text mb={5}>
           <Icons.Check ml={1} mr={2} color="success" />
-          {alteredRdsDbName ? (
-            <>
-              AWS RDS database "{dbName}"" has been registered as "
-              {alteredRdsDbName}"
-            </>
-          ) : (
-            <>Database "{dbName}" successfully registered</>
-          )}
+          Database "{dbName}" successfully registered
         </Text>
         <ButtonPrimary mr={2} width="100%" onClick={next}>
           Next

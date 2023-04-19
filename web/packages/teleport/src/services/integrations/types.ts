@@ -175,13 +175,13 @@ export type AwsOidcListDatabasesRequest = {
   rdsType: 'instance' | 'cluster';
 };
 
-export type AwsDatabase = {
+export type AwsRdsDatabase = {
   // engine of the database. eg. aurora-mysql
   engine: RdsEngine;
   // name is the the Database's name.
   name: string;
-  // endpoint contains the URI for connecting to this Database
-  endpoint: string;
+  // uri contains the endpoint with port for connecting to this Database.
+  uri: string;
   // resourceId is the AWS Region-unique, immutable identifier for the DB.
   resourceId: string;
   // accountId is the AWS account id.
@@ -195,8 +195,8 @@ export type AwsDatabase = {
   status: 'Available' | 'Failed' | 'Deleting';
 };
 
-export type ListAwsDatabaseResponse = {
-  databases: AwsDatabase[];
+export type ListAwsRdsDatabaseResponse = {
+  databases: AwsRdsDatabase[];
   // nextToken is the start key for the next page.
   // Empty value means last page.
   nextToken?: string;

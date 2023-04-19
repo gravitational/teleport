@@ -21,17 +21,17 @@ import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 
 import {
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
 } from 'teleport/services/integrations';
 import { Label } from 'teleport/types';
 
 type Props = {
-  items: ListAwsDatabaseResponse['databases'];
+  items: ListAwsRdsDatabaseResponse['databases'];
   fetchStatus: FetchStatus;
   fetchNextPage(): void;
-  onSelectDatabase(item: AwsDatabase): void;
-  selectedDatabase?: AwsDatabase;
+  onSelectDatabase(item: AwsRdsDatabase): void;
+  selectedDatabase?: AwsRdsDatabase;
 };
 
 export const DatabaseList = ({
@@ -84,6 +84,7 @@ export const DatabaseList = ({
         },
       ]}
       emptyText="No Results"
+      customSearchMatchers={[labelMatcher]}
       pagination={{ pageSize: 10 }}
       fetching={{ onFetchMore: fetchNextPage, fetchStatus }}
       isSearchable
@@ -91,7 +92,7 @@ export const DatabaseList = ({
   );
 };
 
-const StatusCell = ({ item }: { item: AwsDatabase }) => {
+const StatusCell = ({ item }: { item: AwsRdsDatabase }) => {
   const status = getStatus(item);
 
   return (
@@ -109,9 +110,9 @@ function RadioCell({
   isChecked,
   onChange,
 }: {
-  item: AwsDatabase;
+  item: AwsRdsDatabase;
   isChecked: boolean;
-  onChange(selectedItem: AwsDatabase): void;
+  onChange(selectedItem: AwsRdsDatabase): void;
 }) {
   return (
     <Cell width="20px">
@@ -139,7 +140,7 @@ enum Status {
   Error,
 }
 
-function getStatus(item: AwsDatabase) {
+function getStatus(item: AwsRdsDatabase) {
   switch (item.status) {
     case 'Available':
       return Status.Success;
@@ -162,7 +163,7 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.light;
+      return theme.colors.error.main;
     }
     if (status === Status.Warning) {
       return theme.colors.warning;
@@ -188,3 +189,25 @@ const LabelCell = ({ labels }: { labels: Label[] }) => {
     </Cell>
   );
 };
+
+// labelMatcher allows user to client search by labels in the format
+//   1) `key: value` or
+//   2) `key:value` or
+//   3) `key` or `value`
+function labelMatcher(
+  targetValue: any,
+  searchValue: string,
+  propName: keyof AwsRdsDatabase & string
+) {
+  if (propName === 'labels') {
+    return targetValue.some((label: Label) => {
+      const convertedKey = label.name.toLocaleUpperCase();
+      const convertedVal = label.value.toLocaleUpperCase();
+      const formattedWords = [
+        `${convertedKey}:${convertedVal}`,
+        `${convertedKey}: ${convertedVal}`,
+      ];
+      return formattedWords.some(w => w.includes(searchValue));
+    });
+  }
+}
