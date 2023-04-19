@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestSSH verifies "tsh ssh" command.
@@ -338,7 +337,7 @@ func TestProxySSH(t *testing.T) {
 
 				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.Error(t, err)
-				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 			})
 		})
 	}
