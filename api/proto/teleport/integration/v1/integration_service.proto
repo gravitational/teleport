@@ -40,6 +40,9 @@ service IntegrationService {
 
   // DeleteAllIntegrations removes all Integrations.
   rpc DeleteAllIntegrations(DeleteAllIntegrationsRequest) returns (google.protobuf.Empty);
+
+  // GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+  rpc GenerateAWSOIDCToken(GenerateAWSOIDCTokenRequest) returns (GenerateAWSOIDCTokenResponse);
 }
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
@@ -86,3 +89,17 @@ message DeleteIntegrationRequest {
 
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
 message DeleteAllIntegrationsRequest {}
+
+// GenerateAWSOIDCTokenRequest are the parameters used to request an AWS OIDC
+// Integration token.
+message GenerateAWSOIDCTokenRequest {
+  // Issuer is the entity that is signing the JWT.
+  // This value must contain the AWS OIDC Integration configured provider (Teleport Proxy's Public URL)
+  string issuer = 1;
+}
+
+// GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.
+message GenerateAWSOIDCTokenResponse {
+  // Token is the signed JWT ready to be used
+  string token = 1;
+}
