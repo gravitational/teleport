@@ -94,9 +94,9 @@ export function Roles(props: State) {
             </Text>
             <Text typography="subtitle1" mb={3}>
               Teleport Role-based access control (RBAC) provides fine-grained
-              control over who can and how they access resources. A Teleport
-              role can be assigned based on user identity when used with single
-              sign-on (SSO).
+              control over who can access resources and in which contexts.
+              A Teleport role can be assigned based on user identity when used
+              with single sign-on (SSO).
             </Text>
             <Text>
               Learn more in{' '}
