@@ -315,13 +315,13 @@ This release of Teleport contains several bug fixes.
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
 
-## Block SFTP in Moderated Sessions
+### Block SFTP in Moderated Sessions
 
 Teleport did not block SFTP protocol in Moderated Sessions.
 
 [#17726](https://github.com/gravitational/teleport/pull/17726)
 
-## Other fixes
+### Other fixes
 
 * Fixed `tsh proxy ssh -J` command not working when root proxy is unavailable. [#17633](https://github.com/gravitational/teleport/pull/17633)
 * Fixed issue with `tctl rm windows_desktop/<name>` deleting all Windows desktops. [#17731](https://github.com/gravitational/teleport/pull/17731)
