@@ -138,7 +138,8 @@ func Test_formatJSON(t *testing.T) {
         "desktop_directory_sharing": null,
         "create_host_user": null,
         "pin_source_ip": false,
-        "ssh_file_copy": null
+        "ssh_file_copy": null,
+		"create_desktop_user": null
     },
     "allow": {
         "logins": [
