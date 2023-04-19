@@ -28,6 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
+func init() {
+	ini.PrettyFormat = false // Pretty format breaks psql.
+}
+
 // ServiceFile represents Postgres connection service file.
 //
 // https://www.postgresql.org/docs/13/libpq-pgservice.html
@@ -105,7 +109,6 @@ func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("sslcert", profile.CertPath)
 	section.NewKey("sslkey", profile.KeyPath)
 	section.NewKey("gssencmode", "disable") // we dont support GSS encryption.
-	ini.PrettyFormat = false                // Pretty format breaks psql.
 	return s.iniFile.SaveTo(s.path)
 }
 
