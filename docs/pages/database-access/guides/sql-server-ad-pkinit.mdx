@@ -80,7 +80,7 @@ authentication.
 - A Windows machine joined to the same Active Directory domain as the database.
 
 - A Linux node with network access to an Active Directory installation and
-  `kinit` command with PKINIT extensions intalled:
+  `kinit` command with PKINIT extensions installed:
 
   <Tabs>
     <TabItem label="Ubuntu">
@@ -207,7 +207,7 @@ certutil -dspublish -f <PathToCertFile.cert> NTAuthCA
 
 ### Publish the Teleport CRL
 
-On the same machine, run the command below at a PowerShell promt to publish the
+On the same machine, run the command below at a PowerShell prompt to publish the
 Teleport CRL to your Active Directory domain (using the path to the exported
 `db-ca.crl` file that you copied above).
 
