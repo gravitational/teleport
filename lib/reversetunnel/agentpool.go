@@ -834,6 +834,7 @@ func tlsRoutingUpgradeRequiredCache(
 		addr, _, err := resolver(ctx)
 		if err != nil {
 			log.WithError(err).Warn("Failed to resolve addr.")
+			return tlsRoutingUpgradeRequired
 		}
 
 		tlsRoutingUpgradeRequired = client.IsALPNConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
