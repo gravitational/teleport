@@ -77,7 +77,7 @@ The two best-known standards for security hardening are
  * The US DoD Security Technical Implementation Guides (STIGs)
 
 Both of these standards are pretty comprehensive and have wide
-application, although private organisations tend to favour CIS
+application, although private organizations tend to favor CIS
 over STIG. 
 
 So why choose STIG over CIS?
@@ -121,13 +121,13 @@ I suggest the latter, scheduled option;
 #### **Why ImageBuilder *AND* Packer?**
 
 As mentioned above, there is no way to inject parameters into an EC2 ImageBuilder
-pipeline. The pipeline is the pipeline. There is some customisation available at
+pipeline. The pipeline is the pipeline. There is some customization available at
 the build component level, but there is no way (that I can see, at least) to
 say something like "Trigger this pipeline using Teleport `vX.Y.Z` and save the
 resulting image as `teleport-oss-X.Y.Z`". All you can do is trigger the pipeline
 and have it produce (or replace) a single image.
 
-So this brings us to an obvious division of labour:
+So this brings us to an obvious division of labor:
 
  * **EC2 ImageBuilder** to build the hardened base image, which will be used as
    the common base for all AMIs we produce, across all supported Teleport
