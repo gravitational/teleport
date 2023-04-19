@@ -853,7 +853,7 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	}
 	if dbName == "" {
 		return nil, nil, trace.NotFound(
-			"No database name given or detected. Provide a database name as an argument\n       or use 'tsh db login [<flags>] <db>' prior to attempting to connect")
+			"No database given or detected. Provide a database as an argument\n       or use 'tsh db login [<flags>] <db>' prior to attempting to connect")
 	}
 	db, err := getDatabase(cf, tc, dbName)
 	if err != nil {
