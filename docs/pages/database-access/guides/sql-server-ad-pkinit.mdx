@@ -1,10 +1,10 @@
 ---
-title: Database Access for Microsoft SQL Server with PKINIT (Preview)
-description: How to configure Teleport Database Access with Microsoft SQL Server with Active Directory PKINIT authentication.
+title: Microsoft SQL Server access with PKINIT authentication (Preview)
+description: How to configure Microsoft SQL Server access with Active Directory PKINIT authentication.
 ---
 
 <Admonition type="warning" title="Preview">
-  Database access for Microsoft SQL Server is currently in Preview mode.
+  Microsoft SQL Server access is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -14,7 +14,7 @@ This guide will help you to:
 - Connect to SQL Server through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access SQL Server Self-Hosted](../../../img/database-access/guides/sqlserver_selfhosted.png)
+![SQL Server with self-hosted Teleport](../../../img/database-access/guides/sqlserver_selfhosted.png)
 {/*```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
@@ -40,7 +40,7 @@ end
 ```*/}
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport Database Access SQL Server Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
+![Teleport SQL Server access with Teleport Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
 {/*```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
