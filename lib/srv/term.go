@@ -693,7 +693,9 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 		teleport.SSHSessionID:           string(scx.SessionID()),
 	}
 
-	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.WithError(err).Debug("Unable to set environment variables")
+	for k, v := range envs {
+		if err := session.Setenv(ctx, k, v); err != nil {
+			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
+		}
 	}
 }
