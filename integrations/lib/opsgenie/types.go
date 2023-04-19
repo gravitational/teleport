@@ -27,7 +27,7 @@ type Alert struct {
 	// AlertKey is the key of the Opsgenie alert.
 	AlertKey string `json:"alert_key"`
 	// Details are a map of key-value pairs to use as custom properties of the alert.
-	Detials map[string]string `json:"details"`
+	Details map[string]string `json:"details"`
 }
 
 // AlertBody represents and Opsgenie alert body
@@ -66,7 +66,7 @@ type RespondersResult struct {
 
 // AlertResult is a wrapper around Alert
 type AlertResult struct {
-	// Alert contians the actual alert data.
+	// Alert contains the actual alert data.
 	Alert Alert `json:"alert"`
 }
 
