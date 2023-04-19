@@ -23,8 +23,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
   Regions,
   integrationService,
@@ -40,7 +40,7 @@ import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
-  items: ListAwsDatabaseResponse['databases'];
+  items: ListAwsRdsDatabaseResponse['databases'];
   fetchStatus: FetchStatus;
   startKey?: string;
   currRegion?: Regions;
@@ -51,8 +51,6 @@ const emptyTableData: TableData = {
   fetchStatus: 'disabled',
   startKey: '',
 };
-
-export const TELEPORT_DB_PREFIX = 'teleport_';
 
 export function EnrollRdsDatabase() {
   const {
@@ -73,7 +71,7 @@ export function EnrollRdsDatabase() {
     startKey: '',
     fetchStatus: 'disabled',
   });
-  const [selectedDb, setSelectedDb] = useState<AwsDatabase>();
+  const [selectedDb, setSelectedDb] = useState<AwsRdsDatabase>();
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -91,7 +89,7 @@ export function EnrollRdsDatabase() {
     setFetchDbAttempt({ status: 'processing' });
 
     integrationService
-      .fetchAwsDatabases(
+      .fetchAwsRdsDatabases(
         integrationName,
         getRdsEngineIdentifier(resourceSpec.dbMeta?.engine),
         {
@@ -132,13 +130,12 @@ export function EnrollRdsDatabase() {
   function handleOnProceed() {
     // Append `teleport_` to the RDS db name to
     // lower the chance of duplicate db name.
-    const dbName = `${TELEPORT_DB_PREFIX}${selectedDb.name}`;
 
     registerDatabase(
       {
-        name: dbName,
+        name: selectedDb.name,
         protocol: selectedDb.engine,
-        uri: selectedDb.endpoint,
+        uri: selectedDb.uri,
         labels: selectedDb.labels,
         awsRds: {
           accountId: selectedDb.accountId,
@@ -148,7 +145,7 @@ export function EnrollRdsDatabase() {
       // Corner case where if registering db fails a user can:
       //   1) change region, which will list new databases or
       //   2) select a different database before re-trying.
-      dbName !== createdDb?.name
+      selectedDb.name !== createdDb?.name
     );
   }
 
@@ -185,7 +182,6 @@ export function EnrollRdsDatabase() {
           close={clearRegisterAttempt}
           retry={handleOnProceed}
           dbName={selectedDb.name}
-          alteredRdsDbName={`${TELEPORT_DB_PREFIX}${selectedDb.name}`}
         />
       )}
     </Box>

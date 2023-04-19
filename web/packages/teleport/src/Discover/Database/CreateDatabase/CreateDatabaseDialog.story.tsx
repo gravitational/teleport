@@ -38,14 +38,6 @@ export const Success = () => (
   <CreateDatabaseDialog {...props} attempt={{ status: 'success' }} />
 );
 
-export const SuccessWithRds = () => (
-  <CreateDatabaseDialog
-    {...props}
-    attempt={{ status: 'success' }}
-    alteredRdsDbName="teleport_db-name"
-  />
-);
-
 const props: CreateDatabaseDialogProps = {
   pollTimeout: 8080000000,
   attempt: { status: 'processing' },

@@ -23,8 +23,8 @@ import {
   IntegrationStatusCode,
   IntegrationListResponse,
   AwsOidcListDatabasesRequest,
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
   RdsEngineIdentifier,
 } from './types';
 
@@ -55,14 +55,14 @@ export const integrationService = {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
 
-  fetchAwsDatabases(
+  fetchAwsRdsDatabases(
     integrationName,
     rdsEngineIdentifier: RdsEngineIdentifier,
     req: {
       region: AwsOidcListDatabasesRequest['region'];
       nextToken?: AwsOidcListDatabasesRequest['nextToken'];
     }
-  ): Promise<ListAwsDatabaseResponse> {
+  ): Promise<ListAwsRdsDatabaseResponse> {
     let body: AwsOidcListDatabasesRequest;
     switch (rdsEngineIdentifier) {
       case 'mysql':
@@ -96,13 +96,7 @@ export const integrationService = {
     }
 
     return api
-      .post(
-        cfg.getIntegrationExecuteUrl({
-          name: integrationName,
-          action: 'aws-oidc/list_databases',
-        }),
-        body
-      )
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
       .then(json => {
         const dbs = json?.databases ?? [];
         return {
@@ -137,17 +131,17 @@ function makeIntegration(json: any): Integration {
   };
 }
 
-export function makeAwsDatabase(json: any): AwsDatabase {
+export function makeAwsDatabase(json: any): AwsRdsDatabase {
   json = json ?? {};
-  const { engine, name, endpoint, status, labels, resourceId, accountId } =
-    json;
+  const { aws, name, uri, status, labels, protocol } = json;
+
   return {
-    engine,
+    engine: protocol,
     name,
-    endpoint,
+    uri,
     status,
     labels: labels ?? [],
-    resourceId,
-    accountId,
+    resourceId: aws?.rds?.resource_id,
+    accountId: aws?.account_id,
   };
 }

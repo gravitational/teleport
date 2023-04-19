@@ -216,8 +216,8 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
-    integrationExecutePath:
-      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -626,12 +626,12 @@ const cfg = {
     });
   },
 
-  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
+  getAwsRdsDbListUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.integrationExecutePath, {
+    return generatePath(cfg.api.awsRdsDbListPath, {
       clusterId,
-      ...params,
+      name: integrationName,
     });
   },
 

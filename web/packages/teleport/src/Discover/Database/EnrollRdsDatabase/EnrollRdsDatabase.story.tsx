@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { AwsDatabase } from 'teleport/services/integrations';
+import { AwsRdsDatabase } from 'teleport/services/integrations';
 
 import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
@@ -73,11 +73,11 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures: AwsDatabase[] = [
+const fixtures: AwsRdsDatabase[] = [
   {
     name: 'postgres-name',
     engine: 'postgres',
-    endpoint: '',
+    uri: '',
     labels: [],
     status: 'Available',
     accountId: '',
@@ -86,7 +86,7 @@ const fixtures: AwsDatabase[] = [
   {
     name: 'mysql-name',
     engine: 'mysql',
-    endpoint: '',
+    uri: '',
     labels: [],
     status: 'Available',
     accountId: '',
@@ -95,7 +95,7 @@ const fixtures: AwsDatabase[] = [
   {
     name: 'alpaca',
     engine: 'aurora',
-    endpoint: '',
+    uri: '',
     labels: [
       { name: 'env', value: 'prod' },
       { name: 'os', value: 'windows' },
@@ -107,7 +107,7 @@ const fixtures: AwsDatabase[] = [
   {
     name: 'banana',
     engine: 'postgres',
-    endpoint: '',
+    uri: '',
     labels: [],
     status: 'Failed',
     accountId: '',
@@ -116,7 +116,7 @@ const fixtures: AwsDatabase[] = [
   {
     name: 'watermelon',
     engine: 'mysql',
-    endpoint: '',
+    uri: '',
     labels: [
       { name: 'env', value: 'dev' },
       { name: 'os', value: 'mac' },
@@ -129,7 +129,7 @@ const fixtures: AwsDatabase[] = [
   {
     name: 'llama',
     engine: 'postgres',
-    endpoint: '',
+    uri: '',
     labels: [{ name: 'testing-name', value: 'testing-value' }],
     status: 'Available',
     accountId: '',

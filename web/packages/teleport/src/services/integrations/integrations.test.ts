@@ -102,7 +102,7 @@ test('fetchAwsDatabases response', async () => {
     .spyOn(api, 'post')
     .mockResolvedValue({ databases: mockAwsDbs, nextToken: 'next-token' });
 
-  let response = await integrationService.fetchAwsDatabases(
+  let response = await integrationService.fetchAwsRdsDatabases(
     'integration-name',
     'mysql',
     { region: 'us-east-1', nextToken: 'next-token' }
@@ -113,20 +113,29 @@ test('fetchAwsDatabases response', async () => {
       {
         engine: 'postgres',
         name: 'rds-1',
-        endpoint: 'endpoint-1',
+        uri: 'endpoint-1',
         status: 'Available',
         labels: [{ name: 'env', value: 'prod' }],
-        resourceId: 'resource-id-1',
         accountId: 'account-id-1',
+        resourceId: 'resource-id-1',
       },
       {
         engine: 'mysql',
         name: 'rds-2',
-        endpoint: 'endpoint-2',
+        uri: 'endpoint-2',
         status: 'Available',
         labels: [],
-        resourceId: 'resource-id-2',
-        accountId: 'account-id-2',
+        accountId: undefined,
+        resourceId: undefined,
+      },
+      {
+        engine: 'mysql',
+        name: 'rds-3',
+        uri: 'endpoint-3',
+        status: 'Available',
+        labels: [],
+        accountId: undefined,
+        resourceId: undefined,
       },
     ],
     nextToken: 'next-token',
@@ -135,7 +144,7 @@ test('fetchAwsDatabases response', async () => {
   // test null response
   jest.spyOn(api, 'post').mockResolvedValue(null);
 
-  response = await integrationService.fetchAwsDatabases(
+  response = await integrationService.fetchAwsRdsDatabases(
     'integration-name',
     'mysql',
     {} as any
@@ -158,13 +167,13 @@ describe('fetchAwsDatabases() request body formatting', () => {
     async ({ protocol, expectedEngines, expectedRdsType }) => {
       jest.spyOn(api, 'post').mockResolvedValue({ databases: [] }); // not testing response here.
 
-      await integrationService.fetchAwsDatabases(protocol, protocol, {
+      await integrationService.fetchAwsRdsDatabases(protocol, protocol, {
         region: 'us-east-1',
         nextToken: 'next-token',
       });
 
       expect(api.post).toHaveBeenCalledWith(
-        `/v1/webapi/sites/localhost/integrations/${protocol}/action/aws-oidc%2Flist_databases`,
+        `/v1/webapi/sites/localhost/integrations/aws-oidc/${protocol}/databases`,
         {
           rdsType: expectedRdsType,
           engines: expectedEngines,
@@ -188,20 +197,31 @@ const awsOidcIntegration = {
 
 const mockAwsDbs = [
   {
-    engine: 'postgres',
+    protocol: 'postgres',
     name: 'rds-1',
-    endpoint: 'endpoint-1',
+    uri: 'endpoint-1',
     status: 'Available',
     labels: [{ name: 'env', value: 'prod' }],
-    resourceId: 'resource-id-1',
-    accountId: 'account-id-1',
+    aws: {
+      account_id: 'account-id-1',
+      rds: {
+        resource_id: 'resource-id-1',
+      },
+    },
   },
+  // Test with empty aws fields.
   {
-    engine: 'mysql',
+    protocol: 'mysql',
     name: 'rds-2',
-    endpoint: 'endpoint-2',
+    uri: 'endpoint-2',
     status: 'Available',
-    resourceId: 'resource-id-2',
-    accountId: 'account-id-2',
+    aws: {},
+  },
+  // Test without aws field.
+  {
+    protocol: 'mysql',
+    name: 'rds-3',
+    uri: 'endpoint-3',
+    status: 'Available',
   },
 ];
