@@ -56,7 +56,7 @@ export function IamPolicyView({
       {attempt.status === 'failed' ? (
         <>
           <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="danger" />
+            <Icons.Warning ml={1} mr={2} color="error.main" />
             Encountered Error: {attempt.statusText}
           </Text>
           <ButtonBlueText ml={1} onClick={fetchIamPolicy}>

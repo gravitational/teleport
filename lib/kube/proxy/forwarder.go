@@ -51,7 +51,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
-	"golang.org/x/net/http2"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,6 +64,7 @@ import (
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -168,7 +168,17 @@ type ForwarderConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// Tracer is used to start spans.
 	tracer oteltrace.Tracer
+	// ConnTLSConfig is the TLS client configuration to use when connecting to
+	// the upstream Teleport proxy or Kubernetes service when forwarding requests
+	// using the forward identity (i.e. proxy impersonating a user) method.
+	ConnTLSConfig *tls.Config
+	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+	// It is used to determine if the cluster is licensed for Kubernetes usage.
+	ClusterFeatures ClusterFeaturesGetter
 }
+
+// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+type ClusterFeaturesGetter func() proto.Features
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -195,6 +205,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.ClusterFeatures == nil {
+		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
@@ -227,8 +240,13 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 
 	switch f.KubeServiceType {
 	case KubeService:
-	case ProxyService:
-	case LegacyProxyService:
+	case ProxyService, LegacyProxyService:
+		if f.ConnTLSConfig == nil {
+			return trace.BadParameter("missing parameter TLSConfig")
+		}
+		// Reset the ServerName to ensure that the proxy does not use the
+		// proxy's hostname as the SNI when connecting to the Kubernetes service.
+		f.ConnTLSConfig.ServerName = ""
 	default:
 		return trace.BadParameter("unknown value for KubeServiceType")
 	}
@@ -251,13 +269,21 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize)
+	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO (tigrato): remove this once we have a better way to handle
+	// deleting expired entried clusters and kube_servers entries.
+	// In the meantime, we need to make sure that the cache is cleaned
+	// from time to time.
+	transportClients, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	closeCtx, close := context.WithCancel(cfg.Context)
-
 	fwd := &Forwarder{
 		log:               cfg.log,
 		cfg:               cfg,
@@ -270,8 +296,10 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails: make(map[string]*kubeDetails),
+		clusterDetails:  make(map[string]*kubeDetails),
+		cachedTransport: transportClients,
 	}
+
 	router := httprouter.New()
 
 	router.UseRawPath = true
@@ -321,6 +349,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return fwd, nil
 }
 
@@ -359,6 +388,13 @@ type Forwarder struct {
 	// local kubernetes clusters. If the service type is Proxy, it will
 	// use the heartbeat clusters.
 	getKubernetesServersForKubeCluster getKubeServersByNameFunc
+
+	// cachedTransport is a cache of http.Transport objects used to
+	// connect to Teleport services.
+	// TODO(tigrato): Implement a cache eviction policy using watchers.
+	cachedTransport *ttlmap.TTLMap
+	// cachedTransportMu is a mutex used to protect the cachedTransport.
+	cachedTransportMu sync.Mutex
 }
 
 // getKubeServersByNameFunc is a function that returns a list of
@@ -473,6 +509,11 @@ const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
+	// If the cluster is not licensed for Kubernetes, return an error to the client.
+	if !f.cfg.ClusterFeatures().Kubernetes {
+		// If the cluster is not licensed for Kubernetes, return an error to the client.
+		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
+	}
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/authenticate",
@@ -686,14 +727,15 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 
 // formatStatusResponseError formats the error response into a kube Status object.
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	code := trace.ErrorToCode(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
 		// user-friendly message. The underlying root error is likely too
 		// low-level to be useful.
 		Message: respErr.Error(),
-		Code:    int32(trace.ErrorToCode(respErr)),
-		Reason:  errorToKubeStatusReason(respErr),
+		Code:    int32(code),
+		Reason:  errorToKubeStatusReason(respErr, code),
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -1522,7 +1564,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		return nil, trace.AccessDenied("insufficient permissions to launch non-interactive session")
 	}
 
-	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
+	eventPodMeta := request.eventPodMeta(request.context, sess.kubeAPICreds)
 
 	sessionStart := f.cfg.Clock.Now().UTC()
 
@@ -1620,14 +1662,18 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}
@@ -1769,12 +1815,15 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		// send the status back to the client when forwarding mode is enabled
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}
@@ -1910,8 +1959,8 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 	// We only have a direct host to provide when using local creds.
 	// Otherwise, use kube-teleport-proxy-alpn.teleport.cluster.local to pass TLS handshake and leverage TLS Routing.
 	req.URL.Host = fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, constants.APIDomain)
-	if sess.creds != nil {
-		req.URL.Host = sess.creds.getTargetAddr()
+	if sess.kubeAPICreds != nil {
+		req.URL.Host = sess.kubeAPICreds.getTargetAddr()
 	}
 
 	// add origin headers so the service consuming the request on the other site
@@ -2109,9 +2158,9 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.creds != nil {
+	if sess.kubeAPICreds != nil {
 		var err error
-		rt, err = sess.creds.wrapTransport(rt)
+		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2131,9 +2180,9 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		originalHeaders: req.Header,
 	})
 	rt := http.RoundTripper(upgradeRoundTripper)
-	if sess.creds != nil {
+	if sess.kubeAPICreds != nil {
 		var err error
-		rt, err = sess.creds.wrapTransport(rt)
+		rt, err = sess.kubeAPICreds.wrapTransport(rt)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2149,10 +2198,13 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 // x509 short lived credentials, forwarding proxies and other data
 type clusterSession struct {
 	authContext
-	parent    *Forwarder
-	creds     kubeCreds
-	tlsConfig *tls.Config
-	forwarder *forward.Forwarder
+	parent *Forwarder
+	// kubeAPICreds are the credentials used to authenticate to the Kubernetes API server.
+	// It is non-nil if the kubernetes cluster is served by this teleport service,
+	// nil otherwise.
+	kubeAPICreds kubeCreds
+	tlsConfig    *tls.Config
+	forwarder    *forward.Forwarder
 	// noAuditEvents is true if this teleport service should leave audit event
 	// logging to another service.
 	noAuditEvents        bool
@@ -2344,7 +2396,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 	return &clusterSession{
 		parent:               f,
 		authContext:          ctx,
-		creds:                details.kubeCreds,
+		kubeAPICreds:         details.kubeCreds,
 		kubeClusterEndpoints: []kubeClusterEndpoint{{addr: details.getTargetAddr()}},
 		tlsConfig:            details.getTLSConfig().Clone(),
 	}, nil
@@ -2380,30 +2432,14 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
 func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forwarder, error) {
-	var err error
-	transport := f.newTransport(sess.DialWithContext, sess.tlsConfig)
-
-	if sess.upgradeToHTTP2 {
-		// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY
-		// envs are not take into account purposely.
-		if err := http2.ConfigureTransport(transport); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	transport, err := f.transportForRequest(sess)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-
-	rt := http.RoundTripper(transport)
-	if sess.creds != nil {
-		rt, err = sess.creds.wrapTransport(rt)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	rt = tracehttp.NewTransport(rt)
 
 	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(rt),
+		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
 		forward.Logger(f.log),
 		forward.ErrorHandler(fwdutils.ErrorHandlerFunc(f.formatForwardResponseError)),
@@ -2413,25 +2449,6 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 	}
 
 	return forwarder, nil
-}
-
-// DialContextFunc is a context network dialer function that returns a network connection
-type DialContextFunc func(context.Context, string, string) (net.Conn, error)
-
-func (f *Forwarder) newTransport(dial DialContextFunc, tlsConfig *tls.Config) *http.Transport {
-	return &http.Transport{
-		DialContext:     dial,
-		TLSClientConfig: tlsConfig,
-		// Increase the size of the connection pool. This substantially improves the
-		// performance of Teleport under load as it reduces the number of TLS
-		// handshakes performed.
-		MaxIdleConns:        defaults.HTTPMaxIdleConns,
-		MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
-		// IdleConnTimeout defines the maximum amount of time before idle connections
-		// are closed. Leaving this unset will lead to connections open forever and
-		// will cause memory leaks in a long running process.
-		IdleConnTimeout: defaults.HTTPIdleTimeout,
-	}
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,
@@ -2454,47 +2471,6 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 		defer f.mu.Unlock()
 		delete(f.activeRequests, key)
 	}
-}
-
-func (f *Forwarder) getOrRequestClientCreds(tracingCtx context.Context, authCtx authContext) (*tls.Config, error) {
-	c := f.getClientCreds(authCtx)
-	if c == nil {
-		return f.serializedRequestClientCreds(tracingCtx, authCtx)
-	}
-	return c, nil
-}
-
-func (f *Forwarder) getClientCreds(ctx authContext) *tls.Config {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	creds, ok := f.clientCredentials.Get(ctx.key())
-	if !ok {
-		return nil
-	}
-	c := creds.(*tls.Config)
-	if !validClientCreds(f.cfg.Clock, c) {
-		return nil
-	}
-	return c
-}
-
-func (f *Forwarder) saveClientCreds(ctx authContext, c *tls.Config) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
-}
-
-func validClientCreds(clock clockwork.Clock, c *tls.Config) bool {
-	if len(c.Certificates) == 0 || len(c.Certificates[0].Certificate) == 0 {
-		return false
-	}
-	crt, err := x509.ParseCertificate(c.Certificates[0].Certificate[0])
-	if err != nil {
-		return false
-	}
-	// Make sure that the returned cert will be valid for at least 1 more
-	// minute.
-	return clock.Now().Add(time.Minute).Before(crt.NotAfter)
 }
 
 func (f *Forwarder) serializedRequestClientCreds(tracingCtx context.Context, authContext authContext) (*tls.Config, error) {
@@ -2722,7 +2698,6 @@ func (f *Forwarder) listPods(authCtx *authContext, w http.ResponseWriter, req *h
 	}
 
 	f.emitAuditEvent(authCtx, req, sess, status)
-
 	return nil, nil
 }
 
@@ -3033,7 +3008,7 @@ func getRequestVerb(method string) string {
 
 // errorToKubeStatusReason returns an appropriate StatusReason based on the
 // provided error type.
-func errorToKubeStatusReason(err error) metav1.StatusReason {
+func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 	switch {
 	case trace.IsAggregate(err):
 		return metav1.StatusReasonTimeout
@@ -3053,6 +3028,8 @@ func errorToKubeStatusReason(err error) metav1.StatusReason {
 		return metav1.StatusReasonTooManyRequests
 	case trace.IsConnectionProblem(err):
 		return metav1.StatusReasonTimeout
+	case code == http.StatusInternalServerError:
+		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
 	}

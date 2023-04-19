@@ -70,6 +70,8 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		defaults.ProtocolCassandra,
 		// Elasticsearch integration doesn't support schema access control.
 		defaults.ProtocolElasticsearch,
+		// OpenSearch integration doesn't support schema access control.
+		defaults.ProtocolOpenSearch,
 		// DynamoDB integration doesn't support schema access control.
 		defaults.ProtocolDynamoDB:
 		return nil

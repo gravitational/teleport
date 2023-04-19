@@ -34,6 +34,11 @@ type DiscoverEventData struct {
 	// This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
 	AutoDiscoverResourcesCount int `json:"autoDiscoverResourcesCount,omitempty"`
 
+	// SelectedResourcesCount is the number of resources that a user has selected
+	// eg: number of RDS databases selected in the RDS enrollment screen for the
+	// event tp.ui.discover.database.enroll.rds
+	SelectedResourcesCount int `json:"selectedResourcesCount,omitempty"`
+
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
 	// Example: "DISCOVER_STATUS_SUCCESS"
@@ -88,6 +93,25 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverIntegrationAWSOIDCConnectEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent{
+			UiDiscoverIntegrationAwsOidcConnectEvent: &usageeventsv1.UIDiscoverIntegrationAWSOIDCConnectEvent{
+				Metadata: metadata,
+				Resource: resource,
+				Status:   status,
+			},
+		}}, nil
+
+	case uiDiscoverDatabaseRDSEnrollEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent{
+			UiDiscoverDatabaseRdsEnrollEvent: &usageeventsv1.UIDiscoverDatabaseRDSEnrollEvent{
+				Metadata:               metadata,
+				Resource:               resource,
+				Status:                 status,
+				SelectedResourcesCount: int64(d.SelectedResourcesCount),
 			},
 		}}, nil
 

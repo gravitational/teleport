@@ -26,6 +26,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -72,12 +73,12 @@ func (f *memoryDBFetcher) FetchDatabaseUsers(ctx context.Context, database types
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSMemoryDBClient(meta.Region)
+	client, err := f.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(database, f.cfg.Clients)
+	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

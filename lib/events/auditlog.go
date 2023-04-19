@@ -870,6 +870,18 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 	return nil
 }
 
+// CurrentFileSymlink returns the path to the symlink pointing at the current
+// local file being used for logging.
+func (l *AuditLog) CurrentFileSymlink() string {
+	return filepath.Join(l.localLog.SymlinkDir, SymlinkFilename)
+}
+
+// CurrentFile returns the path to the current local file
+// being used for logging.
+func (l *AuditLog) CurrentFile() string {
+	return l.localLog.file.Name()
+}
+
 // auditDirs returns directories used for audit log storage
 func (l *AuditLog) auditDirs() ([]string, error) {
 	authServers, err := getAuthServers(l.DataDir)

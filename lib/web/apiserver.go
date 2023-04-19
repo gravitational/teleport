@@ -703,6 +703,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Diagnose a Connection
 	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
 
+	// Integrations CRUD
+	h.GET("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsList))
+	h.POST("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsCreate))
+	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
+	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
+	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
+
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
@@ -1401,11 +1408,18 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return client.LoginFailedRedirectURL
+	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
+		ClientLoginIP:     remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1431,6 +1445,12 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		ConnectorID:          req.ConnectorID,
 		PublicKey:            req.PublicKey,
@@ -1440,6 +1460,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:       req.RouteToCluster,
 		KubernetesCluster:    req.KubernetesCluster,
 		AttestationStatement: req.AttestationStatement.ToProto(),
+		ClientLoginIP:        remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
@@ -1556,6 +1577,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr: h.PublicProxyAddr(),
+		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
 		RepoChannel:     repoChannel,
 	}
@@ -2273,12 +2295,12 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindNode)
+	req, err := convertListResourcesRequest(r, types.KindNode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+	page, err := apiclient.GetResourcePage[types.Server](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2288,15 +2310,15 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeServers(site.GetName(), servers, accessChecker.Roles())
+	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
 		Items:      uiServers,
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -2534,7 +2556,7 @@ func (h *Handler) siteNodeConnect(
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx.cfg.User)
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2602,18 +2624,19 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	var (
 		id   string
 		host string
 		port int
 	)
+	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
 	if _, err := uuid.Parse(req.Server); err != nil {
 		// The requested server is either a hostname or an address. Get all
 		// servers that may fuzzily match by populating SearchKeywords
-		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
 			Namespace:      apidefaults.Namespace,
 			SearchKeywords: []string{req.Server},
@@ -2622,7 +2645,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 			return session.Session{}, trace.Wrap(err)
 		}
 
-		if len(resources) == 0 {
+		if len(servers) == 0 {
 			// If we didn't find the resource set host and port,
 			// so we can try direct dial.
 			host, port, err = serverHostPort(req.Server)
@@ -2633,12 +2656,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		matches := 0
-		for _, resource := range resources {
-			server, ok := resource.(types.Server)
-			if !ok {
-				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
-			}
-
+		for _, server := range servers {
 			// match by hostname
 			if server.GetHostname() == req.Server {
 				if matches > 0 {
@@ -2695,6 +2713,12 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		port = 0
 		id = req.Server
 	}
+	accessChecker, err := scx.GetUserAccessChecker()
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
 		Login:          req.Login,
@@ -2702,6 +2726,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		ClusterName:    clusterName,
 		ServerHostname: host,
 		ServerHostPort: port,
+		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
@@ -2808,6 +2833,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
+	accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 
 	return session.Session{
 		Kind:      tracker.GetSessionKind(),
@@ -2828,6 +2854,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		KubernetesClusterName: tracker.GetKubeCluster(),
 		DesktopName:           tracker.GetDesktopName(),
 		AppName:               tracker.GetAppName(),
+		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
 	}

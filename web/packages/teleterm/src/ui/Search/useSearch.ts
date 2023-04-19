@@ -46,7 +46,14 @@ export function useResourceSearch() {
   clustersService.useState();
 
   return useCallback(
-    async (search: string, restrictions: SearchFilter[]) => {
+    async (
+      search: string,
+      restrictions: SearchFilter[]
+    ): Promise<{
+      results: resourcesServiceTypes.SearchResult[];
+      errors: resourcesServiceTypes.ResourceSearchError[];
+      search: string;
+    }> => {
       // useResourceSearch has to return _something_ when the input is empty. Imagine this scenario:
       //
       // 1. The user types in 'data' into the search bar.
@@ -57,7 +64,7 @@ export function useResourceSearch() {
       // issuing another one for empty input and making `useResourceSearch` return an empty array
       // in that scenario.
       if (!search) {
-        return { results: [], search };
+        return { results: [], errors: [], search };
       }
 
       const clusterSearchFilter = restrictions.find(
@@ -76,16 +83,37 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      const searchPromises = clustersToSearch.map(cluster =>
-        resourcesService.searchResources(
-          cluster.uri,
-          search,
-          resourceTypeSearchFilter
+      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
+      // get rejected.
+      const promiseResults = (
+        await Promise.all(
+          clustersToSearch.map(cluster =>
+            resourcesService.searchResources(
+              cluster.uri,
+              search,
+              resourceTypeSearchFilter
+            )
+          )
         )
-      );
-      const results = (await Promise.all(searchPromises)).flat().slice(0, 10);
+      ).flat();
 
-      return { results, search };
+      const results: resourcesServiceTypes.SearchResult[] = [];
+      const errors: resourcesServiceTypes.ResourceSearchError[] = [];
+
+      for (const promiseResult of promiseResults) {
+        switch (promiseResult.status) {
+          case 'fulfilled': {
+            results.push(...promiseResult.value);
+            break;
+          }
+          case 'rejected': {
+            errors.push(promiseResult.reason);
+            break;
+          }
+        }
+      }
+
+      return { results, errors, search };
     },
     [clustersService, resourcesService]
   );
@@ -101,12 +129,13 @@ export function useFilterSearch() {
   workspacesService.useState();
 
   return useCallback(
-    async (
-      search: string,
-      restrictions: SearchFilter[]
-    ): Promise<{ results: FilterSearchResult[]; search: string }> => {
+    (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
@@ -168,13 +197,14 @@ export function useFilterSearch() {
           return b.score - a.score;
         });
 
-      return { results, search };
+      return results;
     },
     [clustersService, workspacesService]
   );
 }
 
-export function sortResults(
+/** Sorts and then returns top 10 results. */
+export function rankResults(
   searchResults: resourcesServiceTypes.SearchResult[],
   search: string
 ): ResourceSearchResult[] {
@@ -207,7 +237,8 @@ export function sortResults(
         // Highest score first.
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
-    );
+    )
+    .slice(0, 10);
 }
 
 function populateMatches(

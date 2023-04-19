@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 const (
-	GlobalHelpString = "Admin tool for the Teleport Access Plane"
+	GlobalHelpString = "Admin tool for the Teleport Access Platform"
 
 	AddUserHelp = `Notes:
 

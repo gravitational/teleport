@@ -18,6 +18,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -40,7 +45,11 @@ import (
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
-	t.Parallel()
+	// create a HTTPS_PROXY endpoint that intercepts the proxy Ping request
+	// and returns a mock response
+	// We need to do this because the Ping request is made using a custom
+	// http.Transport and we can't use a custom dialer to intercept the request.
+	t.Setenv("HTTPS_PROXY", newHTTPSProxy(t))
 
 	tmpDir := t.TempDir()
 
@@ -201,8 +210,9 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
-			wantAddr:  "https://proxy-from-api.example.com:3026",
+			wantAddr:  "https://proxy-from-api.example.com:3060",
 			assertErr: require.NoError,
 		},
 		{
@@ -218,6 +228,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			wantCluster: remoteCluster.GetMetadata().Name,
 			assertErr:   require.NoError,
@@ -235,6 +246,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
@@ -276,6 +288,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			wantAddr:  "https://proxy-from-api.example.com:3080",
 			assertErr: require.NoError,
@@ -314,6 +327,63 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// proxyHandler is a simple HTTP handler that proxies all requests to the
+// upstreamAddr.
+type proxyHandler struct {
+	upstreamAddr string
+}
+
+func (p *proxyHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+	dest_conn, err := net.DialTimeout("tcp", p.upstreamAddr, 10*time.Second)
+	if err != nil {
+		http.Error(wr, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	wr.WriteHeader(http.StatusOK)
+	hijacker, ok := wr.(http.Hijacker)
+	if !ok {
+		http.Error(wr, "Hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+	client_conn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(wr, err.Error(), http.StatusServiceUnavailable)
+	}
+
+	utils.ProxyConn(req.Context(), client_conn, dest_conn)
+}
+
+// pingSrv is a simple HTTP handler that returns a PingResponse with a
+// kube proxy enabled.
+type pingSrv struct{}
+
+func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+	wr.WriteHeader(http.StatusOK)
+	json.NewEncoder(wr).Encode(
+		webclient.PingResponse{
+			Proxy: webclient.ProxySettings{
+				Kube: webclient.KubeProxySettings{
+					Enabled:    true,
+					PublicAddr: "proxy-from-api.example.com:3060",
+				},
+			},
+		},
+	)
+}
+
+func newHTTPSProxy(t *testing.T) string {
+	pingTestServer := httptest.NewTLSServer(&pingSrv{})
+	t.Cleanup(func() { pingTestServer.Close() })
+
+	proxyTestServer := httptest.NewServer(&proxyHandler{
+		upstreamAddr: pingTestServer.Listener.Addr().String(),
+	})
+	t.Cleanup(func() { proxyTestServer.Close() })
+
+	return proxyTestServer.URL
 }
 
 type mockClient struct {

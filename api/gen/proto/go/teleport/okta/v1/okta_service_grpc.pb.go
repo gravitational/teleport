@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/okta/v1/okta_service.proto
 
-package v1
+package oktav1
 
 import (
 	context "context"
