@@ -344,29 +344,29 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 	return output, trace.Wrap(err)
 }
 
-// ApproveFileTransfer sends a "file-transfer-request-response" ssh request
+// sendFileTransferDecision will send a "file-transfer-decision@goteleport.com" ssh request
+func (s *Session) sendFileTransferDecision(ctx context.Context, requestID string, approved bool) error {
+	req := &FileTransferDecisionReq{
+		RequestID: requestID,
+		Approved:  approved,
+	}
+	_, err := s.SendRequest(ctx, constants.FileTransferDecision, true, ssh.Marshal(req))
+	return trace.Wrap(err)
+}
+
+// ApproveFileTransferRequest sends a "file-transfer-decision@goteleport.com" ssh request
 // The ssh request will have the request ID and Approved: true
 func (s *Session) ApproveFileTransferRequest(ctx context.Context, requestID string) error {
-	req := &FileTransferResponseReq{
-		RequestID: requestID,
-		Approved:  true,
-	}
-	_, err := s.SendRequest(ctx, constants.FileTransferResponse, true, ssh.Marshal(req))
-	return trace.Wrap(err)
+	return trace.Wrap(s.sendFileTransferDecision(ctx, requestID, true))
 }
 
-// DenyFileTransfer sends a "file-transfer-request-response" ssh request
+// DenyFileTransferRequest sends a "file-transfer-decision@goteleport.com" ssh request
 // The ssh request will have the request ID and Approved: false
 func (s *Session) DenyFileTransferRequest(ctx context.Context, requestID string) error {
-	req := &FileTransferResponseReq{
-		RequestID: requestID,
-		Approved:  false,
-	}
-	_, err := s.SendRequest(ctx, constants.FileTransferResponse, true, ssh.Marshal(req))
-	return trace.Wrap(err)
+	return trace.Wrap(s.sendFileTransferDecision(ctx, requestID, false))
 }
 
-// RequestFileTransfer sends a "file-transfer-request" ssh request that will create a new file transfer request
+// RequestFileTransfer sends a "file-transfer-request@goteleport.com" ssh request that will create a new file transfer request
 // and notify the parties in an ssh session
 func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferRequestReq) error {
 	_, err := s.SendRequest(ctx, constants.FileTransferRequest, true, ssh.Marshal(req))
