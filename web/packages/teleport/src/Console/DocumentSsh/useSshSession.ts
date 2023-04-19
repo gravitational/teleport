@@ -19,14 +19,11 @@ import React from 'react';
 import { context, trace } from '@opentelemetry/api';
 
 import cfg from 'teleport/config';
-import { EventType, TermEvent } from 'teleport/lib/term/enums';
+import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
-
-import { useFileTransfer } from './useFileTransfer';
 
 import type {
   ParticipantMode,
@@ -39,54 +36,16 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
-  const user = ctx.getStoreUser();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
-  const webauthn = useWebAuthn(tty);
   const [session, setSession] = React.useState<Session>(null);
   const [status, setStatus] = React.useState<Status>('loading');
-
-  const {
-    download,
-    upload,
-    getMfaResponseAttempt,
-    fileTransferRequests,
-    handleFileTransferApproval,
-    handleFileTransferDenied,
-    filesStore,
-    updateFileTransferRequests,
-  } = useFileTransfer({
-    doc,
-    user,
-    addMfaToScpUrls: webauthn.addMfaToScpUrls,
-  });
 
   function closeDocument() {
     ctx.closeTab(doc);
   }
 
-  function handleDownload(location: string, abortController: AbortController) {
-    if (session.moderated) {
-      tty.sendFileTransferRequest(location, true);
-      return;
-    }
-    return download(location, abortController);
-  }
-
-  function handleUpload(
-    location: string,
-    file: File,
-    abortController: AbortController
-  ) {
-    if (session.moderated) {
-      tty.sendFileTransferRequest(location, false, file);
-      return;
-    }
-    return upload(location, file, abortController);
-  }
-
   React.useEffect(() => {
-    // initializes tty instances
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',
@@ -113,16 +72,6 @@ export default function useSshSession(doc: DocumentSsh) {
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
-          tty.on(EventType.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
-          tty.on(
-            EventType.FILE_TRANSFER_REQUEST_APPROVE,
-            handleFileTransferApproval
-          );
-          tty.on(
-            EventType.FILE_TRANSFER_REQUEST_DENY,
-            handleFileTransferDenied
-          );
-
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);
@@ -131,12 +80,6 @@ export default function useSshSession(doc: DocumentSsh) {
         }
       );
     }
-
-    // cleanup by unsubscribing from tty
-    function cleanup() {
-      ttyRef.current && ttyRef.current.removeAllListeners();
-    }
-
     initTty(
       {
         login,
@@ -147,10 +90,11 @@ export default function useSshSession(doc: DocumentSsh) {
       mode
     );
 
-    return cleanup;
+    function teardownTty() {
+      ttyRef.current && ttyRef.current.removeAllListeners();
+    }
 
-    // Only run this once on the initial render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return teardownTty;
   }, []);
 
   return {
@@ -158,12 +102,6 @@ export default function useSshSession(doc: DocumentSsh) {
     status,
     session,
     closeDocument,
-    webauthn,
-    getMfaResponseAttempt,
-    handleDownload,
-    handleUpload,
-    fileTransferRequests,
-    filesStore,
   };
 }
 

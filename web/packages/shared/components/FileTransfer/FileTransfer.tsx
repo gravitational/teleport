@@ -29,9 +29,6 @@ interface FileTransferProps {
   transferHandlers: TransferHandlers;
   // errorText is any general error that isn't related to a specific transfer
   errorText?: string;
-
-  filesStore: FilesStore;
-
   /**
    * `beforeClose` is called when an attempt to close the dialog was made
    * and there is a file transfer in progress.
@@ -41,14 +38,6 @@ interface FileTransferProps {
 
   afterClose?(): void;
 }
-
-export type FileTransferRequest = {
-  id: string;
-  requester: string;
-  direction: string;
-  location: string;
-  approvers: string[];
-};
 
 /**
  * Both `getDownloader` and `getUploader` can return a promise containing `FileTransferListeners` function or nothing.
@@ -67,7 +56,7 @@ export interface TransferHandlers {
 }
 
 export function FileTransfer(props: FileTransferProps) {
-  const { openedDialog, closeDialog } = useFileTransferContext();
+  const { openedDialog, closeDialog, filesStore } = useFileTransferContext();
 
   async function handleCloseDialog(
     isAnyTransferInProgress: boolean
@@ -93,7 +82,7 @@ export function FileTransfer(props: FileTransferProps) {
 
   return (
     <FileTransferDialog
-      filesStore={props.filesStore}
+      filesStore={filesStore}
       errorText={props.errorText}
       openedDialog={openedDialog}
       backgroundColor={props.backgroundColor}
@@ -106,10 +95,11 @@ export function FileTransfer(props: FileTransferProps) {
 export function FileTransferDialog(
   props: Pick<
     FileTransferProps,
-    'transferHandlers' | 'backgroundColor' | 'errorText' | 'filesStore'
+    'transferHandlers' | 'backgroundColor' | 'errorText'
   > & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
+    filesStore: FilesStore;
   }
 ) {
   const filesStore = props.filesStore;

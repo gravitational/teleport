@@ -17,18 +17,20 @@
 import React, { useContext, useState, FC } from 'react';
 
 import { FileTransferDialogDirection } from './FileTransferStateless';
+import { FilesStore, useFilesStore } from './useFilesStore';
 
-const FileTransferContext =
-  React.createContext<{
-    openedDialog: FileTransferDialogDirection;
-    openDownloadDialog(): void;
-    openUploadDialog(): void;
-    closeDialog(): void;
-  }>(null);
+const FileTransferContext = React.createContext<{
+  openedDialog: FileTransferDialogDirection;
+  openDownloadDialog(): void;
+  openUploadDialog(): void;
+  closeDialog(): void;
+  filesStore: FilesStore;
+}>(null);
 
 export const FileTransferContextProvider: FC<{
   openedDialog?: FileTransferDialogDirection;
 }> = props => {
+  const filesStore = useFilesStore();
   const [openedDialog, setOpenedDialog] = useState<
     FileTransferDialogDirection | undefined
   >(props.openedDialog);
@@ -52,6 +54,7 @@ export const FileTransferContextProvider: FC<{
         openDownloadDialog,
         openUploadDialog,
         closeDialog,
+        filesStore,
       }}
       children={props.children}
     />

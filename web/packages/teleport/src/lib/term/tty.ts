@@ -197,9 +197,12 @@ class Tty extends EventEmitterWebAuthnSender {
 
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
+    // received a new/updated file transfer request
     if (event.event === EventType.FILE_TRANSFER_REQUEST) {
       this.emit(EventType.FILE_TRANSFER_REQUEST, event);
     }
+
+    // received a file transfer approval
     if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
       const isDownload = event.download === true;
       let pendingFile: File = null;
@@ -214,9 +217,15 @@ class Tty extends EventEmitterWebAuthnSender {
       }
       this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
     }
+
+    // received a file transfer denial
     if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
+      const locationAndName = event.location + event.filename;
+      delete this._pendingUploads[locationAndName];
       this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
     }
+
+    // received a window resize
     if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');
       w = Number(w);

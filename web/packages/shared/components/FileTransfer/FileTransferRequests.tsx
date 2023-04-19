@@ -80,8 +80,8 @@ const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
 
 type RequestFormProps = {
   request: FileTransferRequest;
-  onApprove: (string, bool) => void;
-  onDeny: (string, bool) => void;
+  onApprove: (requestId: string, approved: boolean) => void;
+  onDeny: (requestId: string, approved: boolean) => void;
 };
 
 type OwnFormProps = {
@@ -126,7 +126,6 @@ export type FileTransferRequest = {
   approvers: string[];
   location: string;
   filename?: string;
-  size?: string;
   download: boolean;
   isOwnRequest?: boolean;
 };
