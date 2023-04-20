@@ -47,10 +47,14 @@ const (
 	// DEPRECATED, DELETE IN 13.0.0. For more information see:
 	// https://github.com/gravitational/teleport/issues/17493
 	CertAuthTypeAll CertAuthType = "all"
+	// OIDCIdPCA (OpenID Connect Identity Provider Certificate Authority) identifies
+	// the certificate authority that will be used by the OIDC Identity Provider.
+	// Similar to JWTSigner, it doesn't issue Certificates but signs JSON Web Tokens.
+	OIDCIdPCA CertAuthType = "oidc_idp"
 )
 
 // CertAuthTypes lists all certificate authority types.
-var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA}
+var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSigner, SAMLIDPCA, OIDCIdPCA}
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {
