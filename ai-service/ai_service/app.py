@@ -9,7 +9,6 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 import ai_service.gen.teleport.assistant.v1.assistant_pb2_grpc as assistant_grpc
 import ai_service.model as model
-from ai_service.data import retreiver
 from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
     CompleteRequest,
     CompletionResponse,
