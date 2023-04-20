@@ -628,7 +628,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			svr.Auth().resetLoginHooks()
+			svr.Auth().ResetLoginHooks()
 			loginHookCounter.Store(0)
 			for _, hook := range test.loginHooks {
 				svr.Auth().RegisterLoginHook(hook)

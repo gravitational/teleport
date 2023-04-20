@@ -677,8 +677,8 @@ func (a *Server) CallLoginHooks(ctx context.Context) error {
 	return trace.NewAggregate(errs...)
 }
 
-// resetLoginHooks will clear out the login hooks.
-func (a *Server) resetLoginHooks() {
+// ResetLoginHooks will clear out the login hooks.
+func (a *Server) ResetLoginHooks() {
 	a.loginHooksMu.Lock()
 	a.loginHooks = nil
 	a.loginHooksMu.Unlock()
