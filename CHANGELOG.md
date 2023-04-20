@@ -1,5 +1,38 @@
 # Changelog
 
+## 11.3.11 (04/20/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Auto-discovery
+  * Added `discovery_group` support to discovery service to avoid races between multiple services. [#24717](https://github.com/gravitational/teleport/pull/24717)
+* Configuration
+  * Prevent proxies from trying to join cluster over reverse tunnel. [#24669](https://github.com/gravitational/teleport/pull/24669)
+* CLI
+  * Added `--raw` flag to `teleport version` command. [#24771](https://github.com/gravitational/teleport/pull/24771)
+* Database Access
+  * Updated `teleport db configure` to support more AWS databases. [#24496](https://github.com/gravitational/teleport/pull/24496)
+  * Reduced log spam when AWS database engine name is not recognized. [#24414](https://github.com/gravitational/teleport/pull/24414)
+* Kubernetes Access
+  * Fixed memory leak when using Kubernetes port-forwarding. [#24762](https://github.com/gravitational/teleport/pull/24762)
+  * Fixed issue with moderated sessions requiring moderator to have access to the cluster. [#24181](https://github.com/gravitational/teleport/pull/24181)
+  * Fixed issue with `exec` commands status not always being correctly returned to clients. [#24154](https://github.com/gravitational/teleport/pull/24154)
+  * Reduced log spam when using port-forwarding. [#24659](https://github.com/gravitational/teleport/pull/24659)
+* Server Access
+  * Fixed issue with excessive audit logging when copying files over SFTP. [#24845](https://github.com/gravitational/teleport/pull/24845)
+  * Fixed issue with `tsh scp` not recognizing wildcard patterns. [#24845](https://github.com/gravitational/teleport/pull/24845)
+  * Fixed issue with `tsh scp` failing when max sessions is set to 1. [#24845](https://github.com/gravitational/teleport/pull/24845)
+  * Fixed issue with `tsh scp` failing when path contains a colon. [#24845](https://github.com/gravitational/teleport/pull/24845)
+  * Fixed compatibility issue with v12 auth server when copying files with enabled MFA. [#24874](https://github.com/gravitational/teleport/pull/24874)
+  * Improved error reporting from tsh scp when file copying is disabled. [#24845](https://github.com/gravitational/teleport/pull/24845)
+* Performance & Scalability
+  * Improved `tsh ssh` performance when per-session MFA is not required. [#24473](https://github.com/gravitational/teleport/pull/24473)
+  * Improved agent reconnect speed in proxy peering mode. [#24142](https://github.com/gravitational/teleport/pull/24142)
+* Machine ID
+  * Fixed issue with incorrect identity being logged in post-renewal message. [#24245](https://github.com/gravitational/teleport/pull/24245)
+* Web UI
+  * Improved access denied errors by showing node names instead of UUIDs. [#24088](https://github.com/gravitational/teleport/pull/24088)
+
 ## 11.3.10 (03/30/23)
 
 This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
