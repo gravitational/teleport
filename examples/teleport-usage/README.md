@@ -29,6 +29,7 @@ The following information is required:
 This script is dependent of environment variables being set. Below is an example on how to run the script in Docker using environment variables:
 
 > **_NOTE:_** The latest container image version can be found at the top of this page. This version is independent of your Teleport cluster.
+
 ```console
 $ docker run -it --rm -e "TABLE_NAME=cluster-events" \
 -e "AWS_REGION=us-east-1" \
