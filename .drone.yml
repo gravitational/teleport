@@ -516,7 +516,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -1275,11 +1275,6 @@ image_pull_secrets:
 kind: pipeline
 type: kubernetes
 name: push-build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport10
-  GID: "1000"
-  RUNTIME: go1.19.8
-  UID: "1000"
 trigger:
   event:
     include:
@@ -1322,9 +1317,10 @@ steps:
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input upload-artifacts=false -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "upload-artifacts=false" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -4377,7 +4373,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -5239,11 +5235,6 @@ image_pull_secrets:
 kind: pipeline
 type: kubernetes
 name: build-linux-arm64
-environment:
-  BUILDBOX_VERSION: teleport10
-  GID: "1000"
-  RUNTIME: go1.19.8
-  UID: "1000"
 trigger:
   event:
     include:
@@ -5258,6 +5249,8 @@ workspace:
   path: /go
 clone:
   disable: true
+depends_on:
+- clean-up-previous-build
 steps:
 - name: Check out code
   image: docker:git
@@ -5283,9 +5276,10 @@ steps:
   pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e -workflow
-    release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input oss-teleport-ref=${DRONE_TAG}
-    -input upload-artifacts=true -input oss-teleport-repo="${DRONE_REPO}"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7763,7 +7757,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
+# Generated at dronegen/mac.go (main.newDarwinPipeline)
 ################################################
 
 kind: pipeline
@@ -19790,7 +19784,6 @@ depends_on:
 - promote-build
 - teleport-container-images-branch-promote
 - publish-os-package-repos
-- promote-teleport-oci-distroless-images
 steps:
 - name: Check if commit is tagged
   image: alpine
@@ -19900,6 +19893,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: fecac8331f395775dd29c92c39c3dfaa9ac2079c3d5e89adb1c90b210fd9e100
+hmac: 9280d6c11f0ffb17532817e95bf26f7f8c4c18157106768f3dcdd8ee8c01be34
 
 ...
