@@ -215,6 +215,7 @@ const Input = styled.input(
 
   ::placeholder {
     color: ${theme.colors.text.placeholder};
+    opacity: 1;
   }
 `,
   space
