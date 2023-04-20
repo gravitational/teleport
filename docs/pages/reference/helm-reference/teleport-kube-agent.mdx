@@ -91,8 +91,8 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set roles=kube\,app\,db
+  ```text
+  --set roles=kube\,app\,db
   ```
 
   <Admonition type="note">
@@ -222,8 +222,8 @@ of your `teleport-kube-agent` resources with the same name as your
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set roleBindingName=myrolebinding
+  ```text
+  --set roleBindingName=myrolebinding
   ```
 
   </TabItem>
@@ -250,8 +250,8 @@ release.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set roleName=myrole
+  ```text
+  --set roleName=myrole
   ```
 
   </TabItem>
@@ -302,8 +302,8 @@ fail to join the Teleport cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set authToken=<replace-with-actual-token>
+  ```text
+  --set authToken=<replace-with-actual-token>
   ```
   </TabItem>
 </Tabs>
@@ -346,8 +346,8 @@ pods](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#restrict-a
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set joinParams.method="token"|"ec2"|"iam"
+  ```text
+  --set joinParams.method="token"|"ec2"|"iam"
   ```
   </TabItem>
 </Tabs>
@@ -375,8 +375,8 @@ Secret, see [`secretName`](#secretName) for more details and instructions.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set joinParams.token="my-token"
+  ```text
+  --set joinParams.token="my-token"
   ```
   </TabItem>
 </Tabs>
@@ -415,8 +415,8 @@ connecting to the cluster.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set kubeClusterName=my-gke-cluster
+  ```text
+  --set kubeClusterName=my-gke-cluster
   ```
   </TabItem>
 </Tabs>
@@ -448,8 +448,8 @@ You can specify multiple apps by adding additional list elements.
   (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "apps[0].name=grafana" \
+  ```text
+  --set "apps[0].name=grafana" \
   --set "apps[0].uri=http://localhost:3000" \
   --set "apps[0].purpose=monitoring" \
   --set "apps[1].name=grafana" \
@@ -490,8 +490,8 @@ You can specify multiple selectors by including additional list elements.
 
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "appResources[0].labels.env=prod" \
+  ```text
+  --set "appResources[0].labels.env=prod" \
   --set "appResources[1].labels.env=test"
   ```
 
@@ -683,8 +683,8 @@ You can specify multiple databases by adding additional list elements.
   (!docs/pages/includes/yaml-lint-note.mdx!)
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "databases[0].name=aurora" \
+  ```text
+  --set "databases[0].name=aurora" \
   --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
   --set "databases[0].protocol=postgres" \
   --set "databases[0].aws.region=us-east-1" \
@@ -759,8 +759,7 @@ You can specify multiple selectors by adding elements to the list.
 
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $
+  ```text
   --set "databaseResources[0].labels.env=prod" \
   --set "databaseResources[0].labels.engine=postgres" \
   --set "databaseResources[1].labels.env=test" \
@@ -803,8 +802,8 @@ See [this link for information on Community Docker image versions](../../managem
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleportVersionOverride="11"
+  ```text
+  --set teleportVersionOverride="11"
   ```
   </TabItem>
 </Tabs>
@@ -831,8 +830,8 @@ responsibility to mount the file using [`extraVolumes`](#extraVolumes).
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set caPin[0]="sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+  ```text
+  --set caPin[0]="sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
   ```
   </TabItem>
 </Tabs>
@@ -855,8 +854,8 @@ This can be used for joining a Teleport instance to a Teleport cluster which doe
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set insecureSkipProxyTLSVerify=false
+  ```text
+  --set insecureSkipProxyTLSVerify=false
   ```
   </TabItem>
 </Tabs>
@@ -944,7 +943,7 @@ When `existingDataVolume` is set to the name of an existing volume, the `/var/li
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set existingDataVolume=my-volume
   ```
   </TabItem>
@@ -978,8 +977,8 @@ To disable PSP creation, you can set `enabled` to `false`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set podSecurityPolicy.enabled=false
+  ```text
+  --set podSecurityPolicy.enabled=false
   ```
   </TabItem>
 </Tabs>
@@ -1016,8 +1015,8 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set labels.environment=production \
+  ```text
+  --set labels.environment=production \
   --set labels.region=us-east
   ```
   </TabItem>
@@ -1082,7 +1081,7 @@ running.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set storage.enabled=true
   ```
   </TabItem>
@@ -1107,7 +1106,7 @@ name needs to exist on the Kubernetes cluster for Teleport to use.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set storage.storageClassName=teleport-storage-class
   ```
   </TabItem>
@@ -1129,7 +1128,7 @@ The size of persistent volume to create.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set storage.requests=128Mi
   ```
   </TabItem>
@@ -1161,8 +1160,8 @@ connecting to a Teleport Cloud instance enrolled in automatic updates.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set image=my.docker.registry/teleport-image-name
+  ```text
+  --set image=my.docker.registry/teleport-image-name
   ```
   </TabItem>
 </Tabs>
@@ -1331,8 +1330,8 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set clusterRoleName=kubernetes-clusterrole
+  ```text
+  --set clusterRoleName=kubernetes-clusterrole
   ```
   </TabItem>
 </Tabs>
@@ -1356,8 +1355,8 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set clusterRoleBindingName=kubernetes-clusterrolebinding
+  ```text
+  --set clusterRoleBindingName=kubernetes-clusterrolebinding
   ```
   </TabItem>
 </Tabs>
@@ -1377,8 +1376,8 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set priorityClassName=teleport-kube-agent
+  ```text
+  --set priorityClassName=teleport-kube-agent
   ```
   </TabItem>
 </Tabs>
@@ -1403,9 +1402,9 @@ When off, the `serviceAccount.name` parameter should be set to the existing `Ser
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set serviceAccount.create=false
-  $ --set serviceAccount.name=kubernetes-serviceaccount
+  ```text
+  --set serviceAccount.create=false
+  --set serviceAccount.name=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>
@@ -1432,8 +1431,8 @@ namespace of your `teleport-kube-agent` resources with the same name as your
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set serviceAccount.name=kubernetes-serviceaccount
+  ```text
+  --set serviceAccount.name=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>
@@ -1471,8 +1470,8 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set secretName="secret-i-created-before" \
+  ```text
+  --set secretName="secret-i-created-before" \
     --set joinParams.method="token" \
     --set joinParams.tokenName=""
   ```
@@ -1507,7 +1506,7 @@ The default is `INFO`, which is recommended in production.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set log.level=DEBUG
   ```
   </TabItem>
@@ -1533,7 +1532,7 @@ The value can also be set to a file path (such as `/var/log/teleport.log`) to wr
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set log.output=stderr
   ```
   </TabItem>
@@ -1557,7 +1556,7 @@ Possible values are `text` (default) or `json`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set log.format=json
   ```
   </TabItem>
@@ -1581,7 +1580,7 @@ See the [Teleport config file reference](../../reference/config.mdx) for more de
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set "log.extraFields[0]=timestamp" \
   --set "log.extraFields[1]=level"
   ```
@@ -1617,8 +1616,8 @@ Kubernetes affinity to set for pod assignments.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
+  ```text
+  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
   --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
   ```
@@ -1681,7 +1680,7 @@ nodes that Teleport pods will run on.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
+  ```text
   --set nodeSelector.role=node \
   --set nodeSelector.region=us-east
   ```
@@ -1707,8 +1706,8 @@ Kubernetes labels that should be applied to the `ClusterRole` created by the cha
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.clusterRole."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.clusterRole."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1736,8 +1735,8 @@ Kubernetes labels that should be applied to the `ClusterRoleBinding` created by 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.clusterRoleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.clusterRoleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1766,8 +1765,8 @@ the Teleport pod.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.role."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.role."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1796,8 +1795,8 @@ chart for the Teleport pod.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.roleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.roleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1825,8 +1824,8 @@ Kubernetes labels that should be applied to the `ConfigMap` created by the chart
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.config."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.config."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1854,8 +1853,8 @@ Kubernetes labels that should be applied to the `Deployment` or `StatefulSet` cr
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.deployment."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.deployment."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1883,8 +1882,8 @@ Kubernetes labels that should be applied to every `Pod` in the `Deployment` or `
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.pod."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.pod."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1912,8 +1911,8 @@ Kubernetes labels that should be applied to the `PodDisruptionBudget` created by
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.podDisruptionBudget."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.podDisruptionBudget."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1941,8 +1940,8 @@ Kubernetes labels that should be applied to the `PodSecurityPolicy` created by t
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.podSecurityPolicy."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.podSecurityPolicy."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -1970,8 +1969,8 @@ Kubernetes labels that should be applied to the `Secret` created by the chart (i
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.secret."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.secret."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2000,8 +1999,8 @@ chart for the Teleport pod.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set extraLabels.serviceAccount."app\.kubernetes\.io\/name"=teleport-kube-agent
+  ```text
+  --set extraLabels.serviceAccount."app\.kubernetes\.io\/name"=teleport-kube-agent
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2034,8 +2033,8 @@ Kubernetes annotations which should be applied to the `ConfigMap` created by the
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set annotations.config."kubernetes\.io\/annotation"=value
+  ```text
+  --set annotations.config."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2063,8 +2062,8 @@ Kubernetes annotations which should be applied to the `Deployment` created by th
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set annotations.deployment."kubernetes\.io\/annotation"=value
+  ```text
+  --set annotations.deployment."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2092,8 +2091,8 @@ Kubernetes annotations which should be applied to each `Pod` created by the char
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set annotations.pod."kubernetes\.io\/annotation"=value
+  ```text
+  --set annotations.pod."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2121,8 +2120,8 @@ Kubernetes annotations which should be applied to the `ServiceAccount` created b
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
+  ```text
+  --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
   ```
   <Admonition type="warning" title="Escaping values">
     You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
@@ -2152,8 +2151,8 @@ will also be available to any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "extraVolumes[0].name=myvolume" \
+  ```text
+  --set "extraVolumes[0].name=myvolume" \
   --set "extraVolumes[0].secret.secretName=mysecret"
   ```
   </TabItem>
@@ -2175,8 +2174,8 @@ A list of extra arguments to pass to the `teleport start` command when running a
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "extraArgs={--debug}"
+  ```text
+  --set "extraArgs={--debug}"
   ```
   </TabItem>
 </Tabs>
@@ -2200,8 +2199,8 @@ A list of extra environment variables to be set on the main Teleport container.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "extraEnv[0].name=HTTPS_PROXY" \
+  ```text
+  --set "extraEnv[0].name=HTTPS_PROXY" \
   --set "extraEnv[0].value=\"http://username:password@my.proxy.host:3128\""
   ```
   </TabItem>
@@ -2227,8 +2226,8 @@ mounts will also be mounted into any `initContainers` configured by the chart.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "extraVolumeMounts[0].name=myvolume" \
+  ```text
+  --set "extraVolumeMounts[0].name=myvolume" \
   --set "extraVolumeMounts[0].path=/path/to/mount/volume"
   ```
   </TabItem>
@@ -2251,8 +2250,8 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set imagePullPolicy=Always
+  ```text
+  --set imagePullPolicy=Always
   ```
   </TabItem>
 </Tabs>
@@ -2277,8 +2276,8 @@ A list of `initContainers` which will be run before the main Teleport container 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "initContainers[0].name=teleport-init" \
+  ```text
+  --set "initContainers[0].name=teleport-init" \
   --set "initContainers[0].image=alpine" \
   --set "initContainers[0].args={echo test}"
   ```
@@ -2306,8 +2305,8 @@ will also be applied to `initContainers`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set resources.requests.cpu=1 \
+  ```text
+  --set resources.requests.cpu=1 \
   --set resources.requests.memory=2Gi
   ```
   </TabItem>
@@ -2372,8 +2371,8 @@ Kubernetes Tolerations to set for pod assignment.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set tolerations[0].key=dedicated \
+  ```text
+  --set tolerations[0].key=dedicated \
   --set tolerations[0].operator=Equal \
   --set tolerations[0].value=teleport \
   --set tolerations[0].effect=NoSchedule
@@ -2398,8 +2397,8 @@ Kubernetes timeouts for the liveness and readiness probes.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set probeTimeoutSeconds=5
+  ```text
+  --set probeTimeoutSeconds=5
   ```
   </TabItem>
 </Tabs>

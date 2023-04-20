@@ -29,8 +29,8 @@ This parameter contains the host/port combination of the Teleport Auth Service o
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
+  ```text
+  --set teleport.address="teleport.example.com:3025"
   ```
   </TabItem>
 </Tabs>
@@ -66,8 +66,8 @@ for more information about how to acquire these credentials.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-mattermost-identity"
+  ```text
+  --set teleport.identitySecretName="teleport-plugin-mattermost-identity"
   ```
   </TabItem>
 </Tabs>
@@ -90,8 +90,8 @@ credentials for the connection to your Teleport cluster. If the secret has the p
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
+  ```text
+  --set teleport.identitySecretPath="auth_id"
   ```
   </TabItem>
 </Tabs>
@@ -112,8 +112,8 @@ Base URL of the Mattermost instance.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set mattermost.url="https://mattermost.example.com/"
+  ```text
+  --set mattermost.url="https://mattermost.example.com/"
   ```
   </TabItem>
 </Tabs>
@@ -137,8 +137,8 @@ It's only recommended for testing purposes. Please use
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set mattermost.token="xoxb-1234"
+  ```text
+  --set mattermost.token="xoxb-1234"
   ```
   </TabItem>
 </Tabs>
@@ -159,8 +159,8 @@ Secret containing the Mattermost token of the bot user.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set mattermost.tokenFromSecret="teleport-mattermost-plugin-token"
+  ```text
+  --set mattermost.tokenFromSecret="teleport-mattermost-plugin-token"
   ```
   </TabItem>
 </Tabs>
@@ -181,8 +181,8 @@ Key where the token is located inside the secret specified by `mattermost.tokenF
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set mattermost.tokenSecretPath="token"
+  ```text
+  --set mattermost.tokenSecretPath="token"
   ```
   </TabItem>
 </Tabs>
@@ -205,8 +205,8 @@ List of recipients who will receive notifications about Access Requests.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set mattermost.recipients[0]="user1@example.com",mattermost.recipients[0]="user1@example.com"
+  ```text
+  --set mattermost.recipients[0]="user1@example.com",mattermost.recipients[0]="user1@example.com"
   ```
   </TabItem>
 </Tabs>
@@ -227,8 +227,8 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/mattermost.log"
+  ```text
+  --set log.output="/var/log/teleport/mattermost.log"
   ```
   </TabItem>
 </Tabs>
@@ -249,8 +249,8 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
+  ```text
+  --set log.severity="DEBUG"
   ```
   </TabItem>
 </Tabs>
