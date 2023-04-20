@@ -95,6 +95,7 @@ export const StyledPanel = styled.nav`
   align-items: center;
   justify-content: space-between;
   background: ${props => props.theme.colors.levels.surface};
+  ${borderRadius}
 `;
 
 export const StyledTableWrapper = styled.div`
