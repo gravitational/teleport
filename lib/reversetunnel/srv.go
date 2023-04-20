@@ -558,8 +558,6 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// Server through the reverse tunnel.
 	case constants.ChanTransport:
 		s.handleTransport(sconn, nch)
-	case chanNetworkConfig:
-		s.handleNetConfig(ctx, nch)
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
@@ -574,28 +572,6 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
-}
-
-func (s *server) handleNetConfig(ctx context.Context, nch ssh.NewChannel) error {
-	channel, requests, err := nch.Accept()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer channel.Close()
-	go ssh.DiscardRequests(requests)
-
-	netconfig, err := s.localAccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	payload, err := services.MarshalClusterNetworkingConfig(netconfig)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err = channel.SendRequest(chanNetworkConfigReq, false, payload); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {

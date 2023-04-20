@@ -256,18 +256,18 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
 }
 
 func (p *AgentPool) updateRemoteRuntimeConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	var rejectedChannel bool
+	var rejectedRequest bool
 	agent, ok := p.active.getLatest()
 	if ok {
 		// Try to get netconfig from agent otherwise fallback to ping.
 		netconfig, err := agent.GetClusterNetworkConfig(ctx)
-		if err != nil && !errors.Is(err, &ssh.OpenChannelError{}) {
+		if err != nil && !trace.IsNotImplemented(err) {
 			return nil, trace.Wrap(err)
 		}
 		if err == nil {
 			return netconfig, nil
 		}
-		rejectedChannel = true
+		rejectedRequest = true
 	}
 
 	addr, _, err := p.Resolver(ctx)
@@ -307,7 +307,7 @@ func (p *AgentPool) updateRemoteRuntimeConfig(ctx context.Context) (types.Cluste
 	}
 
 	// Fallback to agent mesh if proxies do not support netconfig requests.
-	if rejectedChannel {
+	if rejectedRequest {
 		netconfig.SetTunnelStrategy(&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_AgentMesh{AgentMesh: types.DefaultAgentMeshTunnelStrategy()},
 		})

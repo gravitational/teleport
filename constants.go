@@ -294,6 +294,10 @@ const (
 	// if the proxy is recording sessions or not and if FIPS is enabled.
 	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
+	// NetconfigRequest is an SSH global request send from an agent to the proxy server to get
+	// the latest cluster networking config.
+	NetconfigRequest = "netconfig@goteleport.com"
+
 	// JSON means JSON serialization format
 	JSON = "json"
 

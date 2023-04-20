@@ -29,6 +29,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -596,29 +597,21 @@ func (a *agent) handleDrainChannels() error {
 }
 
 // GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
+// trace.NotImplemented is returned when the proxy rejects the request.
 func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	var cancel func()
-	ctx, cancel = context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
 	defer cancel()
 
-	channel, requests, err := a.client.OpenChannel(ctx, chanNetworkConfig, nil)
+	ok, payload, err := a.client.SendRequest(ctx, teleport.NetconfigRequest, true, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	defer channel.Close()
-
-	var req *ssh.Request
-	select {
-	case req = <-requests:
-	case <-ctx.Done():
-		return nil, trace.Errorf("context done: %s", ctx.Err())
+	} else if !ok {
+		return nil, trace.NotImplemented("the proxy server does not support netconfig requests")
 	}
 
-	if req == nil {
-		return nil, trace.Errorf("failed to get netconfig: received nil request")
-	}
-
-	config, err := services.UnmarshalClusterNetworkingConfig(req.Payload)
+	// Failing to unmarshal most likely indicates a server side network failure
+	// that can be retried.
+	config, err := services.UnmarshalClusterNetworkingConfig(payload)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -692,12 +685,10 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat        = "teleport-heartbeat"
-	chanDiscovery        = "teleport-discovery"
-	chanDiscoveryReq     = "discovery"
-	chanNetworkConfig    = "teleport-netconfig"
-	chanNetworkConfigReq = "netconfig"
-	reconnectRequest     = "reconnect@goteleport.com"
+	chanHeartbeat    = "teleport-heartbeat"
+	chanDiscovery    = "teleport-discovery"
+	chanDiscoveryReq = "discovery"
+	reconnectRequest = "reconnect@goteleport.com"
 )
 
 const (
