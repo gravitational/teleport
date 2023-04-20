@@ -3,8 +3,8 @@ export interface CommandState {
   value: string;
 }
 
-export interface NodeState {
-  type: 'node';
+export interface QueryState {
+  type: 'query';
   value: string;
 }
 
@@ -13,12 +13,4 @@ export interface UserState {
   value: string;
 }
 
-export interface LabelState {
-  type: 'label';
-  value: {
-    key: string;
-    value: string;
-  };
-}
-
-export type ActionState = CommandState | NodeState | LabelState | UserState;
+export type ActionState = CommandState | QueryState | UserState;

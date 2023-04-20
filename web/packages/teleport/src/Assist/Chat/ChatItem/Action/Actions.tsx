@@ -88,26 +88,6 @@ const LoadingContainer = styled.div`
   margin: 30px 0;
 `;
 
-function serverMessageToState(
-  message: ExecuteRemoteCommandContent
-): ActionState[] {
-  const state: ActionState[] = [];
-
-  if (message.nodes) {
-    for (const node of message.nodes) {
-      state.push({ type: 'node', value: node });
-    }
-  }
-
-  // if (message.labels) {
-  //   for (const label of message.labels) {
-  //     state.push({ type: 'label', value: label });
-  //   }
-  // }
-
-  return state;
-}
-
 export function Actions(props: ActionsProps) {
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
@@ -132,14 +112,13 @@ export function Actions(props: ActionsProps) {
     (newActionState: ActionState[]) => {
       const newActions: ExecuteRemoteCommandContent = {
         type: Type.ExecuteRemoteCommand,
-        labels: [],
-        nodes: [],
+        query: "",
         command: actions.command,
       };
 
       for (const item of newActionState) {
-        if (item.type === 'node') {
-          newActions.nodes.push(item.value);
+        if (item.type == 'query') {
+          newActions.query = item.value;
         }
 
         if (item.type === 'user') {
@@ -171,8 +150,7 @@ export function Actions(props: ActionsProps) {
       {!result && <Title>Teleport would like to</Title>}
 
       <NodesAndLabels
-        initialLabels={actions.labels}
-        initialNodes={actions.nodes}
+        initialQuery={actions.query}
         login={actions.login}
         onStateUpdate={handleSave}
         disabled={running}

@@ -26,7 +26,7 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
   const command = {
     command: '',
     login: '',
-    node_ids: [],
+    query: '',
   };
 
   if (message.login) {
@@ -37,10 +37,8 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
     command.command = message.command;
   }
 
-  if (message.nodes) {
-    for (const node of message.nodes) {
-      command.node_ids.push(nodeNamesToIds[node]);
-    }
+  if (message.query) {
+    command.query = message.query;
   }
 
   return command;
@@ -51,9 +49,9 @@ enum RunActionStatus {
   Finished,
 }
 
-function createInitialState(nodeIds: string[]): NodeState[] {
+function createInitialState(nodeIds: string[]): NodeState[] {// TODO: probably can be removed
   return nodeIds.map(nodeId => ({
-    nodeId: nodeNamesToIds[nodeId],
+    nodeId: nodeId,
     status: RunActionStatus.Connecting,
   }));
 }
@@ -64,11 +62,16 @@ interface NodeState {
   stdout?: string;
 }
 
+interface RawPayload {
+  node_id: string;
+  payload: string;
+}
+
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
 
   const [state, setState] = useState(() =>
-    createInitialState(props.actions.nodes)
+    createInitialState([])
   );
 
   const params = convertContentToCommand(props.actions);
@@ -98,19 +101,29 @@ export function RunCommand(props: RunCommandProps) {
             break;
 
           case MessageTypeEnum.RAW:
-            const data = JSON.parse(msg.payload);
+            const data = JSON.parse(msg.payload) as RawPayload;
             const payload = atob(data.payload);
 
             console.log('hello');
+            console.log(payload);
             setState(state => {
-              console.log('state!', state);
+              console.log('state!!!', state);
+
+              const results = state.find(node => node.nodeId == data.node_id);
+              if(!results) {
+                state.push({nodeId: data.node_id, status: RunActionStatus.Connecting});
+              }
+
               const s = state.map(item => {
                 console.log('item.nodeId', item.nodeId, 'data.node_id', data.node_id);
                 if (item.nodeId === data.node_id) {
+                  if(!item.stdout) {
+                    item.stdout = "";
+                  }
                   return {
                     ...item,
                     status: RunActionStatus.Finished,
-                    stdout: payload,
+                    stdout: item.stdout + payload,
                   };
                 }
 

@@ -31,8 +31,6 @@ export function getTextForType(type: Type) {
   switch (type) {
     case Type.ExecuteRemoteCommand:
       return 'Connect to';
-    case Type.Exec:
-      return 'Execute';
     case Type.Message:
       return '';
   }

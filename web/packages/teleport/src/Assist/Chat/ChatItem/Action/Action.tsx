@@ -14,17 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useState } from 'react';
+import React, {ReactElement, useCallback, useState} from 'react';
 import styled from 'styled-components';
 
-import { LabelIcon, ServerIcon, UserIcon } from 'design/SVGIcon';
+import {UserIcon} from 'design/SVGIcon';
 
-import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
+import {ActionState} from 'teleport/Assist/Chat/ChatItem/Action/types';
 
-import { EditIcon } from '../../../Icons/EditIcon';
+import {EditIcon} from '../../../Icons/EditIcon';
 
-import { ActionForm } from './ActionForm';
-import { Container, Items, Title } from './common';
+import {ActionForm} from './ActionForm';
+import {Container, Items, Title} from './common';
+import {SearchIcon} from "teleport/Assist/Icons/SearchIcon";
 
 interface ActionProps {
   state: ActionState[];
@@ -38,7 +39,7 @@ const Item = styled.div`
   margin-right: 10px;
   font-size: 16px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
-    monospace;
+  monospace;
   font-weight: bold;
 `;
 
@@ -120,27 +121,17 @@ const User = styled.div`
 `;
 
 function actionStateToItems(formState: ActionState[]) {
-  const items = [];
+  const items = [] as ReactElement[];
 
   for (const [index, state] of formState.entries()) {
     if (state.type === 'command') {
       items.push(<Item key={0}>{state.value}</Item>);
     }
 
-    if (state.type === 'label') {
+    if (state.type === 'query') {
       items.push(
-        <LabelContainer key={`label-${index}`}>
-          <LabelIcon size={16} />
-          <LabelKey>{state.value.key}</LabelKey>
-          <LabelValue>{state.value.value}</LabelValue>
-        </LabelContainer>
-      );
-    }
-
-    if (state.type === 'node') {
-      items.push(
-        <Node key={`node-${index}`}>
-          <ServerIcon size={16} />
+        <Node key={`query-${index}`}>
+          <SearchIcon size={16}/>
           {state.value}
         </Node>
       );
@@ -150,7 +141,7 @@ function actionStateToItems(formState: ActionState[]) {
       items.push(
         <As key="as">as</As>,
         <User key="user">
-          <UserIcon size={16} /> {state.value}
+          <UserIcon size={16}/> {state.value}
         </User>
       );
     }
@@ -174,7 +165,6 @@ export function Action(props: ActionProps) {
     return (
       <ActionForm
         initialState={props.state}
-        type={props.type}
         onSave={handleSave}
         onCancel={() => setEditing(false)}
       />
@@ -188,7 +178,7 @@ export function Action(props: ActionProps) {
       {!editing && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon size={18}/>
           </EditButton>
         </Buttons>
       )}
@@ -199,8 +189,7 @@ export function Action(props: ActionProps) {
 }
 
 interface NodesAndLabelsProps {
-  initialNodes: string[] | undefined;
-  initialLabels: string[] | undefined;
+  initialQuery: string | undefined;
   login: string | undefined;
   onStateUpdate: (state: ActionState[]) => void;
   disabled: boolean;
@@ -209,14 +198,11 @@ interface NodesAndLabelsProps {
 function propsToState(props: NodesAndLabelsProps): ActionState[] {
   const items: ActionState[] = [];
 
-  if (props.initialNodes) {
-    for (const node of props.initialNodes) {
-      items.push({ type: 'node', value: node });
-    }
-  }
+  // Always include query.
+  items.push({type: 'query', value: props.initialQuery ?? ""})
 
   if (props.login) {
-    items.push({ type: 'user', value: props.login });
+    items.push({type: 'user', value: props.login});
   }
 
   return items;
@@ -230,20 +216,11 @@ function stateToItems(formState: ActionState[]) {
       items.push(<Item key={0}>{state.value}</Item>);
     }
 
-    if (state.type === 'label') {
+    if (state.type === 'query') {
+      // TODO replace node with query
       items.push(
-        <LabelContainer key={`label-${index}`}>
-          <LabelIcon size={16} />
-          <LabelKey>{state.value.key}</LabelKey>
-          <LabelValue>{state.value.value}</LabelValue>
-        </LabelContainer>
-      );
-    }
-
-    if (state.type === 'node') {
-      items.push(
-        <Node key={`node-${index}`}>
-          <ServerIcon size={16} />
+        <Node key={`query-${index}`}>
+          <SearchIcon size={16}/>
           {state.value}
         </Node>
       );
@@ -253,7 +230,7 @@ function stateToItems(formState: ActionState[]) {
       items.push(
         <As key="as">as</As>,
         <User key="user">
-          <UserIcon size={16} /> {state.value}
+          <UserIcon size={16}/> {state.value}
         </User>
       );
     }
@@ -290,12 +267,12 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
 
   return (
     <Container>
-      <Title>Connect to</Title>
+      <Title>Connect using query</Title>
 
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon size={18}/>
           </EditButton>
         </Buttons>
       )}
@@ -314,7 +291,7 @@ interface CommandProps {
 export function Command(props: CommandProps) {
   const [editing, setEditing] = useState(false);
 
-  const state: ActionState[] = [{ type: 'command', value: props.command }];
+  const state: ActionState[] = [{type: 'command', value: props.command}];
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
@@ -349,7 +326,7 @@ export function Command(props: CommandProps) {
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon size={18}/>
           </EditButton>
         </Buttons>
       )}

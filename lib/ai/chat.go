@@ -80,14 +80,14 @@ func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *CompletionCommand, error) {
+func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 	var opts []grpc.DialOption
 
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	conn, err := grpc.Dial(chat.client.apiURL, opts...)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer conn.Close()
 
@@ -98,7 +98,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 		Messages: chat.messages,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch {
@@ -109,7 +109,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 			Labels:  labelsToPbLabels(response.Labels),
 		}
 
-		return nil, &command, nil
+		return &command, nil
 	case response.Kind == "chat":
 		message := Message{
 			Role:    openai.ChatMessageRoleAssistant,
@@ -117,8 +117,8 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 			Idx:     len(chat.messages) - 1,
 		}
 
-		return &message, nil, nil
+		return &message, nil
 	default:
-		return nil, nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
+		return nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
 	}
 }

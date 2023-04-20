@@ -20,11 +20,13 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
@@ -168,7 +170,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
 	if conversationID == "" {
-		return trace.Errorf("conversation ID is required")
+		return trace.BadParameter("conversation ID is required")
 	}
 
 	// existing conversation, retrieve old messages
@@ -177,74 +179,22 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return trace.Wrap(err)
 	}
 
-	var hasPreviousMessages bool
+	// restore conversation context.
 	for _, msg := range messages.GetMessages() {
-		if !hasPreviousMessages {
-			hasPreviousMessages = true
-		}
-
-		role := roleToKind(msg.Type)
+		role := kindToRole(msg.Type)
 		if role != "" {
 			chat.Insert(role, msg.Payload)
 		}
 	}
 
-	for {
-		// if there's no previous messages (a new conversation), initiate the conversation
-		if !hasPreviousMessages {
-			// query the assistant and fetch an answer
-			message, completion, err := chat.Complete(r.Context(), 500)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if message != nil {
-				// write assistant message to both in-memory chain and persistent storage
-				chat.Insert(message.Role, message.Content)
-				protoMsg := &proto.AssistantMessage{
-					ConversationId: conversationID,
-					Type:           "CHAT_MESSAGE_ASSISTANT",
-					Payload:        message.Content,
-					CreatedTime:    h.clock.Now().UTC(),
-				}
-				if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
-					return trace.Wrap(err)
-				}
-
-				if err := ws.WriteJSON(protoMsg); err != nil {
-					return trace.Wrap(err)
-				}
-			}
-
-			if completion != nil {
-				payload := commandPayload{
-					Command: completion.Command,
-					Nodes:   completion.Nodes,
-					Labels:  completion.Labels,
-				}
-
-				payloadJson, err := json.Marshal(payload)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				msg := &proto.AssistantMessage{
-					Type:           "COMMAND",
-					ConversationId: conversationID,
-					Payload:        string(payloadJson),
-					CreatedTime:    h.clock.Now().UTC(),
-				}
-
-				if _, err := authClient.InsertAssistantMessage(r.Context(), msg); err != nil {
-					return trace.Wrap(err)
-				}
-
-				if err := ws.WriteJSON(msg); err != nil {
-					return trace.Wrap(err)
-				}
-			}
+	if len(messages.GetMessages()) == 0 {
+		// new conversation, generate hello message
+		if err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
+			return trace.Wrap(err)
 		}
+	}
 
+	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
 			if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
@@ -259,7 +209,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}
 
 		// write user message to both in-memory chain and persistent storage
-		chat.Insert(openai.ChatMessageRoleUser, string(wsIncoming.Payload))
+		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
@@ -269,6 +219,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}); err != nil {
 			return trace.Wrap(err)
 		}
+
+		if err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	h.log.Debugf("end assistant conversation loop")
@@ -276,19 +230,74 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	return nil
 }
 
-func roleToKind(role string) string {
-	switch role {
-	case openai.ChatMessageRoleUser:
-		return "CHAT_MESSAGE_USER"
-	case openai.ChatMessageRoleAssistant:
-		return "CHAT_MESSAGE_ASSISTANT"
-	case openai.ChatMessageRoleSystem:
-		return "CHAT_MESSAGE_SYSTEM"
+func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversationID string,
+	ws *websocket.Conn, authClient auth.ClientI,
+) error {
+	// query the assistant and fetch an answer
+	message, err := chat.Complete(ctx, 500)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch message := message.(type) {
+	case *ai.Message:
+		// write assistant message to both in-memory chain and persistent storage
+		chat.Insert(message.Role, message.Content)
+		protoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           "CHAT_MESSAGE_ASSISTANT",
+			Payload:        message.Content,
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := ws.WriteJSON(protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+	case *ai.CompletionCommand:
+		payload := commandPayload{
+			Command: message.Command,
+			Nodes:   message.Nodes,
+			Labels:  message.Labels,
+		}
+
+		payloadJson, err := json.Marshal(payload)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		msg := &proto.AssistantMessage{
+			Type:           "COMMAND",
+			ConversationId: conversationID,
+			Payload:        string(payloadJson),
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+
+		if _, err := authClient.InsertAssistantMessage(ctx, msg); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := ws.WriteJSON(msg); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.Errorf("unknown message type")
+	}
+
+	return nil
+}
+
+func kindToRole(kind string) string {
+	switch kind {
+	case "CHAT_MESSAGE_USER":
+		return openai.ChatMessageRoleUser
+	case "CHAT_MESSAGE_ASSISTANT":
+		return openai.ChatMessageRoleAssistant
+	case "CHAT_MESSAGE_SYSTEM":
+		return openai.ChatMessageRoleSystem
 	default:
 		return ""
 	}
-}
-
-type inboundWsMessage struct {
-	Content string `json:"content"`
 }
