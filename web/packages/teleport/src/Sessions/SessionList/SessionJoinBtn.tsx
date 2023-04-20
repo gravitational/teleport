@@ -159,23 +159,13 @@ function LockedFeatureInternalJoinMenu({
   modes,
 }: LockedFeatureInternalJoinMenuProps) {
   return (
-    <Menu
-      anchorEl={anchorEl}
-      open={Boolean(anchorEl)}
-      onClose={handleClose}
-      //     menuListCss={() => ` TODO
-      //       background-color: ${theme.colors.levels.surface};
-      // `}
-    >
+    <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
       <div></div> {/* this div makes the menu properly positioned */}
       <LockedJoinMenuContainer>
         <ButtonLockedFeature>
           Join Active Sessions with Teleport Enterprise
         </ButtonLockedFeature>
-        <Box
-          // style={{ color: theme.colors.text.secondary }} TODo
-          ml="3"
-        >
+        <Box ml="3">
           {modes.includes('observer') ? (
             <LockedJoinItem
               name={'As an Observer'}
