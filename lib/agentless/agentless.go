@@ -45,7 +45,7 @@ func SignerFromSSHCertificate(certificate *ssh.Certificate, generator CertGenera
 		validBefore := time.Unix(int64(certificate.ValidBefore), 0)
 		ttl := time.Until(validBefore)
 
-		clusterName := certificate.Permissions.Extensions[utils.CertExtensionAuthority]
+		clusterName := certificate.Permissions.Extensions[utils.CertTeleportClusterName]
 		user := certificate.Permissions.Extensions[utils.CertTeleportUser]
 
 		signer, err := createAuthSigner(ctx, user, clusterName, ttl, generator)
