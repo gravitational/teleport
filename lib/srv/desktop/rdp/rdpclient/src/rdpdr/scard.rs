@@ -24,6 +24,7 @@ use rdp::model::error::*;
 use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt;
 use std::io::{Read, Write};
 use uuid::Uuid;
 
@@ -100,6 +101,8 @@ impl Client {
         &self,
         input: &mut Payload,
     ) -> RdpResult<Option<Box<dyn Encode>>> {
+        // This call is supposed to wait for the smart card service to be ready.
+        // We're emulating this all in software and can respond with ready immediately.
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -139,10 +142,17 @@ impl Client {
         Ok(Some(Box::new(resp)))
     }
 
-    fn handle_is_valid_context(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
+    fn handle_is_valid_context(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = Context_Call::decode(input)?;
+        let code = match self.contexts.get_card_context(req.context.value) {
+            Ok(_) => ReturnCode::SCARD_S_SUCCESS,
+            Err(_) => ReturnCode::SCARD_E_INVALID_HANDLE,
+        };
         debug!("got {:?}", req);
-        let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
+        let resp = Long_Return::new(code);
         debug!("sending {:?}", resp);
         Ok(Some(Box::new(resp)))
     }
@@ -173,17 +183,16 @@ impl Client {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let ctx = self
+        let handle = self
             .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
-        let handle = ctx.connect(
-            req.common.context,
-            self.uuid,
-            &self.cert_der,
-            &self.key_der,
-            self.pin.clone(),
-        )?;
+            .get_card_context(req.common.context.value)?
+            .connect(
+                req.common.context,
+                self.uuid,
+                &self.cert_der,
+                &self.key_der,
+                self.pin.clone(),
+            )?;
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
@@ -195,8 +204,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get_card_context(req.handle.context.value)?
             .disconnect(req.handle.value);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -252,8 +260,7 @@ impl Client {
 
         let card = self
             .contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get_card_context(req.handle.context.value)?
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
@@ -271,10 +278,7 @@ impl Client {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get_card_context(req.context.value)?;
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
@@ -287,8 +291,7 @@ impl Client {
 
         let val = self
             .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get_card_context(req.common.context.value)?
             .cache_read(&req.lookup_name);
 
         let resp = ReadCache_Return::new(val);
@@ -301,8 +304,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get_card_context(req.common.context.value)?
             .cache_write(req.lookup_name, req.common.data);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -317,10 +319,7 @@ impl Client {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get_card_context(req.context.value)?;
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
@@ -705,12 +704,19 @@ impl Encode for EstablishContext_Return {
     }
 }
 
-#[derive(Debug)]
 struct Context {
     length: u32,
     // Shortcut: we always create 4-byte context values.
     // The spec allows this field to have variable length.
     value: u32,
+}
+
+impl fmt::Debug for Context {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Context")
+            .field("value", &self.value)
+            .finish()
+    }
 }
 
 impl Context {
@@ -1121,13 +1127,21 @@ impl ReaderState {
     }
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct ReaderState_Common_Call {
     current_state: CardStateFlags,
     event_state: CardStateFlags,
     atr_length: u32,
     atr: [u8; 36],
+}
+
+impl fmt::Debug for ReaderState_Common_Call {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReaderState_Common_Call")
+            .field("current_state", &self.current_state)
+            .field("event_state", &self.event_state)
+            .finish()
+    }
 }
 
 impl ReaderState_Common_Call {
@@ -1550,7 +1564,6 @@ enum StringEncoding {
     Unicode,
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct Status_Return {
     return_code: ReturnCode,
@@ -1561,6 +1574,17 @@ struct Status_Return {
     atr_length: u32,
 
     encoding: StringEncoding,
+}
+
+impl fmt::Debug for Status_Return {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Status_Return")
+            .field("return_code", &self.return_code)
+            .field("reader_names", &self.reader_names)
+            .field("state", &self.state)
+            .field("protocol", &self.protocol)
+            .finish()
+    }
 }
 
 impl Status_Return {
@@ -1605,7 +1629,6 @@ impl Encode for Status_Return {
     }
 }
 
-#[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct Transmit_Call {
     handle: Handle,
@@ -1656,6 +1679,19 @@ impl Transmit_Call {
             recv_buffer_is_null,
             recv_length,
         })
+    }
+}
+
+impl fmt::Debug for Transmit_Call {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transmit_Call")
+            .field("handle", &self.handle)
+            .field("send_pci", &self.send_pci)
+            .field("send_length", &self.send_length)
+            .field("recv_pci", &self.recv_pci)
+            .field("recv_buffer_is_null", &self.recv_buffer_is_null)
+            .field("recv_length", &self.recv_length)
+            .finish()
     }
 }
 
@@ -1734,7 +1770,6 @@ impl SCardIO_Request {
     }
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct Transmit_Return {
     return_code: ReturnCode,
@@ -1747,6 +1782,14 @@ impl Transmit_Return {
             return_code,
             recv_buffer,
         }
+    }
+}
+
+impl fmt::Debug for Transmit_Return {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Transmit_Return")
+            .field("return_code", &self.return_code)
+            .finish()
     }
 }
 
@@ -1890,7 +1933,6 @@ impl Encode for ReadCache_Call {
     }
 }
 
-#[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct ReadCache_Common {
     context: Context,
@@ -1898,6 +1940,21 @@ struct ReadCache_Common {
     freshness_counter: u32,
     data_is_null: bool,
     data_len: u32,
+}
+
+impl fmt::Debug for ReadCache_Common {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WriteCache_Common")
+            .field("context", &self.context)
+            .field(
+                "card_uuid",
+                &Uuid::from_slice(&self.card_uuid).unwrap_or(Uuid::nil()),
+            )
+            .field("freshness_counter", &self.freshness_counter)
+            .field("data_is_null", &self.data_is_null)
+            .field("data_len", &self.data_len)
+            .finish()
+    }
 }
 
 impl ReadCache_Common {
@@ -1944,11 +2001,18 @@ impl ReadCache_Common {
     }
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct ReadCache_Return {
     return_code: ReturnCode,
     data: Vec<u8>,
+}
+
+impl fmt::Debug for ReadCache_Return {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReadCache_Return")
+            .field("return_code", &self.return_code)
+            .finish()
+    }
 }
 
 impl ReadCache_Return {
@@ -1979,11 +2043,19 @@ impl Encode for ReadCache_Return {
     }
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types)]
 struct WriteCache_Call {
     lookup_name: String,
     common: WriteCache_Common,
+}
+
+impl fmt::Debug for WriteCache_Call {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WriteCache_Call")
+            .field("lookup_name", &self.lookup_name)
+            .field("common", &self.common)
+            .finish()
+    }
 }
 
 impl WriteCache_Call {
@@ -2022,13 +2094,25 @@ impl Encode for WriteCache_Call {
     }
 }
 
-#[derive(Debug)]
 #[allow(non_camel_case_types, dead_code)]
 struct WriteCache_Common {
     context: Context,
     card_uuid: Vec<u8>,
     freshness_counter: u32,
     data: Vec<u8>,
+}
+
+impl fmt::Debug for WriteCache_Common {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WriteCache_Common")
+            .field("context", &self.context)
+            .field(
+                "card_uuid",
+                &Uuid::from_slice(&self.card_uuid).unwrap_or(Uuid::nil()),
+            )
+            .field("freshness_counter", &self.freshness_counter)
+            .finish()
+    }
 }
 
 impl WriteCache_Common {
@@ -2172,8 +2256,10 @@ impl Contexts {
         ctx
     }
 
-    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
-        self.contexts.get_mut(&id)
+    fn get_card_context(&mut self, context: u32) -> RdpResult<&mut ContextInternal> {
+        self.contexts
+            .get_mut(&context)
+            .ok_or_else(|| invalid_data_error(&format!("unknown context ID {}", context)))
     }
 
     fn release(&mut self, id: u32) {
@@ -2236,7 +2322,7 @@ fn debug_print_payload(payload: &mut Payload) {
     let payload = payload.clone();
     let from = payload.position() as usize;
     let buf = &payload.into_inner()[from..];
-    info!("========== payload {:?}", &buf);
+    debug!("========== payload {:?}", &buf);
 }
 
 #[cfg(test)]
@@ -2415,7 +2501,7 @@ mod tests {
     /// way of doing what test_scard_ioctl_connectw does to the Client's
     /// internal state.
     fn connect_scard(c: &mut Client, context_value: u32) {
-        let ctx = c.contexts.get(context_value).unwrap();
+        let ctx = c.contexts.get_card_context(context_value).unwrap();
         ctx.connect(
             Context {
                 length: 4,
