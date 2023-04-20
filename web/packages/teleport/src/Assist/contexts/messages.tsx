@@ -28,7 +28,7 @@ import { useParams } from 'react-router';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { Author, Message, Type } from '../services/messages';
+import { Author, ExecuteRemoteCommandContent, Message, MessageContent, TextMessageContent, Type } from '../services/messages';
 
 interface MessageContextValue {
   send: (message: string) => Promise<void>;
@@ -59,58 +59,38 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
-function convertServerMessage(message: ServerMessage) {
+function convertServerMessage(message: ServerMessage): Message {
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     return {
       author: Author.Teleport,
-      content: [
-        {
-          type: Type.Message,
-          value: message.payload,
-        },
-      ],
+      content: {
+        type: Type.Message,
+        value: message.payload,
+      },
     };
   }
 
   if (message.type === 'CHAT_MESSAGE_USER') {
     return {
       author: Author.User,
-      content: [
-        {
-          type: Type.Message,
-          value: message.payload,
-        },
-      ],
+      content: {
+        type: Type.Message,
+        value: message.payload,
+      },
     };
   }
 
   if (message.type === 'COMMAND') {
-    const execCmd = JSON.parse(message.payload);
-    const content = [];
-
-    if (execCmd.labels || execCmd.nodes) {
-      const labels = (execCmd.labels || []).map(
-        label => `${label.key}:${label.value}`
-      );
-      const nodes = execCmd.nodes || [];
-
-      content.push({
-        type: Type.Connect,
-        value: [...labels, ...nodes],
-      });
-    }
-
-    if (execCmd.command) {
-      content.push({
-        type: Type.Exec,
-        value: execCmd.command,
-      });
-    }
+    const execCmd: ExecuteRemoteCommandContent = JSON.parse(message.payload);
 
     return {
       author: Author.Teleport,
       isNew: true,
-      content,
+      content: {
+        ...execCmd,
+        type: Type.ExecuteRemoteCommand,
+        login: 'root',
+      },
     };
   }
 }
@@ -168,13 +148,14 @@ export function MessagesContextProvider(
         {
           author: Author.User,
           isNew: true,
-          content: [{ type: Type.Message, value: message }],
+          content: { type: Type.Message, value: message } as const,
         },
       ];
 
       setMessages(newMessages);
 
       const data = JSON.stringify({ payload: message });
+      console.log('data', data);
       sendMessage(data);
     },
     [messages]
