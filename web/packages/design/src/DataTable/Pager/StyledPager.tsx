@@ -39,7 +39,7 @@ export const StyledArrowBtn = styled.button`
   &:disabled {
     cursor: default;
     ${Icon} {
-      opacity: 0.1;
+      opacity: 0.2;
     }
   }
 `;
