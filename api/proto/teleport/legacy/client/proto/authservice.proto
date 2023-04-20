@@ -298,7 +298,7 @@ message UserCertsRequest {
   // MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"]
   //
   // When backporting this field to v11, the struct field number got changed to 17, which breaks
-  // backwards compatability between v12 and v11.
+  // backwards compatability between v12 and v11. In v12+, field number 17 refers to RequesterName.
   //
   // Since the breakage is scoped to web SSH file transfers and web discover test connecters
   // with per-session MFA configured, it was decided to leave things as is minus
@@ -306,6 +306,7 @@ message UserCertsRequest {
   //
   // https://github.com/gravitational/teleport/issues/24817
   reserved 18;
+  reserved "RequesterName";
 }
 
 // RouteToDatabase combines parameters for database service routing information.
