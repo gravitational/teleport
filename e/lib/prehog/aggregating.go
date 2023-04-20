@@ -18,22 +18,21 @@ import (
 	"github.com/gravitational/teleport/lib/events/usageevents"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/usagereporter/teleport/aggregating"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewUsageReportsSubmitter returns an [aggregating.UsageReportsSubmitter] that
 // sends usage reports to our ingest service via
 // prehog.v1alpha.TeleportReportingService/SubmitUsageReports .
-func NewUsageReportsSubmitter(clientCert *tls.Certificate) (aggregating.UsageReportsSubmitter, error) {
+func NewUsageReportsSubmitter(clientCert *tls.Certificate, cipherSuites []uint16) (aggregating.UsageReportsSubmitter, error) {
 	ht, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ht.TLSClientConfig = &tls.Config{
-		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return clientCert, nil
-		},
-		MinVersion: tls.VersionTLS13,
+	ht.TLSClientConfig = utils.TLSConfig(cipherSuites)
+	ht.TLSClientConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		return clientCert, nil
 	}
 
 	hc := &http.Client{
@@ -104,7 +103,7 @@ func InitAggregatingUsageReporting(
 	}
 	process.GetAuthServer().SetEmitter(emitter)
 
-	submitter, err := NewUsageReportsSubmitter(cert)
+	submitter, err := NewUsageReportsSubmitter(cert, process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
