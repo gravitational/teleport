@@ -4,7 +4,6 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 .c0 {
   box-sizing: border-box;
   height: 60px;
-  background-color: #1C254D;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -38,7 +37,7 @@ exports[`rendering of TopNav and TopNavItem 1`] = `
 }
 
 .c1.active:after {
-  background-color: #651FFF;
+  background-color: #9F85FF;
   content: '';
   position: absolute;
   bottom: 0;

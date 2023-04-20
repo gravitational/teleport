@@ -209,11 +209,11 @@ tests:
     values:
       - ../.lint/stateful.yaml
     set:
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       - matchSnapshot:
           path: spec.template.spec
 

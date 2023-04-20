@@ -76,7 +76,7 @@ export function PageIndicatorText({
   return (
     <Text
       typography="body2"
-      color="text.contrast"
+      color="text.primary"
       mr={1}
       style={{ whiteSpace: 'nowrap', textTransform: 'uppercase' }}
     >

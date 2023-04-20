@@ -40,6 +40,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -61,7 +62,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -525,7 +525,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// everything because the session is closing)
 			var sessionStream []byte
 			for i := 0; i < 6; i++ {
-				sessionStream, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
+				sessionStream, err = site.GetSessionChunk(defaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 				require.NoError(t, err)
 				if strings.Contains(string(sessionStream), "exit") {
 					break
@@ -557,7 +557,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 					select {
 					case <-tickCh:
 						// Get all session events from the backend.
-						sessionEvents, err := site.GetSessionEvents(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0)
+						sessionEvents, err := site.GetSessionEvents(defaults.Namespace, session.ID(tracker.GetSessionID()), 0)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
@@ -1280,26 +1280,19 @@ func testEscapeSequenceNoTrigger(t *testing.T, terminal *Terminal, sess <-chan e
 }
 
 type localAddr struct {
-	mu   sync.Mutex
-	addr net.Addr
+	addr atomic.Pointer[net.Addr]
 }
 
 func (a *localAddr) set(addr net.Addr) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.addr = addr
+	a.addr.CompareAndSwap(nil, &addr)
 }
 
 func (a *localAddr) get() net.Addr {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	if a.addr == nil {
-		return &utils.NetAddr{}
+	addr := a.addr.Load()
+	if addr != nil {
+		return *addr
 	}
-
-	return a.addr
+	return &utils.NetAddr{}
 }
 
 // testIPPropagation makes sure that we can correctly propagate initial client IP observed by proxy.
@@ -1413,7 +1406,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		tc.Stdout = person
 		tc.Stdin = person
 
-		local := &localAddr{}
+		local := localAddr{}
 
 		tc.Config.DialOpts = []grpc.DialOption{
 			grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
@@ -1459,7 +1452,7 @@ func testIPPropagation(t *testing.T, suite *integrationTestSuite) {
 		})
 		require.NoError(t, err)
 
-		local := &localAddr{}
+		local := localAddr{}
 
 		tc.Config.DialOpts = []grpc.DialOption{
 			grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
@@ -2117,7 +2110,7 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
-// with invalid 'site' parameter
+// with invalid 'cluster' parameter
 func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
@@ -2139,8 +2132,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(context.Background(), cmd, false)
-	require.True(t, trace.IsNotFound(err))
-	require.Contains(t, err.Error(), `cluster "wrong-site" is not found`)
+	require.ErrorIs(t, err, trace.NotFound("failed to dial target host\n\tcluster \"wrong-site\" is not found"))
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2994,12 +2986,10 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	})
 	require.True(t, trace.IsNotFound(err))
 
-	// ListNodes expect labels as a value of host
-	tc.Host = ""
+	// check that we can list resources for the cluster.
 	servers, err := tc.ListNodesWithFilters(ctx)
 	require.NoError(t, err)
 	require.Len(t, servers, 2)
-	tc.Host = Loopback
 
 	// check that remote cluster has been provisioned
 	remoteClusters, err := main.Process.GetAuthServer().GetRemoteClusters()
@@ -4465,7 +4455,7 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	_, err = site.GetSessionChunk(apidefaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
+	_, err = site.GetSessionChunk(defaults.Namespace, session.ID(tracker.GetSessionID()), 0, events.MaxChunkBytes)
 	require.Error(t, err)
 }
 
