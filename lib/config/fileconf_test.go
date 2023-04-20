@@ -648,7 +648,22 @@ func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
 		wantPB     *types.DeviceTrust
 	}{
 		{
-			name: "ok",
+			name: "minimal config",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode": "optional",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode: "optional",
+			},
+		},
+		{
+			name: "all fields",
 			configYAML: editConfig(t, func(cfg cfgMap) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"type":          "local",
