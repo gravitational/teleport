@@ -19,7 +19,7 @@ import { useAttempt } from 'shared/hooks';
 
 import { context, trace } from '@opentelemetry/api';
 
-import { ParticipantMode, Session } from 'teleport/services/session';
+import { Session } from 'teleport/services/session';
 
 import Ctx from 'teleport/teleportContext';
 
