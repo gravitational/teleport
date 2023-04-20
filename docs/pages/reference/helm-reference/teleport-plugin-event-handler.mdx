@@ -27,8 +27,8 @@ This parameter contains the host/port combination of the Teleport Auth Service.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
+  ```text
+  --set teleport.address="teleport.example.com:3025"
   ```
   </TabItem>
 </Tabs>
@@ -63,8 +63,8 @@ Check out the [Event Handler Helm Chart documentation](https://github.com/gravit
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-event-handler-identity"
+  ```text
+  --set teleport.identitySecretName="teleport-plugin-event-handler-identity"
   ```
   </TabItem>
 </Tabs>
@@ -85,8 +85,8 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
+  ```text
+  --set teleport.identitySecretPath="auth_id"
   ```
   </TabItem>
 </Tabs>
@@ -107,8 +107,8 @@ Fluentd URL where the events will be sent.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.url="https://fluentd:24224/events.log"
+  ```text
+  --set fluentd.url="https://fluentd:24224/events.log"
   ```
   </TabItem>
 </Tabs>
@@ -129,8 +129,8 @@ Fluentd URL where the session logs will be sent.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.sessionUrl="https://fluentd:24224/session.log"
+  ```text
+  --set fluentd.sessionUrl="https://fluentd:24224/session.log"
   ```
   </TabItem>
 </Tabs>
@@ -151,8 +151,8 @@ Secret containing the credentials to connect to Fluentd. It must to contain the 
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.secretName="teleport-plugin-event-handler-fluentd"
+  ```text
+  --set fluentd.secretName="teleport-plugin-event-handler-fluentd"
   ```
   </TabItem>
 </Tabs>
@@ -173,8 +173,8 @@ Name of the key which contains the CA certificate inside the secret.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.caPath="ca.crt"
+  ```text
+  --set fluentd.caPath="ca.crt"
   ```
   </TabItem>
 </Tabs>
@@ -195,8 +195,8 @@ Name of the key which contains the client's private key inside the secret.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.keyPath="client.key"
+  ```text
+  --set fluentd.keyPath="client.key"
   ```
   </TabItem>
 </Tabs>
@@ -217,8 +217,8 @@ Name of the key which contains the client's certificate inside the secret.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set fluentd.certPath="client.crt"
+  ```text
+  --set fluentd.certPath="client.crt"
   ```
   </TabItem>
 </Tabs>
@@ -239,8 +239,8 @@ Logger output. Can be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/fluentd.log"
+  ```text
+  --set log.output="/var/log/teleport/fluentd.log"
   ```
   </TabItem>
 </Tabs>
@@ -261,8 +261,8 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
+  ```text
+  --set log.severity="DEBUG"
   ```
   </TabItem>
 </Tabs>

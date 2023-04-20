@@ -27,8 +27,8 @@ This parameter contains the host/port combination of the Teleport Auth Service o
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
+  ```text
+  --set teleport.address="teleport.example.com:3025"
   ```
   </TabItem>
 </Tabs>
@@ -63,8 +63,8 @@ Read the [PagerDuty Helm Chart documentation](https://github.com/gravitational/t
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-pagerduty-identity"
+  ```text
+  --set teleport.identitySecretName="teleport-plugin-pagerduty-identity"
   ```
   </TabItem>
 </Tabs>
@@ -85,8 +85,8 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
+  ```text
+  --set teleport.identitySecretPath="auth_id"
   ```
   </TabItem>
 </Tabs>
@@ -107,8 +107,8 @@ Base URL of the PagerDuty instance
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.url="https://pagerduty.example.com/"
+  ```text
+  --set pagerduty.url="https://pagerduty.example.com/"
   ```
   </TabItem>
 </Tabs>
@@ -130,8 +130,8 @@ Please use [`pagerduty.apiKeyFromSecret`](#pagerdutyapikeyfromsecret) instead.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKey="pagerdutyapikey"
+  ```text
+  --set pagerduty.apiKey="pagerdutyapikey"
   ```
   </TabItem>
 </Tabs>
@@ -152,8 +152,8 @@ Secret containing the PagerDuty token of the bot user.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKeyFromSecret="teleport-pagerduty-plugin-token"
+  ```text
+  --set pagerduty.apiKeyFromSecret="teleport-pagerduty-plugin-token"
   ```
   </TabItem>
 </Tabs>
@@ -174,8 +174,8 @@ Key where the token is located inside the secret specified by `pagerduty.apiKeyF
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKeySecretPath="apiKey"
+  ```text
+  --set pagerduty.apiKeySecretPath="apiKey"
   ```
   </TabItem>
 </Tabs>
@@ -196,8 +196,8 @@ Key where the token is located inside the secret specified by `pagerduty.apiKeyF
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.userEmail="apiKey"
+  ```text
+  --set pagerduty.userEmail="apiKey"
   ```
   </TabItem>
 </Tabs>
@@ -220,8 +220,8 @@ List of recipients who will receive notifications about Access Requests.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set pagerduty.recipients[0]="user1@example.com",pagerduty.recipients[0]="user1@example.com"
+  ```text
+  --set pagerduty.recipients[0]="user1@example.com",pagerduty.recipients[0]="user1@example.com"
   ```
   </TabItem>
 </Tabs>
@@ -242,8 +242,8 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/pagerduty.log"
+  ```text
+  --set log.output="/var/log/teleport/pagerduty.log"
   ```
   </TabItem>
 </Tabs>
@@ -264,8 +264,8 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
+  ```text
+  --set log.severity="DEBUG"
   ```
   </TabItem>
 </Tabs>

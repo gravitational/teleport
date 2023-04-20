@@ -29,8 +29,8 @@ connect to it directly).
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
+  ```text
+  --set teleport.address="teleport.example.com:3025"
   ```
   </TabItem>
 </Tabs>
@@ -68,8 +68,8 @@ for more information about how to acquire these credentials.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-slack-identity"
+  ```text
+  --set teleport.identitySecretName="teleport-plugin-slack-identity"
   ```
   </TabItem>
 </Tabs>
@@ -92,8 +92,8 @@ credentials for the connection to your Teleport cluster. If the secret has the p
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
+  ```text
+  --set teleport.identitySecretPath="auth_id"
   ```
   </TabItem>
 </Tabs>
@@ -117,8 +117,8 @@ It's only recommended for testing purposes. Please use
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set slack.token="xoxb-1234"
+  ```text
+  --set slack.token="xoxb-1234"
   ```
   </TabItem>
 </Tabs>
@@ -139,8 +139,8 @@ Secret containing the Slack token of the bot user.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set slack.tokenFromSecret="teleport-slack-plugin-token"
+  ```text
+  --set slack.tokenFromSecret="teleport-slack-plugin-token"
   ```
   </TabItem>
 </Tabs>
@@ -161,8 +161,8 @@ Key where the token is located inside the secret specified by `slack.tokenFromSe
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set slack.tokenSecretPath="token"
+  ```text
+  --set slack.tokenSecretPath="token"
   ```
   </TabItem>
 </Tabs>
@@ -185,8 +185,8 @@ a mapping for `*` in case no matching roles are found.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set "roleToRecipients.dev[0]=dev-access-requests,roleToRecipients.dev[1]=user@example.com,roleToRecipients.\*[0]=access-requests"
+  ```text
+  --set "roleToRecipients.dev[0]=dev-access-requests,roleToRecipients.dev[1]=user@example.com,roleToRecipients.\*[0]=access-requests"
   ```
   </TabItem>
 </Tabs>
@@ -207,8 +207,8 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/slack.log"
+  ```text
+  --set log.output="/var/log/teleport/slack.log"
   ```
   </TabItem>
 </Tabs>
@@ -229,8 +229,8 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
+  ```text
+  --set log.severity="DEBUG"
   ```
   </TabItem>
 </Tabs>

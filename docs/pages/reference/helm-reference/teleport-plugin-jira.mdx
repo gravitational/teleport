@@ -30,8 +30,8 @@ or Proxy Service.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
+  ```text
+  --set teleport.address="teleport.example.com:3025"
   ```
   </TabItem>
 </Tabs>
@@ -69,8 +69,8 @@ for more information about how to acquire these credentials.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-jira-identity"
+  ```text
+  --set teleport.identitySecretName="teleport-plugin-jira-identity"
   ```
   </TabItem>
 </Tabs>
@@ -93,8 +93,8 @@ be omitted.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
+  ```text
+  --set teleport.identitySecretPath="auth_id"
   ```
   </TabItem>
 </Tabs>
@@ -115,8 +115,8 @@ Secret containing the Jira token of the bot user.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.apiTokenFromSecret="teleport-jira-plugin-token"
+  ```text
+  --set jira.apiTokenFromSecret="teleport-jira-plugin-token"
   ```
   </TabItem>
 </Tabs>
@@ -137,8 +137,8 @@ Key where the token is located inside the secret specified by `jira.apiTokenFrom
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.apiTokenSecretPath="token"
+  ```text
+  --set jira.apiTokenSecretPath="token"
   ```
   </TabItem>
 </Tabs>
@@ -159,8 +159,8 @@ Issue type to be created when a new Access Request is made.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.issueType=Task
+  ```text
+  --set jira.issueType=Task
   ```
   </TabItem>
 </Tabs>
@@ -181,8 +181,8 @@ List of project who will receive notifications about Access Requests.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.project=MYPROJ
+  ```text
+  --set jira.project=MYPROJ
   ```
   </TabItem>
 </Tabs>
@@ -205,8 +205,8 @@ List of recipients who will receive notifications about Access Requests.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.recipients[0]="user1@example.com",jira.recipients[0]="user1@example.com"
+  ```text
+  --set jira.recipients[0]="user1@example.com",jira.recipients[0]="user1@example.com"
   ```
   </TabItem>
 </Tabs>
@@ -229,8 +229,8 @@ messages. It's only recommended for testing purposes. Please use
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.token="jiraapitoken"
+  ```text
+  --set jira.token="jiraapitoken"
   ```
   </TabItem>
 </Tabs>
@@ -251,8 +251,8 @@ Base URL of the Jira instance.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.url="https://jira.example.com/"
+  ```text
+  --set jira.url="https://jira.example.com/"
   ```
   </TabItem>
 </Tabs>
@@ -273,8 +273,8 @@ Jira username or email address associated with the token.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set jira.username="user@example.com"
+  ```text
+  --set jira.username="user@example.com"
   ```
   </TabItem>
 </Tabs>
@@ -295,8 +295,8 @@ Logger output. Can be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/jira.log"
+  ```text
+  --set log.output="/var/log/teleport/jira.log"
   ```
   </TabItem>
 </Tabs>
@@ -317,8 +317,8 @@ Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
   ```
   </TabItem>
   <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
+  ```text
+  --set log.severity="DEBUG"
   ```
   </TabItem>
 </Tabs>
