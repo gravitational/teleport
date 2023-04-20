@@ -32,7 +32,7 @@ This script is dependent of environment variables being set. Below is an example
 
 ```console
 $ docker run -it --rm -e "TABLE_NAME=cluster-events" \
--e "AWS_REGION=us-east-1" \
--e "START_DATE=2022-12-01" \ 
-public.ecr.aws/gravitational/teleport-usage:<container-version>
+    -e "AWS_REGION=us-east-1" \
+    -e "START_DATE=2022-12-01" \ 
+    public.ecr.aws/gravitational/teleport-usage:<container-version>
 ```
