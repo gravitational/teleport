@@ -16,7 +16,7 @@ package main
 
 func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
-	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
+	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipeline())
 
 	return promotePipelines
 }

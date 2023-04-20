@@ -195,12 +195,17 @@ func tagPipelines() []pipeline {
 		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
 		trigger:      triggerTag,
 		pipelineName: "build-linux-arm64",
-		ghaWorkflow:  "release-linux-arm64.yml",
-		srcRefVar:    "DRONE_TAG",
-		workflowRef:  "${DRONE_TAG}",
-		timeout:      60 * time.Minute,
 		dependsOn:    []string{tagCleanupPipelineName},
-		inputs:       map[string]string{"upload-artifacts": "true"},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           60 * time.Minute,
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "true"},
+			},
+		},
 	}))
 
 	// Only amd64 Windows is supported for now.
