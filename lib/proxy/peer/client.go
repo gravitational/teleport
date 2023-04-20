@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -343,7 +344,7 @@ func (c *Client) DialAuth(clusterName string, src net.Addr, dst net.Addr, proxyI
 	if src == nil || dst == nil {
 		return nil, trace.BadParameter("unable to dial auth: source and destination address must not be nil")
 	}
-	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
+	stream, _, err := c.dial(proxyIDs, wrapDialAuthInFrame(&clientapi.DialAuth{
 		ClusterName: clusterName,
 		Source: &clientapi.NetAddr{
 			Addr:    src.String(),
@@ -353,8 +354,7 @@ func (c *Client) DialAuth(clusterName string, src net.Addr, dst net.Addr, proxyI
 			Addr:    src.String(),
 			Network: src.Network(),
 		},
-		DialAuth: true,
-	})
+	}))
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
@@ -378,7 +378,7 @@ func (c *Client) DialNode(
 	if src == nil || dst == nil {
 		return nil, trace.BadParameter("unable to dial node: source and destination address must not be nil")
 	}
-	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
+	stream, _, err := c.dial(proxyIDs, wrapDialRequestInFrame(&clientapi.DialRequest{
 		NodeID:     nodeID,
 		TunnelType: tunnelType,
 		Source: &clientapi.NetAddr{
@@ -389,7 +389,7 @@ func (c *Client) DialNode(
 			Addr:    dst.String(),
 			Network: dst.Network(),
 		},
-	})
+	}))
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
@@ -400,6 +400,18 @@ func (c *Client) DialNode(
 	}
 
 	return streamutils.NewConn(streamRW, src, dst), nil
+}
+
+func wrapDialRequestInFrame(r *proto.DialRequest) *proto.Frame {
+	return &proto.Frame{Message: &proto.Frame_DialRequest{
+		DialRequest: r,
+	}}
+}
+
+func wrapDialAuthInFrame(r *proto.DialAuth) *proto.Frame {
+	return &proto.Frame{Message: &proto.Frame_DialAuth{
+		DialAuth: r,
+	}}
 }
 
 // stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
@@ -512,7 +524,7 @@ func (c *Client) stopConn(conn *clientConn) error {
 // to one of the proxies otherwise.
 // The boolean returned in the second argument is intended for testing purposes,
 // to indicates whether the connection was cached or newly established.
-func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (clientapi.ProxyService_DialNodeClient, bool, error) {
+func (c *Client) dial(proxyIDs []string, dialFrame *clientapi.Frame) (clientapi.ProxyService_DialNodeClient, bool, error) {
 	conns, existing, err := c.getConnections(proxyIDs)
 	if err != nil {
 		return nil, existing, trace.Wrap(err)
@@ -527,11 +539,7 @@ func (c *Client) dial(proxyIDs []string, dialRequest *clientapi.DialRequest) (cl
 			errs = append(errs, trace.ConnectionProblem(err, "error starting stream: %v", err))
 			continue
 		}
-		err = stream.Send(&clientapi.Frame{
-			Message: &clientapi.Frame_DialRequest{
-				DialRequest: dialRequest,
-			},
-		})
+		err = stream.Send(dialFrame)
 		if err != nil {
 			errs = append(errs, trace.ConnectionProblem(err, "error sending dial frame: %v", err))
 			continue

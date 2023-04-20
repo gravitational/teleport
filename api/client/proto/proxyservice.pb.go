@@ -34,6 +34,7 @@ type Frame struct {
 	//	*Frame_DialRequest
 	//	*Frame_ConnectionEstablished
 	//	*Frame_Data
+	//	*Frame_DialAuth
 	Message              isFrame_Message `protobuf_oneof:"Message"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
@@ -88,10 +89,14 @@ type Frame_ConnectionEstablished struct {
 type Frame_Data struct {
 	Data *Data `protobuf:"bytes,3,opt,name=Data,proto3,oneof" json:"Data,omitempty"`
 }
+type Frame_DialAuth struct {
+	DialAuth *DialAuth `protobuf:"bytes,4,opt,name=DialAuth,proto3,oneof" json:"DialAuth,omitempty"`
+}
 
 func (*Frame_DialRequest) isFrame_Message()           {}
 func (*Frame_ConnectionEstablished) isFrame_Message() {}
 func (*Frame_Data) isFrame_Message()                  {}
+func (*Frame_DialAuth) isFrame_Message()              {}
 
 func (m *Frame) GetMessage() isFrame_Message {
 	if m != nil {
@@ -121,12 +126,20 @@ func (m *Frame) GetData() *Data {
 	return nil
 }
 
+func (m *Frame) GetDialAuth() *DialAuth {
+	if x, ok := m.GetMessage().(*Frame_DialAuth); ok {
+		return x.DialAuth
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Frame) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*Frame_DialRequest)(nil),
 		(*Frame_ConnectionEstablished)(nil),
 		(*Frame_Data)(nil),
+		(*Frame_DialAuth)(nil),
 	}
 }
 
@@ -140,12 +153,7 @@ type DialRequest struct {
 	// Source is the original source address of the client.
 	Source *NetAddr `protobuf:"bytes,3,opt,name=Source,proto3" json:"Source,omitempty"`
 	// Destination is the destination address to connect to over the reverse tunnel.
-	Destination *NetAddr `protobuf:"bytes,4,opt,name=Destination,proto3" json:"Destination,omitempty"`
-	// ClusterName is the name of the cluster dial. This must be set
-	// when trying to dial a clusters auth server.
-	ClusterName string `protobuf:"bytes,5,opt,name=ClusterName,proto3" json:"ClusterName,omitempty"`
-	// DialAuth if set will make a dial request to the given clusters auth service.
-	DialAuth             bool     `protobuf:"varint,6,opt,name=DialAuth,proto3" json:"DialAuth,omitempty"`
+	Destination          *NetAddr `protobuf:"bytes,4,opt,name=Destination,proto3" json:"Destination,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -212,18 +220,71 @@ func (m *DialRequest) GetDestination() *NetAddr {
 	return nil
 }
 
-func (m *DialRequest) GetClusterName() string {
+// DialAuth is a request to dial a remote clusters auth server.
+type DialAuth struct {
+	// ClusterName is the name of the cluster to dial.
+	ClusterName string `protobuf:"bytes,1,opt,name=ClusterName,proto3" json:"ClusterName,omitempty"`
+	// Source is the original source address of the client.
+	Source *NetAddr `protobuf:"bytes,2,opt,name=Source,proto3" json:"Source,omitempty"`
+	// Destination is the destination address to connect to over the reverse tunnel.
+	Destination          *NetAddr `protobuf:"bytes,3,opt,name=Destination,proto3" json:"Destination,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DialAuth) Reset()         { *m = DialAuth{} }
+func (m *DialAuth) String() string { return proto.CompactTextString(m) }
+func (*DialAuth) ProtoMessage()    {}
+func (*DialAuth) Descriptor() ([]byte, []int) {
+	return fileDescriptor_b76fff22d4479739, []int{2}
+}
+func (m *DialAuth) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DialAuth) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DialAuth.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DialAuth) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DialAuth.Merge(m, src)
+}
+func (m *DialAuth) XXX_Size() int {
+	return m.Size()
+}
+func (m *DialAuth) XXX_DiscardUnknown() {
+	xxx_messageInfo_DialAuth.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DialAuth proto.InternalMessageInfo
+
+func (m *DialAuth) GetClusterName() string {
 	if m != nil {
 		return m.ClusterName
 	}
 	return ""
 }
 
-func (m *DialRequest) GetDialAuth() bool {
+func (m *DialAuth) GetSource() *NetAddr {
 	if m != nil {
-		return m.DialAuth
+		return m.Source
 	}
-	return false
+	return nil
+}
+
+func (m *DialAuth) GetDestination() *NetAddr {
+	if m != nil {
+		return m.Destination
+	}
+	return nil
 }
 
 // Addr is a network address.
@@ -241,7 +302,7 @@ func (m *NetAddr) Reset()         { *m = NetAddr{} }
 func (m *NetAddr) String() string { return proto.CompactTextString(m) }
 func (*NetAddr) ProtoMessage()    {}
 func (*NetAddr) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b76fff22d4479739, []int{2}
+	return fileDescriptor_b76fff22d4479739, []int{3}
 }
 func (m *NetAddr) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -296,7 +357,7 @@ func (m *Data) Reset()         { *m = Data{} }
 func (m *Data) String() string { return proto.CompactTextString(m) }
 func (*Data) ProtoMessage()    {}
 func (*Data) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b76fff22d4479739, []int{3}
+	return fileDescriptor_b76fff22d4479739, []int{4}
 }
 func (m *Data) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -343,7 +404,7 @@ func (m *ConnectionEstablished) Reset()         { *m = ConnectionEstablished{} }
 func (m *ConnectionEstablished) String() string { return proto.CompactTextString(m) }
 func (*ConnectionEstablished) ProtoMessage()    {}
 func (*ConnectionEstablished) Descriptor() ([]byte, []int) {
-	return fileDescriptor_b76fff22d4479739, []int{4}
+	return fileDescriptor_b76fff22d4479739, []int{5}
 }
 func (m *ConnectionEstablished) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -375,6 +436,7 @@ var xxx_messageInfo_ConnectionEstablished proto.InternalMessageInfo
 func init() {
 	proto.RegisterType((*Frame)(nil), "proto.Frame")
 	proto.RegisterType((*DialRequest)(nil), "proto.DialRequest")
+	proto.RegisterType((*DialAuth)(nil), "proto.DialAuth")
 	proto.RegisterType((*NetAddr)(nil), "proto.NetAddr")
 	proto.RegisterType((*Data)(nil), "proto.Data")
 	proto.RegisterType((*ConnectionEstablished)(nil), "proto.ConnectionEstablished")
@@ -385,36 +447,37 @@ func init() {
 }
 
 var fileDescriptor_b76fff22d4479739 = []byte{
-	// 455 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x52, 0xcd, 0x6e, 0xd3, 0x40,
-	0x10, 0xce, 0x96, 0x24, 0x6d, 0x36, 0x11, 0x87, 0x51, 0x01, 0x2b, 0xaa, 0x42, 0xf0, 0x01, 0x45,
-	0x1c, 0xe2, 0x2a, 0x48, 0x45, 0xea, 0x89, 0xa6, 0x01, 0x85, 0x03, 0x11, 0xda, 0xe6, 0xd4, 0xdb,
-	0xc6, 0x19, 0x39, 0x2b, 0x1c, 0xaf, 0xd9, 0x1d, 0x17, 0xfc, 0x28, 0x3c, 0x0f, 0x17, 0x8e, 0x3c,
-	0x01, 0x42, 0x79, 0x0c, 0x4e, 0xc8, 0x6b, 0x97, 0xba, 0x52, 0x90, 0xb8, 0x78, 0xe7, 0xdb, 0xf9,
-	0xf6, 0xf3, 0x37, 0x3f, 0x3c, 0x20, 0x8c, 0x31, 0xd5, 0x86, 0x82, 0x18, 0x23, 0x19, 0xe6, 0x41,
-	0x18, 0x2b, 0x4c, 0x28, 0x48, 0x8d, 0x26, 0x5d, 0x7c, 0xbf, 0xe4, 0x16, 0xcd, 0x8d, 0x0a, 0x71,
-	0xec, 0xae, 0xa0, 0xe5, 0x8e, 0xfe, 0x71, 0xa4, 0x23, 0x5d, 0x92, 0x8a, 0xa8, 0x4c, 0xfa, 0xdf,
-	0x18, 0x6f, 0xbd, 0x35, 0x72, 0x8b, 0x70, 0xc6, 0xbb, 0x33, 0x25, 0x63, 0x81, 0x9f, 0x32, 0xb4,
-	0xe4, 0xb1, 0x21, 0x1b, 0x75, 0x27, 0x50, 0xd2, 0xc6, 0xb5, 0xcc, 0xbc, 0x21, 0xea, 0x44, 0x58,
-	0xf2, 0x47, 0x97, 0x3a, 0x49, 0x30, 0x24, 0xa5, 0x93, 0x37, 0x96, 0xe4, 0x2a, 0x56, 0x76, 0x83,
-	0x6b, 0xef, 0xc0, 0x29, 0x9c, 0x54, 0x0a, 0x7b, 0x39, 0xf3, 0x86, 0xd8, 0xff, 0x18, 0x9e, 0xf1,
-	0xe6, 0x4c, 0x92, 0xf4, 0x1e, 0x38, 0x91, 0xee, 0xad, 0x0d, 0x49, 0x72, 0xde, 0x10, 0x2e, 0x35,
-	0xed, 0xf0, 0xc3, 0xf7, 0x68, 0xad, 0x8c, 0xd0, 0xff, 0x7a, 0x70, 0xcf, 0x3c, 0x3c, 0xe6, 0xed,
-	0x85, 0x5e, 0xe3, 0xbb, 0x99, 0x2b, 0xa3, 0x23, 0x2a, 0x04, 0xd7, 0x9c, 0x2f, 0xb3, 0x24, 0xc1,
-	0x78, 0x99, 0xa7, 0xe8, 0x0c, 0x76, 0xa6, 0xe7, 0xbf, 0x7f, 0x3e, 0x3d, 0x8b, 0x14, 0x6d, 0xb2,
-	0xd5, 0x38, 0xd4, 0xdb, 0x20, 0x32, 0xf2, 0x46, 0x91, 0x2c, 0x0c, 0xc9, 0xf8, 0xae, 0xd9, 0x32,
-	0x55, 0x01, 0xe5, 0x29, 0xda, 0xf1, 0x9d, 0x82, 0xa8, 0xa9, 0xc1, 0x73, 0xde, 0xbe, 0xd2, 0x99,
-	0x09, 0xb1, 0xf2, 0xfc, 0xb0, 0xf2, 0xbc, 0x40, 0xba, 0x58, 0xaf, 0x8d, 0xa8, 0xb2, 0x70, 0xca,
-	0xbb, 0x33, 0xb4, 0xa4, 0x12, 0xf7, 0x0b, 0xaf, 0xb9, 0x97, 0x5c, 0xa7, 0xc0, 0x90, 0x77, 0x2f,
-	0xe3, 0xcc, 0x12, 0x9a, 0x85, 0xdc, 0xa2, 0xd7, 0x72, 0x25, 0xd5, 0xaf, 0xa0, 0xcf, 0x8f, 0x8a,
-	0xf2, 0x2f, 0x32, 0xda, 0x78, 0xed, 0x21, 0x1b, 0x1d, 0x89, 0xbf, 0xd8, 0x7f, 0xc5, 0x0f, 0x2b,
-	0x55, 0xf0, 0x5c, 0xf8, 0x59, 0x9b, 0x8f, 0x55, 0x5f, 0x6e, 0x21, 0x00, 0x6f, 0x16, 0x8c, 0xb2,
-	0x25, 0xc2, 0xc5, 0xfe, 0x49, 0x39, 0x02, 0x38, 0xe6, 0xad, 0x69, 0x4e, 0x68, 0xdd, 0x9b, 0x9e,
-	0x28, 0x81, 0xff, 0xe4, 0x1f, 0x63, 0x9f, 0x9c, 0xf3, 0xde, 0x87, 0x62, 0x09, 0xaf, 0xca, 0x25,
-	0x84, 0x17, 0xa5, 0xb7, 0x62, 0x02, 0xd0, 0xab, 0xca, 0x74, 0x1b, 0xd7, 0xbf, 0x87, 0x46, 0xec,
-	0x94, 0x4d, 0x5f, 0x7f, 0xdf, 0x0d, 0xd8, 0x8f, 0xdd, 0x80, 0xfd, 0xda, 0x0d, 0xd8, 0xf5, 0xe4,
-	0xff, 0xa6, 0x52, 0xdf, 0xff, 0x55, 0xdb, 0x1d, 0x2f, 0xff, 0x04, 0x00, 0x00, 0xff, 0xff, 0x35,
-	0x71, 0x8b, 0x74, 0x26, 0x03, 0x00, 0x00,
+	// 474 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x53, 0x4f, 0x6f, 0xd3, 0x30,
+	0x14, 0xaf, 0xb7, 0xb6, 0xa3, 0x4e, 0x05, 0x92, 0x35, 0x20, 0x9a, 0xa6, 0x32, 0x72, 0x40, 0x13,
+	0x12, 0xcd, 0x54, 0xa4, 0x21, 0xed, 0xc4, 0xba, 0x82, 0xca, 0x81, 0x0a, 0x79, 0x3d, 0xed, 0xe6,
+	0x26, 0x4f, 0xa9, 0x45, 0x1a, 0x07, 0xfb, 0x65, 0x90, 0x2f, 0xc0, 0x67, 0xe3, 0xc8, 0x1d, 0x09,
+	0xa1, 0x7e, 0x04, 0x8e, 0x9c, 0x50, 0x1c, 0x8f, 0x66, 0x68, 0x08, 0xb8, 0xc4, 0xef, 0xcf, 0xcf,
+	0x2f, 0xbf, 0xdf, 0x7b, 0xcf, 0x34, 0x44, 0x48, 0x21, 0x57, 0x1a, 0xc3, 0x14, 0x12, 0x11, 0x95,
+	0x61, 0x94, 0x4a, 0xc8, 0x30, 0xcc, 0xb5, 0x42, 0x55, 0x7d, 0x3f, 0x94, 0x06, 0xf4, 0xa5, 0x8c,
+	0x60, 0x68, 0x43, 0xac, 0x63, 0x8f, 0xbd, 0xdd, 0x44, 0x25, 0xaa, 0x06, 0x55, 0x56, 0x9d, 0x0c,
+	0xbe, 0x13, 0xda, 0x79, 0xa9, 0xc5, 0x0a, 0xd8, 0x31, 0xf5, 0x26, 0x52, 0xa4, 0x1c, 0xde, 0x15,
+	0x60, 0xd0, 0x27, 0x07, 0xe4, 0xd0, 0x1b, 0xb1, 0x1a, 0x36, 0x6c, 0x64, 0xa6, 0x2d, 0xde, 0x04,
+	0xb2, 0x39, 0xbd, 0x7b, 0xa6, 0xb2, 0x0c, 0x22, 0x94, 0x2a, 0x7b, 0x61, 0x50, 0x2c, 0x52, 0x69,
+	0x96, 0x10, 0xfb, 0x5b, 0xb6, 0xc2, 0xbe, 0xab, 0x70, 0x23, 0x66, 0xda, 0xe2, 0x37, 0x5f, 0x66,
+	0x0f, 0x69, 0x7b, 0x22, 0x50, 0xf8, 0xdb, 0xb6, 0x88, 0x77, 0x45, 0x43, 0xa0, 0x98, 0xb6, 0xb8,
+	0x4d, 0xb1, 0x27, 0xf4, 0x56, 0xc5, 0xe3, 0xb4, 0xc0, 0xa5, 0xdf, 0xb6, 0xb0, 0x3b, 0x0d, 0xb6,
+	0x55, 0x78, 0xda, 0xe2, 0xbf, 0x20, 0xe3, 0x1e, 0xdd, 0x79, 0x0d, 0xc6, 0x88, 0x04, 0x82, 0x2f,
+	0xe4, 0x9a, 0x56, 0x76, 0x8f, 0x76, 0x67, 0x2a, 0x86, 0x57, 0x13, 0xab, 0xba, 0xc7, 0x9d, 0xc7,
+	0x2e, 0x28, 0x9d, 0x17, 0x59, 0x06, 0xe9, 0xbc, 0xcc, 0xc1, 0xea, 0xe9, 0x8d, 0x4f, 0x7e, 0x7c,
+	0x7d, 0x70, 0x9c, 0x48, 0x5c, 0x16, 0x8b, 0x61, 0xa4, 0x56, 0x61, 0xa2, 0xc5, 0xa5, 0x44, 0x51,
+	0xf1, 0x17, 0xe9, 0x66, 0x36, 0x22, 0x97, 0x21, 0x96, 0x39, 0x98, 0xe1, 0xa6, 0x02, 0x6f, 0x54,
+	0x63, 0x8f, 0x68, 0xf7, 0x5c, 0x15, 0x3a, 0x02, 0x27, 0xf1, 0xb6, 0xe3, 0x3e, 0x03, 0x3c, 0x8d,
+	0x63, 0xcd, 0x5d, 0x96, 0x1d, 0x51, 0x6f, 0x02, 0x06, 0x65, 0x66, 0x7f, 0xe1, 0x84, 0xfe, 0x0e,
+	0x6e, 0x42, 0x82, 0x8f, 0x64, 0xd3, 0x18, 0x76, 0x40, 0xbd, 0xb3, 0xb4, 0x30, 0x08, 0x7a, 0x26,
+	0x56, 0xe0, 0xf4, 0x35, 0x43, 0x0d, 0x22, 0x5b, 0xff, 0x43, 0x64, 0xfb, 0xef, 0x44, 0x9e, 0xd1,
+	0x1d, 0x17, 0x67, 0xbe, 0x35, 0xdf, 0x2b, 0xfd, 0xd6, 0x51, 0xb8, 0x72, 0x19, 0xa3, 0xed, 0x0a,
+	0x51, 0x77, 0x97, 0x5b, 0x3b, 0xd8, 0xaf, 0x87, 0xcf, 0x76, 0x69, 0x67, 0x5c, 0x22, 0x18, 0x7b,
+	0xa7, 0xcf, 0x6b, 0x27, 0xb8, 0xff, 0x87, 0x85, 0x1b, 0x9d, 0xd0, 0xfe, 0x9b, 0x6a, 0xfd, 0xcf,
+	0xeb, 0xf5, 0x67, 0x8f, 0xeb, 0x3e, 0x54, 0xc3, 0x64, 0x7d, 0x47, 0xd4, 0xee, 0xfa, 0xde, 0x35,
+	0xef, 0x90, 0x1c, 0x91, 0xf1, 0xf3, 0x4f, 0xeb, 0x01, 0xf9, 0xbc, 0x1e, 0x90, 0x6f, 0xeb, 0x01,
+	0xb9, 0x18, 0xfd, 0xdb, 0x80, 0x9b, 0x2f, 0x6f, 0xd1, 0xb5, 0xc7, 0xd3, 0x9f, 0x01, 0x00, 0x00,
+	0xff, 0xff, 0x98, 0x3c, 0x68, 0xba, 0xa0, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -630,6 +693,27 @@ func (m *Frame_Data) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
+func (m *Frame_DialAuth) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Frame_DialAuth) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.DialAuth != nil {
+		{
+			size, err := m.DialAuth.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintProxyservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
 func (m *DialRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -653,23 +737,6 @@ func (m *DialRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.DialAuth {
-		i--
-		if m.DialAuth {
-			dAtA[i] = 1
-		} else {
-			dAtA[i] = 0
-		}
-		i--
-		dAtA[i] = 0x30
-	}
-	if len(m.ClusterName) > 0 {
-		i -= len(m.ClusterName)
-		copy(dAtA[i:], m.ClusterName)
-		i = encodeVarintProxyservice(dAtA, i, uint64(len(m.ClusterName)))
-		i--
-		dAtA[i] = 0x2a
 	}
 	if m.Destination != nil {
 		{
@@ -706,6 +773,64 @@ func (m *DialRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.NodeID)
 		copy(dAtA[i:], m.NodeID)
 		i = encodeVarintProxyservice(dAtA, i, uint64(len(m.NodeID)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DialAuth) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DialAuth) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DialAuth) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Destination != nil {
+		{
+			size, err := m.Destination.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintProxyservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Source != nil {
+		{
+			size, err := m.Source.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintProxyservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.ClusterName) > 0 {
+		i -= len(m.ClusterName)
+		copy(dAtA[i:], m.ClusterName)
+		i = encodeVarintProxyservice(dAtA, i, uint64(len(m.ClusterName)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -876,6 +1001,18 @@ func (m *Frame_Data) Size() (n int) {
 	}
 	return n
 }
+func (m *Frame_DialAuth) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.DialAuth != nil {
+		l = m.DialAuth.Size()
+		n += 1 + l + sovProxyservice(uint64(l))
+	}
+	return n
+}
 func (m *DialRequest) Size() (n int) {
 	if m == nil {
 		return 0
@@ -898,12 +1035,29 @@ func (m *DialRequest) Size() (n int) {
 		l = m.Destination.Size()
 		n += 1 + l + sovProxyservice(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DialAuth) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
 	l = len(m.ClusterName)
 	if l > 0 {
 		n += 1 + l + sovProxyservice(uint64(l))
 	}
-	if m.DialAuth {
-		n += 2
+	if m.Source != nil {
+		l = m.Source.Size()
+		n += 1 + l + sovProxyservice(uint64(l))
+	}
+	if m.Destination != nil {
+		l = m.Destination.Size()
+		n += 1 + l + sovProxyservice(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1099,6 +1253,41 @@ func (m *Frame) Unmarshal(dAtA []byte) error {
 			}
 			m.Message = &Frame_Data{v}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DialAuth", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProxyservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &DialAuth{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Message = &Frame_DialAuth{v}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipProxyservice(dAtA[iNdEx:])
@@ -1286,7 +1475,58 @@ func (m *DialRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
+		default:
+			iNdEx = preIndex
+			skippy, err := skipProxyservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DialAuth) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowProxyservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DialAuth: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DialAuth: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ClusterName", wireType)
 			}
@@ -1318,11 +1558,11 @@ func (m *DialRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.ClusterName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DialAuth", wireType)
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Source", wireType)
 			}
-			var v int
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowProxyservice
@@ -1332,12 +1572,64 @@ func (m *DialRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				v |= int(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			m.DialAuth = bool(v != 0)
+			if msglen < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Source == nil {
+				m.Source = &NetAddr{}
+			}
+			if err := m.Source.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Destination", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowProxyservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthProxyservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Destination == nil {
+				m.Destination = &NetAddr{}
+			}
+			if err := m.Destination.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipProxyservice(dAtA[iNdEx:])

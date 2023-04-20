@@ -34,7 +34,7 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef1 := setupServer(t, "s1", ca1, ca1, types.RoleProxy)
 	err := client1.updateConnections([]types.Server{serverDef1})
 	require.NoError(t, err)
-	stream, _, err := client1.dial([]string{"s1"}, &proto.DialRequest{})
+	stream, _, err := client1.dial([]string{"s1"}, wrapDialRequestInFrame(&proto.DialRequest{}))
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	stream.CloseSend()
@@ -44,7 +44,7 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef2 := setupServer(t, "s2", ca1, ca1, types.RoleProxy)
 	err = client2.updateConnections([]types.Server{serverDef2})
 	require.NoError(t, err) // connection succeeds but is in transient failure state
-	_, _, err = client2.dial([]string{"s2"}, &proto.DialRequest{})
+	_, _, err = client2.dial([]string{"s2"}, wrapDialRequestInFrame(&proto.DialRequest{}))
 	require.Error(t, err)
 
 	// certificates with correct role from different CAs
@@ -52,7 +52,7 @@ func TestServerTLS(t *testing.T) {
 	_, serverDef3 := setupServer(t, "s3", ca2, ca1, types.RoleProxy)
 	err = client3.updateConnections([]types.Server{serverDef3})
 	require.NoError(t, err)
-	stream, _, err = client3.dial([]string{"s3"}, &proto.DialRequest{})
+	stream, _, err = client3.dial([]string{"s3"}, wrapDialRequestInFrame(&proto.DialRequest{}))
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	stream.CloseSend()
