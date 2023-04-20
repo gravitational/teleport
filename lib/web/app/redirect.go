@@ -25,21 +25,20 @@ import (
 )
 
 func SetRedirectPageHeaders(h http.Header, nonce string) {
-	httplib.SetIndexHTMLHeaders(h)
-	// Set content policy flags
+	httplib.SetNoCacheHeaders(h)
+	httplib.SetDefaultSecurityHeaders(h)
+
+	// Set content security policy flags
 	scriptSrc := "none"
 	if nonce != "" {
 		// Should match the <script> tab nonce (random value).
 		scriptSrc = fmt.Sprintf("nonce-%v", nonce)
 	}
 	var csp = strings.Join([]string{
+		httplib.GetDefaultContentSecurityPolicy(),
 		fmt.Sprintf("script-src '%v'", scriptSrc),
 		"style-src 'self'",
-		"object-src 'none'",
 		"img-src 'self'",
-		"base-uri 'self'",
 	}, ";")
-
-	h.Set("Referrer-Policy", "no-referrer")
 	h.Set("Content-Security-Policy", csp)
 }

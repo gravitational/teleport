@@ -29,13 +29,10 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/httplib"
 )
 
 // SetScriptHeaders sets response headers to plain text.
 func SetScriptHeaders(h http.Header) {
-	httplib.SetNoCacheHeaders(h)
-	httplib.SetNoSniff(h)
 	h.Set("Content-Type", "text/plain")
 }
 
