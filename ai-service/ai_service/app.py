@@ -16,6 +16,7 @@ from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
 
 DEFAULT_HELLO_MESSAGE = "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
 
+
 async def assistant_query(
     chat_llm: ChatOpenAI,
     request: CompleteRequest,
@@ -74,6 +75,7 @@ async def serve():
     logging.info("Starting server on %s", listen_addr)
     await server.start()
     await server.wait_for_termination()
+
 
 if __name__ == "__main__":
     load_dotenv(verbose=True)
