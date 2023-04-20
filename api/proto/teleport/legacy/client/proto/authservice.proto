@@ -293,6 +293,19 @@ message UserCertsRequest {
   // An optional field, that when provided, the response will be validated
   // and the ID of the validated MFA device will be stored in the certificate.
   MFAAuthenticateResponse MFAResponse = 17 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+
+  // From v12+ this struct field was added (note struct field number 18):
+  // MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"]
+  //
+  // When backporting this field to v11, the struct field number got changed to 17, which breaks
+  // backwards compatability between v12 and v11.
+  //
+  // Since the breakage is scoped to web SSH file transfers and web discover test connecters
+  // with per-session MFA configured, it was decided to leave things as is minus
+  // reserving the struct field number 18 to prevent future breakage.
+  //
+  // https://github.com/gravitational/teleport/issues/24817
+  reserved 18;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
