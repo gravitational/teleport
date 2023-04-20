@@ -618,6 +618,10 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
+	if err := a.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
@@ -731,10 +735,6 @@ func (a *Server) calculateGithubUser(ctx context.Context, connector types.Github
 		return nil, trace.Wrap(err)
 	}
 	p.Traits = evaluationOutput.Traits
-
-	if err := a.CallLoginHooks(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Kube groups and users are ultimately only set in the traits, not any
 	// other property of the User. In case the login rules changed the relevant

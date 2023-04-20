@@ -556,7 +556,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 
 	// used to keep track of calls to login hooks.
 	var loginHookCounter atomic.Int32
-	var loginHook LoginHook = func(ctx context.Context) error {
+	var loginHook LoginHook = func(_ context.Context, _ types.User) error {
 		loginHookCounter.Add(1)
 		return nil
 	}

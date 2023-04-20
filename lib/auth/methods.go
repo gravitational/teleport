@@ -155,7 +155,12 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Code = events.UserLocalLoginCode
 		event.Status.Success = true
 
-		if err := s.CallLoginHooks(ctx); err != nil {
+		user, err := s.GetUser(actualUser, false)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		if err := s.CallLoginHooks(ctx, user); err != nil {
 			return "", trace.Wrap(err)
 		}
 	}

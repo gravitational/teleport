@@ -472,7 +472,7 @@ var (
 )
 
 // LoginHook is a function that will be called on login.
-type LoginHook func(context.Context) error
+type LoginHook func(context.Context, types.User) error
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
@@ -657,7 +657,7 @@ func (a *Server) RegisterLoginHook(hook LoginHook) {
 }
 
 // CallLoginHooks will call the registered login hooks.
-func (a *Server) CallLoginHooks(ctx context.Context) error {
+func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	// Make a copy of the login hooks to operate on.
 	a.loginHooksMu.RLock()
 	loginHooks := make([]LoginHook, len(a.loginHooks))
@@ -671,7 +671,7 @@ func (a *Server) CallLoginHooks(ctx context.Context) error {
 	var errs []error
 
 	for _, hook := range loginHooks {
-		errs = append(errs, hook(ctx))
+		errs = append(errs, hook(ctx, user))
 	}
 
 	return trace.NewAggregate(errs...)
