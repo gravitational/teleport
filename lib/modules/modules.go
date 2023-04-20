@@ -96,6 +96,8 @@ type Modules interface {
 	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
+	// SetFeatures set features queried from Cloud
+	SetFeatures(Features)
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
@@ -104,8 +106,6 @@ type Modules interface {
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
 	EnablePlugins()
-	// SetCloudFeatures set features queried from Cloud
-	SetCloudFeatures(f Features)
 }
 
 const (
@@ -184,6 +184,11 @@ func (p *defaultModules) Features() Features {
 	}
 }
 
+// SetFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetFeatures(f Features) {
+}
+
 func (p *defaultModules) IsBoringBinary() bool {
 	// Check the package name for one of the boring primitives, if the package
 	// path is from BoringCrypto, we know this binary was compiled against the
@@ -206,11 +211,6 @@ func (p *defaultModules) EnableRecoveryCodes() {
 // EnablePlugins enables hosted plugins runtime.
 // This is a noop since OSS teleport does not support hosted plugins
 func (p *defaultModules) EnablePlugins() {
-}
-
-// SetCloudFeatures sets features queried from Cloud.
-// This is a noop since OSS teleport does not support enterprise features
-func (p *defaultModules) SetCloudFeatures(f Features) {
 }
 
 var (
