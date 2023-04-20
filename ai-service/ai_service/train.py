@@ -23,7 +23,7 @@ service_context = ServiceContext.from_defaults(
 if __name__ == "__main__":
     # load Teleport docs for additional context
     print("loading documents...")
-    docs_documents = SimpleDirectoryReader("../docs/pages", recursive=False).load_data()
+    docs_documents = SimpleDirectoryReader("../docs/pages", recursive=True).load_data()
     print("building index...")
     docs_index = GPTSimpleVectorIndex.from_documents(
         docs_documents, service_context=service_context_natural_language
