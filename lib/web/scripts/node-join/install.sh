@@ -863,10 +863,10 @@ install_from_repo() {
             ($ID == "debian" && $VERSION_ID == "9" )
         ]]; then
             apt install apt-transport-https gnupg -y
-            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc | apt-key add -
+            curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
-            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc \
+            curl -fsSL https://apt.releases.teleport.dev/gpg \
                 -o /usr/share/keyrings/teleport-archive-keyring.asc
             echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
