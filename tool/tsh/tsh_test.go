@@ -156,7 +156,7 @@ func (p *cliModules) EnableRecoveryCodes() {
 func (p *cliModules) EnablePlugins() {
 }
 
-func (p *cliModules) SetCloudFeatures(f modules.Features) {
+func (p *cliModules) SetFeatures(f modules.Features) {
 
 }
 
