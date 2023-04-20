@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+
 import { Type } from 'teleport/Assist/services/messages';
 
 export const Container = styled.div`

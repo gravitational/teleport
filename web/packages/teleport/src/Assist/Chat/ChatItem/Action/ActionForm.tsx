@@ -6,8 +6,9 @@ import { Cross } from 'design/Icon';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
+import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
+
 import { Container, Items } from './common';
-import {SearchIcon} from "teleport/Assist/Icons/SearchIcon";
 
 interface ActionFormProps {
   initialState: ActionState[];
@@ -42,7 +43,7 @@ const CancelButton = styled.div`
   align-self: flex-end;
   cursor: pointer;
   margin-right: 10px;
-  
+
   &:hover {
     background: rgba(255, 255, 255, 0.1);
   }
@@ -166,7 +167,7 @@ export function ActionForm(props: ActionFormProps) {
       ...existing,
       {
         type: 'query',
-        value: "Blah", // TODO
+        value: 'Blah', // TODO
       },
     ]);
   }, []);
@@ -237,11 +238,9 @@ export function ActionForm(props: ActionFormProps) {
       <FormFooter>
         <FooterAdd>
           {props.addNodes && (
-            <>
-              <FooterAddButton onClick={() => handleAddLabel()}>
+            <FooterAddButton onClick={() => handleAddLabel()}>
                 Edit query
               </FooterAddButton>
-            </>
           )}
         </FooterAdd>
 

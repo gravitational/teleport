@@ -24,6 +24,8 @@ import { marked } from 'marked';
 
 import { useTeleport } from 'teleport';
 
+import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
+
 import { ExampleList } from '../Examples/ExampleList';
 
 import { Author, Message, Type } from '../../services/messages';
@@ -34,7 +36,6 @@ import { codeCSS } from './styles/code';
 import { markdownCSS } from './styles/markdown';
 
 import { Actions } from './Action';
-import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
 interface ChatItemProps {
   message: Message;
@@ -141,7 +142,9 @@ export function ChatItem(props: ChatItemProps) {
       content = (
         <ChatItemContent
           dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(marked.parse(props.message.content.value)),
+            __html: DOMPurify.sanitize(
+              marked.parse(props.message.content.value)
+            ),
           }}
         />
       );

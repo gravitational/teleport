@@ -49,7 +49,8 @@ enum RunActionStatus {
   Finished,
 }
 
-function createInitialState(nodeIds: string[]): NodeState[] {// TODO: probably can be removed
+function createInitialState(nodeIds: string[]): NodeState[] {
+  // TODO: probably can be removed
   return nodeIds.map(nodeId => ({
     nodeId: nodeId,
     status: RunActionStatus.Connecting,
@@ -70,9 +71,7 @@ interface RawPayload {
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
 
-  const [state, setState] = useState(() =>
-    createInitialState([])
-  );
+  const [state, setState] = useState(() => createInitialState([]));
 
   const params = convertContentToCommand(props.actions);
 
@@ -110,15 +109,23 @@ export function RunCommand(props: RunCommandProps) {
               console.log('state!!!', state);
 
               const results = state.find(node => node.nodeId == data.node_id);
-              if(!results) {
-                state.push({nodeId: data.node_id, status: RunActionStatus.Connecting});
+              if (!results) {
+                state.push({
+                  nodeId: data.node_id,
+                  status: RunActionStatus.Connecting,
+                });
               }
 
               const s = state.map(item => {
-                console.log('item.nodeId', item.nodeId, 'data.node_id', data.node_id);
+                console.log(
+                  'item.nodeId',
+                  item.nodeId,
+                  'data.node_id',
+                  data.node_id
+                );
                 if (item.nodeId === data.node_id) {
-                  if(!item.stdout) {
-                    item.stdout = "";
+                  if (!item.stdout) {
+                    item.stdout = '';
                   }
                   return {
                     ...item,
@@ -153,7 +160,7 @@ export function RunCommand(props: RunCommandProps) {
     <NodeOutput key={index} state={item} />
   ));
 
-  return <div style={{marginTop: '40px'}}>{nodes}</div>;
+  return <div style={{ marginTop: '40px' }}>{nodes}</div>;
 }
 
 interface NodeOutputProps {
@@ -196,9 +203,17 @@ function NodeOutput(props: NodeOutputProps) {
     <NodeContainer>
       <NodeTitle>{nodeIdsToNames[props.state.nodeId]}</NodeTitle>
 
-      {props.state.status === RunActionStatus.Connecting && <LoadingContainer><Dots /></LoadingContainer>}
+      {props.state.status === RunActionStatus.Connecting && (
+        <LoadingContainer>
+          <Dots />
+        </LoadingContainer>
+      )}
 
-      {props.state.stdout && <NodeContent><pre>{props.state.stdout}</pre></NodeContent>}
+      {props.state.stdout && (
+        <NodeContent>
+          <pre>{props.state.stdout}</pre>
+        </NodeContent>
+      )}
     </NodeContainer>
   );
 }

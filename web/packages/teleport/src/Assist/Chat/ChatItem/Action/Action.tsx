@@ -14,18 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, {ReactElement, useCallback, useState} from 'react';
+import React, { ReactElement, useCallback, useState } from 'react';
 import styled from 'styled-components';
 
-import {UserIcon} from 'design/SVGIcon';
+import { UserIcon } from 'design/SVGIcon';
 
-import {ActionState} from 'teleport/Assist/Chat/ChatItem/Action/types';
+import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
-import {EditIcon} from '../../../Icons/EditIcon';
+import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
 
-import {ActionForm} from './ActionForm';
-import {Container, Items, Title} from './common';
-import {SearchIcon} from "teleport/Assist/Icons/SearchIcon";
+import { EditIcon } from '../../../Icons/EditIcon';
+
+import { ActionForm } from './ActionForm';
+import { Container, Items, Title } from './common';
 
 interface ActionProps {
   state: ActionState[];
@@ -39,7 +40,7 @@ const Item = styled.div`
   margin-right: 10px;
   font-size: 16px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
-  monospace;
+    monospace;
   font-weight: bold;
 `;
 
@@ -131,7 +132,7 @@ function actionStateToItems(formState: ActionState[]) {
     if (state.type === 'query') {
       items.push(
         <Node key={`query-${index}`}>
-          <SearchIcon size={16}/>
+          <SearchIcon size={16} />
           {state.value}
         </Node>
       );
@@ -141,7 +142,7 @@ function actionStateToItems(formState: ActionState[]) {
       items.push(
         <As key="as">as</As>,
         <User key="user">
-          <UserIcon size={16}/> {state.value}
+          <UserIcon size={16} /> {state.value}
         </User>
       );
     }
@@ -178,7 +179,7 @@ export function Action(props: ActionProps) {
       {!editing && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18}/>
+            <EditIcon size={18} />
           </EditButton>
         </Buttons>
       )}
@@ -199,10 +200,10 @@ function propsToState(props: NodesAndLabelsProps): ActionState[] {
   const items: ActionState[] = [];
 
   // Always include query.
-  items.push({type: 'query', value: props.initialQuery ?? ""})
+  items.push({ type: 'query', value: props.initialQuery ?? '' });
 
   if (props.login) {
-    items.push({type: 'user', value: props.login});
+    items.push({ type: 'user', value: props.login });
   }
 
   return items;
@@ -220,7 +221,7 @@ function stateToItems(formState: ActionState[]) {
       // TODO replace node with query
       items.push(
         <Node key={`query-${index}`}>
-          <SearchIcon size={16}/>
+          <SearchIcon size={16} />
           {state.value}
         </Node>
       );
@@ -230,7 +231,7 @@ function stateToItems(formState: ActionState[]) {
       items.push(
         <As key="as">as</As>,
         <User key="user">
-          <UserIcon size={16}/> {state.value}
+          <UserIcon size={16} /> {state.value}
         </User>
       );
     }
@@ -272,7 +273,7 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18}/>
+            <EditIcon size={18} />
           </EditButton>
         </Buttons>
       )}
@@ -291,7 +292,7 @@ interface CommandProps {
 export function Command(props: CommandProps) {
   const [editing, setEditing] = useState(false);
 
-  const state: ActionState[] = [{type: 'command', value: props.command}];
+  const state: ActionState[] = [{ type: 'command', value: props.command }];
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
@@ -326,7 +327,7 @@ export function Command(props: CommandProps) {
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18}/>
+            <EditIcon size={18} />
           </EditButton>
         </Buttons>
       )}

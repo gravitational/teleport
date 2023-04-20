@@ -17,14 +17,15 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { RunIcon } from '../../../Icons/RunIcon';
-import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 import {
   Command,
   NodesAndLabels,
 } from 'teleport/Assist/Chat/ChatItem/Action/Action';
 import { RunCommand } from 'teleport/Assist/Chat/ChatItem/Action/RunAction';
+
+import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
+import { RunIcon } from '../../../Icons/RunIcon';
 
 interface ActionsProps {
   actions: ExecuteRemoteCommandContent;
@@ -112,7 +113,7 @@ export function Actions(props: ActionsProps) {
     (newActionState: ActionState[]) => {
       const newActions: ExecuteRemoteCommandContent = {
         type: Type.ExecuteRemoteCommand,
-        query: "",
+        query: '',
         command: actions.command,
       };
 
@@ -158,7 +159,11 @@ export function Actions(props: ActionsProps) {
 
       <Spacer>and</Spacer>
 
-      <Command command={actions.command} onStateUpdate={handleCommandUpdate} disabled={running} />
+      <Command
+        command={actions.command}
+        onStateUpdate={handleCommandUpdate}
+        disabled={running}
+      />
 
       {!result && !running && (
         <Buttons>

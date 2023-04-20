@@ -19,11 +19,12 @@ package ai
 import (
 	"context"
 
-	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 )
 
 // Message represents a message within a live conversation.

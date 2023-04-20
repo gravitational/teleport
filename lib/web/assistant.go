@@ -26,16 +26,15 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/auth"
 )
 
 func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
