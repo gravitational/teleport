@@ -1,5 +1,4 @@
 {{- define "teleport-cluster.auth.config.scratch" -}}
-{{- required "'auth.teleportConfig' is required in scratch mode" .Values.auth.teleportConfig }}
 proxy_service:
   enabled: false
 ssh_service:

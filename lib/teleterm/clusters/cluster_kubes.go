@@ -21,12 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -38,70 +39,26 @@ type Kube struct {
 	KubernetesCluster types.KubeCluster
 }
 
-// GetAllKubes returns kube services
-func (c *Cluster) GetAllKubes(ctx context.Context) ([]Kube, error) {
-	var authClient auth.ClientI
-	var proxyClient *client.ProxyClient
-	var err error
-
-	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer authClient.Close()
-
-	servers, err := authClient.GetKubernetesServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubeMap := map[string]Kube{}
-	for _, server := range servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-
-		kubeMap[kube.GetName()] = Kube{
-			URI:               c.URI.AppendKube(kube.GetName()),
-			KubernetesCluster: kube,
-		}
-
-	}
-
-	kubes := make([]Kube, 0, len(kubeMap))
-	for _, value := range kubeMap {
-		kubes = append(kubes, value)
-	}
-
-	return kubes, nil
-}
-
 // GetKubes returns a paginated kubes list
 func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (
-		resp *types.ListResourcesResponse
-
+		page        apiclient.ResourcePage[types.KubeCluster]
 		authClient  auth.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 	)
 
-	sortBy := types.GetSortByFromString(r.SortBy)
+	req := &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindKubernetesCluster,
+		Limit:               r.Limit,
+		SortBy:              types.GetSortByFromString(r.SortBy),
+		StartKey:            r.StartKey,
+		PredicateExpression: r.Query,
+		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+		UseSearchAsRoles:    r.SearchAsRoles == "yes",
+	}
+
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
@@ -115,16 +72,7 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 		}
 		defer authClient.Close()
 
-		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:           defaults.Namespace,
-			ResourceType:        types.KindKubernetesCluster,
-			Limit:               r.Limit,
-			SortBy:              sortBy,
-			StartKey:            r.StartKey,
-			PredicateExpression: r.Query,
-			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-			UseSearchAsRoles:    r.SearchAsRoles == "yes",
-		})
+		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -135,13 +83,8 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 		return nil, trace.Wrap(err)
 	}
 
-	kubeClusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := []Kube{}
-	for _, cluster := range kubeClusters {
+	results := make([]Kube, 0, len(page.Resources))
+	for _, cluster := range page.Resources {
 		results = append(results, Kube{
 			URI:               c.URI.AppendKube(cluster.GetName()),
 			KubernetesCluster: cluster,
@@ -150,8 +93,8 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 
 	return &GetKubesResponse{
 		Kubes:      results,
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 

@@ -184,10 +184,14 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 				require.NoError(t, err)
 				require.Empty(t, creds)
 
-				require.NoError(t, p.PromptTouch())
+				ackTouch, err := p.PromptTouch()
+				require.NoError(t, err)
 
 				resp, err := solvePwdless(ctx, origin, assert, p)
-				return resp, "", err
+				if err != nil {
+					return nil, "", err
+				}
+				return resp, "", ackTouch()
 			},
 			customPromptLogin: &customPromptLogin{},
 		},
@@ -236,8 +240,8 @@ func (p *customPromptLogin) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p *customPromptLogin) PromptTouch() error {
-	return nil
+func (p *customPromptLogin) PromptTouch() (wancli.TouchAcknowledger, error) {
+	return func() error { return nil }, nil
 }
 
 func (p *customPromptLogin) PromptCredential(deviceCreds []*wancli.CredentialInfo) (*wancli.CredentialInfo, error) {

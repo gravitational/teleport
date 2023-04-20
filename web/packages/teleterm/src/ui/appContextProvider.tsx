@@ -28,6 +28,7 @@ export default AppContextProvider;
 
 export function useAppContext() {
   const ctx = React.useContext(AppReactContext);
+  // For debugging and diagnostic purposes.
   window['teleterm'] = ctx;
   return ctx;
 }

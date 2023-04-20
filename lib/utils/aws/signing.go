@@ -111,9 +111,12 @@ func (sc *SigningCtx) Check(clock clockwork.Clock) error {
 		return trace.BadParameter("missing AWS Role ARN")
 	case sc.Expiry.Before(clock.Now()):
 		return trace.BadParameter("AWS SigV4 expiry has already expired")
-	default:
-		return nil
 	}
+	_, err := ParseRoleARN(sc.AWSRoleArn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // SignRequest creates a new HTTP request and rewrites the header from the original request and returns a new
@@ -139,7 +142,7 @@ func (s *SigningService) SignRequest(ctx context.Context, req *http.Request, sig
 	if err := signCtx.Check(s.Clock); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	payload, err := GetAndReplaceReqBody(req)
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

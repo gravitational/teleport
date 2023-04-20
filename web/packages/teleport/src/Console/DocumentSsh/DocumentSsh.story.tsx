@@ -98,4 +98,6 @@ const session: Session = {
   clusterId: '',
   parties: [],
   addr: '1.1.1.1:1111',
+  participantModes: ['observer', 'moderator', 'peer'],
+  moderated: false,
 };

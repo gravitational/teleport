@@ -1,5 +1,5 @@
 ---
-title: Proxy Peering Migration
+title: Proxy Peering Migration (Preview)
 description: How to upgrade an existing Teleport cluster to Proxy Peering mode.
 ---
 
@@ -8,6 +8,12 @@ cluster to use Proxy Peering, which enables you to scale
 your Proxy Service instances horizontally by reducing the
 number of connections created between Teleport Proxy instances
 and Teleport services like the Database Service and Application Service.
+
+<Notice type="info">
+
+Proxy Peering is currently in Preview.
+
+</Notice>
 
 ## Prerequisites
 
@@ -22,6 +28,7 @@ Teleport Proxy Service instances must be able to reach each other over the netwo
 between instances.
 
 ## Step 1/3. Enable Proxy Peering
+
 Update your cluster's Auth Service configuration to set the tunnel strategy type
 to `proxy_peering`.
 
@@ -39,10 +46,12 @@ For high availability, an `agent_connection_count` greater than 1 can be configu
 This ensures an agent is still reachable if one of the Proxy Service instances it is connected to is not available.
 
 ## Step 2/3. Restart the Auth Services
+
 Restart all Teleport Auth Services running in the cluster to apply the new Auth Service
 configuration.
 
 ## Step 3/3. Restart the Proxy Services
+
 Restart all Teleport Proxy Service instances running in the cluster in order to
 start the services required for Proxy Peering.
 

@@ -33,6 +33,8 @@ export const sessions: Session[] = [
     serverId: '',
     clusterId: 'im-a-cluster-name',
     resourceName: 'minikube',
+    participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
   {
     kind: 'ssh',
@@ -50,6 +52,8 @@ export const sessions: Session[] = [
     resourceName: 'im-a-nodename',
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
+    participantModes: ['observer', 'moderator'],
+    moderated: false,
   },
   {
     kind: 'desktop',
@@ -67,6 +71,8 @@ export const sessions: Session[] = [
     resourceName: 'desktop-2',
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
+    participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
   {
     kind: 'db',
@@ -84,6 +90,8 @@ export const sessions: Session[] = [
     resourceName: 'databse-32',
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
+    participantModes: ['observer'],
+    moderated: false,
   },
   {
     kind: 'app',
@@ -101,5 +109,7 @@ export const sessions: Session[] = [
     resourceName: 'grafana',
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
+    participantModes: ['observer', 'moderator', 'peer'],
+    moderated: false,
   },
 ];

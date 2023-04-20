@@ -654,7 +654,7 @@ impl EstablishContext_Call {
         let scope = payload.read_u32::<LittleEndian>()?;
         Ok(Self {
             scope: Scope::from_u32(scope).ok_or_else(|| {
-                invalid_data_error(&format!("invalid smart card scope {:?}", scope))
+                invalid_data_error(&format!("invalid smart card scope {scope:?}"))
             })?,
         })
     }
@@ -767,8 +767,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
     *index += 1;
     if ptr != expect_ptr {
         Err(invalid_data_error(&format!(
-            "invalid NDR pointer value {:#010X}, expected {:#010X}",
-            ptr, expect_ptr
+            "invalid NDR pointer value {ptr:#010X}, expected {expect_ptr:#010X}"
         )))
     } else {
         Ok(ptr)
@@ -1157,6 +1156,7 @@ impl ReaderState_Common_Call {
 }
 
 bitflags! {
+    #[derive(Debug, PartialEq, Clone, Copy)]
     struct CardStateFlags: u32 {
         const SCARD_STATE_UNAWARE = 0x0000;
         const SCARD_STATE_IGNORE = 0x0001;
@@ -1310,6 +1310,7 @@ impl Encode for Connect_Call {
 }
 
 bitflags! {
+    #[derive(Debug, Clone)]
     struct CardProtocol: u32 {
         const SCARD_PROTOCOL_UNDEFINED = 0x00000000;
         const SCARD_PROTOCOL_T0 = 0x00000001;

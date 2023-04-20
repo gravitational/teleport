@@ -307,7 +307,11 @@ const (
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
-	MaxWatcherBackoff = time.Minute
+	MaxWatcherBackoff = 90 * time.Second
+
+	// MaxLongWatcherBackoff is the maximum backoff used for watchers that incur high cluster-level
+	// load (non-control-plane caches being the primary example).
+	MaxLongWatcherBackoff = 256 * time.Second
 )
 
 const (
@@ -417,6 +421,8 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolOracle is the Oracle database protocol.
+	ProtocolOracle = "oracle"
 	// ProtocolRedis is the Redis database protocol.
 	ProtocolRedis = "redis"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
@@ -433,6 +439,8 @@ const (
 	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
+	// ProtocolOpenSearch is the OpenSearch database protocol.
+	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
 )
@@ -442,12 +450,14 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolOracle,
 	ProtocolCockroachDB,
 	ProtocolRedis,
 	ProtocolSnowflake,
 	ProtocolSQLServer,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolOpenSearch,
 	ProtocolDynamoDB,
 }
 
@@ -461,6 +471,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "MySQL"
 	case ProtocolMongoDB:
 		return "MongoDB"
+	case ProtocolOracle:
+		return "Oracle"
 	case ProtocolCockroachDB:
 		return "CockroachDB"
 	case ProtocolRedis:
@@ -469,6 +481,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Snowflake"
 	case ProtocolElasticsearch:
 		return "Elasticsearch"
+	case ProtocolOpenSearch:
+		return "OpenSearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	case ProtocolCassandra:
@@ -674,6 +688,10 @@ const (
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
+
+	// JWTUse is the default usage of the JWT.
+	// See https://www.rfc-editor.org/rfc/rfc7517#section-4.2 for more information.
+	JWTUse = "sig"
 )
 
 var (
@@ -719,7 +737,7 @@ var (
 	}
 )
 
-// Transport returns a new http.Client with sensible defaults.
+// HTTPClient returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {
@@ -845,7 +863,29 @@ const (
 	// AWSInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSAgentlessInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command .
+	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
+
 	// IAMInviteTokenName is the name of the default Teleport IAM
 	// token to use when templating the script to be executed.
 	IAMInviteTokenName = "aws-discovery-iam-token"
+
+	// SSHDConfigPath is the path to the sshd config file to modify
+	// when using the agentless installer
+	SSHDConfigPath = "/etc/ssh/sshd_config"
+)
+
+// AzureInviteTokenName is the name of the default token to use
+// when templating the script to be executed.
+const AzureInviteTokenName = "azure-discovery-token"
+
+const (
+	// FilePermissions are safe default permissions to use when
+	// creating files.
+	FilePermissions = 0o644
+	// DirectoryPermissions are safe default permissions to use when
+	// creating directories.
+	DirectoryPermissions = 0o755
 )

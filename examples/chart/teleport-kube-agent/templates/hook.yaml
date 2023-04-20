@@ -8,7 +8,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-4"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -18,7 +18,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-3"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups: ["apps"]
     resources: ["statefulsets"]
@@ -40,7 +40,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-2"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -58,7 +58,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-upgrade
     "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     metadata:
@@ -67,12 +67,16 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      {{- if .Values.tolerations }}
+{{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
-      {{- end }}
+{{- end }}
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
       containers:
       - name: post-install-job
         image: alpine/k8s:1.26.0
@@ -87,4 +91,7 @@ spec:
               # delete deployment
               kubectl delete deployment/{{ .Release.Name }}
             EOF
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
 {{- end}}

@@ -1,15 +1,34 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
+import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
+import {
+  AccessRequest,
+  ResourceID,
+} from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 
 import Logger from 'teleterm/logger';
 import * as uri from 'teleterm/ui/uri';
 
-import * as api from './v1/service_pb';
-import { TerminalServiceClient } from './v1/service_grpc_pb';
 import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
 import * as types from './types';
 import createAbortController from './createAbortController';
-import { AccessRequest, ResourceID } from './v1/access_request_pb';
 import { mapUsageEvent } from './mapUsageEvent';
 import { ReportUsageEventRequest } from './types';
 
@@ -39,49 +58,27 @@ export default function createClient(
       });
     },
 
-    async listApps(clusterUri: uri.ClusterUri) {
-      const req = new api.ListAppsRequest().setClusterUri(clusterUri);
-      return new Promise<types.Application[]>((resolve, reject) => {
-        tshd.listApps(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().appsList);
-          }
-        });
-      });
-    },
-
-    async getAllKubes(clusterUri: uri.ClusterUri) {
-      const req = new api.GetAllKubesRequest().setClusterUri(clusterUri);
-      return new Promise<types.Kube[]>((resolve, reject) => {
-        tshd.getAllKubes(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().kubesList as types.Kube[]);
-          }
-        });
-      });
-    },
-
     async getKubes({
       clusterUri,
       search,
-      sort = { fieldName: 'name', dir: 'ASC' },
+      sort,
       query,
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetKubesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
-        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
       return new Promise<types.GetKubesResponse>((resolve, reject) => {
         tshd.getKubes(req, (err, response) => {
           if (err) {
@@ -132,36 +129,27 @@ export default function createClient(
       });
     },
 
-    async getAllDatabases(clusterUri: uri.ClusterUri) {
-      const req = new api.GetAllDatabasesRequest().setClusterUri(clusterUri);
-      return new Promise<types.Database[]>((resolve, reject) => {
-        tshd.getAllDatabases(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().databasesList as types.Database[]);
-          }
-        });
-      });
-    },
-
     async getDatabases({
       clusterUri,
       search,
-      sort = { fieldName: 'name', dir: 'ASC' },
+      sort,
       query,
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetDatabasesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
-        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
       return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
         tshd.getDatabases(req, (err, response) => {
           if (err) {
@@ -181,19 +169,6 @@ export default function createClient(
             reject(err);
           } else {
             resolve(response.toObject().usersList);
-          }
-        });
-      });
-    },
-
-    async getAllServers(clusterUri: uri.ClusterUri) {
-      const req = new api.GetAllServersRequest().setClusterUri(clusterUri);
-      return new Promise<types.Server[]>((resolve, reject) => {
-        tshd.getAllServers(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().serversList as types.Server[]);
           }
         });
       });
@@ -231,19 +206,23 @@ export default function createClient(
       clusterUri,
       search,
       query,
-      sort = { fieldName: 'hostname', dir: 'ASC' },
+      sort,
       searchAsRoles,
       startKey,
       limit,
-    }: types.ServerSideParams) {
+    }: types.GetResourcesParams) {
       const req = new api.GetServersRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
-        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
+
+      if (sort) {
+        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
+      }
+
       return new Promise<types.GetServersResponse>((resolve, reject) => {
         tshd.getServers(req, (err, response) => {
           if (err) {
@@ -633,11 +612,10 @@ export default function createClient(
       abortSignal: types.TshAbortSignal
     ) {
       const req = new api.FileTransferRequest()
+        .setServerUri(options.serverUri)
         .setLogin(options.login)
         .setSource(options.source)
         .setDestination(options.destination)
-        .setHostname(options.hostname)
-        .setClusterUri(options.clusterUri)
         .setDirection(options.direction);
 
       return createFileTransferStream(tshd.transferFile(req), abortSignal);

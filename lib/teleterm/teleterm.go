@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -77,14 +78,17 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	// Wait for shutdown signals
 	go func() {
-		c := make(chan os.Signal, len(cfg.ShutdownSignals))
-		signal.Notify(c, cfg.ShutdownSignals...)
+		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
+		c := make(chan os.Signal, len(shutdownSignals))
+		signal.Notify(c, shutdownSignals...)
+
 		select {
 		case <-ctx.Done():
 			log.Info("Context closed, stopping service.")
 		case sig := <-c:
 			log.Infof("Captured %s, stopping service.", sig)
 		}
+
 		daemonService.Stop()
 		apiServer.Stop()
 	}()

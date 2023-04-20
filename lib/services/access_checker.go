@@ -23,12 +23,14 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -68,6 +70,11 @@ type AccessChecker interface {
 
 	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
 	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
+
+	// CheckAccessToSAMLIdP checks access to the SAML IdP.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	CheckAccessToSAMLIdP(types.AuthPreference) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -314,30 +321,67 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
 func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
-	if len(a.info.AllowedResourceIDs) > 0 {
-		for _, r := range a.info.AllowedResourceIDs {
-			if r.Kind == types.KindKubePod && r.Name == cluster.GetName() && r.ClusterName == a.localCluster {
-				splitted := strings.SplitN(r.SubResourceName, "/", 3)
-				// This condition should never happen since SubResourceName is validated
-				// but it's better to validate it.
-				if len(splitted) != 2 {
-					continue
-				}
-				allowed = append(allowed,
-					types.KubernetesResource{
-						Kind:      r.Kind,
-						Namespace: splitted[0],
-						Name:      splitted[1],
-					},
-				)
-			}
-		}
-		// When the user is granted access through a resource access request,
-		// he has no denied resources, which results in the denied being an empty slice.
-		return
+	if len(a.info.AllowedResourceIDs) == 0 {
+		return a.RoleSet.GetKubeResources(cluster)
 	}
 
-	return a.RoleSet.GetKubeResources(cluster)
+	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster)
+	// Allways append the denied resources from the roles. This is because
+	// the denied resources from the roles take precedence over the allowed
+	// resources from the certificate.
+	denied = rolesDenied
+	for _, r := range a.info.AllowedResourceIDs {
+		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
+			continue
+		}
+		switch {
+		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
+			splitted := strings.SplitN(r.SubResourceName, "/", 3)
+			// This condition should never happen since SubResourceName is validated
+			// but it's better to validate it.
+			if len(splitted) != 2 {
+				continue
+			}
+
+			r := types.KubernetesResource{
+				Kind:      r.Kind,
+				Namespace: splitted[0],
+				Name:      splitted[1],
+			}
+
+			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
+				allowed = append(allowed, r)
+			}
+		case r.Kind == types.KindKubernetesCluster:
+			// When a user has access to a Kubernetes cluster through Resource Access request,
+			// he has access to all resources in that cluster that he has access to through his roles.
+			// In that case, we append the allowed and denied resources from the roles.
+			return rolesAllowed, rolesDenied
+		}
+	}
+	return
+}
+
+// matchKubernetesResource checks if the Kubernetes Resource does not match any
+// entry from the deny list and matches at least one entry from the allowed list.
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
+	// to each entry and validates if the Name and Namespace fields matches the
+	// regex allowed by each entry.
+	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if result {
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+	}
+
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !result {
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+	}
+	return nil
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for

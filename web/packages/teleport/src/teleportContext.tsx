@@ -25,6 +25,7 @@ import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
+import pingService from './services/ping';
 import appService from './services/apps';
 import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
@@ -39,9 +40,6 @@ class TeleportContext implements types.Context {
   storeNav = new StoreNav();
   storeUser = new StoreUserContext();
 
-  // features
-  features: types.Feature[] = [];
-
   // services
   auditService = new AuditService();
   recordingsService = new RecordingsService();
@@ -50,6 +48,7 @@ class TeleportContext implements types.Context {
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
+  pingService = pingService;
   appService = appService;
   joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
@@ -57,20 +56,18 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   mfaService = new MfaService();
   isEnterprise = cfg.isEnterprise;
+  isCloud = cfg.isCloud;
+
+  automaticUpgradesEnabled = false;
 
   agentService = agentService;
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
   // block.
-  async init(features: types.Feature[]) {
+  async init() {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
-    features.forEach(f => {
-      if (f.isAvailable(this)) {
-        f.register(this);
-      }
-    });
 
     if (
       this.storeUser.hasPrereqAccessToAddAgents() &&
@@ -81,10 +78,40 @@ class TeleportContext implements types.Context {
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
     }
+
+    const pingResponse = await pingService.fetchPing();
+    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
   }
 
-  getFeatureFlags() {
+  getFeatureFlags(): types.FeatureFlags {
     const userContext = this.storeUser;
+
+    if (!this.storeUser.state) {
+      return {
+        activeSessions: false,
+        applications: false,
+        audit: false,
+        authConnector: false,
+        billing: false,
+        databases: false,
+        desktops: false,
+        kubernetes: false,
+        nodes: false,
+        recordings: false,
+        roles: false,
+        trustedClusters: false,
+        users: false,
+        newAccessRequest: false,
+        accessRequests: false,
+        downloadCenter: false,
+        discover: false,
+        plugins: false,
+        integrations: false,
+        deviceTrust: false,
+        enrollIntegrationsOrPlugins: false,
+        enrollIntegrations: false,
+      };
+    }
 
     return {
       audit: userContext.getEventAccess().list,
@@ -102,6 +129,15 @@ class TeleportContext implements types.Context {
       activeSessions: userContext.getActiveSessionsAccess().list,
       accessRequests: userContext.getAccessRequestAccess().list,
       newAccessRequest: userContext.getAccessRequestAccess().create,
+      downloadCenter: userContext.hasDownloadCenterListAccess(),
+      discover: userContext.hasDiscoverAccess(),
+      plugins: userContext.getPluginsAccess().list,
+      integrations: userContext.getIntegrationsAccess().list,
+      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrationsOrPlugins:
+        userContext.getPluginsAccess().create ||
+        userContext.getIntegrationsAccess().create,
+      deviceTrust: userContext.getDeviceTrustAccess().list,
     };
   }
 }

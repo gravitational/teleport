@@ -137,61 +137,6 @@ func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
 	return session, nil
 }
 
-// GetVersion returns resource version.
-func (s *SessionTrackerV1) GetVersion() string {
-	return s.Version
-}
-
-// GetName returns the name of the resource.
-func (s *SessionTrackerV1) GetName() string {
-	return s.Metadata.Name
-}
-
-// SetName sets the name of the resource.
-func (s *SessionTrackerV1) SetName(e string) {
-	s.Metadata.Name = e
-}
-
-// SetExpiry sets expiry time for the object.
-func (s *SessionTrackerV1) SetExpiry(expires time.Time) {
-	s.Metadata.SetExpiry(expires)
-}
-
-// Expiry returns object expiry setting.
-func (s *SessionTrackerV1) Expiry() time.Time {
-	return s.Metadata.Expiry()
-}
-
-// GetMetadata returns object metadata.
-func (s *SessionTrackerV1) GetMetadata() Metadata {
-	return s.Metadata
-}
-
-// GetResourceID returns resource ID.
-func (s *SessionTrackerV1) GetResourceID() int64 {
-	return s.Metadata.ID
-}
-
-// SetResourceID sets resource ID.
-func (s *SessionTrackerV1) SetResourceID(id int64) {
-	s.Metadata.ID = id
-}
-
-// GetKind returns resource kind.
-func (s *SessionTrackerV1) GetKind() string {
-	return s.Kind
-}
-
-// GetSubKind returns resource subkind.
-func (s *SessionTrackerV1) GetSubKind() string {
-	return s.SubKind
-}
-
-// SetSubKind sets resource subkind.
-func (s *SessionTrackerV1) SetSubKind(sk string) {
-	s.SubKind = sk
-}
-
 // setStaticFields sets static resource header and metadata fields.
 func (s *SessionTrackerV1) setStaticFields() {
 	s.Kind = KindSessionTracker

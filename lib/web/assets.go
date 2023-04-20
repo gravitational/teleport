@@ -21,52 +21,10 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
-
-// NewDebugFileSystem returns the HTTP file system implementation rooted
-// at the specified assetsPath.
-func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
-	assetsToCheck := []string{"index.html", "/app"}
-	if assetsPath == "" {
-		exePath, err := executableFolder()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		_, err = os.Stat(path.Join(exePath, "../../e"))
-		isEnterprise := !os.IsNotExist(err)
-
-		if isEnterprise {
-			// enterprise web assets
-			assetsPath = path.Join(exePath, "../../webassets/e/teleport")
-		} else {
-			// community web assets
-			assetsPath = path.Join(exePath, "../webassets/teleport")
-		}
-	}
-
-	for _, af := range assetsToCheck {
-		_, err := os.Stat(filepath.Join(assetsPath, af))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
-	return http.Dir(assetsPath), nil
-}
-
-func executableFolder() (string, error) {
-	p, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return filepath.Dir(filepath.Clean(p)), nil
-}
 
 // resource struct implements http.File interface on top of zip.File object
 type resource struct {

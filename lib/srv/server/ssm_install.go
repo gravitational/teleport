@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport/api/types/events"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 )
@@ -83,6 +82,7 @@ func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	for k, v := range req.Params {
 		params[k] = []*string{aws.String(v)}
 	}
+
 	output, err := req.SSM.SendCommandWithContext(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String(req.DocumentName),
 		InstanceIds:  aws.StringSlice(ids),
@@ -144,8 +144,8 @@ func (si *SSMInstaller) checkCommand(ctx context.Context, req SSMRunRequest, com
 	if exitCode == 0 && code == libevents.SSMRunFailCode {
 		exitCode = -1
 	}
-	event := events.SSMRun{
-		Metadata: events.Metadata{
+	event := apievents.SSMRun{
+		Metadata: apievents.Metadata{
 			Type: libevents.SSMRunEvent,
 			Code: code,
 		},

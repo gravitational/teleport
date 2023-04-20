@@ -3,23 +3,22 @@ title: Getting Started - Kubernetes with SSO
 description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
-
-</ScopedBlock>
-
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
+<ScopedBlock scope={["enterprise"]}>
+- Deploy Teleport Enterprise in a Kubernetes cluster.
+</ScopedBlock>
+<ScopedBlock scope={["oss","cloud"]}>
 - Deploy Teleport in a Kubernetes cluster.
+</ScopedBlock>
 - Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
 
-While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
+While completing this guide, you will deploy one Teleport pod each for the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
-<Admonition type="tip" title="Have an existing Teleport cluster?">
-If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes cluster to Teleport.
-</Admonition>
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -48,7 +47,11 @@ Teleport also supports Kubernetes in on-premise and air-gapped environments. If 
 
 ## Step 1/3. Install Teleport
 
-Let's start with a single-pod Teleport deployment using a persistent volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL` according to your environment, where `CLUSTER_NAME` is the domain name you are using for your Teleport deployment and `EMAIL` is an email address used for notifications.
+Let's start with a Teleport deployment using a persistent
+volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL`
+according to your environment, where `CLUSTER_NAME` is the domain name you
+are using for your Teleport deployment and `EMAIL` is an email address
+used for notifications.
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -58,6 +61,13 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
 
+    # Create the namespace and configure its PodSecurityAdmission
+    $ kubectl create namespace teleport-cluster
+    namespace/teleport-cluster created
+
+    $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+    namespace/teleport-cluster labeled
+    
     # Install a single node teleport cluster and provision a cert using ACME.
     # Set clusterName to unique hostname, for example tele.example.com
     # Set acmeEmail to receive correspondence from Letsencrypt certificate authority.
@@ -76,8 +86,12 @@ Let's start with a single-pod Teleport deployment using a persistent volume as a
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
 
-    # Create a namespace for a deployment.
+    # Create the namespace and configure its PodSecurityAdmission
     $ kubectl create namespace teleport-cluster-ent
+    namespace/teleport-cluster-ent created
+
+    $ kubectl label namespace teleport-cluster-ent 'pod-security.kubernetes.io/enforce=baseline'
+    namespace/teleport-cluster-ent labeled
 
     # Set the kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster-ent
@@ -109,19 +123,20 @@ to create a public IP for Teleport.
 
     # Service is up, load balancer is created
     $ kubectl get services
-    # NAME               TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-    # teleport-cluster   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
+    NAME                    TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+    teleport-cluster        LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
+    teleport-cluster-auth   ClusterIP      10.4.2.51    <none>           3025/TCP,3026/TCP              89s
 
     # Save the pod IP or hostname.
-    $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    $ echo $MYIP
-    # 192.168.2.1
+    $ SERVICE_IP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    $ echo $SERVICE_IP
+    104.199.126.88
     ```
 
-    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
+    If `$SERVICE_IP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$SERVICE_IP` for subsequent commands.
 
     ```code
-    $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    $ SERVICE_IP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
 
@@ -132,19 +147,20 @@ to create a public IP for Teleport.
 
     # Service is up, load balancer is created
     $ kubectl get services
-    # NAME                   TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-    # teleport-cluster-ent   LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
+    NAME                        TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+    teleport-cluster-ent        LoadBalancer   10.4.4.73    104.199.126.88   443:31204/TCP,3026:32690/TCP   89s
+    teleport-cluster-ent-auth   ClusterIP      10.4.2.51    <none>           3025/TCP,3026/TCP              89s
 
     # Save the pod IP or hostname.
-    $ MYIP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-    $ echo $MYIP
-    # 192.168.2.1
+    $ SERVICE_IP=$(kubectl get services teleport-cluster-ent -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    $ echo $SERVICE_IP
+    104.199.126.88
     ```
 
-    If `$MYIP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$MYIP` for subsequent commands.
+    If `$SERVICE_IP` is blank, your cloud provider may have assigned a hostname to the load balancer rather than an IP address. Run the following command to retrieve the hostname, which you will use in place of `$SERVICE_IP` for subsequent commands.
 
     ```code
-    $ MYIP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    $ SERVICE_IP=$(kubectl get services teleport-cluster -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     ```
   </TabItem>
 </Tabs>
@@ -168,7 +184,7 @@ Save this role as `member.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: member
 spec:
@@ -176,27 +192,48 @@ spec:
     kubernetes_groups: ["system:masters"]
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Create the role and add a user:
 
-```code
-# To create a local user, we are going to run Teleport's admin tool tctl from the pod.
-$ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+<Tabs>
+  <TabItem label="Open Source">
+    ```code
+    # Create a role
+    $ kubectl exec -i deployment/teleport-cluster-auth -- tctl create -f < member.yaml
 
-# Create a role
-$ kubectl exec -i ${POD?} -- tctl create -f < member.yaml
+    # Generate an invite link for the user.
+    $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl  users add alice --roles=member
 
-# Generate an invite link for the user.
-$ kubectl exec -ti ${POD?} -- tctl  users add alice --roles=member
+    # User "alice" has been created but requires a password. Share this URL with the user to
+    # complete user setup, link is valid for 1h:
 
-# User "alice" has been created but requires a password. Share this URL with the user to
-# complete user setup, link is valid for 1h:
+    # https://tele.example.com:443/web/invite/random-token-id-goes-here
 
-# https://tele.example.com:443/web/invite/random-token-id-goes-here
+    # NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+    ```
+  </TabItem>
+  <TabItem label="Enterprise" scope={["enterprise"]}>
+    ```code
+    # Create a role
+    $ kubectl exec -i deployment/teleport-cluster-ent-auth -- tctl create -f < member.yaml
 
-# NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
-```
+    # Generate an invite link for the user.
+    $ kubectl exec -ti deployment/teleport-cluster-ent-auth -- tctl  users add alice --roles=member
+
+    # User "alice" has been created but requires a password. Share this URL with the user to
+    # complete user setup, link is valid for 1h:
+
+    # https://tele.example.com:443/web/invite/<invite-token>
+
+    # NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+    ```
+  </TabItem>
+</Tabs>
 
 Let's install `tsh` and `tctl` on Linux.
 For other install options, check out the [installation guide](../../installation.mdx)
@@ -221,29 +258,36 @@ For other install options, check out the [installation guide](../../installation
   </TabItem>
 </Tabs>
 
-Try `tsh login` with a local user. Use a custom `KUBECONFIG` to prevent overwriting
-the default one in case there is a problem.
+Try `tsh login` with a local user.
 
 ```code
-$ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com:443 --user=alice
+$ tsh login --proxy=tele.example.com:443 --user=alice
 ```
 
-Teleport updates `KUBECONFIG` with a short-lived 12-hour certificate.
+Once you're connected to the Teleport cluster, list the available Kubernetes clusters for your user:
 
 ```code
 # List connected Kubernetes clusters
 $ tsh kube ls
 
-# Kube Cluster Name Selected
-# ----------------- --------
-# tele.example.com
-# Login to Kubernetes by name
-$ tsh kube login tele.example.com
+Kube Cluster Name Selected
+----------------- --------
+tele.example.com
+```
 
-# Once working, remove the KUBECONFIG= override to switch to teleport
-$ KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
-# NAME                                READY   STATUS    RESTARTS   AGE
-# teleport-cluster-6c9b88fd8f-glmhf   1/1     Running   0          127m
+Login to the Kubernetes cluster and create a new separate kubeconfig to connect to the Kubernetes cluster.
+Using a separate kubeconfig file allows you to easily switch between the kubeconfig you used to install
+Teleport and the one issued by Teleport. This is useful during the install process if something goes wrong.
+
+```
+$ KUBECONFIG=$HOME/teleport-kubeconfig.yaml tsh kube login tele.example.com
+
+$ KUBECONFIG=$HOME/teleport-kubeconfig.yaml kubectl get -n teleport-cluster pods
+NAME                                      READY   STATUS    RESTARTS   AGE
+pod/teleport-cluster-auth-57989d4-4q2ds   1/1     Running   0          22h
+pod/teleport-cluster-auth-57989d4-rtrzn   1/1     Running   0          22h
+pod/teleport-cluster-proxy-c6bf55-w96d2   1/1     Running   0          22h
+pod/teleport-cluster-proxy-c6bf55-z256w   1/1     Running   0          22h
 ```
 
 ## Step 3/3. SSO for Kubernetes
@@ -281,7 +325,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
   </TabItem>
 
   <TabItem label="Enterprise" scope={["enterprise"]}>
-    Follow the [SAML Okta Guide](../../access-controls/sso/okta.mdx#configure-okta) to create a SAML app.
+    Follow the [SAML Okta Guide](../../access-controls/sso/okta.mdx) to create a SAML app.
     Check out [OIDC guides](../../access-controls/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
     Any member in Okta group `okta-admin` will assume a builtin role `access`.
@@ -308,20 +352,16 @@ To create a connector, we are going to run Teleport's admin tool `tctl` from the
   <TabItem label="Open Source">
     ```code
     $ kubectl config set-context --current --namespace=teleport-cluster
-    $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 
-    $ kubectl exec -i ${POD?} -- tctl create -f < github.yaml
-    # authentication connector "github" has been created
+    $ kubectl exec -i deployment/teleport-cluster-auth -- tctl create -f < github.yaml
+    authentication connector "github" has been created
     ```
   </TabItem>
 
   <TabItem label="Enterprise"  scope={["enterprise"]}>
     ```code
-    # To create an Okta connector, we are going to run Teleport's admin tool tctl from the pod.
-    $ POD=$(kubectl get po -l app=teleport-cluster-ent -o jsonpath='{.items[0].metadata.name}')
-
-    $ kubectl exec -i ${POD?} -- tctl create -f < okta.yaml
-    # authentication connector 'okta' has been created
+    $ kubectl exec -i deployment/teleport-cluster-ent-auth -- tctl create -f < okta.yaml
+    authentication connector 'okta' has been created
     ```
   </TabItem>
 </Tabs>
@@ -350,11 +390,24 @@ the default one in case there is a problem.
   If you are getting a login error, take a look at the audit log for details:
 
   ```code
-  $ kubectl exec -ti "${POD?}" -- tail -n 100 /var/lib/teleport/log/events.log
+  $ kubectl exec -ti deployment/teleport-cluster-auth -- tail -n 100 /var/lib/teleport/log/events.log
 
-  # {"error":"user \"alice\" does not belong to any teams configured in \"github\" connector","method":"github","attributes":{"octocats":["devs"]}}
+  {"error":"user \"alice\" does not belong to any teams configured in \"github\" connector","method":"github","attributes":{"octocats":["devs"]}}
   ```
 </Admonition>
+
+## Troubleshooting
+
+If you are experiencing errors connecting to the Teleport cluster, check the status of the Auth Service and Proxy Service pods. A successful state should show both pods running as below:
+
+```code
+$ kubectl get pods -n teleport-cluster
+NAME                                READY   STATUS    RESTARTS   AGE
+teleport-cluster-auth-5f8587bfd4-p5zv6    1/1     Running   0          48s
+teleport-cluster-proxy-767747dd94-vkxz6   1/1     Running   0          48s
+```
+If a pod's status is `Pending`, use the `kubectl logs` and `kubectl describe` commands 
+for that pod to check the status. The Auth Service pod relies on being able to allocate a Persistent Volume Claim, and may enter a `Pending` state if no Persistent Volume is available.
 
 ## Next steps
 
@@ -365,7 +418,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect Kubernetes clusters with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
+- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
+- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

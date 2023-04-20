@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
@@ -146,11 +147,66 @@ func (s *StatusService) DeleteClusterAlert(ctx context.Context, alertID string) 
 	return trace.Wrap(err)
 }
 
+// CreateAlertAck marks a cluster alert as acknowledged.
+func (s *StatusService) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
+	if err := ack.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	val, err := utils.FastMarshal(&ack)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Backend.Create(ctx, backend.Item{
+		Key:     backend.Key(alertAckPrefix, ack.AlertID),
+		Value:   val,
+		Expires: ack.Expires,
+	})
+	if trace.IsAlreadyExists(err) {
+		return trace.AlreadyExists("alert %q has already been acknowledged", ack.AlertID)
+	}
+	return trace.Wrap(err)
+}
+
+// GetAlertAcks gets active alert ackowledgements.
+func (s *StatusService) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
+	startKey := backend.Key(alertAckPrefix, "")
+	result, err := s.Backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	acks := make([]types.AlertAcknowledgement, 0, len(result.Items))
+
+	for _, item := range result.Items {
+		var ack types.AlertAcknowledgement
+		if err := utils.FastUnmarshal(item.Value, &ack); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		acks = append(acks, ack)
+	}
+
+	return acks, nil
+}
+
+// ClearAlertAcks clears alert acknowledgments.
+func (s *StatusService) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
+	if req.AlertID == "" {
+		return trace.BadParameter("missing alert id for ack clear")
+	}
+	if req.AlertID == types.Wildcard {
+		startKey := backend.Key(alertAckPrefix, "")
+		return trace.Wrap(s.Backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+	}
+
+	err := s.Backend.Delete(ctx, backend.Key(alertAckPrefix, req.AlertID))
+	if trace.IsNotFound(err) {
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
 const clusterAlertPrefix = "cluster-alerts"
 
-// Status service manages alerts.
-type Status interface {
-	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
-	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
-	DeleteClusterAlert(ctx context.Context, alertID string) error
-}
+const alertAckPrefix = "alert-ack"

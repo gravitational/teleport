@@ -109,7 +109,12 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 		return nil, trace.Wrap(err)
 	}
 
-	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, connectionDiagnosticID, req.ResourceName, currentUser.GetName())
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsCfg, err := s.genKubeRestTLSClientConfig(ctx, mfaResponse, connectionDiagnosticID, req.ResourceName, currentUser.GetName())
 	diag, diagErr := s.handleUserGenCertsErr(ctx, req.ResourceName, connectionDiagnosticID, err)
 	if err != nil || diagErr != nil {
 		return diag, diagErr
@@ -147,7 +152,7 @@ func (s *KubeConnectionTester) TestConnection(ctx context.Context, req TestConne
 
 // genKubeRestTLSClientConfig creates the Teleport user credentials to access
 // the given Kubernetes cluster name.
-func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, connectionDiagnosticID string, clusterName, userName string) (rest.TLSClientConfig, error) {
+func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, mfaResponse *proto.MFAAuthenticateResponse, connectionDiagnosticID, clusterName, userName string) (rest.TLSClientConfig, error) {
 	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
@@ -159,6 +164,7 @@ func (s KubeConnectionTester) genKubeRestTLSClientConfig(ctx context.Context, co
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		KubernetesCluster:      clusterName,
+		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
 		return rest.TLSClientConfig{}, trace.Wrap(err)
@@ -257,8 +263,12 @@ func (s KubeConnectionTester) handleErrFromKube(ctx context.Context, clusterName
 		// agents is still running an older version.
 		// For this reason, messages are not shared between this connection test and
 		// `kubernetes_service` to force detection of incompatible messages.
+		//
+		// TODO(tigrato): Remove this check once we no longer support Teleport versions bellow 12.
+		// DELETE IN 14.0.0
 		noAssignedGroups := strings.Contains(kubeErr.ErrStatus.Message, "has no assigned groups or users")
-		if noAssignedGroups {
+		noConfiguredGroups := strings.Contains(kubeErr.ErrStatus.Message, "Please ask cluster administrator to ensure your role has appropriate kubernetes_groups and kubernetes_users set.")
+		if noAssignedGroups || noConfiguredGroups {
 			message := `User-associated roles do not configure "kubernetes_groups" or "kubernetes_users". Make sure that at least one is configured for the user.`
 			traceType := types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL
 

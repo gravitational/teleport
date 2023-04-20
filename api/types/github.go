@@ -27,7 +27,10 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-const githubURL = "https://github.com"
+const (
+	githubURL    = "https://github.com"
+	githubAPIURL = "https://api.github.com"
+)
 
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
@@ -65,6 +68,8 @@ type GithubConnector interface {
 	SetDisplay(string)
 	// GetEndpointURL returns the endpoint URL
 	GetEndpointURL() string
+	// GetAPIEndpointURL returns the API endpoint URL
+	GetAPIEndpointURL() string
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -265,6 +270,11 @@ func (c *GithubConnectorV3) SetDisplay(display string) {
 // GetEndpointURL returns the endpoint URL
 func (c *GithubConnectorV3) GetEndpointURL() string {
 	return githubURL
+}
+
+// GetEndpointURL returns the API endpoint URL
+func (c *GithubConnectorV3) GetAPIEndpointURL() string {
+	return githubAPIURL
 }
 
 // MapClaims returns a list of logins based on the provided claims,

@@ -1,0 +1,51 @@
+```
+kind: login_rule
+version: v1
+metadata:
+  # name is a unique name for the Login Rule in the cluster.
+  name: example
+
+  # expires is optional and usually should not be set for deployed login
+  # rules, but it can be useful to set an expiry a short time in the future
+  # while testing new Login Rules to prevent potentially locking yourself out of
+  # your teleport cluster.
+  # expires: "2023-01-31T00:00:00-00:00"
+spec:
+  # priority can be used to order the evaluation of multiple Login Rules within
+  # a cluster.
+  #
+  # Login Rules with lower numbered priorities will be applied first, followed
+  # by rules with priorities in increasing order. In case of a tie, Login Rules
+  # with the same priority will be ordered by a lexicographical sort of their
+  # names.
+  #
+  # The default value is 0, the supported range is -2147483648 to 2147483647
+  # (inclusive).
+  priority: 0
+
+  # If set, traits_map will determine the traits of all users who log in to the
+  # cluster.
+  #
+  # This is a YAML map where the key must be a static string which will be the
+  # final trait key, and the value is a list of predicate expressions which each
+  # must evaluate to a set of strings. The final trait will be set to the union
+  # of the resulting string sets of all predicate expressions for that trait
+  # key.
+  #
+  # traits_map must contain the complete set of desired traits. Any external
+  # traits not found here will not be included in the user's certificates.
+  #
+  # Exactly one of traits_map or traits_expression must be set.
+  traits_map:
+    logins:
+      - external.groups
+    logins:
+      - strings.lower(external.username)
+
+  # traits_expression is a string holding a single predicate expression which
+  # must evaluate to a dict. This will set all user's traits during login.
+  #
+  # Exactly one of traits_map or traits_expression must be set.
+  traits_expression: |
+    external.put("logins", strings.lower(external.logins))
+```

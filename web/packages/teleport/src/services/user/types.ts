@@ -47,11 +47,14 @@ export interface Access {
   remove: boolean;
 }
 
+export interface AccessWithUse extends Access {
+  use: boolean;
+}
+
 export interface Acl {
   directorySharingEnabled: boolean;
   desktopSessionRecordingEnabled: boolean;
   clipboardSharingEnabled: boolean;
-  windowsLogins: string[];
   authConnectors: Access;
   trustedClusters: Access;
   roles: Access;
@@ -71,6 +74,9 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  plugins: Access;
+  integrations: AccessWithUse;
+  deviceTrust: Access;
 }
 
 export interface User {

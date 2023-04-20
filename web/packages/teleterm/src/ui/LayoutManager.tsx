@@ -15,8 +15,9 @@ limitations under the License.
 */
 import React from 'react';
 import { Flex } from 'design';
-
-import { AccessRequestCheckout } from 'e-teleterm/ui/DocumentAccessRequests/AccessRequestCheckout';
+/* eslint-disable @typescript-eslint/ban-ts-comment*/
+// @ts-ignore
+import { AccessRequestCheckout } from 'e-teleterm/ui/AccessRequestCheckout';
 
 import { TabHostContainer } from 'teleterm/ui/TabHost';
 import { TopBar } from 'teleterm/ui/TopBar';

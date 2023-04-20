@@ -49,7 +49,6 @@ test('undefined values in context response gives proper default values', async (
     username: 'foo',
     authType: 'local',
     acl: {
-      windowsLogins: [],
       authConnectors: {
         list: true,
         read: true,
@@ -71,6 +70,21 @@ test('undefined values in context response gives proper default values', async (
         list: false,
         read: false,
         remove: false,
+      },
+      plugins: {
+        create: false,
+        edit: false,
+        list: false,
+        read: false,
+        remove: false,
+      },
+      integrations: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+        use: false,
       },
       roles: {
         list: false,
@@ -184,6 +198,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      deviceTrust: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       clipboardSharingEnabled: true,
       desktopSessionRecordingEnabled: true,
       directorySharingEnabled: true,
@@ -231,4 +252,28 @@ test('fetch users, null response values gives empty array', async () => {
       },
     },
   ]);
+});
+
+test('createResetPasswordToken', async () => {
+  // Test null response.
+  jest.spyOn(api, 'post').mockResolvedValue(null);
+  let response = await user.createResetPasswordToken('name', 'invite');
+  expect(response).toStrictEqual({
+    username: '',
+    expires: null,
+    value: '',
+  });
+
+  // Test with a valid response.
+  jest.spyOn(api, 'post').mockResolvedValue({
+    expiry: 1677273148317,
+    user: 'llama',
+    tokenId: 'some-id',
+  });
+  response = await user.createResetPasswordToken('name', 'invite');
+  expect(response).toStrictEqual({
+    username: 'llama',
+    expires: new Date(1677273148317),
+    value: 'some-id',
+  });
 });

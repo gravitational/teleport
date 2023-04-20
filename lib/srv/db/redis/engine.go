@@ -88,7 +88,7 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 
 	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)

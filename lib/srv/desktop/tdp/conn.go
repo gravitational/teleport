@@ -24,8 +24,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/srv"
 )
 
 // Conn is a desktop protocol connection.
@@ -54,18 +52,28 @@ type Conn struct {
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rw io.ReadWriteCloser) *Conn {
+func NewConn(rwc io.ReadWriteCloser) *Conn {
 	c := &Conn{
-		rwc:  rw,
-		bufr: bufio.NewReader(rw),
+		rwc:  rwc,
+		bufr: bufio.NewReader(rwc),
 	}
 
-	if tc, ok := rw.(srv.TrackingConn); ok {
+	if tc, ok := rwc.(srvTrackingConn); ok {
 		c.localAddr = tc.LocalAddr()
 		c.remoteAddr = tc.RemoteAddr()
 	}
 
 	return c
+}
+
+// srvTrackingConn should be kept in sync with
+// lib/srv.TrackingConn. It is duplicated here
+// to avoid placing a dependency on the lib/srv
+// package, which is incompatible with Windows.
+type srvTrackingConn interface {
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+	Close() error
 }
 
 // Close closes the connection if the underlying reader can be closed.
@@ -75,10 +83,6 @@ func (c *Conn) Close() error {
 		err = c.rwc.Close()
 	})
 	return err
-}
-
-func (c *Conn) ReadRaw() ([]byte, error) {
-	return readRaw(c.bufr)
 }
 
 // ReadMessage reads the next incoming message from the connection.

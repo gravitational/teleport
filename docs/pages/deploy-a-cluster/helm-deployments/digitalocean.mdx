@@ -3,24 +3,13 @@ title: Get started with Teleport on DigitalOcean Kubernetes
 description: How to get started with Teleport on DigitalOcean Kubernetes
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service
-on a DigitalOcean Kubernetes cluster. These services are fully managed in
-Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows
-you how to connect a Teleport Kubernetes Service instance to an existing Teleport
-cluster:
-
-- [Connect a Kubernetes Cluster to
-  Teleport](../../kubernetes-access/getting-started.mdx):
-
-</ScopedBlock>
-
-
 This guide will show you how to get started with Teleport on DigitalOcean
 Kubernetes.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -42,8 +31,7 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
   ![Set up DigitalOcean Kubernetes client](../../../img/helm/digitalocean/setup-k8s.png)
 </Figure>
 
-
-## Step 2/4. Install Teleport 
+## Step 2/4. Install Teleport
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -74,10 +62,14 @@ TEST SUITE: None
 </TabItem>
 <TabItem scope="enterprise" label="Teleport Enterprise">
 
-Create a namespace for your Teleport cluster resources:
+Create a namespace for your Teleport cluster resources and configure the
+PodSecurityAdmission:
 
 ```code
 $ kubectl create namespace teleport-cluster
+namespace/teleport-cluster created
+$ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport-cluster labeled
 ```
 
 Obtain your Teleport Enterprise license file from the [Teleport Customer
@@ -117,10 +109,12 @@ First, get the external IP (from the `EXTERNAL-IP` field) for the Kubernetes clu
 ```code
 
 $ kubectl --namespace=teleport-cluster get services
-NAME               TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)          AGE
-# teleport-cluster   LoadBalancer   10.245.163.12   192.168.200.200   443:31959/TCP,3023:30525/TCP,3026:30079/TCP,3024:32437/TCP   19m
 
+NAME                    TYPE           CLUSTER-IP      EXTERNAL-IP       PORT(S)          AGE
+teleport-cluster        LoadBalancer   10.245.163.12   192.168.200.200   443:31959/TCP,3023:30525/TCP,3026:30079/TCP,3024:32437/TCP   19m
+teleport-cluster-auth   ClusterIP      10.245.164.28   <none>            3025/TCP,3026/TCP                                            19m
 ```
+
 Once you get the value for the external IP (it may take a few minutes for this field to be populated), update your DNS record such that the clusterName's A record points to this IP address. For example `192.168.200.200` is the external IP in the above case.
 <Figure align="left" bordered caption="Configure DNS">
   ![Configure DNS](../../../img/helm/digitalocean/fqdn.png)
@@ -130,18 +124,18 @@ Once you get the value for the external IP (it may take a few minutes for this f
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 
 ```code
-$ kubectl --namespace teleport-cluster exec deploy/teleport-cluster -- tctl users add tadmin --roles=access,editor --logins=ubuntu  
-# User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-# https://tele.example.com:443/web/invite/<invite-token>
+$ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor --logins=ubuntu
 
-# NOTE: Make sure tele.teleporters.dev:443 points at a Teleport proxy which users can access.
+User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://tele.example.com:443/web/invite/<invite-token>
+
+NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
 
-Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.teleporters.dev:443/web/invite/<invite-token>` in the above case).
+Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.example.com:443/web/invite/<invite-token>` in the above case).
 <Figure align="left" bordered caption="Set up user">
   ![Set up user](../../../img/helm/digitalocean/setup-user.png)
 </Figure>
-
 
 After you complete the registration process by setting up a password and enrolling in two-factor authentication, you will be logged in to Teleport Web UI. 
 
@@ -169,9 +163,7 @@ spec:
 Next, create this role in Kubernetes with the command:
 
 ```code
-
-$ POD=$(kubectl --namespace=teleport-cluster get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
-$ kubectl --namespace=teleport-cluster exec -i ${POD?} -- tctl create -f < member.yaml
+$ kubectl --namespace=teleport-cluster exec -i deployment/teleport-cluster-auth -- tctl create -f < member.yaml
 ```
 
 ### Assign the "member" role to user "tadmin"
@@ -210,7 +202,7 @@ $ export KUBECONFIG=${HOME?}/teleport-kubeconfig.yaml
 </Admonition>
 
 ```code 
-$ tsh login --proxy=tele.teleporters.dev:443 --auth=local --user=tadmin 
+$ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
 Enter password for Teleport user tadmin:
 Enter your OTP token:
 540255
@@ -245,7 +237,6 @@ Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot
   ![View audit log](../../../img/helm/digitalocean/view-activity.png)
 </Figure>
 
-
 ## Next steps
 
 To see all of the options you can set in the values file for the
@@ -255,7 +246,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
+- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
+- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

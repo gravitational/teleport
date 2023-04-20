@@ -261,14 +261,8 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
-	// DebugEnvVar tells tests to use verbose debug output
-	DebugEnvVar = "DEBUG"
-
-	// DebugAssetsPath allows users to set the path of the webassets if debug
-	// mode is enabled.
-	// For example,
-	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
-	DebugAssetsPath = "DEBUG_ASSETS_PATH"
+	// ComponentAthena represents athena clients.
+	ComponentAthena = "athena"
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -309,7 +303,7 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
-	// PTY is a raw pty session capture format
+	// PTY is a raw PTY session capture format
 	PTY = "pty"
 
 	// Names is for formatting node names in plain text
@@ -320,11 +314,11 @@ const (
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
-	DirMaskSharedGroup = 0770
+	DirMaskSharedGroup = 0o770
 
 	// FileMaskOwnerOnly is the file mask that allows read write access
 	// to owers only
-	FileMaskOwnerOnly = 0600
+	FileMaskOwnerOnly = 0o600
 
 	// On means mode is on
 	On = "on"
@@ -440,9 +434,9 @@ const (
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
-	// CertExtensionClientIP is used to embed the IP of the client that created
+	// CertExtensionLoginIP is used to embed the IP of the client that created
 	// the certificate.
-	CertExtensionClientIP = "client-ip"
+	CertExtensionLoginIP = "login-ip"
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
@@ -605,6 +599,8 @@ const (
 	PresetAuditorRoleName = "auditor"
 )
 
+var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
 
@@ -626,10 +622,10 @@ const (
 
 const (
 	// SharedDirMode is a mode for a directory shared with group
-	SharedDirMode = 0750
+	SharedDirMode = 0o750
 
 	// PrivateDirMode is a mode for private directories
-	PrivateDirMode = 0700
+	PrivateDirMode = 0o700
 )
 
 const (
@@ -808,13 +804,14 @@ const UserSingleUseCertTTL = time.Minute
 const StandardHTTPSPort = 443
 
 const (
-	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
-	// call.
-	WebAPIConnUpgrade = "/webapi/connectionupgrade"
-	// WebAPIConnUpgradeHeader is the header used to indicate the requested
-	// connection upgrade types in the connection upgrade API.
-	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
-	WebAPIConnUpgradeTypeALPN = "alpn"
+	// KubeSessionDisplayParticipantRequirementsQueryParam is the query parameter used to
+	// indicate that the client wants to display the participant requirements
+	// for the given session.
+	KubeSessionDisplayParticipantRequirementsQueryParam = "displayParticipantRequirements"
+	// KubeSessionReasonQueryParam is the query parameter used to indicate the reason
+	// for the session request.
+	KubeSessionReasonQueryParam = "reason"
+	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
+	// to invite to the session.
+	KubeSessionInvitedQueryParam = "invite"
 )

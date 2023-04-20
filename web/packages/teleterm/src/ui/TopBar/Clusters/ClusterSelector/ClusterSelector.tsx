@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { forwardRef } from 'react';
 import { SortAsc, SortDesc } from 'design/Icon';
 import styled from 'styled-components';
@@ -14,7 +30,7 @@ interface ClusterSelectorProps {
 
 export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
   (props, ref) => {
-    const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
+    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
     const SortIcon = props.isOpened ? SortAsc : SortDesc;
     const text = props.clusterName || 'Select Cluster';
 
@@ -24,9 +40,9 @@ export const ClusterSelector = forwardRef<HTMLDivElement, ClusterSelectorProps>(
         onClick={props.onClick}
         isOpened={props.isOpened}
         isClusterSelected={!!props.clusterName}
-        title={getLabelWithShortcut(
+        title={getLabelWithAccelerator(
           [props.clusterName, 'Open Clusters'].filter(Boolean).join('\n'),
-          'toggle-clusters'
+          'openClusters'
         )}
       >
         <Text
@@ -46,16 +62,16 @@ const Container = styled.button`
   background: inherit;
   color: inherit;
   font-family: inherit;
-  min-width: 0;
-  width: 100%;
+  flex: 1;
+  flex-shrink: 2;
+  min-width: calc(${props => props.theme.space[7]}px * 2);
   height: 100%;
   border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 4px;
   display: flex;
-  flex-grow: 1;
   justify-content: space-between;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 ${props => props.theme.space[2]}px;
   opacity: ${props => (props.isClusterSelected ? 1 : 0.6)};
   cursor: pointer;
 
@@ -68,7 +84,7 @@ const Container = styled.button`
   ${props => {
     if (props.isOpened) {
       return {
-        borderColor: props.theme.colors.secondary.main,
+        borderColor: props.theme.colors.brand,
         opacity: 1,
       };
     }

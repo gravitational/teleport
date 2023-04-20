@@ -6,7 +6,9 @@ h1: Sync EC2 Tags and Teleport Node Labels
 
 When running on an AWS EC2 instance, Teleport will automatically detect and import EC2 tags as
 Teleport labels for SSH nodes, Applications, Databases, and Kubernetes clusters. Labels created
-this way will have the `aws/` prefix.
+this way will have the `aws/` prefix. When the Teleport process starts, it fetches all tags from 
+the instance metadata service and adds them as labels. The process will update the tags every hour, 
+so newly created or deleted tags will be reflected in the labels.
 
 If the tag `TeleportHostname` (case-sensitive) is present, its value will override the node's hostname.
 
@@ -18,7 +20,7 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 ```
 
 <Notice type="note">
-  For services that manage multiple resources (such as the database service), each resource will receive the
+  For services that manage multiple resources (such as the Database Service), each resource will receive the
   same labels from EC2.
 </Notice>
 
@@ -26,7 +28,7 @@ fakehost.example.com 127.0.0.1:3022 env=example,hostname=ip-172-31-53-70,aws/Nam
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - One Teleport Node running on an Amazon EC2 instance. See
-  [Adding Nodes](../admin/adding-nodes.mdx) for how to set up a Teleport Node.
+  [Adding Nodes](../join-services-to-your-cluster.mdx) for how to set up a Teleport Node.
 
 ## Enable tags in instance metadata
 

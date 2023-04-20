@@ -35,6 +35,7 @@ import (
 
 func TestFileLogPagination(t *testing.T) {
 	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
 
 	log, err := NewFileLog(FileLogConfig{
 		Dir:            t.TempDir(),
@@ -43,7 +44,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
+	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "a",
 			Type: SessionJoinEvent,
@@ -55,7 +56,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
+	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "b",
 			Type: SessionJoinEvent,
@@ -67,7 +68,7 @@ func TestFileLogPagination(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = log.EmitAuditEvent(context.TODO(), &events.SessionJoin{
+	err = log.EmitAuditEvent(ctx, &events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "c",
 			Type: SessionJoinEvent,
@@ -95,6 +96,7 @@ func TestFileLogPagination(t *testing.T) {
 func TestSearchSessionEvents(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	start := clock.Now()
+	ctx := context.Background()
 
 	log, err := NewFileLog(FileLogConfig{
 		Dir:            t.TempDir(),
@@ -104,7 +106,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Nil(t, err)
 	clock.Advance(1 * time.Minute)
 
-	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.SessionEnd{
+	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionEnd{
 		Metadata: events.Metadata{
 			ID:   "a",
 			Type: SessionEndEvent,
@@ -120,7 +122,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Equal(t, result[0].GetID(), "a")
 
 	// emit a non-session event, it should not show up in the next query
-	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.SessionJoin{
+	require.NoError(t, log.EmitAuditEvent(ctx, &events.SessionJoin{
 		Metadata: events.Metadata{
 			ID:   "b",
 			Type: SessionJoinEvent,
@@ -136,7 +138,7 @@ func TestSearchSessionEvents(t *testing.T) {
 	require.Equal(t, result[0].GetID(), "a")
 
 	// emit a desktop session event, it should show up in the next query
-	require.NoError(t, log.EmitAuditEvent(context.Background(), &events.WindowsDesktopSessionEnd{
+	require.NoError(t, log.EmitAuditEvent(ctx, &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
 			ID:   "c",
 			Type: WindowsDesktopSessionEndEvent,

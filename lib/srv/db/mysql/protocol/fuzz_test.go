@@ -54,9 +54,10 @@ func FuzzFetchMySQLVersion(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, packet []byte) {
+		ctx := context.Background()
 		r := bytes.NewReader(packet)
 		require.NotPanics(t, func() {
-			_, _ = FetchMySQLVersionInternal(context.TODO(), func(ctx context.Context, network, address string) (net.Conn, error) {
+			_, _ = FetchMySQLVersionInternal(ctx, func(ctx context.Context, network, address string) (net.Conn, error) {
 				return &buffTestReader{reader: r}, nil
 			}, "")
 		})

@@ -33,8 +33,8 @@ like to set up Teleport for production usage, please see:
 
 ## Prerequisites
 
-- Teleport v(=teleport.version=) Open Source or Enterprise.
-- Docker v(=docker.version=) or later and [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later (or the Compose plugin for Docker).
+- Docker v(=docker.version=) or later. The Teleport Docker image we use in the Docker Compose lab currently only supports `x86_64` architectures.
+- [`docker-compose`](https://docs.docker.com/compose/install/) v(=docker.compose.version=) or later (or the Compose plugin for Docker).
 
 ```code
 $ docker-compose version
@@ -52,8 +52,8 @@ Let's use `docker-compose` to start Teleport demo lab - a configured local clust
 ```code
 # Download the quick start file from our GitHub repo
 $ curl -Lso teleport-lab.yml https://raw.githubusercontent.com/gravitational/teleport/v(=teleport.version=)/docker/teleport-lab.yml
-# Start teleport demo lab using docker-compose
-$ docker-compose -f teleport-lab.yml up -d
+# Pull the latest image and start the teleport demo lab using docker-compose
+$ docker-compose -f teleport-lab.yml pull && docker-compose -f teleport-lab.yml up -d
 ```
 
 <Admonition type="note" title="Note">

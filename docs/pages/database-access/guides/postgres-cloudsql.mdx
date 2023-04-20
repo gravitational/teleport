@@ -1,6 +1,6 @@
 ---
 title: Database Access with PostgreSQL on GCP Cloud SQL
-description: How to configure Teleport Database Access with GCP Cloud SQL PostgreSQL.
+description: How to configure Teleport database access with GCP Cloud SQL PostgreSQL.
 videoBanner: br9LZ3ZXqCk
 ---
 
@@ -19,12 +19,13 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - Google Cloud account
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
-
-(!docs/pages/includes/user-client-prereqs.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Enable Cloud SQL IAM authentication
 
@@ -88,7 +89,6 @@ in Google Cloud documentation for more info.
 
 The final part of GCP configuration is to create a service account for the
 Teleport Database Service.
-
 
 ### Create a service account
 
@@ -178,12 +178,7 @@ file from the Connections tab under Security section:
 
 ![Instance Root Certificate](../../../img/database-access/guides/cloudsql/instance-root-ca@2x.png)
 
-## Step 5/7. Set up the Teleport Auth and Proxy services
-
-Teleport Database Access for Cloud SQL PostgreSQL is available starting from
-the `6.2` Teleport release.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+## Step 5/7. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -198,14 +193,14 @@ Install Teleport on the host where you will run the Teleport Database Service:
 ## Step 6/7. Set up the Teleport Database service
 
 Below is an example of a Database Service configuration file that proxies
-a single Cloud SQL PostgreSQL database:
+a single Cloud SQL PostgreSQL database. Save this to `/etc/teleport.yaml`:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
@@ -249,10 +244,10 @@ proxy_service:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address here.
-  proxy_server: mytenant.teleport.sh
+  proxy_server: mytenant.teleport.sh:443
 db_service:
   enabled: "yes"
   # This section contains definitions of all databases proxied by this
@@ -292,16 +287,12 @@ proxy_service:
 >
 
   A single Teleport process can run multiple different services, for example
-  multiple Database Access instances as well as other services such the SSH
+  multiple Database Services instances as well as other services such the SSH
   Service or Application Service.
 
 </Notice>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ### GCP credentials
 
@@ -366,7 +357,7 @@ $ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
   title="What database user name to use?"
 >
 
-  When connecting to the database, use the name of the database service account
+  When connecting to the database, use the name of the database's service account
   that you added as an IAM database user
   [above](#step-27-create-a-service-account-for-the-database), minus the
   `.gserviceaccount.com` suffix. The database user name is shown on the Users

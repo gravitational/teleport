@@ -57,8 +57,6 @@ func GetSessionContext(r *http.Request) (*SessionContext, error) {
 	return sessionCtx, nil
 }
 
-type contextKey string
-
 const (
 	// contextSessionKey is the context key for the session context.
 	contextSessionKey contextKey = "app-session-context"

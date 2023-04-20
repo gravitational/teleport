@@ -25,6 +25,12 @@ export type Kind =
   | 'doc.terminal_tsh_node'
   | 'doc.terminal_tsh_kube';
 
+export type DocumentOrigin =
+  | 'resource_table'
+  | 'search_bar'
+  | 'connection_list'
+  | 'reopened_session';
+
 interface DocumentBase {
   uri: uri.DocumentUri;
   title: string;
@@ -35,24 +41,56 @@ export interface DocumentBlank extends DocumentBase {
   kind: 'doc.blank';
 }
 
-export interface DocumentTshNode extends DocumentBase {
+export type DocumentTshNode =
+  | DocumentTshNodeWithServerId
+  | DocumentTshNodeWithLoginHost;
+
+interface DocumentTshNodeBase extends DocumentBase {
   kind: 'doc.terminal_tsh_node';
-  status: 'connecting' | 'connected' | 'disconnected';
-  serverId: string;
-  serverUri: uri.ServerUri;
+  // status is used merely to show a progress bar when the document is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   rootClusterId: string;
-  leafClusterId?: string;
+  leafClusterId: string | undefined;
+  origin: DocumentOrigin;
+}
+
+export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
+  // serverId is the UUID of the SSH server. If it's is present, we can immediately start an SSH
+  // session.
+  //
+  // serverId is available when connecting to a server from the resource table.
+  serverId: string;
+  // serverUri is used for file transfer and for identifying a specific server among different
+  // profiles and clusters.
+  serverUri: uri.ServerUri;
+  // login is missing when the user executes `tsh ssh host` from the command bar without supplying
+  // the login. In that case, login will be undefined and serverId will be equal to "host". tsh will
+  // assume that login equals to the current OS user.
   login?: string;
+  // loginHost exists on DocumentTshNodeWithServerId mostly because
+  // DocumentsService.prototype.update doesn't let us remove fields. To keep the types truthful to
+  // the implementation (which is something we should avoid doing, it should work the other way
+  // around), loginHost was kept on DocumentTshNodeWithServerId.
+  loginHost?: undefined;
+}
+
+export interface DocumentTshNodeWithLoginHost extends DocumentTshNodeBase {
+  // serverId is missing, so we need to resolve loginHost to a server UUID.
+  loginHost: string;
+  // We don't provide types for other fields on purpose (such as serverId?: undefined) in order to
+  // force places which use DocumentTshNode to narrow down the type before using it.
 }
 
 export interface DocumentTshKube extends DocumentBase {
   kind: 'doc.terminal_tsh_kube';
-  status: 'connecting' | 'connected' | 'disconnected';
+  // status is used merely to show a progress bar when the document is being set up.
+  status: '' | 'connecting' | 'connected' | 'error';
   kubeId: string;
   kubeUri: uri.KubeUri;
   kubeConfigRelativePath: string;
   rootClusterId: string;
   leafClusterId?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentGateway extends DocumentBase {
@@ -63,6 +101,7 @@ export interface DocumentGateway extends DocumentBase {
   targetName: string;
   targetSubresourceName?: string;
   port?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -97,6 +136,22 @@ export type Document =
   | DocumentCluster
   | DocumentTerminal;
 
+export function isDocumentTshNodeWithLoginHost(
+  doc: Document
+): doc is DocumentTshNodeWithLoginHost {
+  // Careful here as TypeScript lets you make type guards unsound. You can double invert the last
+  // check and TypeScript won't complain.
+  return doc.kind === 'doc.terminal_tsh_node' && !('serverId' in doc);
+}
+
+export function isDocumentTshNodeWithServerId(
+  doc: Document
+): doc is DocumentTshNodeWithServerId {
+  // Careful here as TypeScript lets you make type guards unsound. You can double invert the last
+  // check and TypeScript won't complain.
+  return doc.kind === 'doc.terminal_tsh_node' && 'serverId' in doc;
+}
+
 export type CreateGatewayDocumentOpts = {
   gatewayUri?: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
@@ -105,6 +160,7 @@ export type CreateGatewayDocumentOpts = {
   targetSubresourceName?: string;
   title?: string;
   port?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateClusterDocumentOpts = {
@@ -114,6 +170,7 @@ export type CreateClusterDocumentOpts = {
 export type CreateTshKubeDocumentOptions = {
   kubeUri: uri.KubeUri;
   kubeConfigRelativePath?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateAccessRequestDocumentOpts = {

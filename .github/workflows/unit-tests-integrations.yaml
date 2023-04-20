@@ -1,0 +1,75 @@
+name: Unit Tests (Integrations)
+run-name: Unit Tests (Integrations) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - master
+      - branch/*
+  pull_request:
+    paths:
+      - '/go.mod'
+      - '/go.sum'
+      - 'integrations/**'
+      - 'api/types/**'
+      - 'gen/**'
+      - 'lib/tbot/**'
+      - 'Makefile'
+      - '.github/workflows/unit-tests-integrations.yaml'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+  merge_group:
+    paths:
+      - '/go.mod'
+      - '/go.sum'
+      - 'integrations/**'
+      - 'api/types/**'
+      - 'gen/**'
+      - 'lib/tbot/**'
+      - 'Makefile'
+      - '.github/workflows/unit-tests-integrations.yaml'
+      - 'build.assets/Makefile'
+      - 'build.assets/Dockerfile*'
+
+jobs:
+  test:
+    name: Unit Tests (Integrations)
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      options: --cap-add=SYS_ADMIN --privileged
+      env: 
+        TELEPORT_GET_VERSION: v12.1.0
+        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run access plugin tests
+        run: make test-access-integrations
+        timeout-minutes: 5
+
+      - name: Run integrations lib tests
+        run: make test-integrations-lib
+        timeout-minutes: 5
+
+      - name: Run operator tests
+        timeout-minutes: 40
+        run: make test-operator
+
+      - name: Run kube-agent-updater tests
+        timeout-minutes: 15
+        run: make test-kube-agent-updater
+
+      - name: Run teleport-usage tests
+        timeout-minutes: 15
+        run: make test-teleport-usage

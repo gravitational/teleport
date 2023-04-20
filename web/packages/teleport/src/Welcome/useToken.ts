@@ -22,9 +22,10 @@ import history from 'teleport/services/history';
 import auth, {
   ChangedUserAuthn,
   RecoveryCodes,
+  ResetPasswordReqWithEvent,
+  ResetPasswordWithWebauthnReqWithEvent,
   ResetToken,
 } from 'teleport/services/auth';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function useToken(tokenId: string) {
   const [resetToken, setResetToken] = useState<ResetToken>();
@@ -45,11 +46,6 @@ export default function useToken(tokenId: string) {
   }, []);
 
   function handleResponse(res: ChangedUserAuthn) {
-    userEventService.capturePreUserEvent({
-      event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
-      username: resetToken.user,
-    });
-
     if (res.privateKeyPolicyEnabled) {
       setPrivateKeyPolicyEnabled(true);
     }
@@ -61,17 +57,27 @@ export default function useToken(tokenId: string) {
   }
 
   function onSubmit(password: string, otpCode = '', deviceName = '') {
+    const req: ResetPasswordReqWithEvent = {
+      req: { tokenId, password, otpCode, deviceName },
+      eventMeta: { username: resetToken.user },
+    };
+
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPassword({ tokenId, password, otpCode, deviceName })
+      .resetPassword(req)
       .then(handleResponse)
       .catch(submitAttempt.handleError);
   }
 
   function onSubmitWithWebauthn(password?: string, deviceName = '') {
+    const req: ResetPasswordWithWebauthnReqWithEvent = {
+      req: { tokenId, password, deviceName },
+      eventMeta: { username: resetToken.user, mfaType: auth2faType },
+    };
+
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPasswordWithWebauthn({ tokenId, password, deviceName })
+      .resetPasswordWithWebauthn(req)
       .then(handleResponse)
       .catch(submitAttempt.handleError);
   }

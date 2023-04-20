@@ -146,18 +146,6 @@ func TestServerDeepCopy(t *testing.T) {
 					},
 				},
 			},
-			KubernetesClusters: []*types.KubernetesCluster{
-				{
-					Name:         "cluster",
-					StaticLabels: map[string]string{"label": "value"},
-					DynamicLabels: map[string]types.CommandLabelV2{
-						"cmd": {
-							Period:  types.Duration(1 * time.Second),
-							Command: []string{"cmd", "--flag"},
-						},
-					},
-				},
-			},
 		},
 	}
 

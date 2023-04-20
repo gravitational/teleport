@@ -38,10 +38,15 @@ func NewJoinServiceClient(grpcClient proto.JoinServiceClient) *JoinServiceClient
 	}
 }
 
-// RegisterChallengeResponseFunc is a function type meant to be passed to
-// RegisterUsingIAMMethod. It must return a *types.RegisterUsingTokenRequest for
-// a given challenge, or an error.
-type RegisterChallengeResponseFunc func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error)
+// RegisterIAMChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingIAMMethod. It must return a *proto.RegisterUsingIAMMethodRequest
+// for a given challenge, or an error.
+type RegisterIAMChallengeResponseFunc func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error)
+
+// RegisterAzureChallengeResponseFunc is a function type meant to be passed to
+// RegisterUsingAzureMethod. It must return a
+// *proto.RegisterUsingAzureMethodRequest for a given challenge, or an error.
+type RegisterAzureChallengeResponseFunc func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error)
 
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
@@ -49,7 +54,7 @@ type RegisterChallengeResponseFunc func(challenge string) (*proto.RegisterUsingI
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse RegisterChallengeResponseFunc) (*proto.Certs, error) {
+func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challengeResponse RegisterIAMChallengeResponseFunc) (*proto.Certs, error) {
 	// Make sure the gRPC stream is closed when this returns
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -79,6 +84,42 @@ func (c *JoinServiceClient) RegisterUsingIAMMethod(ctx context.Context, challeng
 
 	// wait for the certs from auth and return to the caller
 	certsResp, err := iamJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certsResp.Certs, nil
+}
+
+// RegisterUsingAzureMethod registers the caller using the Azure join method and
+// returns signed certs to join the cluster.
+//
+// The caller must provide a ChallengeResponseFunc which returns a
+// *proto.RegisterUsingAzureMethodRequest with a signed attested data document
+// including the challenge as a nonce.
+func (c *JoinServiceClient) RegisterUsingAzureMethod(ctx context.Context, challengeResponse RegisterAzureChallengeResponseFunc) (*proto.Certs, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	azureJoinClient, err := c.grpcClient.RegisterUsingAzureMethod(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challenge, err := azureJoinClient.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := challengeResponse(challenge.Challenge)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := azureJoinClient.Send(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certsResp, err := azureJoinClient.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -76,7 +76,7 @@ type SessionStream struct {
 
 // NewSessionStream creates a new session stream.
 // The type of the handshake parameter determines if this is the client or server end.
-func NewSessionStream(conn *websocket.Conn, handshake interface{}) (*SessionStream, error) {
+func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, error) {
 	s := &SessionStream{
 		conn:           conn,
 		in:             make(chan []byte),

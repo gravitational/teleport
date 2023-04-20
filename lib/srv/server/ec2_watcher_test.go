@@ -40,7 +40,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 
@@ -143,12 +143,18 @@ func TestEC2Watcher(t *testing.T) {
 	}
 	matchers := []services.AWSMatcher{
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 			SSM:     &services.AWSSSM{},
 		},
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},

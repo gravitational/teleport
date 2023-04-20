@@ -1,13 +1,25 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useState } from 'react';
-
 import { ButtonIcon, Flex, Label, Text } from 'design';
-
 import { ExitRight } from 'design/Icon';
 
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentityListItemProps {
@@ -15,10 +27,8 @@ interface IdentityListItemProps {
   userName?: string;
   clusterName: string;
   isSelected: boolean;
-  isSyncing: boolean;
 
   onSelect(): void;
-
   onLogout(): void;
 }
 
@@ -47,7 +57,6 @@ export function IdentityListItem(props: IdentityListItemProps) {
       }}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        {props.isSyncing && <LinearProgress />}
         <Text typography="body1" title={userWithClusterName}>
           {userWithClusterName}
         </Text>

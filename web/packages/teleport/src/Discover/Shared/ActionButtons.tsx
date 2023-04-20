@@ -29,6 +29,7 @@ export const ActionButtons = ({
   proceedHref = '',
   disableProceed = false,
   lastStep = false,
+  hideExit = false,
 }: {
   onProceed?(): void;
   onSkip?(): void;
@@ -36,6 +37,7 @@ export const ActionButtons = ({
   disableProceed?: boolean;
   lastStep?: boolean;
   allowSkip?: boolean;
+  hideExit?: boolean;
 }) => {
   const allowSkip = !!onSkip;
 
@@ -69,9 +71,11 @@ export const ActionButtons = ({
           Skip
         </ButtonSecondary>
       )}
-      <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
-        Exit
-      </ButtonSecondary>
+      {!hideExit && (
+        <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
+          Exit
+        </ButtonSecondary>
+      )}
     </Box>
   );
 };

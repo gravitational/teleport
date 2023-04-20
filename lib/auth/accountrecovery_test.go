@@ -1338,7 +1338,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

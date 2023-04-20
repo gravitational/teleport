@@ -29,11 +29,17 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
 const (
+	// EnvsRequest sets multiple environment variables that will be applied to any
+	// command executed by Shell or Run.
+	// See [EnvsReq] for the corresponding payload.
+	EnvsRequest = "envs@goteleport.com"
+
 	// TracingRequest is sent by clients to server to pass along tracing context.
 	TracingRequest = "tracing@goteleport.com"
 
@@ -43,6 +49,14 @@ const (
 	// instrumentationName is the name of this instrumentation package.
 	instrumentationName = "otelssh"
 )
+
+// EnvsReq contains json marshaled key:value pairs sent as the
+// payload for an [EnvsRequest].
+type EnvsReq struct {
+	// EnvsJSON is a json marshaled map[string]string containing
+	// environment variables.
+	EnvsJSON []byte `json:"envs"`
+}
 
 // ContextFromRequest extracts any tracing data provided via an Envelope
 // in the ssh.Request payload. If the payload contains an Envelope, then
@@ -136,7 +150,7 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	if len(hp.TracingContext) > 0 {
 		payloadJSON, err := json.Marshal(hp)
 		if err == nil {
-			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
 			if _, err := conn.Write([]byte(payload)); err != nil {
 				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
 			}

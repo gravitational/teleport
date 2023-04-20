@@ -19,8 +19,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -33,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type suite struct {
@@ -76,7 +81,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
@@ -165,7 +170,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
@@ -208,21 +213,21 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc func(cfg *service.Config)
-	leafConfigFunc func(cfg *service.Config)
+	rootConfigFunc func(cfg *servicecfg.Config)
+	leafConfigFunc func(cfg *servicecfg.Config)
 	leafCluster    bool
 	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
 
-func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withRootConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
 	}
 }
 
-func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withLeafConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.leafConfigFunc = fn
 	}
@@ -275,7 +280,7 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
+func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess {
 	if cfg.InstanceMetadataClient == nil {
 		// Disables cloud auto-imported labels when running tests in cloud envs
 		// such as Github Actions.
@@ -343,4 +348,59 @@ func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string)
 	require.NoError(t, err)
 	_, err = c.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// mustCloneTempDir is a test helper that clones a given directory recursively.
+// Useful for parallelizing tests that rely on a ~/.tsh dir, since FSKeystore
+// races with multiple tsh clients working in the same profile dir.
+func mustCloneTempDir(t *testing.T, srcDir string) string {
+	t.Helper()
+	dstDir := t.TempDir()
+	err := filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if srcPath == srcDir {
+			// special case: root of the walk. skip copying.
+			return nil
+		}
+
+		// Construct the corresponding path in the destination directory.
+		relPath, err := filepath.Rel(srcDir, srcPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dstPath := filepath.Join(dstDir, relPath)
+
+		info, err := d.Info()
+		require.NoError(t, err)
+
+		if d.IsDir() {
+			// If the current item is a directory, create it in the destination directory.
+			if err := os.Mkdir(dstPath, info.Mode().Perm()); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			// If the current item is a file, copy it to the destination directory.
+			srcFile, err := os.Open(srcPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer srcFile.Close()
+
+			dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer dstFile.Close()
+
+			if _, err := io.Copy(dstFile, srcFile); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return dstDir
 }

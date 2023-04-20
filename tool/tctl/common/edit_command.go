@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,11 +43,11 @@ import (
 type EditCommand struct {
 	app    *kingpin.Application
 	cmd    *kingpin.CmdClause
-	config *service.Config
+	config *servicecfg.Config
 	ref    services.Ref
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource")
@@ -98,6 +98,11 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err)
 	}
 
+	originalName, err := resourceName(f.Name())
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
 	args := strings.Fields(editor())
 	editorCmd := exec.CommandContext(ctx, args[0], append(args[1:], f.Name())...)
 	editorCmd.Stdin = os.Stdin
@@ -126,7 +131,7 @@ func (e *EditCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		return true, trace.Wrap(err)
 	}
 
-	if e.ref.Name != newName {
+	if originalName != newName {
 		return true, trace.NotImplemented("renaming resources is not supported with tctl edit")
 	}
 

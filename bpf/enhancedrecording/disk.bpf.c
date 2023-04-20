@@ -4,6 +4,7 @@
 #include <bpf/bpf_core_read.h>     /* for BPF CO-RE helpers */
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
+#include "./common.h"
 #include "../helpers.h"
 
 // Maximum number of in-flight open syscalls supported
@@ -13,6 +14,7 @@
 // audit events to userspace. This is the default,
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*128)
+
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -33,6 +35,9 @@ struct data_t {
 
 BPF_HASH(infotmp, u64, struct val_t, INFLIGHT_MAX);
 
+// hashmap keeps all cgroups id that should be monitored by Teleport.
+BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
+
 // open_events ring buffer
 BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 
@@ -52,12 +57,22 @@ static int enter_open(const char *filename, int flags) {
 
 static int exit_open(int ret) {
     u64 id = bpf_get_current_pid_tgid();
+    u64 cgroup = bpf_get_current_cgroup_id();
+
     struct val_t *valp;
     struct data_t data = {};
+    u64 *is_monitored;
 
     valp = bpf_map_lookup_elem(&infotmp, &id);
-    if (valp == 0) {
+    if (valp == NULL) {
         // Missed entry.
+        return 0;
+    }
+
+    // Check if the cgroup should be monitored.
+    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    if (is_monitored == NULL) {
+        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
 
@@ -70,7 +85,7 @@ static int exit_open(int ret) {
     data.pid = valp->pid;
     data.flags = valp->flags;
     data.ret = ret;
-    data.cgroup = bpf_get_current_cgroup_id();
+    data.cgroup = cgroup;
 
     if (bpf_ringbuf_output(&open_events, &data, sizeof(data), 0) != 0)
         INCR_COUNTER(lost);
@@ -95,6 +110,9 @@ int tracepoint__syscalls__sys_exit_creat(struct trace_event_raw_sys_exit *tp)
     return exit_open(tp->ret);
 }
 
+// ARM64 does not implement sys_enter_open only sys_enter_openat. x86 implements it for legacy reasons.
+#ifndef __TARGET_ARCH_arm64
+
 SEC("tp/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 {
@@ -103,6 +121,8 @@ int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 
     return enter_open(filename, flags);
 };
+
+#endif // __aarch64__
 
 SEC("tp/syscalls/sys_exit_open")
 int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *tp)

@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DatabaseList from './DatabaseList';
-import useDatabases, { State } from './useDatabases';
+import { useDatabases, State } from './useDatabases';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -45,15 +45,12 @@ export function Databases(props: State) {
     username,
     clusterId,
     authType,
-    results,
+    fetchedData,
     fetchNext,
     fetchPrev,
-    from,
-    to,
     pageSize,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
@@ -61,9 +58,13 @@ export function Databases(props: State) {
     isSearchEmpty,
     onLabelClick,
     accessRequestId,
+    pageIndicators,
   } = props;
 
-  const hasNoDatabases = results.databases.length === 0 && isSearchEmpty;
+  const hasNoDatabases =
+    attempt.status === 'success' &&
+    fetchedData.agents.length === 0 &&
+    isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -88,20 +89,17 @@ export function Databases(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoDatabases && (
         <DatabaseList
-          databases={results.databases}
+          databases={fetchedData.agents}
           username={username}
           clusterId={clusterId}
           authType={authType}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          from={from}
-          to={to}
-          totalCount={results.totalCount}
+          pageIndicators={pageIndicators}
           pageSize={pageSize}
           params={params}
           setParams={setParams}
-          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}

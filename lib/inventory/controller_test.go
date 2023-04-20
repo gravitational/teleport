@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -133,6 +134,7 @@ func TestSSHServerBasics(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
@@ -269,12 +271,9 @@ func TestSSHServerBasics(t *testing.T) {
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
-func TestInstanceHeartbeat(t *testing.T) {
+func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
-	const includeAttempts = 16
-
-	t.Parallel()
 
 	events := make(chan testEvent, 1024)
 
@@ -282,6 +281,46 @@ func TestInstanceHeartbeat(t *testing.T) {
 
 	controller := NewController(
 		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, _ := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	})
+
+	// verify that control stream handle is now accessible
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that no instance heartbeats are emitted
+	awaitEvents(t, events,
+		deny(instanceHeartbeatOk, instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+}
+
+// TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
+func TestInstanceHeartbeat(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ENABLE_INSTANCE_HB", "yes")
+
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+	const includeAttempts = 16
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)

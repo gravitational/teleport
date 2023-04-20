@@ -33,12 +33,15 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       min,
       max,
       rule = defaultRule,
+      name,
       type = 'text',
       autoFocus = false,
       autoComplete = 'off',
       inputMode = 'text',
       readonly = false,
       toolTipContent = null,
+      disabled = false,
+      markAsError = false,
       ...styles
     },
     ref
@@ -46,13 +49,13 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
     const { valid, message } = useRule(rule(value));
     const hasError = !valid;
     const labelText = hasError ? message : label;
-
     const $inputElement = (
       <Input
         mt={1}
         ref={ref}
         type={type}
-        hasError={hasError}
+        name={name}
+        hasError={hasError || markAsError}
         placeholder={placeholder}
         autoFocus={autoFocus}
         value={value}
@@ -64,6 +67,7 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
         readOnly={readonly}
         inputMode={inputMode}
         defaultValue={defaultValue}
+        disabled={disabled}
       />
     );
 
@@ -125,6 +129,11 @@ type Props = {
   min?: number;
   max?: number;
   toolTipContent?: React.ReactNode;
+  disabled?: boolean;
+  // markAsError is a flag to highlight an
+  // input box as error color before validator
+  // runs (which marks it as error)
+  markAsError?: boolean;
   // TS: temporary handles ...styles
   [key: string]: any;
 };

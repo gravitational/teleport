@@ -86,6 +86,8 @@ type ResourceWithOrigin interface {
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
 	ResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
 	// GetStaticLabels returns the resource's static labels.
@@ -296,6 +298,38 @@ func (h *ResourceHeader) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
+}
+
+// Origin returns the origin value of the resource.
+func (h *ResourceHeader) Origin() string {
+	return h.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (h *ResourceHeader) SetOrigin(origin string) {
+	h.Metadata.SetOrigin(origin)
+}
+
+// GetStaticLabels returns the static labels for the resource.
+func (h *ResourceHeader) GetStaticLabels() map[string]string {
+	return h.Metadata.Labels
+}
+
+// SetStaticLabels sets the static labels for the resource.
+func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
+	h.Metadata.Labels = sl
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (h *ResourceHeader) GetLabel(key string) (value string, ok bool) {
+	v, ok := h.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns all labels from the resource..
+func (h *ResourceHeader) GetAllLabels() map[string]string {
+	return h.Metadata.Labels
 }
 
 func (h *ResourceHeader) CheckAndSetDefaults() error {

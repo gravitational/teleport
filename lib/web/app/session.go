@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -66,17 +67,11 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		return nil, trace.Wrap(err)
 	}
 
-	// Match healthy and PublicAddr servers. Having a list of only healthy
-	// servers helps the transport fail before the request is forwarded to a
-	// server (in cases where there are no healthy servers). This process might
-	// take an additional time to execute, but since it is cached, only a few
-	// requests need to perform it.
-	servers, err := Match(ctx, accessPoint, MatchAll(
-		MatchPublicAddr(identity.RouteToApp.PublicAddr),
-		// NOTE: Try to leave this matcher as the last one to dial only the
-		// application servers that match the requested application.
-		MatchHealthy(h.c.ProxyClient, identity),
-	))
+	servers, err := Match(
+		ctx,
+		accessPoint,
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -124,6 +119,22 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		ws:  ws,
 		tr:  transport,
 	}, nil
+}
+
+// appServerMatcher returns a Matcher function used to find which AppServer can
+// handle the application requests.
+func appServerMatcher(proxyClient reversetunnel.Tunnel, publicAddr string, clusterName string) Matcher {
+	// Match healthy and PublicAddr servers. Having a list of only healthy
+	// servers helps the transport fail before the request is forwarded to a
+	// server (in cases where there are no healthy servers). This process might
+	// take an additional time to execute, but since it is cached, only a few
+	// requests need to perform it.
+	return MatchAll(
+		MatchPublicAddr(publicAddr),
+		// NOTE: Try to leave this matcher as the last one to dial only the
+		// application servers that match the requested application.
+		MatchHealthy(proxyClient, clusterName),
+	)
 }
 
 // sessionCache holds a cache of sessions that are used to forward requests.

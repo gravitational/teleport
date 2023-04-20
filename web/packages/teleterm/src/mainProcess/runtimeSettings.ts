@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -5,6 +21,7 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
+import { staticConfig } from 'teleterm/staticConfig';
 
 import { GrpcServerAddresses, RuntimeSettings } from './types';
 import { loadInstallationId } from './loadInstallationId';
@@ -30,8 +47,6 @@ const dev = env.NODE_ENV === 'development' || env.DEBUG_PROD === 'true';
 // Allows running tsh in insecure mode (development)
 const isInsecure = dev || argv.includes('--insecure');
 
-const PREHOG_ADDR = 'https://reporting-staging.teleportinfra.dev'; // TODO(gzdunek): change to prod before going live
-
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
   const {
@@ -53,7 +68,7 @@ function getRuntimeSettings(): RuntimeSettings {
       // for tshd we have to specify the protocol as well.
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${PREHOG_ADDR}`,
+      `--prehog-addr=${staticConfig.prehogAddress}`,
     ],
   };
   const sharedProcess = {

@@ -16,48 +16,5 @@ limitations under the License.
 
 package auth
 
-import (
-	"context"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/client/proto"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-)
-
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
-
-// DELETE IN 13.0.0
-type legacyChangePasswordReq struct {
-	// User is user ID
-	User string
-	// OldPassword is user current password
-	OldPassword []byte `json:"old_password"`
-	// NewPassword is user new password
-	NewPassword []byte `json:"new_password"`
-	// SecondFactorToken is user 2nd factor token
-	SecondFactorToken string `json:"second_factor_token"`
-	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
-}
-
-// ChangePassword updates users password based on the old password.
-// REMOVE IN 13.0.0
-func (c *Client) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error {
-	if err := c.APIClient.ChangePassword(ctx, req); err != nil {
-		if !trace.IsNotImplemented(err) {
-			return trace.Wrap(err)
-		}
-	} else {
-		return nil
-	}
-
-	_, err := c.PutJSON(ctx, c.Endpoint("users", req.User, "web", "password"), legacyChangePasswordReq{
-		OldPassword:       req.OldPassword,
-		NewPassword:       req.NewPassword,
-		SecondFactorToken: req.SecondFactorToken,
-		WebauthnResponse:  wanlib.CredentialAssertionResponseFromProto(req.Webauthn),
-	})
-	return trace.Wrap(err)
-}

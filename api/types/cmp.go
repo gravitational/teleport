@@ -23,9 +23,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// protoEqual returns true if provided proto messages are equal, ignoring the
-// XXX_* fields.
-func protoEqual(a, b proto.Message) bool {
+// protoKnownFieldsEqual returns true if the provided proto messages are equal,
+// ignoring any unknown fields found during unmarshal (ie, this ignores XXX_*
+// fields).
+// This is not a substitute for [proto.Equal] and should not be used as a full
+// equility check.
+// Do not use this method lightly or without a strong reason to do so.
+func protoKnownFieldsEqual(a, b proto.Message) bool {
 	return cmp.Equal(a, b, cmp.FilterPath(func(path cmp.Path) bool {
 		if field, ok := path.Last().(cmp.StructField); ok {
 			return strings.HasPrefix(field.Name(), "XXX_")

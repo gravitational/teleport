@@ -16,14 +16,28 @@
 
 import { ConfigService } from 'teleterm/services/config';
 import { ModalsService } from 'teleterm/ui/services/modals';
+import { staticConfig } from 'teleterm/staticConfig';
+import Logger from 'teleterm/logger';
 
 export async function setUpUsageReporting(
   configService: ConfigService,
   modalsService: ModalsService
 ): Promise<void> {
+  const logger = new Logger('setUpUsageReporting');
+  if (!staticConfig.prehogAddress) {
+    logger.info('Prehog address not set, usage reporting disabled.');
+    return;
+  }
+
+  if (configService.getConfigError()?.source === 'file-loading') {
+    // do not show the dialog, response cannot be saved to the file
+    return;
+  }
+
   if (configService.get('usageReporting.enabled').metadata.isStored) {
     return;
   }
+
   return new Promise(resolve => {
     modalsService.openRegularDialog({
       kind: 'usage-data',

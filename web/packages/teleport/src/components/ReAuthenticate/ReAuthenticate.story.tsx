@@ -44,4 +44,5 @@ const props: State = {
   preferredMfaType: 'webauthn',
   onClose: () => null,
   auth2faType: 'on',
+  actionText: 'performing this action',
 };

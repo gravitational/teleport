@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { map } from 'lodash';
-
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
@@ -26,7 +24,7 @@ const service = {
   fetchSessions(clusterId) {
     return api.get(cfg.getTerminalSessionUrl({ clusterId })).then(response => {
       if (response && response.sessions) {
-        return map(response.sessions, makeSession);
+        return response.sessions.map(makeSession);
       }
 
       return [];
@@ -44,7 +42,7 @@ const service = {
 
       const parties: ParticipantList = {};
       json.sessions.forEach(s => {
-        parties[s.id] = map(s.parties, makeParticipant);
+        parties[s.id] = s.parties.map(makeParticipant);
       });
 
       return parties;

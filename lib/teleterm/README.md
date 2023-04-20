@@ -112,16 +112,8 @@ obtains from the root cluster.
 
 ## gRPC server
 
-The proto files live in `lib/teleterm/api/proto`. `make grpc-teleterm` generates protobufs in
-`lib/teleterm/api/protogen`. The protobuf files [need to be copied to the webapps
-repo](https://github.com/gravitational/webapps/tree/master/packages/teleterm#generating-tshd-grpc-protobuf-files).
-
-Why not make the protobufs be generated with `make grpc`? See commit
-[`6fb9f8`](https://github.com/gravitational/teleport/commit/6fb9f871a32832745f694aa85ec1856c746803d9).
-In short, to build the JS protobuf files on Apple M1 we need to build grpc-tools from source which
-pulls in a lot of other dependencies. We didn't want every `make grpc` user on M1 to incur this
-cost, hence a separate Makefile target.
-
+The proto files live in `proto/teleport/lib/teleterm`. `make grpc` generates protobufs in
+`gen/proto`.
 
 ## Refactoring efforts
 

@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // iamCredentialsClient is an interface that defines the methods which we use from IAM Service Account Credentials API.
@@ -89,7 +88,10 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = logrus.WithField(trace.Component, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients := cloud.NewClients()
+		clients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
@@ -194,7 +196,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 		return nil, trace.AccessDenied("%q is not a GCP endpoint", forwardedHost)
 	}
 
-	payload, err := awsutils.GetAndReplaceReqBody(r)
+	payload, err := utils.GetAndReplaceRequestBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -261,6 +263,10 @@ func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credent
 	var tokenResult *credentialspb.GenerateAccessTokenResponse
 	var errorResult error
 
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
 	go func() {
 		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
@@ -269,7 +275,7 @@ func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credent
 	}()
 
 	select {
-	case <-s.Clock.After(getTokenTimeout):
+	case <-timeoutChan:
 		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult

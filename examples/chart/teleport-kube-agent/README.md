@@ -85,7 +85,7 @@ $ helm install teleport-kube-agent . \
   --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
 ```
 
-Note that due to backwards compatbility, the `labels` value **only** applies to the Teleport
+Note that due to backwards compatibility, the `labels` value **only** applies to the Teleport
 Kubernetes service. To set labels for applications or databases, use the different formats
 detailed below.
 

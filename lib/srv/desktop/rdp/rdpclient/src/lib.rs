@@ -50,7 +50,6 @@ extern crate log;
 extern crate num_derive;
 
 use errors::try_error;
-use libc::{fd_set, select, FD_SET};
 use rand::Rng;
 use rand::SeedableRng;
 use rdp::core::event::*;
@@ -67,6 +66,7 @@ use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString, NulError};
+use std::fmt::Debug;
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -77,9 +77,11 @@ use std::os::unix::io::AsRawFd;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 
+pub fn test() {}
+
 #[no_mangle]
 pub extern "C" fn init() {
-    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {}", e));
+    env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
 #[derive(Clone)]
@@ -655,7 +657,7 @@ impl<S: Read + Write> RdpClient<S> {
             }
             _ => Err(RdpError::RdpError(RdpProtocolError::new(
                 RdpErrorKind::UnexpectedType,
-                &format!("Invalid channel name {:?}", channel_name),
+                &format!("Invalid channel name {channel_name:?}"),
             ))),
         }
     }
@@ -750,10 +752,9 @@ impl<S: Read + Write> RdpClient<S> {
     }
 }
 
-/// CGOBitmap is a CGO-compatible version of BitmapEvent that we pass back to Go.
-/// BitmapEvent is a video output update from the server.
+/// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
 #[repr(C)]
-pub struct CGOBitmap {
+pub struct CGOPNG {
     pub dest_left: u16,
     pub dest_top: u16,
     pub dest_right: u16,
@@ -764,11 +765,11 @@ pub struct CGOBitmap {
     pub data_cap: usize,
 }
 
-impl TryFrom<BitmapEvent> for CGOBitmap {
+impl TryFrom<BitmapEvent> for CGOPNG {
     type Error = RdpError;
 
     fn try_from(e: BitmapEvent) -> Result<Self, Self::Error> {
-        let mut res = CGOBitmap {
+        let mut res = CGOPNG {
             dest_left: e.dest_left,
             dest_top: e.dest_top,
             dest_right: e.dest_right,
@@ -778,22 +779,69 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
             data_cap: 0,
         };
 
-        // e.decompress consumes e, so we need to call it separately, after populating the fields
-        // above.
-        let mut data = e.decompress()?;
-        res.data_ptr = data.as_mut_ptr();
-        res.data_len = data.len();
-        res.data_cap = data.capacity();
+        let w: u16 = e.width;
+        let h: u16 = e.height;
+
+        let mut encoded = Vec::with_capacity(8192);
+        encode_png(&mut encoded, w, h, e.decompress()?).map_err(|err| {
+            Self::Error::TryError(format!("failed to encode bitmap to png: {err:?}"))
+        })?;
+
+        res.data_ptr = encoded.as_mut_ptr();
+        res.data_len = encoded.len();
+        res.data_cap = encoded.capacity();
 
         // Prevent the data field from being freed while Go handles it.
-        // It will be dropped once CGOBitmap is dropped (see below).
-        mem::forget(data);
+        // It will be dropped once CGOPNG is dropped (see below).
+        mem::forget(encoded);
 
         Ok(res)
     }
 }
 
-impl Drop for CGOBitmap {
+/// encodes png from the uncompressed bitmap data
+///
+/// # Arguments
+///
+/// * `dest` - buffer that will contain the png data
+/// * `width` - width of the png
+/// * `height` - height of the png
+/// * `data` - buffer that contains uncompressed bitmap data
+pub fn encode_png(
+    dest: &mut Vec<u8>,
+    width: u16,
+    height: u16,
+    mut data: Vec<u8>,
+) -> Result<(), png::EncodingError> {
+    convert_bgra_to_rgba(&mut data);
+
+    let mut encoder = png::Encoder::new(dest, width as u32, height as u32);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_color(png::ColorType::Rgba);
+
+    let mut writer = encoder.write_header()?;
+    writer.write_image_data(&data)?;
+    writer.finish()?;
+    Ok(())
+}
+
+/// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
+/// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
+/// a byte slice with 4-byte segments representing pixels (RGBA).
+///
+/// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
+///
+/// Also, always force Alpha value to 100% (opaque). On some Windows
+/// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
+fn convert_bgra_to_rgba(data: &mut [u8]) {
+    data.chunks_exact_mut(4).for_each(|chunk| {
+        chunk.swap(0, 2);
+        // set alpha to 100% opaque
+        chunk[3] = 255
+    });
+}
+
+impl Drop for CGOPNG {
     fn drop(&mut self) {
         // Reconstruct into Vec to drop the allocated buffer.
         unsafe {
@@ -803,20 +851,43 @@ impl Drop for CGOBitmap {
 }
 
 #[cfg(unix)]
-fn wait_for_fd(fd: usize) -> bool {
-    unsafe {
-        let mut raw_fds: fd_set = mem::zeroed();
+fn wait_for_fd(fd: usize) -> RdpResult<()> {
+    let fds = &mut libc::pollfd {
+        fd: fd as i32,
+        events: libc::POLLIN,
+        revents: 0,
+    };
+    loop {
+        let res = unsafe { libc::poll(fds, 1, -1) };
 
-        FD_SET(fd as i32, &mut raw_fds);
+        // We only use a single fd and can't timeout, so
+        // res will either be 1 for success or -1 for failure.
+        if res != 1 {
+            let os_err = std::io::Error::last_os_error();
+            match os_err.raw_os_error() {
+                Some(libc::EINTR) | Some(libc::EAGAIN) => continue,
+                _ => return Err(RdpError::Io(os_err)),
+            }
+        }
 
-        let result = select(
-            fd as i32 + 1,
-            &mut raw_fds,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        result == 1
+        // res == 1
+        // POLLIN means that the fd is ready to be read from,
+        // POLLHUP means that the other side of the pipe was closed,
+        // but we still may have data to read.
+        if fds.revents & (libc::POLLIN | libc::POLLHUP) != 0 {
+            return Ok(()); // ready for a read
+        } else if fds.revents & libc::POLLNVAL != 0 {
+            return Err(RdpError::Io(IoError::new(
+                std::io::ErrorKind::InvalidInput,
+                "invalid fd",
+            )));
+        } else {
+            // fds.revents & libc::POLLERR != 0
+            return Err(RdpError::Io(IoError::new(
+                std::io::ErrorKind::Other,
+                "error on fd",
+            )));
+        }
     }
 }
 
@@ -1126,13 +1197,13 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     }
 }
 
-/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref and forwards them to
-/// handle_bitmap.
+/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
+/// as a png and forwards them to handle_png.
 ///
 /// # Safety
 ///
 /// `client_ptr` must be a valid pointer to a Client.
-/// `handle_bitmap` *must not* free the memory of CGOBitmap.
+/// `handle_png` *must not* free the memory of CGOPNG.
 #[no_mangle]
 pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
     let client = match Client::from_ptr(client_ptr) {
@@ -1154,96 +1225,108 @@ fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
 
-    // Read incoming events.
-    //
-    // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
-    // us from locking the mutex in Client permanently while no data is available.
-    while wait_for_fd(tcp_fd) {
-        let mut err = CGOErrCode::ErrCodeSuccess;
-        let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
-            // This callback can be called multiple times per rdp_client.read()
-            // (if multiple messages were received since the last call). Therefore,
-            // we check that the previous call to handle_bitmap succeeded, so we don't
-            // have a situation where handle_bitmap fails repeatedly and creates a
-            // bunch of repetitive error messages in the logs. If it fails once,
-            // we assume the connection is broken and stop trying to send bitmaps.
-            if err == CGOErrCode::ErrCodeSuccess {
-                match rdp_event {
-                    RdpEvent::Bitmap(bitmap) => {
-                        let mut cbitmap = match CGOBitmap::try_from(bitmap) {
-                            Ok(cb) => cb,
-                            Err(e) => {
-                                error!(
+    loop {
+        // Read incoming events.
+        //
+        // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
+        // us from locking the mutex in Client permanently while no data is available.
+        match wait_for_fd(tcp_fd) {
+            Ok(_) => {
+                let mut err = CGOErrCode::ErrCodeSuccess;
+                let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
+                    // This callback can be called multiple times per rdp_client.read()
+                    // (if multiple messages were received since the last call). Therefore,
+                    // we check that the previous call to handle_png succeeded, so we don't
+                    // have a situation where handle_png fails repeatedly and creates a
+                    // bunch of repetitive error messages in the logs. If it fails once,
+                    // we assume the connection is broken and stop trying to send PNGs.
+                    if err == CGOErrCode::ErrCodeSuccess {
+                        match rdp_event {
+                            RdpEvent::Bitmap(bitmap) => {
+                                let mut cpng = match CGOPNG::try_from(bitmap) {
+                                    Ok(cb) => cb,
+                                    Err(e) => {
+                                        error!(
                                     "failed to convert RDP bitmap to CGO representation: {:?}",
                                     e
                                 );
-                                return;
+                                        return;
+                                    }
+                                };
+                                unsafe {
+                                    err = handle_png(client_ref, &mut cpng) as CGOErrCode;
+                                };
                             }
-                        };
-                        unsafe {
-                            err = handle_bitmap(client_ref, &mut cbitmap) as CGOErrCode;
+                            // No other events should be sent by the server to us.
+                            _ => {
+                                debug!("got unexpected pointer event from RDP server, ignoring");
+                            }
+                        }
+                    }
+                });
+                match res {
+                    Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
+                        debug!("client disconnect detected");
+                        return ReadRdpOutputReturns {
+                            user_message: "Client successfully disconnected".to_string(),
+                            disconnect_code: CGODisconnectCode::DisconnectCodeClient,
+                            err_code: CGOErrCode::ErrCodeSuccess,
                         };
                     }
-                    // No other events should be sent by the server to us.
-                    _ => {
-                        debug!("got unexpected pointer event from RDP server, ignoring");
+                    Err(RdpError::RdpError(rdp_err))
+                        if rdp_err.kind() == RdpErrorKind::Disconnect =>
+                    {
+                        // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
+                        // If we don't know why that was sent, return an failure, otherwise return a success.
+                        debug!("server disconnect detected");
+                        let disconnect_code = CGODisconnectCode::DisconnectCodeServer;
+                        let server_error = client.rdp_client.lock().unwrap().global.server_error();
+                        let mut message = server_error.to_string();
+                        let mut err_code = CGOErrCode::ErrCodeSuccess;
+                        if server_error == ServerError::None || server_error.is_error() {
+                            err_code = CGOErrCode::ErrCodeFailure;
+                            if server_error == ServerError::None {
+                                message =
+                                    "RDP server disconnected for an unknown reason".to_string();
+                            }
+                        }
+                        return ReadRdpOutputReturns {
+                            user_message: message,
+                            disconnect_code,
+                            err_code,
+                        };
+                    }
+                    Err(e) => {
+                        return ReadRdpOutputReturns {
+                            user_message: format!("RDP read failed: {e:?}"),
+                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                            err_code: CGOErrCode::ErrCodeFailure,
+                        };
+                    }
+                    Ok(()) => {
+                        // continue
                     }
                 }
-            }
-        });
-        match res {
-            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
-                debug!("client disconnect detected");
-                return ReadRdpOutputReturns {
-                    user_message: "Client successfully disconnected".to_string(),
-                    disconnect_code: CGODisconnectCode::DisconnectCodeClient,
-                    err_code: CGOErrCode::ErrCodeSuccess,
-                };
-            }
-            Err(RdpError::RdpError(rdp_err)) if rdp_err.kind() == RdpErrorKind::Disconnect => {
-                // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
-                // If we don't know why that was sent, return an failure, otherwise return a success.
-                debug!("server disconnect detected");
-                let disconnect_code = CGODisconnectCode::DisconnectCodeServer;
-                let server_error = client.rdp_client.lock().unwrap().global.server_error();
-                let mut message = server_error.to_string();
-                let mut err_code = CGOErrCode::ErrCodeSuccess;
-                if server_error == ServerError::None || server_error.is_error() {
-                    err_code = CGOErrCode::ErrCodeFailure;
-                    if server_error == ServerError::None {
-                        message = "RDP server disconnected for an unknown reason".to_string();
-                    }
+                if err != CGOErrCode::ErrCodeSuccess {
+                    return ReadRdpOutputReturns {
+                        user_message: "failed forwarding RDP bitmap frame".to_string(),
+                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                        err_code: err,
+                    };
                 }
-                return ReadRdpOutputReturns {
-                    user_message: message,
-                    disconnect_code,
-                    err_code,
-                };
             }
-            Err(e) => {
+            Err(err) => {
+                let user_message = match err {
+                    RdpError::Io(err) => err.to_string(),
+                    _ => "RDP read failed for an unknown reason".to_string(),
+                };
                 return ReadRdpOutputReturns {
-                    user_message: format!("RDP read failed: {:?}", e),
+                    user_message,
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
                 };
             }
-            Ok(()) => {
-                // continue
-            }
         }
-        if err != CGOErrCode::ErrCodeSuccess {
-            return ReadRdpOutputReturns {
-                user_message: "failed forwarding RDP bitmap frame".to_string(),
-                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                err_code: err,
-            };
-        }
-    }
-
-    ReadRdpOutputReturns {
-        user_message: "RDP read failed for an unknown reason".to_string(),
-        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-        err_code: CGOErrCode::ErrCodeFailure,
     }
 }
 
@@ -1963,7 +2046,7 @@ pub struct CGOSharedDirectoryListRequest {
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
-    fn handle_bitmap(client_ref: usize, b: *mut CGOBitmap) -> CGOErrCode;
+    fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
 
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)

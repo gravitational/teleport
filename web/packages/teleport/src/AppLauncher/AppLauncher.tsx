@@ -43,6 +43,11 @@ export function AppLauncher() {
         fqdn = app.fqdn;
       }
 
+      // Decode URL encoded values from the ARN.
+      if (params.arn) {
+        params.arn = decodeURIComponent(params.arn);
+      }
+
       const port = location.port ? `:${location.port}` : '';
       const session = await service.createAppSession(params);
 

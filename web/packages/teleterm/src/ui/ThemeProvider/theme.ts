@@ -16,46 +16,43 @@ limitations under the License.
 
 import { fonts } from 'design/theme/fonts';
 import { getContrastRatio } from 'design/theme/utils/colorManipulator';
-import {
-  lightBlue,
-  red,
-  teal,
-  orange,
-  pink,
-  blueGrey,
-  yellow,
-} from 'design/theme/palette';
+import { lightBlue, teal, pink, blueGrey, yellow } from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
+import { sharedStyles } from 'design/theme/sharedStyles';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
 const colors = {
+  levels: {
+    sunken: '#0C143D',
+    sunkenSecondary: '#131B43',
+
+    surface: '#222C59',
+    surfaceSecondary: '#182047',
+
+    elevated: '#2D3761',
+
+    popout: '#4A5688',
+  },
+
+  brand: '#512FC9',
+
+  // Spot backgrounds are used as highlights, for example
+  // to indicate a hover or active state for an item in a menu.
+  spotBackground: [
+    'rgba(255,255,255,0.07)',
+    'rgba(255,255,255,0.13)',
+    'rgba(255,255,255,0.18)',
+  ],
+
   // missing
   inverse: '#B0BEC5',
   progressBarColor: '#00BFA5',
 
-  accent: '#651FFF',
-
-  dark: '#000',
+  dark: '#000000',
 
   light: '#FFFFFF',
-
-  primary: {
-    darker: '#0C143D',
-    dark: '#131B43',
-    main: '#182047',
-    light: '#222C59',
-    lighter: '#2D3761',
-    contrastText: '#FFFFFF',
-  },
-
-  secondary: {
-    main: '#512FC9',
-    light: '#651FFF',
-    dark: '#354AA4',
-    contrastText: '#FFFFFF',
-  },
 
   text: {
     // The most important text.
@@ -66,12 +63,55 @@ const colors = {
     placeholder: 'rgba(255, 255, 255, 0.24)',
     // Disabled text have even lower visual prominence.
     disabled: 'rgba(0, 0, 0, 0.24)',
-    // Text hints.
-    hint: 'rgba(0, 0, 0, 0.24)',
-    // On light backgrounds
-    onLight: '#324148',
-    // On dark backgrounds
-    onDark: 'rgba(255, 255, 255, 0.87)',
+    // For maximum contrast.
+    contrast: '#FFFFFF',
+    // For text on  a background that is on a color opposite to the theme. For dark theme,
+    // this would mean text that is on a light background.
+    primaryInverse: '#000000',
+  },
+
+  buttons: {
+    text: 'rgba(255,255,255,0.87)',
+    textDisabled: 'rgba(255, 255, 255, 0.3)',
+    bgDisabled: 'rgba(255, 255, 255, 0.12)',
+
+    primary: {
+      text: '#FFFFFF',
+      default: '#512FC9',
+      hover: '#651FFF',
+      active: '#354AA4',
+    },
+
+    secondary: {
+      default: 'rgba(255,255,255,0.07)',
+      hover: 'rgba(255,255,255,0.13)',
+      active: 'rgba(255,255,255,0.18)',
+    },
+
+    border: {
+      default: 'rgba(255,255,255,0)',
+      hover: 'rgba(255, 255, 255, 0.07)',
+      active: 'rgba(255, 255, 255, 0.13)',
+      border: 'rgba(255, 255, 255, 0.36)',
+    },
+
+    warning: {
+      text: '#000000',
+      default: '#FF6257',
+      hover: '#FF8179',
+      active: '#FFA19A',
+    },
+
+    trashButton: {
+      default: 'rgba(255, 255, 255, 0.07)',
+      hover: 'rgba(255, 255, 255, 0.13)',
+    },
+
+    link: {
+      default: '#009EFF',
+      hover: '#33B1FF',
+      active: '#66C5FF',
+    },
   },
 
   grey: {
@@ -79,9 +119,15 @@ const colors = {
   },
 
   error: {
-    light: red['A200'],
-    dark: red['A700'],
-    main: red['A400'],
+    main: '#FF6257',
+    hover: '#FF8179',
+    active: '#FFA19A',
+  },
+
+  warning: {
+    main: '#FFAB00',
+    hover: '#FFBC33',
+    active: '#FFCD66',
   },
 
   action: {
@@ -100,7 +146,6 @@ const colors = {
   highlight: yellow[50],
   disabled: blueGrey[500],
   info: lightBlue[600],
-  warning: orange.A400,
   success: teal.A700,
 };
 
@@ -114,11 +159,17 @@ const borders = [
   '32px solid',
 ];
 
+const sansSerif = 'system-ui';
+
 const theme = {
+  name: 'dark',
   colors,
   typography,
-  font: fonts.sansSerif,
-  fonts: fonts,
+  font: sansSerif,
+  fonts: {
+    sansSerif,
+    mono: fonts.mono,
+  },
   fontWeights,
   fontSizes,
   space,
@@ -126,6 +177,7 @@ const theme = {
   radii: [0, 2, 4, 8, 16, 9999, '100%'],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
+  ...sharedStyles,
   // disabled media queries for styled-system
   breakpoints: [],
 };

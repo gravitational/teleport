@@ -18,6 +18,7 @@ package integration
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 // Terminal emulates stdin+stdout for integration testing
 type Terminal struct {
 	typed   chan byte
+	close   chan struct{}
 	mu      *sync.Mutex
 	written *bytes.Buffer
 }
@@ -35,6 +37,7 @@ func NewTerminal(capacity int) *Terminal {
 		typed:   make(chan byte, capacity),
 		mu:      &sync.Mutex{},
 		written: bytes.NewBuffer(nil),
+		close:   make(chan struct{}),
 	}
 }
 
@@ -71,15 +74,40 @@ func (t *Terminal) Write(data []byte) (n int, err error) {
 
 func (t *Terminal) Read(p []byte) (n int, err error) {
 	for n = 0; n < len(p); n++ {
-		p[n] = <-t.typed
+		select {
+		case p[n] = <-t.typed:
+		case <-t.close:
+			return n, io.EOF
+		}
+
 		if p[n] == '\r' {
 			break
 		}
 		if p[n] == '\a' { // 'alert' used for debugging, means 'pause for 1 second'
-			time.Sleep(time.Second)
-			n--
+			select {
+			case <-time.After(time.Second):
+				n--
+			case <-t.close:
+				return n, io.EOF
+			}
 		}
-		time.Sleep(time.Millisecond * 10)
+
+		select {
+		case <-time.After(time.Millisecond * 10):
+		case <-t.close:
+			return n, io.EOF
+		}
+
 	}
 	return n, nil
+}
+
+func (t *Terminal) Close() error {
+	select {
+	case <-t.close:
+	default:
+		close(t.close)
+	}
+
+	return nil
 }

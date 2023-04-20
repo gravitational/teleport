@@ -95,3 +95,17 @@ func TestRPCClientRequest(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "foo3", p.ProcName)
 }
+
+func TestRPCClientRequestPartialLength(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength(32, 4)))
+	require.NoError(t, err)
+	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+
+	r, err := ToSQLPacket(packet)
+	require.NoError(t, err)
+
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "foo3", p.ProcName)
+	require.NoError(t, err)
+}

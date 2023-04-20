@@ -23,7 +23,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -31,9 +33,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
+	"github.com/gravitational/teleport/lib/client/db/opensearch"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -65,8 +69,14 @@ const (
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
+	// openSearchCLIBin is the OpenSearch CLI client program name.
+	openSearchCLIBin = "opensearch-cli"
+	// openSearchSQLBin is the OpenSearch SQL client program name.
+	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
+	// oracleBin is the Oracle CLI program name.
+	oracleBin = "sql"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -188,8 +198,14 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchCommand()
 
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchCommand()
+
 	case defaults.ProtocolDynamoDB:
 		return c.getDynamoDBCommand()
+
+	case defaults.ProtocolOracle:
+		return c.getOracleCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -209,6 +225,8 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchAlternativeCommands(), nil
 	}
 
 	cmd, err := c.GetConnectCommand()
@@ -322,23 +340,35 @@ func (c *CLICommandBuilder) getMariaDBArgs() []string {
 
 // getMySQLOracleCommand returns arguments unique for mysql cmd shipped by Oracle. Common options between
 // Oracle and MariaDB version are covered by getMySQLCommonCmdOpts().
-func (c *CLICommandBuilder) getMySQLOracleCommand() *exec.Cmd {
+func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.options.exe.Command(mysqlBin, args...)
+		return c.options.exe.Command(mysqlBin, args...), nil
 	}
 
 	// defaults-group-suffix must be first.
 	groupSuffix := []string{fmt.Sprintf("--defaults-group-suffix=_%v-%v", c.tc.SiteName, c.db.ServiceName)}
 	args = append(groupSuffix, args...)
 
+	if runtime.GOOS == constants.WindowsOS {
+		// We save configuration to ~/.my.cnf, but on Windows that file is not read,
+		// see tables 4.1 and 4.2 on https://dev.mysql.com/doc/refman/8.0/en/option-files.html.
+		// We instruct mysql client to use use that file with --defaults-extra-file.
+		configPath, err := mysql.DefaultConfigPath()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		extraFile := []string{fmt.Sprintf("--defaults-extra-file=%v", configPath)}
+		args = append(extraFile, args...)
+	}
+
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
 	if c.tc.InsecureSkipVerify {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.options.exe.Command(mysqlBin, args...)
+	return c.options.exe.Command(mysqlBin, args...), nil
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -354,7 +384,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// error as mysql and mariadb are missing. There is nothing else we can do here.
 	if !c.isMySQLBinAvailable() {
 		if c.options.tolerateMissingCLIClient {
-			return c.getMySQLOracleCommand(), nil
+			return c.getMySQLOracleCommand()
 		}
 
 		return nil, trace.NotFound("neither %q nor %q CLI clients were found, please make sure an appropriate CLI client is available in $PATH", mysqlBin, mariadbBin)
@@ -369,7 +399,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
-	return c.getMySQLOracleCommand(), nil
+	return c.getMySQLOracleCommand()
 }
 
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
@@ -390,9 +420,21 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	return err == nil
 }
 
-// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+// isElasticsearchSQLBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
+	return err == nil
+}
+
+// isOpenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchCLIBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchCLIBin)
+	return err == nil
+}
+
+// isOpenSearchCLIBinAvailable returns true if "opensearchsql" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchSQLBin)
 	return err == nil
 }
 
@@ -587,6 +629,37 @@ func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
 }
 
+// getOpenSearchCommand returns a command to connect to OpenSearch.
+func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
+	if c.options.tolerateMissingCLIClient == false && c.isOpenSearchSQLBinAvailable() == false {
+		return nil, trace.NotFound("%q not found, please make sure it is available in $PATH", openSearchSQLBin)
+	}
+
+	if c.options.noTLS {
+		args := []string{fmt.Sprintf("http://%v:%v", c.host, c.port)}
+		return c.options.exe.Command(openSearchSQLBin, args...), nil
+	}
+
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", openSearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
+	cfg := opensearch.ConfigNoTLS(c.host, c.port)
+	if !c.options.noTLS {
+		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
+	}
+
+	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
+	tempCfg, err := opensearch.WriteConfig(baseDir, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	args := []string{"--profile", opensearch.ProfileName, "--config", tempCfg, "curl", "get", "--path", "/"}
+
+	return c.options.exe.Command(openSearchCLIBin, args...), nil
+}
+
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 	// we can't guess at what the user wants to do, so this command is for print purposes only,
 	// and it only works with a local proxy tunnel.
@@ -603,6 +676,36 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"<command>",
 	}
 	return c.options.exe.Command(awsBin, args...), nil
+}
+
+type jdbcOracleThinConnection struct {
+	host     string
+	port     int
+	db       string
+	tnsAdmin string
+}
+
+func (j *jdbcOracleThinConnection) ConnString() string {
+	return fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, j.host, j.port, j.db, j.tnsAdmin)
+}
+
+func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	cs := jdbcOracleThinConnection{
+		host:     c.host,
+		port:     c.port,
+		db:       c.db.Database,
+		tnsAdmin: c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName),
+	}
+	// Quote the address for printing as the address contains "?".
+	connString := cs.ConnString()
+	if c.options.printFormat {
+		connString = fmt.Sprintf(`'%s'`, connString)
+	}
+	args := []string{
+		"-L", // dont retry
+		connString,
+	}
+	return c.options.exe.Command(oracleBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
@@ -640,6 +743,51 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
 	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+
+	return commands
+}
+
+func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
+	if c.isOpenSearchSQLBinAvailable() {
+		if cmd, err := c.getOpenSearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "start interactive session with opensearchsql", Command: cmd})
+		}
+	}
+
+	if c.isOpenSearchCLIBinAvailable() {
+		if cmd, err := c.getOpenSearchCLICommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "run request with opensearch-cli", Command: cmd})
+		}
+	}
+
+	var curlCommand *exec.Cmd
+	if c.options.noTLS {
+		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
+
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
+
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
+
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
+
+		curlCommand = c.options.exe.Command(curlBin, args...)
+	}
+	commands = append(commands, CommandAlternative{Description: "run request with curl", Command: curlCommand})
 
 	return commands
 }

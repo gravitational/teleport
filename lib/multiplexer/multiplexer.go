@@ -26,7 +26,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/x509"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -37,17 +39,24 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/loglimit"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type CertAuthorityGetter interface {
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
-}
+var (
+	// ErrBadIP is returned when there's a problem with client source or destination IP address
+	ErrBadIP = trace.BadParameter(
+		"client source and destination addresses should be valid same TCP version non-nil IP addresses")
+)
+
+// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
+// We define our own version to not create dependency on the 'services' package, which causes circular references
+type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 // Config is a multiplexer config
 type Config struct {
@@ -95,6 +104,15 @@ func New(cfg Config) (*Mux, error) {
 	}
 
 	ctx, cancel := context.WithCancel(cfg.Context)
+	logLimiter, err := loglimit.New(loglimit.Config{
+		Context:           ctx,
+		MessageSubstrings: errorSubstrings,
+	})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	waitContext, waitCancel := context.WithCancel(context.TODO())
 	return &Mux{
 		Entry: log.WithFields(log.Fields{
@@ -105,6 +123,7 @@ func New(cfg Config) (*Mux, error) {
 		cancel:      cancel,
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
+		logLimiter:  logLimiter,
 	}, nil
 }
 
@@ -120,6 +139,12 @@ type Mux struct {
 	cancel      context.CancelFunc
 	waitContext context.Context
 	waitCancel  context.CancelFunc
+	// logLimiter is a goroutine responsible for deduplicating multiplexer errors
+	// (over a 1min window) that occur when detecting the types of new connections.
+	// This ensures that health checkers / malicious actors cannot overpower /
+	// pollute the logs with warnings when such connections are invalid or unknown
+	// to the multiplexer.
+	logLimiter *loglimit.LogLimiter
 }
 
 // SSH returns listener that receives SSH connections
@@ -179,7 +204,9 @@ func (m *Mux) Wait() {
 // Serve is a blocking function that serves on the listening socket
 // and accepts requests. Every request is served in a separate goroutine
 func (m *Mux) Serve() error {
+	m.Debugf("Starting serving MUX, ID %q on address %s", m.Config.ID, m.Config.Listener.Addr())
 	defer m.waitCancel()
+
 	for {
 		conn, err := m.Listener.Accept()
 		if err == nil {
@@ -188,7 +215,13 @@ func (m *Mux) Serve() error {
 				tcpConn.SetKeepAlivePeriod(3 * time.Minute)
 			}
 			go m.detectAndForward(conn)
-			continue
+
+			select {
+			case <-m.context.Done():
+				return trace.Wrap(m.Close())
+			default:
+				continue
+			}
 		}
 		if utils.IsUseOfClosedNetworkError(err) {
 			<-m.context.Done()
@@ -234,7 +267,7 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	connWrapper, err := m.detect(conn)
 	if err != nil {
 		if trace.Unwrap(err) != io.EOF {
-			m.Warning(trace.DebugReport(err))
+			m.logLimiter.Log(m.Entry, log.WarnLevel, trace.DebugReport(err))
 		}
 		conn.Close()
 		return
@@ -259,11 +292,16 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	listener.HandleConnection(m.context, connWrapper)
 }
 
-type PROXYSigner interface {
-	SignPROXY(p jwt.PROXYSignParams) (string, error)
+// JWTPROXYSigner provides ability to created JWT for signed PROXY headers.
+type JWTPROXYSigner interface {
+	SignPROXYJWT(p jwt.PROXYSignParams) (string, error)
 }
 
 func getTCPAddr(a net.Addr) net.TCPAddr {
+	if a == nil {
+		return net.TCPAddr{}
+	}
+
 	addr, ok := a.(*net.TCPAddr)
 	if ok { // Hot path
 		return *addr
@@ -276,17 +314,24 @@ func getTCPAddr(a net.Addr) net.TCPAddr {
 	}
 }
 
-func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer PROXYSigner) ([]byte, error) {
+func isDifferentTCPVersion(addr1, addr2 net.TCPAddr) bool {
+	return (addr1.IP.To4() != nil && addr2.IP.To4() == nil) || (addr2.IP.To4() != nil && addr1.IP.To4() == nil)
+}
+
+func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer JWTPROXYSigner) ([]byte, error) {
 	sAddr := getTCPAddr(sourceAddress)
 	dAddr := getTCPAddr(destinationAddress)
+	if sAddr.IP == nil || dAddr.IP == nil || isDifferentTCPVersion(sAddr, dAddr) {
+		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", sourceAddress, destinationAddress)
+	}
 	if sAddr.Port < 0 || dAddr.Port < 0 {
 		return nil, trace.BadParameter("could not parse port (source:%q, destination: %q)",
 			sourceAddress.String(), destinationAddress.String())
 	}
 
-	signature, err := signer.SignPROXY(jwt.PROXYSignParams{
-		SourceAddress:      sourceAddress.String(),
-		DestinationAddress: destinationAddress.String(),
+	signature, err := signer.SignPROXYJWT(jwt.PROXYSignParams{
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
 		ClusterName:        clusterName,
 	})
 	if err != nil {
@@ -315,12 +360,44 @@ func GetSignedPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterNam
 	return b, nil
 }
 
-// maxDetectionPasses sets Maximum amount of passes to detect final protocol to account
-// for 1 unsigned header, 1 signed header and the final protocol itself
-const maxDetectionPasses = 3
+// errorSubstrings includes all the error substrings that can be returned by `Mux.detect`.
+// These are used to deduplicate the errors returned by the multiplexer that occur
+// when detecting the type of a new connection just established.
+// This ensures that health checkers / malicious actors cannot pollute / overpower
+// the logs with warnings when such connections are invalid or unknown to the multiplexer.
+var errorSubstrings = []string{
+	failedToPeekConnectionError,
+	failedToDetectConnectionProtocolError,
+	proxyProtocolDisabledError,
+	externalProxyProtocolDisabledError,
+	duplicateProxyLineError,
+	duplicateSignedProxyLineError,
+	duplicateUnsignedProxyLineError,
+	invalidProxyLineError,
+	invalidProxyV2LineError,
+	invalidProxySignatureError,
+	unknownProtocolError,
+}
+
+const (
+	// maxDetectionPasses sets maximum amount of passes to detect final protocol to account
+	// for 1 unsigned header, 1 signed header and the final protocol itself
+	maxDetectionPasses = 3
+
+	failedToPeekConnectionError           = "failed to peek connection"
+	failedToDetectConnectionProtocolError = "failed to detect connection protocol"
+	proxyProtocolDisabledError            = "proxy protocol support is disabled"
+	externalProxyProtocolDisabledError    = "external proxy protocol support is disabled"
+	duplicateProxyLineError               = "duplicate proxy line"
+	duplicateSignedProxyLineError         = "duplicate signed proxy line"
+	duplicateUnsignedProxyLineError       = "duplicate unsigned proxy line"
+	invalidProxyLineError                 = "invalid proxy line"
+	invalidProxyV2LineError               = "invalid proxy v2 line"
+	invalidProxySignatureError            = "could not verify PROXY signature for connection"
+	unknownProtocolError                  = "unknown protocol"
+)
 
 // detect finds out a type of the connection and returns wrapper that support PROXY protocol
-// We pass `casGetter` as function instead of certs themselves, so it could be called only if it's needed.
 func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 	reader := bufio.NewReader(conn)
 
@@ -339,51 +416,72 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 		switch proto {
 		case ProtoProxy:
 			if !m.EnableExternalProxyProtocol {
-				return nil, trace.BadParameter("proxy protocol support is disabled")
+				return nil, trace.BadParameter(proxyProtocolDisabledError)
 			}
 			// We allow only one unsigned proxy line
 			if proxyLine != nil {
-				return nil, trace.BadParameter("duplicate proxy line")
+				return nil, trace.BadParameter(duplicateProxyLineError)
 			}
 			proxyLine, err = ReadProxyLine(reader)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(err, invalidProxyLineError)
 			}
 			// repeat the cycle to detect the protocol
 		case ProtoProxyV2:
 			newProxyLine, err := ReadProxyLineV2(reader)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(err, invalidProxyV2LineError)
+			}
+			if newProxyLine == nil {
+				continue
 			}
 
 			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
 			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
 				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
-				if err != nil && !errors.Is(err, ErrNonLocalCluster) {
-					return nil, trace.Wrap(err, "could not verify PROXY signature")
+				if errors.Is(err, ErrNoHostCA) {
+					m.WithFields(log.Fields{
+						"src_addr": conn.RemoteAddr(),
+						"dst_addr": conn.LocalAddr(),
+					}).Warnf("%s - could not get host CA", invalidProxySignatureError)
+					continue
 				}
+				// DELETE IN 14.0, early 12 versions could send PROXY headers to remote auth server
+				if errors.Is(err, ErrNonLocalCluster) {
+					m.WithFields(log.Fields{
+						"src_addr": conn.RemoteAddr(),
+						"dst_addr": conn.LocalAddr(),
+					}).Debugf("%s - signed by non local cluster", invalidProxySignatureError)
+					continue
+				}
+				if err != nil {
+					return nil, trace.Wrap(err, "%s %s -> %s", invalidProxySignatureError, conn.RemoteAddr(), conn.LocalAddr())
+				}
+				m.WithFields(log.Fields{
+					"conn_src_addr":   conn.RemoteAddr(),
+					"conn_dst_addr":   conn.LocalAddr(),
+					"client_src_addr": newProxyLine.Source.String(),
+				}).Tracef("Successfully verified signed PROXYv2 header")
 			}
 
 			// If proxy line is signed and successfully verified and there's no already signed proxy header,
 			// we accept, otherwise reject
 			if newProxyLine.IsVerified {
 				if proxyLine != nil && proxyLine.IsVerified {
-					return nil, trace.BadParameter("duplicate signed proxy line")
+					return nil, trace.BadParameter(duplicateSignedProxyLineError)
 				}
 
 				proxyLine = newProxyLine
 				continue
 			}
 
-			// TODO(anton): fail instead of ignoring when we add full propagation infrastructure.
-			// If proxy line was signed but was not successfully verified we ignore it
-			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
-				continue
+			if m.CertAuthorityGetter != nil && newProxyLine.IsSigned() && !newProxyLine.IsVerified {
+				return nil, trace.BadParameter("could not verify proxy line signature")
 			}
 
 			// This is unsigned proxy line, return error if external PROXY protocol is not enabled
 			if !m.EnableExternalProxyProtocol {
-				return nil, trace.BadParameter("external proxy protocol support is disabled")
+				return nil, trace.BadParameter(externalProxyProtocolDisabledError)
 			}
 
 			// If current proxy line was signed and verified, it takes precedence over new not signed proxy line
@@ -393,7 +491,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			// We allow only one unsigned proxy line
 			if proxyLine != nil {
-				return nil, trace.BadParameter("duplicate unsigned proxy line")
+				return nil, trace.BadParameter(duplicateUnsignedProxyLineError)
 			}
 
 			proxyLine = newProxyLine
@@ -413,8 +511,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 			}, nil
 		}
 	}
-	// if code ended here after two attempts, something is wrong
-	return nil, trace.BadParameter("unknown protocol")
+	// if code ended here after three attempts, something is wrong
+	return nil, trace.BadParameter(unknownProtocolError)
 }
 
 // Protocol defines detected protocol type.
@@ -456,10 +554,10 @@ func (p Protocol) String() string {
 
 var (
 	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
-	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
 	sshPrefix        = []byte{'S', 'S', 'H'}
 	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
+	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -513,21 +611,21 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 	// won't send more than 8 bytes at first
 	in, err := r.Peek(8)
 	if err != nil {
-		return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+		return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
 	}
 
 	switch {
 	case bytes.HasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
-	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
+	case bytes.HasPrefix(in, ProxyV2Prefix[:8]):
 		// if the first 8 bytes matches the first 8 bytes of the proxy
 		// protocol v2 magic bytes, read more of the connection so we can
 		// ensure all magic bytes match
-		in, err = r.Peek(len(proxyV2Prefix))
+		in, err = r.Peek(len(ProxyV2Prefix))
 		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
 		}
-		if bytes.HasPrefix(in, proxyV2Prefix) {
+		if bytes.HasPrefix(in, ProxyV2Prefix) {
 			return ProtoProxyV2, nil
 		}
 	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
@@ -535,7 +633,7 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		// Teleport to Teleport connections.
 		in, err = r.Peek(len(proxyHelloPrefix))
 		if err != nil {
-			return ProtoUnknown, trace.Wrap(err, "failed to peek connection")
+			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
 		}
 		if bytes.HasPrefix(in, proxyHelloPrefix) {
 			return ProtoSSH, nil
@@ -552,5 +650,49 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 		return ProtoPostgres, nil
 	}
 
-	return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
+	return ProtoUnknown, trace.BadParameter("%s, first few bytes were: %#v", failedToDetectConnectionProtocolError, in)
+}
+
+// PROXYHeaderSigner allows to sign PROXY headers for securely propagating original client IP information
+type PROXYHeaderSigner interface {
+	SignPROXYHeader(source, destination net.Addr) ([]byte, error)
+}
+
+// PROXYSigner implements PROXYHeaderSigner to sign PROXY headers
+type PROXYSigner struct {
+	signingCertDER []byte
+	clusterName    string
+	jwtSigner      JWTPROXYSigner
+}
+
+// NewPROXYSigner returns a new instance of PROXYSigner
+func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*PROXYSigner, error) {
+	identity, err := tlsca.FromSubject(signingCert.Subject, signingCert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ok := checkForSystemRole(identity, types.RoleProxy); !ok {
+		return nil, trace.Wrap(ErrIncorrectRole)
+	}
+
+	return &PROXYSigner{
+		signingCertDER: signingCert.Raw,
+		clusterName:    identity.TeleportCluster,
+		jwtSigner:      jwtSigner,
+	}, nil
+}
+
+// SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
+func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
+	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
+	if errors.Is(err, ErrBadIP) {
+		log.WithFields(log.Fields{
+			"src_addr":     fmt.Sprintf("%v", source),
+			"dst_addr":     fmt.Sprintf("%v", destination),
+			"cluster_name": p.clusterName}).Warn("Got bad IP while trying to sign PROXY header")
+		return nil, nil
+	}
+
+	return header, err
 }

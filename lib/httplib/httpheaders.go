@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // SetNoCacheHeaders tells proxies and browsers do not cache the content
@@ -29,6 +30,11 @@ func SetNoCacheHeaders(h http.Header) {
 	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	h.Set("Pragma", "no-cache")
 	h.Set("Expires", "0")
+}
+
+// SetCacheHeaders tells proxies and browsers to cache the content
+func SetCacheHeaders(h http.Header, maxAge time.Duration) {
+	h.Set("Cache-Control", fmt.Sprintf("max-age=%.f, immutable", maxAge.Seconds()))
 }
 
 // SetDefaultSecurityHeaders adds headers that should generally be considered safe defaults.  It is expected that all

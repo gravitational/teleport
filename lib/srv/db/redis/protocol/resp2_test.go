@@ -69,6 +69,11 @@ func TestWriteCmd(t *testing.T) {
 			expected: []byte("*2\r\n$9\r\ntest val1\r\n$10\r\ntest val 2\r\n"),
 		},
 		{
+			name:     "[]nil",
+			val:      []interface{}{nil},
+			expected: []byte("*1\r\n$-1\r\n"),
+		},
+		{
 			name:     "[]bool",
 			val:      []bool{true, false},
 			expected: []byte("*2\r\n$1\r\n1\r\n$1\r\n0\r\n"),
@@ -133,6 +138,7 @@ func TestReadWriteStatus(t *testing.T) {
 }
 
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
+	ctx := context.Background()
 	tests := []struct {
 		name          string
 		command       []interface{}
@@ -162,7 +168,7 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := redis.NewCmd(context.TODO(), test.command...)
+			cmd := redis.NewCmd(ctx, test.command...)
 			actualError := MakeUnknownCommandErrorForCmd(cmd)
 			require.Equal(t, test.expectedError, actualError)
 		})

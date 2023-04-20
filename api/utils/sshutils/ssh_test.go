@@ -37,9 +37,11 @@ func TestHostKeyCallback(t *testing.T) {
 	spoofedCert, err := MakeSpoofedHostCert(ca)
 	require.NoError(t, err)
 
-	hostKeyCallback, err := HostKeyCallback([][]byte{
-		[]byte(makeKnownHostsLine("127.0.0.1", ca.PublicKey())),
-	}, false)
+	knownHosts := [][]byte{[]byte(makeKnownHostsLine("127.0.0.1", ca.PublicKey()))}
+	trustedKeys, err := ParseKnownHosts(knownHosts)
+	require.NoError(t, err)
+
+	hostKeyCallback, err := HostKeyCallback(trustedKeys, false)
 	require.NoError(t, err)
 
 	err = hostKeyCallback("127.0.0.1:3022", nil, realCert.PublicKey())

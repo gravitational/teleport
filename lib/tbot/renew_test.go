@@ -148,8 +148,8 @@ func TestDatabaseRequest(t *testing.T) {
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
 	b._ident = ident
 
-	impersonatedIdent, err := b.generateImpersonatedIdentity(
-		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
+	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+		context.Background(), dest, []string{roleName},
 	)
 	require.NoError(t, err)
 
@@ -225,8 +225,8 @@ func TestAppRequest(t *testing.T) {
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
 	b._ident = ident
 
-	impersonatedIdent, err := b.generateImpersonatedIdentity(
-		ctx, ident.X509Cert.NotAfter, dest, []string{roleName},
+	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+		ctx, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 

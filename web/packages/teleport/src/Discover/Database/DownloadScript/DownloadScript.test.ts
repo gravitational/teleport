@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { matchLabels } from './DownloadScript';
+import { hasMatchingLabels } from './DownloadScript';
 
 const dbLabels = [
   { name: 'os', value: 'mac' },
@@ -22,27 +22,93 @@ const dbLabels = [
   { name: 'tag', value: 'v11.0.0' },
 ];
 
-const agentLabels = [
-  { name: 'a', value: 'b' },
-  { name: 'aa', value: 'bb' },
-  { name: 'tag', value: 'v11.0.0' }, // match
-  { name: 'aaa', value: 'bbb' },
+const testCases = [
+  {
+    name: 'match with exact values',
+    dbLabels: dbLabels,
+    agentLabels: [
+      { name: 'tag', value: 'v11.0.0' }, // match
+      { name: 'os', value: 'linux' },
+      { name: 'os', value: 'windows' },
+      { name: 'env', value: 'prod' }, // match
+      { name: 'env', value: 'dev' },
+      { name: 'os', value: 'mac' }, // match
+      { name: 'tag', value: 'v12.0.0' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'match by all asteriks',
+    dbLabels: dbLabels,
+    agentLabels: [
+      { name: 'fruit', value: 'apple' },
+      { name: '*', value: '*' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'match by all asteriks, with no dbLabels defined',
+    dbLabels: [],
+    agentLabels: [
+      { name: 'fruit', value: 'apple' },
+      { name: '*', value: '*' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'match by key asteriks',
+    dbLabels: dbLabels,
+    agentLabels: [
+      { name: 'os', value: '*' },
+      { name: 'env', value: '*' },
+      { name: 'tag', value: '*' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'match by value asteriks',
+    dbLabels: dbLabels,
+    agentLabels: [
+      { name: '*', value: 'prod' },
+      { name: '*', value: 'mac' },
+      { name: '*', value: 'v11.0.0' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'match by asteriks and exacts',
+    dbLabels: dbLabels,
+    agentLabels: [
+      { name: 'os', value: 'windows' },
+      { name: '*', value: 'prod' },
+      { name: 'os', value: '*' },
+      { name: 'tag', value: 'v11.0.0' },
+      { name: 'tag', value: 'v12.0.0' },
+      { name: '*', value: 'banana' },
+    ],
+    expectedMatch: true,
+  },
+  {
+    name: 'no match despite having all matching labels',
+    dbLabels: dbLabels,
+    agentLabels: [
+      ...dbLabels,
+      { name: 'fruit', value: 'banana' }, // the culprit
+    ],
+  },
+  {
+    name: 'no matches',
+    dbLabels: dbLabels,
+    agentLabels: [{ name: 'fruit', value: 'banana' }],
+  },
+  {
+    name: 'no matches with empty agentLabels list',
+    dbLabels: dbLabels,
+    agentLabels: [],
+  },
 ];
 
-describe('matchLabels', () => {
-  test.each`
-    desc                            | agentLabels                           | expected
-    ${'match with multi elements'}  | ${agentLabels}                        | ${true}
-    ${'match by both fields'}       | ${[{ name: 'os', value: 'mac' }]}     | ${true}
-    ${'match by asteriks'}          | ${[{ name: '*', value: '*' }]}        | ${true}
-    ${'match by value'}             | ${[{ name: '*', value: 'mac' }]}      | ${true}
-    ${'match by key'}               | ${[{ name: 'os', value: '*' }]}       | ${true}
-    ${'no match'}                   | ${[{ name: 'os', value: 'windows' }]} | ${false}
-    ${'no match with any key'}      | ${[{ name: '*', value: 'windows' }]}  | ${false}
-    ${'no match with any val'}      | ${[{ name: 'id', value: '*' }]}       | ${false}
-    ${'no match with empty list'}   | ${[]}                                 | ${false}
-    ${'no match with empty fields'} | ${[{ name: '', value: '' }]}          | ${false}
-  `('$desc', ({ agentLabels, expected }) => {
-    expect(matchLabels(dbLabels, agentLabels)).toEqual(expected);
-  });
+test.each(testCases)('$name', ({ dbLabels, agentLabels, expectedMatch }) => {
+  const match = hasMatchingLabels(dbLabels, agentLabels);
+  expect(match).toEqual(Boolean(expectedMatch));
 });

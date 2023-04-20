@@ -162,3 +162,93 @@ destinations:
       - ssh_client:
           proxy_port: 1234
 `
+
+func TestStorageConfigFromCLIConf(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    *StorageConfig
+		wantErr bool
+	}{
+		{
+			in: "/absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "relative/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "relative/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "./relative/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "./relative/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "file:///absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "file:/absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in:      "file://host/absolute/dir",
+			wantErr: true,
+		},
+		{
+			in: "memory://",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Memory: &DestinationMemory{},
+				},
+			},
+		},
+		{
+			in:      "memory://foo/bar",
+			wantErr: true,
+		},
+		{
+			in:      "foobar://",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, err := storageConfigFromCLIConf(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

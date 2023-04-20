@@ -74,8 +74,17 @@ func TestForwarder_getToken(t *testing.T) {
 						}
 					}
 
+					// advance time by getTokenTimeout
 					clock.Advance(getTokenTimeout)
+
+					// after the test is done unblock the sleep() below.
+					t.Cleanup(func() {
+						clock.Advance(getTokenTimeout * 2)
+					})
+
+					// block for 2*getTokenTimeout; this call won't return before Cleanup() phase.
 					clock.Sleep(getTokenTimeout * 2)
+
 					return &azcore.AccessToken{Token: "foobar"}, nil
 				},
 			},

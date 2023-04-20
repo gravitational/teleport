@@ -79,6 +79,11 @@ type wrappedConn struct {
 	release func()
 }
 
+// NetConn return the underlying net.Conn.
+func (w *wrappedConn) NetConn() net.Conn {
+	return w.Conn
+}
+
 // Close releases the connection from the limiter and closes the
 // underlying [net.Conn].
 func (w *wrappedConn) Close() error {

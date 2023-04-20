@@ -14,6 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// generateResourcePath constructs the agent endpoint URL using `encodeURIComponent`.
+// react-router's `generatePath` uses `encodeURI` which does not encode the entire string.
+
 export default function generateResourcePath(
   path: string,
   params?: {

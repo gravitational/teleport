@@ -16,11 +16,11 @@ limitations under the License.
 
 import { useEffect, useState } from 'react';
 
-import {
-  decodeUrlQueryParam,
-  ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
-import encodeUrlQueryParams from 'teleport/encodeUrlQueryParams';
+import { AgentFilter } from 'teleport/services/agents';
+
+import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
+
+import type { PageIndicators } from '../hooks/useServersidePagination';
 
 export default function useServersideSearchPanel(props: Props) {
   const { pathname, params, setParams, replaceHistory } = props;
@@ -86,14 +86,22 @@ export default function useServersideSearchPanel(props: Props) {
   };
 }
 
+function decodeUrlQueryParam(param: string) {
+  // Prevents URI malformed error by replacing lone % with %25
+  const decodedQuery = decodeURIComponent(
+    param.replace(/%(?![0-9][0-9a-fA-F]+)/g, '%25')
+  );
+
+  return decodedQuery;
+}
+
 export type Props = {
   pathname: string;
   replaceHistory: (path: string) => void;
-  params: ResourceUrlQueryParams;
-  setParams: (params: ResourceUrlQueryParams) => void;
-  from: number;
-  to: number;
-  count: number;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
+  pageIndicators: PageIndicators;
+  disabled?: boolean;
 };
 
 export type State = ReturnType<typeof useServersideSearchPanel>;

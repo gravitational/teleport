@@ -26,6 +26,8 @@ import (
 // If the header is missing, the request is passed through.
 // If it is present, the middleware checks it is a bearer token with value matching the secret.
 type AuthorizationCheckerMiddleware struct {
+	DefaultLocalProxyHTTPMiddleware
+
 	// Log is the Logger.
 	Log logrus.FieldLogger
 	// Secret is the expected value of a bearer token.

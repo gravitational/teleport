@@ -196,3 +196,199 @@ func TestRoles(t *testing.T) {
 		})
 	})
 }
+
+func TestValidateRoleARNAndExtractRoleName(t *testing.T) {
+	tests := []struct {
+		name           string
+		inputARN       string
+		inputPartition string
+		inputAccountID string
+		wantRoleName   string
+		wantError      bool
+	}{
+		{
+			name:           "success",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantRoleName:   "role-name",
+		},
+		{
+			name:           "invalid arn",
+			inputARN:       "arn::::aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+		{
+			name:           "invalid partition",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws-cn",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+		{
+			name:           "invalid account ID",
+			inputARN:       "arn:aws:iam::123456789012:role/role-name",
+			inputPartition: "aws",
+			inputAccountID: "123456789000",
+			wantError:      true,
+		},
+		{
+			name:           "not role arn",
+			inputARN:       "arn:aws:iam::123456789012:user/username",
+			inputPartition: "aws",
+			inputAccountID: "123456789012",
+			wantError:      true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualRoleName, err := ValidateRoleARNAndExtractRoleName(test.inputARN, test.inputPartition, test.inputAccountID)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantRoleName, actualRoleName)
+			}
+		})
+	}
+}
+
+func TestParseRoleARN(t *testing.T) {
+	tests := map[string]struct {
+		arn             string
+		wantErrContains string
+	}{
+		"valid role arn": {
+			arn: "arn:aws:iam::123456789012:role/test-role",
+		},
+		"valid sso role arn": {
+			arn: "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_AWSPowerUserAccess_xxxxxxxxx",
+		},
+		"valid service role arn": {
+			arn: "arn:aws:iam::123456789012:role/aws-service-role/redshift.amazonaws.com/AWSServiceRoleForRedshift",
+		},
+		"arn fails to parse": {
+			arn:             "foobar",
+			wantErrContains: "invalid AWS ARN",
+		},
+		"sts arn is not iam": {
+			arn:             "arn:aws:sts::123456789012:federated-user/Alice",
+			wantErrContains: "not an AWS IAM role",
+		},
+		"iam arn is not a role": {
+			arn:             "arn:aws:iam::123456789012:user/test-user",
+			wantErrContains: "not an AWS IAM role",
+		},
+		"iam role arn is missing role name": {
+			arn:             "arn:aws:iam::123456789012:role",
+			wantErrContains: "missing AWS IAM role name",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := ParseRoleARN(tt.arn)
+			if tt.wantErrContains != "" {
+				require.Error(t, err, err.Error())
+				require.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, got)
+		})
+	}
+}
+
+func TestBuildRoleARN(t *testing.T) {
+	tests := map[string]struct {
+		user            string
+		region          string
+		accountID       string
+		wantErrContains string
+		wantARN         string
+	}{
+		"valid role arn in correct partition and account": {
+			user:      "arn:aws:iam::123456789012:role/test-role",
+			region:    "us-west-1",
+			accountID: "123456789012",
+			wantARN:   "arn:aws:iam::123456789012:role/test-role",
+		},
+		"valid role arn in correct account and default partition": {
+			user:      "arn:aws:iam::123456789012:role/test-role",
+			region:    "",
+			accountID: "123456789012",
+			wantARN:   "arn:aws:iam::123456789012:role/test-role",
+		},
+		"valid role arn in default partition and account": {
+			user:      "arn:aws:iam::123456789012:role/test-role",
+			region:    "",
+			accountID: "",
+			wantARN:   "arn:aws:iam::123456789012:role/test-role",
+		},
+		"role name with prefix in default partition and account": {
+			user:      "role/test-role",
+			region:    "",
+			accountID: "123456789012",
+			wantARN:   "arn:aws:iam::123456789012:role/test-role",
+		},
+		"role name in default partition and account": {
+			user:      "test-role",
+			region:    "",
+			accountID: "123456789012",
+			wantARN:   "arn:aws:iam::123456789012:role/test-role",
+		},
+		"role name in china partition and account": {
+			user:      "test-role",
+			region:    "cn-north-1",
+			accountID: "123456789012",
+			wantARN:   "arn:aws-cn:iam::123456789012:role/test-role",
+		},
+		"valid ARN is not an IAM role ARN": {
+			user:            "arn:aws:iam::123456789012:user/test-user",
+			region:          "",
+			accountID:       "",
+			wantErrContains: "not an AWS IAM role",
+		},
+		"valid role arn in different partition": {
+			user:            "arn:aws-cn:iam::123456789012:role/test-role",
+			region:          "us-west-1",
+			accountID:       "",
+			wantErrContains: `expected AWS partition "aws" but got "aws-cn"`,
+		},
+		"valid role arn in different account": {
+			user:            "arn:aws:iam::123456789012:role/test-role",
+			region:          "us-west-1",
+			accountID:       "111222333444",
+			wantErrContains: `expected AWS account ID "111222333444" but got "123456789012"`,
+		},
+		"role name with invalid account characters": {
+			user:            "test-role",
+			region:          "",
+			accountID:       "12345678901f",
+			wantErrContains: "must be 12-digit",
+		},
+		"role name with invalid account id length": {
+			user:            "test-role",
+			region:          "",
+			accountID:       "1234567890123",
+			wantErrContains: "must be 12-digit",
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := BuildRoleARN(tt.user, tt.region, tt.accountID)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			require.NotEmpty(t, got)
+			require.Equal(t, tt.wantARN, got)
+		})
+	}
+}

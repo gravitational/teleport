@@ -37,6 +37,10 @@ export interface Session {
   //  - desktop: is referring to the desktop
   //  - app: is referring to the app
   resourceName: string;
+  // participantModes are the participant modes that are available to the user listing this session.
+  participantModes: ParticipantMode[];
+  // whether this session requires moderation or not. this is NOT if the session is currently being actively moderated
+  moderated: boolean;
 }
 
 export type SessionMetadata = {
@@ -62,6 +66,8 @@ export type SessionMetadata = {
   app_name: string;
   resourceName: string;
 };
+
+export type ParticipantMode = 'observer' | 'moderator' | 'peer';
 
 export type ParticipantList = Record<string, Participant[]>;
 

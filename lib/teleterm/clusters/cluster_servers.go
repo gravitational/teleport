@@ -21,12 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -38,48 +39,25 @@ type Server struct {
 	types.Server
 }
 
-// GetAllServers returns a full list of servers without pagination or sorting.
-func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
-	var clusterServers []types.Server
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := []Server{}
-	for _, server := range clusterServers {
-		results = append(results, Server{
-			URI:    c.URI.AppendServer(server.GetName()),
-			Server: server,
-		})
-	}
-
-	return results, nil
-}
-
 // GetServers returns a paginated list of servers.
 func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*GetServersResponse, error) {
 	var (
-		resp        *types.ListResourcesResponse
+		page        apiclient.ResourcePage[types.Server]
 		authClient  auth.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 	)
+
+	req := &proto.ListResourcesRequest{
+		Namespace:           defaults.Namespace,
+		ResourceType:        types.KindNode,
+		Limit:               r.Limit,
+		SortBy:              types.GetSortByFromString(r.SortBy),
+		StartKey:            r.StartKey,
+		PredicateExpression: r.Query,
+		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+		UseSearchAsRoles:    r.SearchAsRoles == "yes",
+	}
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
@@ -93,18 +71,8 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
-		sortBy := types.GetSortByFromString(r.SortBy)
 
-		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:           defaults.Namespace,
-			ResourceType:        types.KindNode,
-			Limit:               r.Limit,
-			SortBy:              sortBy,
-			StartKey:            r.StartKey,
-			PredicateExpression: r.Query,
-			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-			UseSearchAsRoles:    r.SearchAsRoles == "yes",
-		})
+		page, err = apiclient.GetResourcePage[types.Server](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -115,13 +83,8 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 		return nil, trace.Wrap(err)
 	}
 
-	clusterServers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := []Server{}
-	for _, server := range clusterServers {
+	results := make([]Server, 0, len(page.Resources))
+	for _, server := range page.Resources {
 		results = append(results, Server{
 			URI:    c.URI.AppendServer(server.GetName()),
 			Server: server,
@@ -130,8 +93,8 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 
 	return &GetServersResponse{
 		Servers:    results,
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 

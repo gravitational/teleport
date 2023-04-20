@@ -109,7 +109,12 @@ func (t *TemplateTLS) Describe(destination bot.Destination) []FileDescription {
 	}
 }
 
-func (t *TemplateTLS) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateTLS) Render(
+	ctx context.Context,
+	bot Bot,
+	currentIdentity, _ *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -137,7 +142,7 @@ func (t *TemplateTLS) Render(ctx context.Context, bot Bot, currentIdentity *iden
 		OverwriteDestination: true,
 	}
 
-	files, err := identityfile.Write(cfg)
+	files, err := identityfile.Write(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

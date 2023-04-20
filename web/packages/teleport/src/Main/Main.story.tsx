@@ -32,8 +32,6 @@ import { databases } from 'teleport/Databases/fixtures';
 import { kubes } from 'teleport/Kubes/fixtures';
 import { desktops } from 'teleport/Desktops/fixtures';
 
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
 import { userContext } from './fixtures';
 import { Main } from './Main';
 
@@ -54,7 +52,6 @@ function createTeleportContext() {
   ctx.desktopService.fetchDesktops = () =>
     Promise.resolve({ agents: desktops });
   ctx.storeUser.setState(userContext);
-  getOSSFeatures().forEach(f => f.register(ctx));
 
   return ctx;
 }
@@ -68,11 +65,9 @@ export function OSS() {
   return (
     <Flex my={-3} mx={-4}>
       <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
-          <Router history={history}>
-            <Main customBanners={[]} />
-          </Router>
-        </FeaturesContextProvider>
+        <Router history={history}>
+          <Main features={getOSSFeatures()} />
+        </Router>
       </ContextProvider>
     </Flex>
   );

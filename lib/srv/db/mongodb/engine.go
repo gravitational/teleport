@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -163,7 +162,7 @@ func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Ses
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
 		state,
-		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -196,7 +195,8 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 			services.AccessState{MFAVerified: true},
-			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
+			services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+		)
 	}
 	// Do not allow certain commands that deal with authentication.
 	command, err := message.GetCommand()
@@ -211,7 +211,7 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
 		services.AccessState{MFAVerified: true},
 		role.DatabaseRoleMatchers(
-			defaults.ProtocolMongoDB,
+			sessionCtx.Database,
 			sessionCtx.DatabaseUser,
 			database)...)
 }

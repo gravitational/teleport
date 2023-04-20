@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	toolcommon "github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/tctl/common"
@@ -63,27 +63,27 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	tests := []struct {
 		name string
 		ccf  *common.GlobalCLIFlags
-		cfg  *service.Config
+		cfg  *servicecfg.Config
 		want error
 	}{
 		{
 			name: "teleportHome is valid dir",
 			ccf:  &common.GlobalCLIFlags{},
-			cfg: &service.Config{
+			cfg: &servicecfg.Config{
 				TeleportHome: tmpHomePath,
 			},
 			want: nil,
 		}, {
 			name: "teleportHome is nonexistent dir",
 			ccf:  &common.GlobalCLIFlags{},
-			cfg: &service.Config{
+			cfg: &servicecfg.Config{
 				TeleportHome: "some/dir/that/does/not/exist",
 			},
 			want: trace.NotFound("profile is not found"),
 		}, {
 			name: "teleportHome is not specified",
 			ccf:  &common.GlobalCLIFlags{},
-			cfg:  &service.Config{},
+			cfg:  &servicecfg.Config{},
 			want: trace.NotFound("profile is not found"),
 		},
 	}
@@ -225,7 +225,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 			ccf := &common.GlobalCLIFlags{}
 			ccf.AuthServerAddr = tt.authServerFlag
 
-			cfg := &service.Config{}
+			cfg := &servicecfg.Config{}
 			cfg.TeleportHome = tmpHomePath
 			// this is needed for the case where the --auth-server=host is not found in profile.
 			// ApplyConfig will try to read local auth server identity if the profile is not found.

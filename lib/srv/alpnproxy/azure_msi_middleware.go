@@ -32,6 +32,8 @@ import (
 
 // AzureMSIMiddleware implements a simplified version of MSI server serving auth tokens.
 type AzureMSIMiddleware struct {
+	DefaultLocalProxyHTTPMiddleware
+
 	// Identity is the Azure identity to be served by the server. Only single identity will be provided.
 	Identity string
 	// TenantID to be returned in a claim. Doesn't have to match actual TenantID as recognized by Azure.

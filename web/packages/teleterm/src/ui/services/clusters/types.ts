@@ -19,21 +19,9 @@ import * as shared from 'shared/services/types';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 
-export type SyncStatus = {
-  status: 'processing' | 'ready' | 'failed' | '';
-  statusText?: string;
-};
-
-export type KindTsh = 'tsh.cluster' | 'tsh.server' | 'tsh.app' | 'tsh.db';
-
 export type PreferredMfaType = shared.PreferredMfaType;
-
 export type Auth2faType = shared.Auth2faType;
-
 export type AuthProviderType = shared.AuthProviderType;
-
-export type PrimaryAuthType = shared.PrimaryAuthType;
-
 export type AuthType = shared.AuthType;
 
 export type AuthProvider = tsh.AuthProvider;
@@ -51,20 +39,6 @@ export type LoginParams =
   | LoginPasswordlessParams
   | LoginSsoParams;
 
-export type Application = tsh.Application;
-
-export type CreateGatewayParams = tsh.CreateGatewayParams;
-
-export type GatewayProtocol = tsh.GatewayProtocol;
-
-export type Gateway = tsh.Gateway;
-
-export type Server = tsh.Server;
-
-export type Kube = tsh.Kube;
-
-export type Database = tsh.Database;
-
 export type LoginPasswordlessRequest = tsh.LoginPasswordlessRequest;
 
 export type WebauthnLoginPrompt = tsh.WebauthnLoginPrompt;
@@ -77,15 +51,7 @@ export interface AuthSettings extends tsh.AuthSettings {
   localConnectorName: string;
 }
 
-export { tsh };
-
 export type ClustersServiceState = {
   clusters: Map<uri.ClusterUri, tsh.Cluster>;
   gateways: Map<uri.GatewayUri, tsh.Gateway>;
-  servers: Map<uri.ServerUri, tsh.Server>;
-  kubes: Map<uri.KubeUri, tsh.Kube>;
-  dbs: Map<uri.DatabaseUri, tsh.Database>;
-  kubesSyncStatus: Map<uri.ClusterUri, SyncStatus>;
-  serversSyncStatus: Map<uri.ClusterUri, SyncStatus>;
-  dbsSyncStatus: Map<uri.ClusterUri, SyncStatus>;
 };

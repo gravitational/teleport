@@ -22,9 +22,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -40,10 +38,9 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -82,7 +79,7 @@ type GlobalCLIFlags struct {
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *service.Config)
+	Initialize(*kingpin.Application, *servicecfg.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -96,7 +93,7 @@ type CLICommand interface {
 func Run(commands []CLICommand) {
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
-		var exitError *toolcommon.ExitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.Code)
 		}
@@ -114,7 +111,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
@@ -169,6 +166,13 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, an auth server address must be passed on the command line
+	// as well.
+	if ccf.IdentityFilePath != "" && len(ccf.AuthServerAddr) == 0 {
+		return trace.BadParameter("tctl --identity also requires --auth-server")
+	}
+
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()
@@ -186,10 +190,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := signal.NotifyContext(
-		context.Background(), syscall.SIGTERM, syscall.SIGINT,
-	)
-	defer cancel()
+	ctx := context.Background()
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {
@@ -199,7 +200,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServerAddresses()[0].Addr)
-		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
+		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
 	// execute whatever is selected:
@@ -223,11 +224,11 @@ func TryRun(commands []CLICommand, args []string) error {
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
-// to 'service.Config' object.
+// to 'servicecfg.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -338,7 +339,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, 
 }
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]

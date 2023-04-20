@@ -29,14 +29,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SSOTestCommand implements common.CLICommand interface
 type SSOTestCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	ssoTestCmd *kingpin.CmdClause
 
@@ -53,7 +53,7 @@ type SSOTestCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
+func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")

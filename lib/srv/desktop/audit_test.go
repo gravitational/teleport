@@ -60,7 +60,7 @@ func setup() (*WindowsService, *tlsca.Identity, *eventstest.MockEmitter) {
 		Username:     "foo",
 		Impersonator: "bar",
 		MFAVerified:  "mfa-id",
-		ClientIP:     "127.0.0.1",
+		LoginIP:      "127.0.0.1",
 	}
 
 	return s, id, emitter
@@ -97,7 +97,7 @@ func TestSessionStartEvent(t *testing.T) {
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -310,7 +310,7 @@ func TestDesktopSharedDirectoryStartEvent(t *testing.T) {
 					WithMFA:   id.MFAVerified,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
-					LocalAddr:  id.ClientIP,
+					LocalAddr:  id.LoginIP,
 					RemoteAddr: desktopAddr,
 					Protocol:   libevents.EventProtocolTDP,
 				},
@@ -488,7 +488,7 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 					WithMFA:   id.MFAVerified,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
-					LocalAddr:  id.ClientIP,
+					LocalAddr:  id.LoginIP,
 					RemoteAddr: desktopAddr,
 					Protocol:   libevents.EventProtocolTDP,
 				},
@@ -661,7 +661,7 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 					WithMFA:   id.MFAVerified,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
-					LocalAddr:  id.ClientIP,
+					LocalAddr:  id.LoginIP,
 					RemoteAddr: desktopAddr,
 					Protocol:   libevents.EventProtocolTDP,
 				},
@@ -737,7 +737,7 @@ func TestDesktopSharedDirectoryStartEventAuditCacheMax(t *testing.T) {
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -825,7 +825,7 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -916,7 +916,7 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},

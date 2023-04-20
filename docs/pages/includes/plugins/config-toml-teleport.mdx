@@ -1,0 +1,26 @@
+<Tabs>
+<TabItem label="Executable">
+
+**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud tenant (e.g., `teleport.example.com:443` or
+`mytenant.teleport.sh:443`).
+
+**`identity`**: Fill this in with the path to the identity file you exported
+earlier.
+
+**`client_key`**, **`client_crt`**, **`root_cas`**: Comment these out, since we
+are not using them in this configuration.
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+**`address`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud tenant (e.g., `teleport.example.com:443` or
+`mytenant.teleport.sh:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+</TabItem>
+</Tabs>
+

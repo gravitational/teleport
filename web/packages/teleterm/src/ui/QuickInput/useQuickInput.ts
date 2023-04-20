@@ -29,13 +29,18 @@ import {
   Suggestion,
 } from 'teleterm/ui/services/quickInput/types';
 import { routing } from 'teleterm/ui/uri';
-import { KeyboardShortcutType } from 'teleterm/services/config';
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
 export default function useQuickInput() {
   const appContext = useAppContext();
-  const { quickInputService, workspacesService, commandLauncher } = appContext;
+  const {
+    quickInputService,
+    workspacesService,
+    commandLauncher,
+    usageService,
+  } = appContext;
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
@@ -62,19 +67,20 @@ export default function useQuickInput() {
       const [, err] = await getSuggestions();
       if (err && !(err instanceof CanceledError)) {
         appContext.notificationsService.notifyError({
-          title: 'Error fetching suggestions',
+          title: 'Could not fetch command bar suggestions',
           description: err.message,
         });
       }
     }
+
     get();
   }, [parseResult]);
 
   const hasSuggestions =
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
-  const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
-  const { getShortcut } = useKeyboardShortcutFormatters();
+  const openSearchBarShortcutAction: KeyboardShortcutAction = 'openSearchBar';
+  const { getAccelerator } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -104,6 +110,14 @@ export default function useQuickInput() {
         const params = routing.parseClusterUri(
           workspacesService.getActiveWorkspace()?.localClusterUri
         ).params;
+        // ugly hack but QuickInput will be removed in v13
+        if (inputValue.startsWith('tsh proxy db')) {
+          usageService.captureProtocolUse(
+            workspacesService.getRootClusterUri(),
+            'db',
+            'search_bar'
+          );
+        }
         documentsService.openNewTerminal({
           initCommand: inputValue,
           rootClusterId: routing.parseClusterUri(
@@ -119,6 +133,7 @@ export default function useQuickInput() {
         commandLauncher.executeCommand('tsh-ssh', {
           loginHost: command.loginHost,
           localClusterUri,
+          origin: 'search_bar',
         });
         break;
       }
@@ -162,7 +177,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    [openQuickInputShortcutKey]: () => {
+    [openSearchBarShortcutAction]: () => {
       quickInputService.show();
     },
   });
@@ -193,7 +208,7 @@ export default function useQuickInput() {
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getShortcut(openQuickInputShortcutKey),
+    keyboardShortcut: getAccelerator(openSearchBarShortcutAction),
   };
 }
 

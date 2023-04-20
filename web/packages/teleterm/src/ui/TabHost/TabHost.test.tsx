@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { fireEvent, render, screen } from 'design/utils/testing';
 import React from 'react';
 
@@ -19,6 +35,15 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import AppContext from 'teleterm/ui/appContext';
 
 import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
+
+// TODO(ravicious): Remove the mock once a separate entry point for e-teleterm is created.
+//
+// Mocking out DocumentsRenderer because it imports an e-teleterm component which breaks CI tests
+// for the OSS version. The tests here don't test the behavior of DocumentsRenderer so the only
+// thing we lose by adding the mock is "smoke tests" of different document kinds.
+jest.mock('teleterm/ui/Documents/DocumentsRenderer', () => ({
+  DocumentsRenderer: ({ children }) => <>{children}</>,
+}));
 
 function getMockDocuments(): Document[] {
   return [
@@ -42,12 +67,12 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     // @ts-expect-error we don't provide entire config
     getShortcutsConfig() {
       return {
-        'tab-close': 'Command-W',
-        'tab-new': 'Command-T',
-        'open-quick-input': 'Command-K',
-        'toggle-connections': 'Command-P',
-        'toggle-clusters': 'Command-E',
-        'toggle-identity': 'Command-I',
+        closeTab: 'Command-W',
+        newTab: 'Command-T',
+        openSearchBar: 'Command-K',
+        openConnections: 'Command-P',
+        openClusters: 'Command-E',
+        openProfiles: 'Command-I',
       };
     },
   };

@@ -148,9 +148,143 @@ func (m *RegisterUsingIAMMethodResponse) GetCerts() *Certs {
 	return nil
 }
 
+// RegisterUsingAzureMethodRequest is the request for registration via the Azure
+// join method.
+type RegisterUsingAzureMethodRequest struct {
+	// RegisterUsingTokenRequest holds registration parameters common to all
+	// join methods.
+	RegisterUsingTokenRequest *types.RegisterUsingTokenRequest `protobuf:"bytes,1,opt,name=register_using_token_request,json=registerUsingTokenRequest,proto3" json:"register_using_token_request,omitempty"`
+	// AttestedData is a signed JSON document from an Azure VM's attested data
+	// metadata endpoint used to prove the identity of a joining node. It must
+	// include the challenge string as the nonce.
+	AttestedData []byte `protobuf:"bytes,2,opt,name=attested_data,json=attestedData,proto3" json:"attested_data,omitempty"`
+	// AccessToken is a JWT signed by Azure, used to prove the identity of a
+	// joining node.
+	AccessToken          string   `protobuf:"bytes,3,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingAzureMethodRequest) Reset()         { *m = RegisterUsingAzureMethodRequest{} }
+func (m *RegisterUsingAzureMethodRequest) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingAzureMethodRequest) ProtoMessage()    {}
+func (*RegisterUsingAzureMethodRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{2}
+}
+func (m *RegisterUsingAzureMethodRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingAzureMethodRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingAzureMethodRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingAzureMethodRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingAzureMethodRequest.Merge(m, src)
+}
+func (m *RegisterUsingAzureMethodRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingAzureMethodRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingAzureMethodRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingAzureMethodRequest proto.InternalMessageInfo
+
+func (m *RegisterUsingAzureMethodRequest) GetRegisterUsingTokenRequest() *types.RegisterUsingTokenRequest {
+	if m != nil {
+		return m.RegisterUsingTokenRequest
+	}
+	return nil
+}
+
+func (m *RegisterUsingAzureMethodRequest) GetAttestedData() []byte {
+	if m != nil {
+		return m.AttestedData
+	}
+	return nil
+}
+
+func (m *RegisterUsingAzureMethodRequest) GetAccessToken() string {
+	if m != nil {
+		return m.AccessToken
+	}
+	return ""
+}
+
+// RegisterUsingAzureMethodResponse is a stream response and will contain either
+// a Challenge or signed Certs to join the cluster.
+type RegisterUsingAzureMethodResponse struct {
+	// Challenge is a crypto-random string that should be included in the signed
+	// attested data.
+	Challenge string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
+	// Certs is the returned signed certs.
+	Certs                *Certs   `protobuf:"bytes,2,opt,name=certs,proto3" json:"certs,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *RegisterUsingAzureMethodResponse) Reset()         { *m = RegisterUsingAzureMethodResponse{} }
+func (m *RegisterUsingAzureMethodResponse) String() string { return proto.CompactTextString(m) }
+func (*RegisterUsingAzureMethodResponse) ProtoMessage()    {}
+func (*RegisterUsingAzureMethodResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d7e760ce923b836e, []int{3}
+}
+func (m *RegisterUsingAzureMethodResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *RegisterUsingAzureMethodResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_RegisterUsingAzureMethodResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *RegisterUsingAzureMethodResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_RegisterUsingAzureMethodResponse.Merge(m, src)
+}
+func (m *RegisterUsingAzureMethodResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *RegisterUsingAzureMethodResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_RegisterUsingAzureMethodResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_RegisterUsingAzureMethodResponse proto.InternalMessageInfo
+
+func (m *RegisterUsingAzureMethodResponse) GetChallenge() string {
+	if m != nil {
+		return m.Challenge
+	}
+	return ""
+}
+
+func (m *RegisterUsingAzureMethodResponse) GetCerts() *Certs {
+	if m != nil {
+		return m.Certs
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*RegisterUsingIAMMethodRequest)(nil), "proto.RegisterUsingIAMMethodRequest")
 	proto.RegisterType((*RegisterUsingIAMMethodResponse)(nil), "proto.RegisterUsingIAMMethodResponse")
+	proto.RegisterType((*RegisterUsingAzureMethodRequest)(nil), "proto.RegisterUsingAzureMethodRequest")
+	proto.RegisterType((*RegisterUsingAzureMethodResponse)(nil), "proto.RegisterUsingAzureMethodResponse")
 }
 
 func init() {
@@ -158,28 +292,34 @@ func init() {
 }
 
 var fileDescriptor_d7e760ce923b836e = []byte{
-	// 330 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x52, 0xcd, 0x4a, 0xc3, 0x40,
-	0x10, 0x66, 0x85, 0x0a, 0xdd, 0xf6, 0xb4, 0x88, 0x68, 0xa9, 0xa1, 0x16, 0x85, 0x9c, 0x92, 0x12,
-	0x5f, 0xc0, 0x9f, 0x53, 0x85, 0x5e, 0xa2, 0x5e, 0xbc, 0x84, 0x6d, 0x3a, 0xa4, 0xa3, 0x71, 0x37,
-	0xee, 0x4e, 0x8b, 0x7d, 0x2f, 0x1f, 0xc2, 0xa3, 0x8f, 0x20, 0x7d, 0x12, 0xe9, 0x6e, 0xa8, 0x54,
-	0x6c, 0xbd, 0xec, 0xc0, 0x7c, 0x3f, 0x33, 0x7c, 0xb3, 0x3c, 0x22, 0x28, 0xa1, 0xd2, 0x86, 0xe2,
-	0x12, 0x0a, 0x99, 0x2f, 0xe2, 0xbc, 0x44, 0x50, 0x14, 0x57, 0x46, 0x93, 0x8e, 0x9f, 0x34, 0x2a,
-	0x0b, 0x66, 0x8e, 0x39, 0x44, 0xae, 0x23, 0x1a, 0xae, 0x74, 0xc2, 0x9d, 0xb2, 0x1c, 0x0c, 0x59,
-	0x2f, 0xe8, 0x9c, 0xfe, 0x66, 0xd2, 0xa2, 0x02, 0xeb, 0x5f, 0x4f, 0xe9, 0xbf, 0x33, 0x7e, 0x92,
-	0x42, 0x81, 0x96, 0xc0, 0x3c, 0x58, 0x54, 0xc5, 0xf0, 0x6a, 0x34, 0x02, 0x9a, 0xea, 0x49, 0x0a,
-	0xaf, 0x33, 0xb0, 0x24, 0x24, 0xef, 0x9a, 0x9a, 0x90, 0xcd, 0x56, 0x8c, 0x8c, 0xf4, 0x33, 0xa8,
-	0xcc, 0x78, 0xfc, 0x88, 0xf5, 0x58, 0xd8, 0x4a, 0x7a, 0x91, 0x77, 0xdd, 0xf0, 0xba, 0x5f, 0x11,
-	0x6b, 0x9f, 0xf4, 0xd8, 0x6c, 0x83, 0xc4, 0x80, 0x1f, 0x58, 0xb2, 0x19, 0x4e, 0x40, 0x11, 0xd2,
-	0x62, 0x6d, 0xbd, 0xd7, 0x63, 0x61, 0x3b, 0x15, 0x96, 0xec, 0xb0, 0x86, 0x6a, 0x45, 0x7f, 0xcc,
-	0x83, 0x6d, 0x5b, 0xdb, 0x4a, 0x2b, 0x0b, 0xa2, 0xcb, 0x9b, 0xf9, 0x54, 0x96, 0x25, 0xa8, 0x02,
-	0xdc, 0x8e, 0xcd, 0xf4, 0xa7, 0x21, 0xfa, 0xbc, 0xe1, 0x82, 0x72, 0x23, 0x5a, 0x49, 0xdb, 0xa7,
-	0x11, 0xdd, 0xac, 0x7a, 0xa9, 0x87, 0x92, 0x37, 0xde, 0xba, 0xd5, 0xa8, 0xee, 0xfc, 0x0d, 0x04,
-	0xf2, 0xc3, 0xbf, 0x47, 0x8a, 0xb3, 0x5a, 0xbd, 0x33, 0xc7, 0xce, 0xf9, 0x3f, 0x2c, 0xbf, 0x77,
-	0xc8, 0x06, 0xec, 0xfa, 0xf2, 0x63, 0x19, 0xb0, 0xcf, 0x65, 0xc0, 0xbe, 0x96, 0x01, 0x7b, 0x4c,
-	0x0a, 0xa4, 0xe9, 0x6c, 0x1c, 0xe5, 0xfa, 0x25, 0x2e, 0x8c, 0x9c, 0x23, 0x49, 0x42, 0xad, 0x64,
-	0x19, 0xaf, 0xcf, 0x2b, 0x2b, 0xdc, 0xf8, 0x05, 0xe3, 0x7d, 0x57, 0x2e, 0xbe, 0x03, 0x00, 0x00,
-	0xff, 0xff, 0x7d, 0x4d, 0xed, 0x8d, 0x63, 0x02, 0x00, 0x00,
+	// 418 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x53, 0xcd, 0x6e, 0xd4, 0x30,
+	0x10, 0x96, 0x41, 0x45, 0xaa, 0x13, 0x2e, 0x16, 0x42, 0x4b, 0x54, 0x42, 0x1a, 0xfe, 0x72, 0x4a,
+	0xaa, 0xf0, 0x02, 0x14, 0xb8, 0x14, 0xa9, 0x97, 0x00, 0x17, 0x2e, 0x91, 0xd7, 0x19, 0x65, 0x0d,
+	0xc1, 0x0e, 0xf6, 0xa4, 0xd2, 0xf2, 0x5c, 0x3c, 0x04, 0x07, 0x0e, 0x3c, 0x02, 0xda, 0x1b, 0x6f,
+	0x81, 0xd6, 0x0e, 0xad, 0x16, 0x36, 0xbb, 0x17, 0xd4, 0x8b, 0x2d, 0x7d, 0xf3, 0xcd, 0x37, 0x33,
+	0x9f, 0x3d, 0x34, 0x47, 0xe8, 0xa0, 0xd7, 0x06, 0x8b, 0x0e, 0x5a, 0x2e, 0x96, 0x85, 0xe8, 0x24,
+	0x28, 0x2c, 0x7a, 0xa3, 0x51, 0x17, 0x1f, 0xb4, 0x54, 0x16, 0xcc, 0x85, 0x14, 0x90, 0x3b, 0x84,
+	0x1d, 0xb8, 0x2b, 0xca, 0x76, 0xa6, 0x09, 0x30, 0x68, 0x7d, 0x42, 0x74, 0xfc, 0x37, 0x13, 0x97,
+	0x3d, 0x58, 0x7f, 0x7a, 0x4a, 0xfa, 0x95, 0xd0, 0xfb, 0x15, 0xb4, 0xd2, 0x22, 0x98, 0x77, 0x56,
+	0xaa, 0xf6, 0xec, 0xf4, 0xfc, 0x1c, 0x70, 0xa1, 0x9b, 0x0a, 0x3e, 0x0f, 0x60, 0x91, 0x71, 0x7a,
+	0x64, 0x46, 0x42, 0x3d, 0xac, 0x19, 0x35, 0xea, 0x8f, 0xa0, 0x6a, 0xe3, 0xe3, 0x33, 0x92, 0x90,
+	0x2c, 0x28, 0x93, 0xdc, 0xab, 0x6e, 0x68, 0xbd, 0x5d, 0x13, 0x47, 0x9d, 0xea, 0x9e, 0x99, 0x0a,
+	0xb1, 0x13, 0x7a, 0xc7, 0xa2, 0xad, 0x65, 0x03, 0x0a, 0x25, 0x2e, 0x2f, 0xa5, 0x6f, 0x24, 0x24,
+	0x0b, 0x2b, 0x66, 0xd1, 0x9e, 0x8d, 0xa1, 0x31, 0x23, 0x9d, 0xd3, 0x78, 0xaa, 0x6b, 0xdb, 0x6b,
+	0x65, 0x81, 0x1d, 0xd1, 0x43, 0xb1, 0xe0, 0x5d, 0x07, 0xaa, 0x05, 0xd7, 0xe3, 0x61, 0x75, 0x05,
+	0xb0, 0x94, 0x1e, 0x38, 0xa3, 0x5c, 0x89, 0xa0, 0x0c, 0xbd, 0x1b, 0xf9, 0xcb, 0x35, 0x56, 0xf9,
+	0x50, 0xfa, 0x9d, 0xd0, 0x07, 0x1b, 0x45, 0x4e, 0xbf, 0x0c, 0x06, 0xae, 0xdd, 0x9c, 0x87, 0xf4,
+	0x36, 0x47, 0x04, 0x8b, 0xd0, 0xd4, 0x0d, 0x47, 0x3e, 0xba, 0x12, 0xfe, 0x01, 0x5f, 0x71, 0xe4,
+	0xec, 0x98, 0x86, 0x5c, 0x08, 0xb0, 0xd6, 0xd7, 0x9f, 0xdd, 0x74, 0x03, 0x07, 0x1e, 0x73, 0x72,
+	0x69, 0x43, 0x93, 0xe9, 0x69, 0xfe, 0x97, 0x69, 0xe5, 0x2f, 0x42, 0x83, 0xd7, 0x5a, 0xaa, 0x37,
+	0xfe, 0xe7, 0x32, 0x49, 0xef, 0x6e, 0x7f, 0x28, 0xf6, 0x68, 0x4c, 0xdf, 0xf9, 0xfb, 0xa2, 0xc7,
+	0x7b, 0x58, 0xbe, 0xf1, 0x8c, 0x9c, 0x10, 0xa6, 0xe9, 0x6c, 0x6a, 0x40, 0xf6, 0x64, 0x9b, 0xcc,
+	0xbf, 0xef, 0x19, 0x3d, 0xdd, 0xcb, 0xbb, 0x2a, 0xf8, 0xe2, 0xf9, 0xb7, 0x55, 0x4c, 0x7e, 0xac,
+	0x62, 0xf2, 0x73, 0x15, 0x93, 0xf7, 0x65, 0x2b, 0x71, 0x31, 0xcc, 0x73, 0xa1, 0x3f, 0x15, 0xad,
+	0xe1, 0x17, 0x12, 0x39, 0x4a, 0xad, 0x78, 0x57, 0x5c, 0x6e, 0x21, 0xef, 0xe5, 0xc6, 0xb2, 0xce,
+	0x6f, 0xb9, 0xeb, 0xd9, 0xef, 0x00, 0x00, 0x00, 0xff, 0xff, 0xe0, 0xdd, 0xe6, 0xe9, 0x0a, 0x04,
+	0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -197,6 +337,9 @@ type JoinServiceClient interface {
 	// RegisterUsingIAMMethod is used to register a new node to the cluster using
 	// the IAM join method.
 	RegisterUsingIAMMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingIAMMethodClient, error)
+	// RegisterUsingAzureMethod is used to register a new node to the cluster
+	// using the Azure join method.
+	RegisterUsingAzureMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingAzureMethodClient, error)
 }
 
 type joinServiceClient struct {
@@ -238,11 +381,45 @@ func (x *joinServiceRegisterUsingIAMMethodClient) Recv() (*RegisterUsingIAMMetho
 	return m, nil
 }
 
+func (c *joinServiceClient) RegisterUsingAzureMethod(ctx context.Context, opts ...grpc.CallOption) (JoinService_RegisterUsingAzureMethodClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_JoinService_serviceDesc.Streams[1], "/proto.JoinService/RegisterUsingAzureMethod", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &joinServiceRegisterUsingAzureMethodClient{stream}
+	return x, nil
+}
+
+type JoinService_RegisterUsingAzureMethodClient interface {
+	Send(*RegisterUsingAzureMethodRequest) error
+	Recv() (*RegisterUsingAzureMethodResponse, error)
+	grpc.ClientStream
+}
+
+type joinServiceRegisterUsingAzureMethodClient struct {
+	grpc.ClientStream
+}
+
+func (x *joinServiceRegisterUsingAzureMethodClient) Send(m *RegisterUsingAzureMethodRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingAzureMethodClient) Recv() (*RegisterUsingAzureMethodResponse, error) {
+	m := new(RegisterUsingAzureMethodResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // JoinServiceServer is the server API for JoinService service.
 type JoinServiceServer interface {
 	// RegisterUsingIAMMethod is used to register a new node to the cluster using
 	// the IAM join method.
 	RegisterUsingIAMMethod(JoinService_RegisterUsingIAMMethodServer) error
+	// RegisterUsingAzureMethod is used to register a new node to the cluster
+	// using the Azure join method.
+	RegisterUsingAzureMethod(JoinService_RegisterUsingAzureMethodServer) error
 }
 
 // UnimplementedJoinServiceServer can be embedded to have forward compatible implementations.
@@ -251,6 +428,9 @@ type UnimplementedJoinServiceServer struct {
 
 func (*UnimplementedJoinServiceServer) RegisterUsingIAMMethod(srv JoinService_RegisterUsingIAMMethodServer) error {
 	return status.Errorf(codes.Unimplemented, "method RegisterUsingIAMMethod not implemented")
+}
+func (*UnimplementedJoinServiceServer) RegisterUsingAzureMethod(srv JoinService_RegisterUsingAzureMethodServer) error {
+	return status.Errorf(codes.Unimplemented, "method RegisterUsingAzureMethod not implemented")
 }
 
 func RegisterJoinServiceServer(s *grpc.Server, srv JoinServiceServer) {
@@ -283,6 +463,32 @@ func (x *joinServiceRegisterUsingIAMMethodServer) Recv() (*RegisterUsingIAMMetho
 	return m, nil
 }
 
+func _JoinService_RegisterUsingAzureMethod_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(JoinServiceServer).RegisterUsingAzureMethod(&joinServiceRegisterUsingAzureMethodServer{stream})
+}
+
+type JoinService_RegisterUsingAzureMethodServer interface {
+	Send(*RegisterUsingAzureMethodResponse) error
+	Recv() (*RegisterUsingAzureMethodRequest, error)
+	grpc.ServerStream
+}
+
+type joinServiceRegisterUsingAzureMethodServer struct {
+	grpc.ServerStream
+}
+
+func (x *joinServiceRegisterUsingAzureMethodServer) Send(m *RegisterUsingAzureMethodResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *joinServiceRegisterUsingAzureMethodServer) Recv() (*RegisterUsingAzureMethodRequest, error) {
+	m := new(RegisterUsingAzureMethodRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _JoinService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.JoinService",
 	HandlerType: (*JoinServiceServer)(nil),
@@ -291,6 +497,12 @@ var _JoinService_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "RegisterUsingIAMMethod",
 			Handler:       _JoinService_RegisterUsingIAMMethod_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "RegisterUsingAzureMethod",
+			Handler:       _JoinService_RegisterUsingAzureMethod_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -390,6 +602,105 @@ func (m *RegisterUsingIAMMethodResponse) MarshalToSizedBuffer(dAtA []byte) (int,
 	return len(dAtA) - i, nil
 }
 
+func (m *RegisterUsingAzureMethodRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingAzureMethodRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingAzureMethodRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.AccessToken) > 0 {
+		i -= len(m.AccessToken)
+		copy(dAtA[i:], m.AccessToken)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.AccessToken)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.AttestedData) > 0 {
+		i -= len(m.AttestedData)
+		copy(dAtA[i:], m.AttestedData)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.AttestedData)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.RegisterUsingTokenRequest != nil {
+		{
+			size, err := m.RegisterUsingTokenRequest.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *RegisterUsingAzureMethodResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *RegisterUsingAzureMethodResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RegisterUsingAzureMethodResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Certs != nil {
+		{
+			size, err := m.Certs.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintJoinservice(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Challenge) > 0 {
+		i -= len(m.Challenge)
+		copy(dAtA[i:], m.Challenge)
+		i = encodeVarintJoinservice(dAtA, i, uint64(len(m.Challenge)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintJoinservice(dAtA []byte, offset int, v uint64) int {
 	offset -= sovJoinservice(v)
 	base := offset
@@ -422,6 +733,50 @@ func (m *RegisterUsingIAMMethodRequest) Size() (n int) {
 }
 
 func (m *RegisterUsingIAMMethodResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Challenge)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.Certs != nil {
+		l = m.Certs.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingAzureMethodRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.RegisterUsingTokenRequest != nil {
+		l = m.RegisterUsingTokenRequest.Size()
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.AttestedData)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	l = len(m.AccessToken)
+	if l > 0 {
+		n += 1 + l + sovJoinservice(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *RegisterUsingAzureMethodResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -595,6 +950,278 @@ func (m *RegisterUsingIAMMethodResponse) Unmarshal(dAtA []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: RegisterUsingIAMMethodResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Challenge", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Challenge = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Certs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Certs == nil {
+				m.Certs = &Certs{}
+			}
+			if err := m.Certs.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingAzureMethodRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingAzureMethodRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingAzureMethodRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RegisterUsingTokenRequest", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.RegisterUsingTokenRequest == nil {
+				m.RegisterUsingTokenRequest = &types.RegisterUsingTokenRequest{}
+			}
+			if err := m.RegisterUsingTokenRequest.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AttestedData", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AttestedData = append(m.AttestedData[:0], dAtA[iNdEx:postIndex]...)
+			if m.AttestedData == nil {
+				m.AttestedData = []byte{}
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AccessToken", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowJoinservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.AccessToken = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipJoinservice(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthJoinservice
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *RegisterUsingAzureMethodResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowJoinservice
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: RegisterUsingAzureMethodResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: RegisterUsingAzureMethodResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

@@ -1,6 +1,25 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentOrigin,
+  WorkspacesService,
+} from 'teleterm/ui/services/workspacesService';
 
 import {
   getGatewayDocumentByConnection,
@@ -48,14 +67,17 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let srvDoc = documentsService
           .getDocuments()
           .find(getServerDocumentByConnection(connection));
 
         if (!srvDoc) {
-          srvDoc = documentsService.createTshNodeDocument(connection.serverUri);
-          srvDoc.status = 'disconnected';
+          srvDoc = documentsService.createTshNodeDocument(
+            connection.serverUri,
+            params
+          );
+          srvDoc.status = 'connecting';
           srvDoc.login = connection.login;
           srvDoc.title = connection.title;
 
@@ -92,7 +114,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let gwDoc = documentsService
           .getDocuments()
           .find(getGatewayDocumentByConnection(connection));
@@ -106,6 +128,7 @@ export class TrackedConnectionOperationsFactory {
             title: connection.title,
             gatewayUri: connection.gatewayUri,
             port: connection.port,
+            origin: params.origin,
           });
 
           documentsService.add(gwDoc);
@@ -145,7 +168,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let kubeConn = documentsService
           .getDocuments()
           .find(getKubeDocumentByConnection(connection));
@@ -154,6 +177,7 @@ export class TrackedConnectionOperationsFactory {
           kubeConn = documentsService.createTshKubeDocument({
             kubeUri: connection.kubeUri,
             kubeConfigRelativePath: connection.kubeConfigRelativePath,
+            origin: params.origin,
           });
 
           documentsService.add(kubeConn);
@@ -199,7 +223,7 @@ interface TrackedConnectionOperations {
   rootClusterUri: RootClusterUri;
   leafClusterUri: LeafClusterUri;
 
-  activate(): void;
+  activate(params: { origin: DocumentOrigin }): void;
 
   disconnect(): Promise<void>;
 

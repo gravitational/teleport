@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,6 +43,7 @@ type Bot struct {
 	cfg        *config.BotConfig
 	log        logrus.FieldLogger
 	reloadChan chan struct{}
+	modules    modules.Modules
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
@@ -62,6 +64,7 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 		cfg:        cfg,
 		log:        log,
 		reloadChan: reloadChan,
+		modules:    modules.GetModules(),
 
 		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
@@ -264,6 +267,14 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)
+	}
+
+	if b.cfg.FIPS {
+		if !b.modules.IsBoringBinary() {
+			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
+		}
+		b.log.Info("Bot is running in FIPS compliant mode.")
 	}
 
 	// First, try to make sure all destinations are usable.

@@ -20,29 +20,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
-
-// GetAllDatabases gets all databases with no pagination
-func (s *Handler) GetAllDatabases(ctx context.Context, req *api.GetAllDatabasesRequest) (*api.GetAllDatabasesResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbs, err := cluster.GetAllDatabases(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &api.GetAllDatabasesResponse{}
-	for _, db := range dbs {
-		response.Databases = append(response.Databases, newAPIDatabase(db))
-	}
-
-	return response, nil
-}
 
 // GetDatabases gets databses with filters and returns paginated results
 func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {

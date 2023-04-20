@@ -19,26 +19,35 @@ import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 import { DbMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
-  function testConnection({ name, user }: { name: string; user: string }) {
-    runConnectionDiagnostic({
-      resourceKind: 'db',
-      resourceName: props.agentMeta.resourceName,
-      dbTester: {
-        name,
-        user,
+  function testConnection(
+    { name, user }: { name: string; user: string },
+    mfaResponse?: MfaAuthnResponse
+  ) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'db',
+        resourceName: props.agentMeta.resourceName,
+        dbTester: {
+          name,
+          user,
+        },
       },
-    });
+      mfaResponse
+    );
   }
 
+  const { engine } = props.resourceSpec.dbMeta;
   return {
     ...connectionDiagnostic,
     testConnection,
     db: (props.agentMeta as DbMeta).db,
+    dbEngine: engine,
   };
 }
 

@@ -51,6 +51,8 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// GetTunnelType returns the tunnel type associated with the app server.
+	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -178,6 +180,16 @@ func (s *AppServerV3) SetApp(app Application) error {
 	return nil
 }
 
+// GetTunnelType returns the tunnel type associated with the app server.
+func (s *AppServerV3) GetTunnelType() TunnelType {
+	switch {
+	case s.Origin() == OriginOkta:
+		return OktaTunnel
+	default:
+		return AppTunnel
+	}
+}
+
 // String returns the server string representation.
 func (s *AppServerV3) String() string {
 	return fmt.Sprintf("AppServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
@@ -229,6 +241,19 @@ func (s *AppServerV3) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *AppServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.App != nil {
+		if v, ok := s.Spec.App.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns all resource's labels. Considering:

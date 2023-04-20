@@ -18,6 +18,7 @@ import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
 import ConnectDialog, { Props } from './ConnectDialog';
+import { ConnectWithRequestId } from './ConnectDialog.story';
 
 test('correct connect command generated for postgres db', () => {
   render(<ConnectDialog {...props} dbProtocol="postgres" />);
@@ -64,6 +65,12 @@ test('render dialog with instructions to connect to database', () => {
   render(<ConnectDialog {...props} />);
 
   expect(screen.getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('render dialog with instructions to connect to database with requestId', () => {
+  const { baseElement } = render(<ConnectWithRequestId />);
+
+  expect(baseElement).toMatchSnapshot();
 });
 
 const props: Props = {

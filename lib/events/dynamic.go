@@ -215,6 +215,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionOpenSearchRequestEvent:
+		e = &events.OpenSearchRequest{}
 	case DatabaseSessionDynamoDBRequestEvent:
 		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
@@ -277,6 +279,20 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.BotJoin{}
 	case InstanceJoinEvent:
 		e = &events.InstanceJoin{}
+	case LoginRuleCreateEvent:
+		e = &events.LoginRuleCreate{}
+	case LoginRuleDeleteEvent:
+		e = &events.LoginRuleDelete{}
+	case SAMLIdPAuthAttemptEvent:
+		e = &events.SAMLIdPAuthAttempt{}
+	case SAMLIdPServiceProviderCreateEvent:
+		e = &events.SAMLIdPServiceProviderCreate{}
+	case SAMLIdPServiceProviderUpdateEvent:
+		e = &events.SAMLIdPServiceProviderUpdate{}
+	case SAMLIdPServiceProviderDeleteEvent:
+		e = &events.SAMLIdPServiceProviderDelete{}
+	case SAMLIdPServiceProviderDeleteAllEvent:
+		e = &events.SAMLIdPServiceProviderDeleteAll{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

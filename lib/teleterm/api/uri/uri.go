@@ -25,6 +25,8 @@ import (
 
 var pathClusters = urlpath.New("/clusters/:cluster/*")
 var pathLeafClusters = urlpath.New("/clusters/:cluster/leaves/:leaf/*")
+var pathServers = urlpath.New("/clusters/:cluster/servers/:serverUUID")
+var pathLeafServers = urlpath.New("/clusters/:cluster/leaves/:leaf/servers/:serverUUID")
 var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
 
@@ -104,6 +106,21 @@ func (r ResourceURI) GetDbName() string {
 	result, ok = pathLeafDbs.Match(r.path)
 	if ok {
 		return result.Params["dbName"]
+	}
+
+	return ""
+}
+
+// GetServerUUID extracts the server UUID from r. Returns an empty string if path is not a server URI.
+func (r ResourceURI) GetServerUUID() string {
+	result, ok := pathServers.Match(r.path)
+	if ok {
+		return result.Params["serverUUID"]
+	}
+
+	result, ok = pathLeafServers.Match(r.path)
+	if ok {
+		return result.Params["serverUUID"]
 	}
 
 	return ""

@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -109,7 +110,7 @@ func alwaysSucceeds(context.Context, string, authztypes.SelfSubjectAccessReviewI
 	return nil
 }
 
-func failsForCluster(clusterName string) ImpersonationPermissionsChecker {
+func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChecker {
 	return func(ctx context.Context, cluster string, a authztypes.SelfSubjectAccessReviewInterface) error {
 		if cluster == clusterName {
 			return errors.New("Kaboom")
@@ -158,7 +159,7 @@ current-context: foo
 		kubeconfigPath     string
 		kubeCluster        string
 		serviceType        KubeServiceType
-		impersonationCheck ImpersonationPermissionsChecker
+		impersonationCheck servicecfg.ImpersonationPermissionsChecker
 		want               map[string]*kubeDetails
 		assertErr          require.ErrorAssertionFunc
 	}{
@@ -286,9 +287,11 @@ current-context: foo
 			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
+				cmp.AllowUnexported(httpTransport{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b httpTransport) bool { return true }),
 			))
 		})
 	}

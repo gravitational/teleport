@@ -15,11 +15,15 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { renderHook, act } from '@testing-library/react-hooks';
 
-import { baseContext } from 'teleport/mocks/contexts';
-import makeUserContext from 'teleport/services/user/makeUserContext';
-import { ContextProvider, Context as TeleportContext } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import cfg from 'teleport/config';
+import { userEventService } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../ResourceKind';
 
@@ -32,17 +36,35 @@ import type {
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 
+const crypto = require('crypto');
+
+// eslint-disable-next-line jest/require-hook
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    randomUUID: () => crypto.randomUUID(),
+  },
+});
+
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
   const ctx = createTeleportContext();
   jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
   jest.spyOn(ctx.userService, 'updateUser').mockResolvedValue(null);
   jest.spyOn(ctx.userService, 'applyUserTraits').mockResolvedValue(null);
+  jest
+    .spyOn(userEventService, 'captureDiscoverEvent')
+    .mockResolvedValue(null as never); // return value does not matter but required by ts
 
   let wrapper;
 
   beforeEach(() => {
     wrapper = ({ children }) => (
-      <ContextProvider ctx={ctx}>{children}</ContextProvider>
+      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+        <ContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider>{children}</DiscoverProvider>
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
     );
   });
 
@@ -55,7 +77,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       agentMeta: getMeta(ResourceKind.Kubernetes) as AgentMeta,
       updateAgentMeta: jest.fn(x => x),
       nextStep: () => null,
-      selectedResourceKind: ResourceKind.Kubernetes,
+      resourceSpec: { kind: ResourceKind.Kubernetes } as any,
     };
 
     const { result, waitForNextUpdate, waitFor } = renderHook(
@@ -134,7 +156,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       agentMeta: getMeta(ResourceKind.Database) as AgentMeta,
       updateAgentMeta: jest.fn(x => x),
       nextStep: () => null,
-      selectedResourceKind: ResourceKind.Database,
+      resourceSpec: { kind: ResourceKind.Database } as any,
     };
 
     const { result, waitForNextUpdate, waitFor } = renderHook(
@@ -213,7 +235,7 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
       agentMeta: getMeta(ResourceKind.Server) as AgentMeta,
       updateAgentMeta: jest.fn(x => x),
       nextStep: () => null,
-      selectedResourceKind: ResourceKind.Server,
+      resourceSpec: { kind: ResourceKind.Server } as any,
     };
 
     const { result, waitForNextUpdate, waitFor } = renderHook(
@@ -292,11 +314,17 @@ describe('static and dynamic traits are correctly separated and correctly create
       agentMeta: getMeta(resourceKind) as AgentMeta,
       updateAgentMeta: () => null,
       nextStep: () => null,
-      selectedResourceKind: resourceKind,
+      resourceSpec: { kind: resourceKind } as any,
     };
 
     const wrapper = ({ children }) => (
-      <ContextProvider ctx={ctx}>{children}</ContextProvider>
+      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
+        <ContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={[]}>
+            <DiscoverProvider>{children}</DiscoverProvider>
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
     );
 
     const { result, waitForNextUpdate } = renderHook(
@@ -352,15 +380,6 @@ describe('static and dynamic traits are correctly separated and correctly create
     ]);
   });
 });
-
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-  const userCtx = makeUserContext(baseContext);
-
-  ctx.storeUser.setState(userCtx);
-
-  return ctx;
-}
 
 function getMockUser() {
   return {

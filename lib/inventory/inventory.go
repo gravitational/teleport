@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
@@ -93,6 +94,7 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello proto.UpstreamInventoryH
 		cancel:       cancel,
 	}
 	go handle.run(fn, hello)
+	go handle.autoEmitMetadata()
 	return handle
 }
 
@@ -123,6 +125,47 @@ type downstreamHandle struct {
 
 func (h *downstreamHandle) closing() bool {
 	return h.closeContext.Err() != nil
+}
+
+// autoEmitMetadata sends the agent metadata once per stream (i.e. connection
+// with the auth server).
+func (h *downstreamHandle) autoEmitMetadata() {
+	metadata, err := metadata.Get(h.CloseContext())
+	if err != nil {
+		log.Warnf("Failed to get agent metadata: %v", err)
+		return
+	}
+	msg := proto.UpstreamInventoryAgentMetadata{
+		OS:                    metadata.OS,
+		OSVersion:             metadata.OSVersion,
+		HostArchitecture:      metadata.HostArchitecture,
+		GlibcVersion:          metadata.GlibcVersion,
+		InstallMethods:        metadata.InstallMethods,
+		ContainerRuntime:      metadata.ContainerRuntime,
+		ContainerOrchestrator: metadata.ContainerOrchestrator,
+		CloudEnvironment:      metadata.CloudEnvironment,
+	}
+	for {
+		// Wait for stream to be opened.
+		var sender DownstreamSender
+		select {
+		case sender = <-h.Sender():
+		case <-h.CloseContext().Done():
+			return
+		}
+
+		// Send metadata.
+		if err := sender.Send(h.CloseContext(), msg); err != nil {
+			log.Warnf("Failed to send agent metadata: %v", err)
+		}
+
+		// Block for the duration of the stream.
+		select {
+		case <-sender.Done():
+		case <-h.CloseContext().Done():
+			return
+		}
+	}
 }
 
 func (h *downstreamHandle) run(fn DownstreamCreateFunc, hello proto.UpstreamInventoryHello) {

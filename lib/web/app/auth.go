@@ -85,7 +85,7 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 	})
 
 	http.SetCookie(w, &http.Cookie{
@@ -94,7 +94,7 @@ func (h *Handler) handleAuth(w http.ResponseWriter, r *http.Request, p httproute
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 	})
 
 	return nil

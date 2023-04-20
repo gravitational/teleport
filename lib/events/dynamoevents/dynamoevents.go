@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/events"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -451,50 +450,6 @@ func (l *Log) setExpiry(e *event) {
 	}
 
 	e.Expires = aws.Int64(l.Clock.Now().UTC().Add(l.RetentionPeriod.Value()).Unix())
-}
-
-// GetSessionChunk returns a reader which can be used to read a byte stream
-// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-// beginning) up to maxBytes bytes.
-//
-// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, nil
-}
-
-// GetSessionEvents Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
-	var values []events.EventFields
-	query := "SessionID = :sessionID AND EventIndex >= :eventIndex"
-	attributes := map[string]interface{}{
-		":sessionID":  string(sid),
-		":eventIndex": after,
-	}
-	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	input := dynamodb.QueryInput{
-		KeyConditionExpression:    aws.String(query),
-		TableName:                 aws.String(l.Tablename),
-		ExpressionAttributeValues: attributeValues,
-	}
-	out, err := l.svc.Query(&input)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, item := range out.Items {
-		var e event
-		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal event for session %q: %v", string(sid), err)
-		}
-		values = append(values, e.FieldsMap)
-	}
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
 }
 
 func daysSinceEpoch(timestamp time.Time) int64 {
@@ -1030,15 +985,6 @@ func convertError(err error) error {
 	default:
 		return err
 	}
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
 }
 
 type query interface {

@@ -14,43 +14,45 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Text,
   Box,
   Flex,
-
-  // AnimatedProgressBar,
-  // ButtonPrimary,
-  // ButtonSecondary,
+  AnimatedProgressBar,
+  ButtonPrimary,
+  ButtonSecondary,
 } from 'design';
-import { Danger } from 'design/Alert';
 
-// import Dialog, { DialogContent } from 'design/DialogConfirmation';
-// import * as Icons from 'design/Icon';
+import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
-// import { Timeout } from 'teleport/Discover/Shared/Timeout';
+import { Timeout } from 'teleport/Discover/Shared/Timeout';
 
 import {
   ActionButtons,
   HeaderSubtitle,
-  Header,
   LabelsCreater,
   Mark,
-  // TextIcon,
+  TextIcon,
+  HeaderWithBackBtn,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { DatabaseLocation, getDatabaseProtocol } from '../resources';
+import {
+  DatabaseLocation,
+  getDatabaseProtocol,
+  getDefaultDatabasePort,
+} from '../../SelectResource';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
 import type { AgentStepProps } from '../../types';
 import type { AgentLabel } from 'teleport/services/agents';
-// import type { Attempt } from 'shared/hooks/useAttemptNext';
+import type { Attempt } from 'shared/hooks/useAttemptNext';
 import type { AwsRds } from 'teleport/services/databases';
 
 export function CreateDatabase(props: AgentStepProps) {
@@ -60,31 +62,48 @@ export function CreateDatabase(props: AgentStepProps) {
 
 export function CreateDatabaseView({
   attempt,
-  // clearAttempt,
+  clearAttempt,
   registerDatabase,
   canCreateDatabase,
-  // pollTimeout,
+  pollTimeout,
   dbEngine,
   dbLocation,
+  isDbCreateErr,
+  prevStep,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
   const [labels, setLabels] = useState<AgentLabel[]>([]);
-
-  // TODO(lisa): default ports depend on type of database.
-  const [dbPort, setDbPort] = useState('5432');
+  const [dbPort, setDbPort] = useState(getDefaultDatabasePort(dbEngine));
 
   // TODO(lisa): refactor using ryan's example (reusable).
   const [awsAccountId, setAwsAccountId] = useState('');
   const [awsResourceId, setAwsResourceId] = useState('');
 
-  function handleOnProceed(validator: Validator) {
+  const [finishedFirstStep, setFinishedFirstStep] = useState(false);
+
+  useEffect(() => {
+    // If error resulted from creating a db, reset the view
+    // to the beginning as the error could be from duplicate
+    // db name.
+    if (isDbCreateErr) {
+      setFinishedFirstStep(false);
+    }
+  }, [isDbCreateErr]);
+
+  function handleOnProceed(validator: Validator, retry = false) {
     if (!validator.validate()) {
       return;
     }
 
+    if (!retry && !finishedFirstStep) {
+      setFinishedFirstStep(true);
+      validator.reset();
+      return;
+    }
+
     let awsRds: AwsRds;
-    if (dbLocation === DatabaseLocation.AWS) {
+    if (dbLocation === DatabaseLocation.Aws) {
       awsRds = {
         accountId: awsAccountId,
         resourceId: awsResourceId,
@@ -100,17 +119,17 @@ export function CreateDatabaseView({
     });
   }
 
+  const isAws = dbLocation === DatabaseLocation.Aws;
   return (
     <Validation>
       {({ validator }) => (
         <Box maxWidth="800px">
-          <Header>Register a Database</Header>
+          <HeaderWithBackBtn onPrev={prevStep}>
+            Register a Database
+          </HeaderWithBackBtn>
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>
-          {attempt.status === 'failed' && (
-            <Danger children={attempt.statusText} />
-          )}
           {!canCreateDatabase && (
             <Box>
               <Text>
@@ -129,85 +148,112 @@ export function CreateDatabaseView({
           )}
           {canCreateDatabase && (
             <>
-              <Box width="500px">
-                <FieldInput
-                  label="Database Name"
-                  // We need this name to comply with AWS policy name
-                  // since it will be used as part of the policy name
-                  // for the AWS flow.
-                  rule={requiredField('database name is required')}
-                  autoFocus
-                  value={dbName}
-                  placeholder="Enter database name"
-                  onChange={e => setDbName(e.target.value)}
-                  toolTipContent="An identifier name for this new database for Teleport."
-                />
-              </Box>
-              <Flex width="500px">
-                <FieldInput
-                  label="Database Connection Endpoint"
-                  rule={requiredField('connection endpoint is required')}
-                  value={dbUri}
-                  placeholder="db.example.com"
-                  onChange={e => setDbUri(e.target.value)}
-                  toolTipContent="Database location and connection information."
-                  width="50%"
-                  mr={2}
-                />
-                <FieldInput
-                  label="Endpoint Port"
-                  rule={requirePort}
-                  value={dbPort}
-                  placeholder="5432"
-                  onChange={e => setDbPort(e.target.value)}
-                  width="50%"
-                />
-              </Flex>
-              {dbLocation === DatabaseLocation.AWS && (
+              {!finishedFirstStep && (
+                <Box width="500px">
+                  <FieldInput
+                    label="Database Name"
+                    rule={requiredField('database name is required')}
+                    autoFocus
+                    value={dbName}
+                    placeholder="Enter database name"
+                    onChange={e => setDbName(e.target.value)}
+                    toolTipContent="An identifier name for this new database for Teleport."
+                  />
+                </Box>
+              )}
+              {finishedFirstStep && (
                 <>
-                  <Box width="500px">
+                  <Flex width="500px">
                     <FieldInput
-                      label="AWS Account ID"
-                      rule={requiredAwsAccountId}
-                      value={awsAccountId}
-                      placeholder="123456789012"
-                      onChange={e => setAwsAccountId(e.target.value)}
-                      toolTipContent="A 12-digit number that uniquely identifies your AWS account."
-                    />
-                  </Box>
-                  <Box width="500px" mb={6}>
-                    <FieldInput
-                      label="Resource ID"
-                      value={awsResourceId}
-                      rule={requiredField('database resource ID is required')}
-                      placeholder="db-ABCDE1234567..."
-                      onChange={e => setAwsResourceId(e.target.value)}
-                      toolTipContent={
-                        <Text>
-                          The unique identifier for your resource. For AWS
-                          database, may have the prefix <Mark light>db-</Mark>{' '}
-                          then follow with alphanumerics.
-                        </Text>
+                      autoFocus
+                      label="Database Connection Endpoint"
+                      rule={
+                        isAws
+                          ? requireAwsEndpoint
+                          : requiredField('connection endpoint is required')
                       }
+                      value={dbUri}
+                      placeholder={
+                        isAws
+                          ? 'db.example.us-west-1.rds.amazonaws.com'
+                          : 'db.example.com'
+                      }
+                      onChange={e => setDbUri(e.target.value)}
+                      width="70%"
+                      mr={2}
+                      toolTipContent={
+                        isAws ? (
+                          <Text>
+                            Database location and connection information.
+                            Typically in the format:{' '}
+                            <Mark
+                              light
+                            >{`<your-db-identifier>.<random-id>.<your-region>.rds.amazonaws.com`}</Mark>
+                          </Text>
+                        ) : (
+                          'Database location and connection information.'
+                        )
+                      }
+                    />
+                    <FieldInput
+                      label="Endpoint Port"
+                      rule={requirePort}
+                      value={dbPort}
+                      placeholder="5432"
+                      onChange={e => setDbPort(e.target.value)}
+                      width="30%"
+                    />
+                  </Flex>
+                  {dbLocation === DatabaseLocation.Aws && (
+                    <>
+                      <Box width="500px">
+                        <FieldInput
+                          label="AWS Account ID"
+                          rule={requiredAwsAccountId}
+                          value={awsAccountId}
+                          placeholder="123456789012"
+                          onChange={e => setAwsAccountId(e.target.value)}
+                          toolTipContent="A 12-digit number that uniquely identifies your AWS account."
+                        />
+                      </Box>
+                      <Box width="500px" mb={6}>
+                        <FieldInput
+                          label="Resource ID"
+                          value={awsResourceId}
+                          rule={requiredField(
+                            'database resource ID is required'
+                          )}
+                          placeholder="db-ABCDE1234567..."
+                          onChange={e => setAwsResourceId(e.target.value)}
+                          toolTipContent={
+                            <Text>
+                              The unique identifier for your resource. May have
+                              the prefix <Mark light>db-</Mark> then follow with
+                              alphanumerics.
+                            </Text>
+                          }
+                        />
+                      </Box>
+                    </>
+                  )}
+                  <Box mt={3}>
+                    <Text bold>Labels (optional)</Text>
+                    <Text mb={2}>
+                      Labels make this new database discoverable by the database
+                      service. <br />
+                      Not defining labels is equivalent to asteriks (any
+                      database service can discover this database).
+                    </Text>
+                    <LabelsCreater
+                      labels={labels}
+                      setLabels={setLabels}
+                      isLabelOptional={true}
+                      disableBtns={attempt.status === 'processing'}
+                      noDuplicateKey={true}
                     />
                   </Box>
                 </>
               )}
-              <Box mt={3}>
-                <Text bold>Labels (optional)</Text>
-                <Text mb={2}>
-                  Labels make this new database discoverable by the database
-                  service. <br />
-                  Not defining labels is equivalent to asteriks (any database
-                  service can discover this database).
-                </Text>
-                <LabelsCreater
-                  labels={labels}
-                  setLabels={setLabels}
-                  isLabelOptional={true}
-                  disableBtns={attempt.status === 'processing'}
-                />
-              </Box>
             </>
           )}
           <ActionButtons
@@ -217,91 +263,92 @@ export function CreateDatabaseView({
               attempt.status === 'processing' || !canCreateDatabase
             }
           />
-          {/* {(attempt.status === 'processing' || attempt.status === 'failed') && (
+          {(attempt.status === 'processing' || attempt.status === 'failed') && (
             <CreateDatabaseDialog
               pollTimeout={pollTimeout}
               attempt={attempt}
-              retry={() => handleOnProceed(validator)}
+              retry={() => handleOnProceed(validator, true /* retry */)}
               close={clearAttempt}
             />
-          )} */}
+          )}
         </Box>
       )}
     </Validation>
   );
 }
 
-// const CreateDatabaseDialog = ({
-//   pollTimeout,
-//   attempt,
-//   retry,
-//   close,
-// }: {
-//   pollTimeout: number;
-//   attempt: Attempt;
-//   retry(): void;
-//   close(): void;
-// }) => {
-//   return (
-//     <Dialog disableEscapeKeyDown={false} open={true}>
-//       <DialogContent
-//         width="400px"
-//         alignItems="center"
-//         mb={0}
-//         textAlign="center"
-//       >
-//         {attempt.status !== 'failed' ? (
-//           <>
-//             {' '}
-//             <Text bold caps mb={4}>
-//               Registering Database
-//             </Text>
-//             <AnimatedProgressBar />
-//             <TextIcon
-//               css={`
-//                 white-space: pre;
-//               `}
-//             >
-//               <Icons.Restore fontSize={4} />
-//               <Timeout
-//                 timeout={pollTimeout}
-//                 message=""
-//                 tailMessage={' seconds left'}
-//               />
-//             </TextIcon>
-//           </>
-//         ) : (
-//           <Box width="100%">
-//             <Text bold caps mb={3}>
-//               Database Register Failed
-//             </Text>
-//             <Text mb={5}>
-//               <Icons.Warning ml={1} mr={2} color="danger" />
-//               Error: {attempt.statusText}
-//             </Text>
-//             <Flex>
-//               <ButtonPrimary mr={2} width="50%" onClick={retry}>
-//                 Retry
-//               </ButtonPrimary>
-//               <ButtonSecondary width="50%" onClick={close}>
-//                 Close
-//               </ButtonSecondary>
-//             </Flex>
-//           </Box>
-//         )}
-//       </DialogContent>
-//     </Dialog>
-//   );
-// };
+const CreateDatabaseDialog = ({
+  pollTimeout,
+  attempt,
+  retry,
+  close,
+}: {
+  pollTimeout: number;
+  attempt: Attempt;
+  retry(): void;
+  close(): void;
+}) => {
+  return (
+    <Dialog disableEscapeKeyDown={false} open={true}>
+      <DialogContent
+        width="400px"
+        alignItems="center"
+        mb={0}
+        textAlign="center"
+      >
+        {attempt.status !== 'failed' ? (
+          <>
+            {' '}
+            <Text bold caps mb={4}>
+              Registering Database
+            </Text>
+            <AnimatedProgressBar />
+            <TextIcon
+              css={`
+                white-space: pre;
+              `}
+            >
+              <Icons.Restore fontSize={4} />
+              <Timeout
+                timeout={pollTimeout}
+                message=""
+                tailMessage={' seconds left'}
+              />
+            </TextIcon>
+          </>
+        ) : (
+          <Box width="100%">
+            <Text bold caps mb={3}>
+              Database Register Failed
+            </Text>
+            <Text mb={5}>
+              <Icons.Warning ml={1} mr={2} color="error.main" />
+              Error: {attempt.statusText}
+            </Text>
+            <Flex>
+              <ButtonPrimary mr={2} width="50%" onClick={retry}>
+                Retry
+              </ButtonPrimary>
+              <ButtonSecondary width="50%" onClick={close}>
+                Close
+              </ButtonSecondary>
+            </Flex>
+          </Box>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
 
-// PORT_REGEXP only allows digits with length 4.
-export const PORT_REGEX = /^\d{4}$/;
-const requirePort = value => () => {
-  const isValidId = value.match(PORT_REGEX);
-  if (!isValidId) {
+// Only allows digits with valid port range 1-65535.
+const requirePort = (value: string) => () => {
+  const numberValue = parseInt(value);
+  const isValidPort =
+    Number.isInteger(numberValue) && numberValue >= 1 && numberValue <= 65535;
+  if (!isValidPort) {
     return {
       valid: false,
-      message: 'port must be 4 digits',
+      message: 'invalid port (1-65535)',
     };
   }
   return {
@@ -319,6 +366,25 @@ const requiredAwsAccountId = value => () => {
       message: 'aws account id must be 12 digits',
     };
   }
+  return {
+    valid: true,
+  };
+};
+
+const requireAwsEndpoint = value => () => {
+  const parts = value.split('.');
+  // Following possible format (bare mininum len has to be 6):
+  // (len 6) test.abcd.us-west-2.rds.amazonaws.com
+  // (len 7) test.abcd.suffix.us-west-2.rds.amazonaws.com
+  // (len 8) test.abcd.suffix.us-west-2.rds.amazonaws.com.cn
+  const hasCorrectLen = parts.length >= 6; // loosely match
+  if (!hasCorrectLen || !value.includes('.rds.amazonaws.com')) {
+    return {
+      valid: false,
+      message: 'invalid connection endpoint format',
+    };
+  }
+
   return {
     valid: true,
   };

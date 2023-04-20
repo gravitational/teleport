@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -38,7 +39,7 @@ import (
 func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(types.CreatedBy{
-			User: types.UserRef{Name: ClientUsername(ctx)},
+			User: types.UserRef{Name: authz.ClientUsername(ctx)},
 			Time: s.GetClock().Now().UTC(),
 		})
 	}
@@ -62,7 +63,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 			Type: events.UserCreateEvent,
 			Code: events.UserCreateCode,
 		},
-		UserMetadata: ClientUserMetadataWithUser(ctx, user.GetCreatedBy().User.Name),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user.GetCreatedBy().User.Name),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -94,7 +95,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    user.GetName(),
 			Expires: user.Expiry(),
@@ -163,7 +164,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 			Type: events.UserUpdatedEvent,
 			Code: events.UserUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    new.GetName(),
 			Expires: new.Expiry(),
@@ -203,7 +204,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 			Type: events.UserDeleteEvent,
 			Code: events.UserDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: user,
 		},

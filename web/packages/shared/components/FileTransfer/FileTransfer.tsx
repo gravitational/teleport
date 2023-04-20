@@ -27,6 +27,8 @@ import {
 interface FileTransferProps {
   backgroundColor?: string;
   transferHandlers: TransferHandlers;
+  // errorText is any general error that isn't related to a specific transfer
+  errorText?: string;
 
   /**
    * `beforeClose` is called when an attempt to close the dialog was made
@@ -81,6 +83,7 @@ export function FileTransfer(props: FileTransferProps) {
 
   return (
     <FileTransferDialog
+      errorText={props.errorText}
       openedDialog={openedDialog}
       backgroundColor={props.backgroundColor}
       transferHandlers={props.transferHandlers}
@@ -90,7 +93,10 @@ export function FileTransfer(props: FileTransferProps) {
 }
 
 export function FileTransferDialog(
-  props: Pick<FileTransferProps, 'transferHandlers' | 'backgroundColor'> & {
+  props: Pick<
+    FileTransferProps,
+    'transferHandlers' | 'backgroundColor' | 'errorText'
+  > & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
   }
@@ -123,6 +129,7 @@ export function FileTransferDialog(
 
   return (
     <FileTransferStateless
+      errorText={props.errorText}
       openedDialog={props.openedDialog}
       files={filesStore.files}
       onCancel={filesStore.cancel}

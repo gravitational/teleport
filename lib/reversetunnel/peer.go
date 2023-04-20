@@ -127,7 +127,7 @@ func (p *clusterPeers) GetLastConnected() time.Time {
 	return peer.GetLastConnected()
 }
 
-func (p *clusterPeers) DialAuthServer() (net.Conn, error) {
+func (p *clusterPeers) DialAuthServer(DialParams) (net.Conn, error) {
 	return nil, trace.ConnectionProblem(nil, "unable to dial to auth server, this proxy has not been discovered yet, try again later")
 }
 

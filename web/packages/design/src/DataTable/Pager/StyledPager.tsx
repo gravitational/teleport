@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import styled from 'styled-components';
 
 import Icon from 'design/Icon';
@@ -29,7 +45,7 @@ export const StyledArrowBtn = styled.button`
 `;
 
 export const StyledFetchMoreBtn = styled.button`
-  color: ${props => props.theme.colors.link};
+  color: ${props => props.theme.colors.buttons.link.default};
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -45,7 +61,7 @@ export const StyledFetchMoreBtn = styled.button`
   }
 
   &:disabled {
-    color: ${props => props.theme.colors.action.disabled};
+    color: ${props => props.theme.colors.text.disabled};
     cursor: wait;
   }
 `;

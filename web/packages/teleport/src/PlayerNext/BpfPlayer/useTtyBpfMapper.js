@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 import React from 'react';
-import { throttle } from 'lodash';
+import { throttle } from 'shared/utils/highbar';
 
 export default function useTtyBpfMapper(tty, events) {
   // create a map [time][index] for quick lookups

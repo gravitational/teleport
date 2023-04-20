@@ -90,9 +90,18 @@ func TestHandler_getToken(t *testing.T) {
 					cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
 						generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
 							clock := state.(clockwork.FakeClock)
+
+							// advance time by getTokenTimeout
 							clock.Advance(getTokenTimeout)
 
+							// after the test is done unblock the sleep() below.
+							t.Cleanup(func() {
+								clock.Advance(getTokenTimeout * 2)
+							})
+
+							// block for 2*getTokenTimeout; this call won't return before Cleanup() phase.
 							clock.Sleep(getTokenTimeout * 2)
+
 							return nil, trace.BadParameter("bad param foo")
 						},
 					}),

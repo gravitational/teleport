@@ -91,7 +91,7 @@ const recordings = [
     initial_command: ['/bin/sh'],
     interactive: true,
     kubernetes_cluster: 'minikube',
-    kubernetes_container_image: 'k8s.gcr.io/echoserver:1.4',
+    kubernetes_container_image: 'registry.k8s.io/echoserver:1.4',
     kubernetes_container_name: 'echoserver',
     kubernetes_groups: [
       'developer',
