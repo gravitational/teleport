@@ -31,12 +31,12 @@ const colors = {
     surface: '#222C59',
     surfaceSecondary: '#182047',
 
-    elevated: '#2D3761',
+    elevated: '#344179',
 
     popout: '#4A5688',
   },
 
-  brand: '#512FC9',
+  brand: '#9F85FF',
 
   // Spot backgrounds are used as highlights, for example
   // to indicate a hover or active state for an item in a menu.
@@ -56,13 +56,13 @@ const colors = {
 
   text: {
     // The most important text.
-    primary: 'rgba(255,255,255,0.87)',
+    primary: '#FFFFFF',
     // Secondary text.
     secondary: 'rgba(255, 255, 255, 0.56)',
     // Placeholder text for forms.
     placeholder: 'rgba(255, 255, 255, 0.24)',
     // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0, 0, 0, 0.24)',
+    disabled: 'rgba(255, 255, 255, 0.18)',
     // For maximum contrast.
     contrast: '#FFFFFF',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
@@ -76,10 +76,10 @@ const colors = {
     bgDisabled: 'rgba(255, 255, 255, 0.12)',
 
     primary: {
-      text: '#FFFFFF',
-      default: '#512FC9',
-      hover: '#651FFF',
-      active: '#354AA4',
+      text: '#000000',
+      default: '#9F85FF',
+      hover: '#B29DFF',
+      active: '#C5B6FF',
     },
 
     secondary: {
@@ -140,7 +140,7 @@ const colors = {
   },
 
   subtle: '#CFD8DC',
-  link: '#039BE5',
+  link: '#009EFF',
 
   danger: pink.A400,
   highlight: yellow[50],

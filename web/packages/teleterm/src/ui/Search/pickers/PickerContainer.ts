@@ -24,10 +24,11 @@ export const PickerContainer = styled.div`
   z-index: 1000;
   font-size: 12px;
   color: ${props => props.theme.colors.text.contrast};
-  background: ${props => props.theme.colors.levels.surface};
-  box-shadow: 8px 8px 18px rgb(0, 0, 0, 0.56);
+  background: ${props => props.theme.colors.levels.elevated};
+  box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: ${props => props.theme.radii[2]}px;
-  border: 1px solid ${props => props.theme.colors.action.hover};
+  // border in the same color as the background to prevent layout shifting
+  border: 1px solid ${props => props.theme.colors.levels.elevated};
   text-shadow: none;
   // Prevents inner items from covering the border on rounded corners.
   overflow: hidden;

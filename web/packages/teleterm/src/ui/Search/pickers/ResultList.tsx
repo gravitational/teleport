@@ -139,13 +139,12 @@ export const NonInteractiveItem = styled.div`
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
   padding: ${props => props.theme.space[2]}px;
   color: ${props => props.theme.colors.text.contrast};
-  background: ${props => props.theme.colors.levels.surface};
+  background: inherit;
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
@@ -153,13 +152,13 @@ const InteractiveItem = styled(NonInteractiveItem)`
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.levels.elevated};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   ${props => {
     if (props.active) {
       return css`
-        background: ${props => props.theme.colors.levels.elevated};
+        background: ${props => props.theme.colors.spotBackground[0]};
       `;
     }
   }}
@@ -175,7 +174,7 @@ function getNext(selectedIndex = 0, max = 0) {
 
 const Separator = styled.div`
   position: relative;
-  background: ${props => props.theme.colors.action.hover};
+  background: ${props => props.theme.colors.spotBackground[0]};
   height: 1px;
 `;
 
