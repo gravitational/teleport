@@ -174,7 +174,7 @@ func (s *SigningService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	// Create an IdP object to stuff into the IdpAuthnRequest.
 	idp := &saml.IdentityProvider{
 		Certificate:     cert,
-		Key:             signer,
+		Signer:          signer,
 		SignatureMethod: req.GetSignatureMethod(),
 		MetadataURL:     *metadataURL,
 	}
