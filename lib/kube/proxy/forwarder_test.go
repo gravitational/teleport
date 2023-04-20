@@ -770,7 +770,6 @@ func TestAuthenticate(t *testing.T) {
 								CommonName:   username,
 								Organization: []string{"example"},
 							},
-							NotAfter: certExpiration,
 						},
 					},
 				},
