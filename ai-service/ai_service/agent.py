@@ -57,7 +57,7 @@ graph_config = GraphToolConfig(
     name=f"Graph Index",
     description="useful for when you want to answer questions about Teleport with nodes",
     query_configs=graph_query_configs,
-    tool_kwargs={"return_direct": True},
+    tool_kwargs={"return_direct": False},
 )
 
 # a toolkit groups together all the different indices and graphs, providing them as tools to an agent
