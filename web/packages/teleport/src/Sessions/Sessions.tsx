@@ -48,8 +48,8 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {cfg.isTeams ? (
-          <Box width="350px">
-            <ButtonLockedFeature>
+          <Box width="340px">
+            <ButtonLockedFeature height="36px">
               Join Active Sessions With Teleport Enterprise
             </ButtonLockedFeature>
           </Box>

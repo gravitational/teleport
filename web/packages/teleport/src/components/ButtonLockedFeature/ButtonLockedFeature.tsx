@@ -8,10 +8,11 @@ import Text from 'design/Text';
 
 export type Props = {
   children: React.ReactNode;
+  [index: string]: any;
 };
-export function ButtonLockedFeature({ children }) {
+export function ButtonLockedFeature({ children, ...rest }) {
   return (
-    <StyledButton onClick={() => console.log('TODO')}>
+    <StyledButton onClick={() => console.log('TODO')} {...rest}>
       <Flex alignItems="flex-start">
         <Text>
           <UnlockIcon />
