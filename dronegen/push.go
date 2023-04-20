@@ -21,10 +21,12 @@ import (
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
-	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+	return pushCheckoutCommandsWithPath(b, "/go/src/github.com/gravitational/teleport")
+}
 
+func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 	var commands []string
-	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
+	commands = append(commands, cloneRepoCommands(checkoutPath, "${DRONE_COMMIT_SHA}")...)
 	commands = append(commands,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
@@ -78,12 +80,17 @@ func pushPipelines() []pipeline {
 		buildType:    buildType{os: "linux", arch: "arm64"},
 		trigger:      triggerPush,
 		pipelineName: "push-build-linux-arm64",
-		ghaWorkflow:  "release-linux-arm64.yml",
-		timeout:      60 * time.Minute,
-		slackOnError: true,
-		srcRefVar:    "DRONE_COMMIT",
-		workflowRef:  "${DRONE_BRANCH}",
-		inputs:       map[string]string{"upload-artifacts": "false"},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				timeout:           60 * time.Minute,
+				slackOnError:      true,
+				srcRefVar:         "DRONE_COMMIT",
+				ref:               "${DRONE_BRANCH}",
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "false"},
+			},
+		},
 	}))
 
 	// Only amd64 Windows is supported for now.
