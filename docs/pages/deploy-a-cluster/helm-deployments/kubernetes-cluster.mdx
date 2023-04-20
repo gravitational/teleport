@@ -34,6 +34,7 @@ cluster to Teleport.
 />
 
 ## Prerequisites
+
 - A registered domain name. This is required for Teleport to set up TLS via Let's Encrypt and for Teleport clients to verify the Proxy Service host.
 - A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
 
@@ -165,7 +166,14 @@ to create a public IP for Teleport.
   </TabItem>
 </Tabs>
 
+{/* Disabling the DNS partial until it's updated to cover this scope.
 (!docs/pages/includes/dns.mdx!)
+*/}
+
+Configure DNS entries for `tele.example.com` for traffic to the Teleport Proxy
+web UI, and `*.tele.example.com` for web apps using Application Access. The record
+type and configuration will depend on your Kubernetes provider, see their
+documentation for more information.
 
 Use the following command to confirm that Teleport is running:
 
