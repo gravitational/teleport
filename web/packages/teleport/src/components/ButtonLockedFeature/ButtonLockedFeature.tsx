@@ -1,8 +1,9 @@
 import React from 'react';
 import styled from 'styled-components';
-import Button from 'design/Button';
+import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
+import Text from 'design/Text';
 // import theme from 'design/theme';
 
 export type Props = {
@@ -12,28 +13,28 @@ export function ButtonLockedFeature({ children }) {
   return (
     <StyledButton onClick={() => console.log('TODO')}>
       <Flex alignItems="flex-start">
-        <UnlockIcon />
+        <Text>
+          <UnlockIcon />
+        </Text>
         {children}
       </Flex>
     </StyledButton>
   );
 }
 
-const StyledButton = styled(Button)(
+const StyledButton = styled(ButtonPrimary)(
   () => `
   text-transform: none;
   width: 100%;
   padding-top: 12px;
   padding-bottom: 12px;
   font-size: 12px;
-  color: ${/*theme.colors.text.black*/ 'TODO'};
-  background-color: ${/*theme.colors.buttons.cta.default*/ 'TODO'};
   `
 );
 
 const UnlockIcon = styled(Unlock)(
   () => `
-  color: ${/*theme.colors.text.black*/ 'TODO'};
+  color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 4px;
