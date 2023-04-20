@@ -16,6 +16,7 @@ package auth
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -553,12 +554,40 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
+	// used to keep track of calls to login hooks.
+	var loginHookCounter atomic.Int32
+	var loginHook LoginHook = func(ctx context.Context) error {
+		loginHookCounter.Add(1)
+		return nil
+	}
+
 	tests := []struct {
 		name         string
+		loginHooks   []LoginHook
 		authenticate func(t *testing.T, resp *wanlib.CredentialAssertionResponse)
 	}{
 		{
 			name: "ssh",
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+					AuthenticateUserRequest: AuthenticateUserRequest{
+						Webauthn:  resp,
+						PublicKey: []byte(sshPubKey),
+					},
+					TTL: 24 * time.Hour,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.NotNil(t, loginResp, "SSH response nil")
+				require.NotEmpty(t, loginResp.Cert, "SSH certificate empty")
+				require.Equal(t, user, loginResp.Username, "Unexpected username")
+			},
+		},
+		{
+			name: "ssh with login hooks",
+			loginHooks: []LoginHook{
+				loginHook,
+				loginHook,
+			},
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
@@ -583,9 +612,28 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				require.Equal(t, user, session.GetUser(), "Unexpected username")
 			},
 		},
+		{
+			name: "web with login hooks",
+			loginHooks: []LoginHook{
+				loginHook,
+			},
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+					Webauthn: resp,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.Equal(t, user, session.GetUser(), "Unexpected username")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			svr.Auth().resetLoginHooks()
+			loginHookCounter.Store(0)
+			for _, hook := range test.loginHooks {
+				svr.Auth().RegisterLoginHook(hook)
+			}
+
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
@@ -621,6 +669,8 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			attempts, err = authServer.GetUserLoginAttempts(user)
 			require.NoError(t, err)
 			require.Empty(t, attempts, "Login attempts not reset")
+
+			require.Equal(t, len(test.loginHooks), int(loginHookCounter.Load()))
 		})
 	}
 }

@@ -668,14 +668,20 @@ func (a *Server) CallLoginHooks(ctx context.Context) error {
 		return nil
 	}
 
-	errs := make(chan error, len(loginHooks))
+	var errs []error
 
 	for _, hook := range loginHooks {
-		errs <- hook(ctx)
+		errs = append(errs, hook(ctx))
 	}
 
-	close(errs)
-	return trace.NewAggregateFromChannel(errs, ctx)
+	return trace.NewAggregate(errs...)
+}
+
+// resetLoginHooks will clear out the login hooks.
+func (a *Server) resetLoginHooks() {
+	a.loginHooksMu.Lock()
+	a.loginHooks = nil
+	a.loginHooksMu.Unlock()
 }
 
 // CloseContext returns the close context
