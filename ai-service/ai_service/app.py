@@ -6,22 +6,16 @@ import grpc
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-from langchain.document_loaders import TextLoader
-from langchain.indexes import VectorstoreIndexCreator
 
 import ai_service.gen.teleport.assistant.v1.assistant_pb2_grpc as assistant_grpc
 import ai_service.model as model
+from ai_service.data import retreiver
 from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
     CompleteRequest,
     CompletionResponse,
 )
 
 DEFAULT_HELLO_MESSAGE = "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
-
-
-loader = TextLoader('state_of_the_union.txt', encoding='utf8')
-index = VectorstoreIndexCreator().from_loaders([loader])
-retreiver = index.vectorstore.as_retriever()
 
 async def assistant_query(
     chat_llm: ChatOpenAI,
@@ -81,7 +75,6 @@ async def serve():
     logging.info("Starting server on %s", listen_addr)
     await server.start()
     await server.wait_for_termination()
-
 
 if __name__ == "__main__":
     load_dotenv(verbose=True)
