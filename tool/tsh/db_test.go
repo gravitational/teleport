@@ -63,7 +63,7 @@ func TestDatabaseLogin(t *testing.T) {
 		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
-		withConfig(func(cfg *servicecfg.Config) {
+		withConfig(func(cfg *service.Config) {
 			// separate MySQL port with TLS routing.
 			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 		}))
