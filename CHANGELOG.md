@@ -1,5 +1,26 @@
 # Changelog
 
+## 10.3.16 (04/20/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* CLI
+  * Added `--raw` flag to `teleport version` command. [#24770](https://github.com/gravitational/teleport/pull/24770)
+* Database Access
+  * Reduce log spam when AWS database engine name is not recognized. [#24415](https://github.com/gravitational/teleport/pull/24415)
+* Desktop Access
+  * Fixed issue with desktop listing requiring extra RBAC permissions. [#24346](https://github.com/gravitational/teleport/pull/24346)
+* Machine ID
+  * Fixed issue with incorrect identity being logged in post-renewal message. [#24244](https://github.com/gravitational/teleport/pull/24244)
+* Kubernetes Access
+  * Fixed issue with incorrect status being returned to `exec` clients. [#24160](https://github.com/gravitational/teleport/pull/24160)
+* Performance & scalability
+  * Improved agent reconnect speed in proxy peering mode. [#24143](https://github.com/gravitational/teleport/pull/24143)
+* Tooling
+  * Upgraded Go to `v1.19.8`. [#24065](https://github.com/gravitational/teleport/pull/24065)
+* Web UI
+  * Added per-session MFA support to connection testers. [#23785](https://github.com/gravitational/teleport/pull/23785)
+
 ## 10.3.15 (03/30/23)
 
 This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
