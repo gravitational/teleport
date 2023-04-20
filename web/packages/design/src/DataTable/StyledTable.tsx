@@ -75,7 +75,7 @@ export const StyledTable = styled.table(
   }
 
   tbody tr {
-    border-bottom: 1px solid ${props.theme.colors.levels.sunken};
+    border-bottom: 1px solid ${props.theme.colors.spotBackground[0]};
   }
 
   tbody tr:hover {
