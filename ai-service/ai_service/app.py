@@ -9,6 +9,7 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 import ai_service.gen.teleport.assistant.v1.assistant_pb2_grpc as assistant_grpc
 import ai_service.model as model
+from ai_service.agent import create_agent
 from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
     CompleteRequest,
     CompletionResponse,
@@ -56,7 +57,7 @@ async def assistant_query(
 
 class AssistantServicer(assistant_grpc.AssistantServiceServicer):
     def __init__(self) -> None:
-        self.chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
+        self.chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.3)
 
     async def Complete(
         self, request: CompleteRequest, context: grpc.aio.ServicerContext

@@ -2,8 +2,11 @@ from ai_service.data import llm_predictor, graph, node_index, docs_index
 from langchain.agents import Tool
 from langchain.chains.conversation.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent
 from llama_index.indices.query.query_transform.base import DecomposeQueryTransform
+from langchain.agents import AgentExecutor, initialize_agent
+from langchain.callbacks import BaseCallbackManager
+from langchain.llms.base import BaseLLM
+from langchain.agents.agent_types import AgentType
 
 from llama_index.langchain_helpers.agents import (
     LlamaToolkit,
@@ -64,3 +67,24 @@ graph_config = GraphToolConfig(
     query_configs=graph_query_configs,
     tool_kwargs={"return_direct": True}
 )
+
+# a toolkit groups together all the different indices and graphs, providing them as tools to an agent
+toolkit = LlamaToolkit(
+    index_configs=[node_config, docs_config],
+    graph_configs=[graph_config]
+)
+
+# agent factory with a given LLM
+def create_agent(chat_llm: ChatOpenAI) -> AgentExecutor:
+    memory = ConversationBufferMemory(memory_key="chat_history")
+    llama_tools = toolkit.get_tools()
+    return initialize_agent(
+        llama_tools,
+        llm=chat_llm,
+        agent=AgentType.CHAT_CONVERSATIONAL_REACT_DESCRIPTION,
+        callback_manager=None,
+        agent_path=None,
+        agent_kwargs=None,
+        memory=memory,
+        verbose=True
+    )
