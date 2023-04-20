@@ -419,7 +419,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up a db connection for{' '}
+          Set up a db connection to{' '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
