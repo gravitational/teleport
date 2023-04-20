@@ -69,6 +69,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -3279,6 +3280,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrustDisabled {
 		log.Debug("Device Trust: skipping device authentication, device trust disabled")
 		return nil
@@ -3289,9 +3291,19 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 		// The TLS certificate is already part of the connection.
 		SshAuthorizedKey: key.Cert,
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
+		log.Debug("Device Trust: Skipping device authentication, device key not found")
+		return nil // err swallowed on purpose
+	case errors.Is(err, devicetrust.ErrPlatformNotSupported):
+		log.Debug("Device Trust: Skipping device authentication, platform not supported")
+		return nil // err swallowed on purpose
+	case trace.IsNotImplemented(err):
+		log.Debug("Device Trust: Skipping device authentication, not supported by server")
+		return nil // err swallowed on purpose
+	case err != nil:
 		log.WithError(err).Debug("Device Trust: device authentication failed")
-		return nil // Swallowed on purpose.
+		return nil // err swallowed on purpose
 	}
 
 	log.Debug("Device Trust: acquired augmented user certificates")
