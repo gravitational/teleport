@@ -271,7 +271,7 @@ exports[`success state 1`] = `
 }
 
 .c18 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c18 tbody tr:hover {
@@ -316,7 +316,7 @@ exports[`success state 1`] = `
 }
 
 .c15:disabled .c16 {
-  opacity: 0.1;
+  opacity: 0.2;
 }
 
 .c10 {

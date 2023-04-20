@@ -73,7 +73,7 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c37 {
+.c38 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -158,7 +158,7 @@ exports[`render DocumentNodes 1`] = `
   flex-wrap: wrap;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -231,7 +231,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c30 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c30 tbody tr:hover {
@@ -239,6 +239,18 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c11 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c35 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -274,29 +286,29 @@ exports[`render DocumentNodes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 {
+.c37 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c36 .c26 {
+.c37 .c26 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c36:hover .c26,
-.c36:focus .c26 {
+.c37:hover .c26,
+.c37:focus .c26 {
   opacity: 1;
 }
 
-.c36:disabled {
+.c37:disabled {
   cursor: default;
 }
 
-.c36:disabled .c26 {
-  opacity: 0.1;
+.c37:disabled .c26 {
+  opacity: 0.2;
 }
 
 .c19 {
@@ -1146,32 +1158,32 @@ exports[`render DocumentNodes 1`] = `
           </tbody>
         </table>
         <nav
-          class="c11"
+          class="c35"
         >
           <div
-            class="c35"
+            class="c36"
             width="100%"
           >
             <div
               class="c28"
             >
               <button
-                class="c36"
+                class="c37"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c26 c37 icon icon-arrow-left-circle "
+                  class="c26 c38 icon icon-arrow-left-circle "
                   font-size="3"
                 />
               </button>
               <button
-                class="c36"
+                class="c37"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c26 c37 icon icon-arrow-right-circle "
+                  class="c26 c38 icon icon-arrow-right-circle "
                   font-size="3"
                 />
               </button>

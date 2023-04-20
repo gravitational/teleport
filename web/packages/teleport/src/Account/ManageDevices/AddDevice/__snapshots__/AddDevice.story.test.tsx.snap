@@ -152,6 +152,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
 
 .c17::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c17:read-only {
@@ -837,6 +838,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
 
 .c18::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c18:read-only {
@@ -1538,6 +1540,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
 
 .c19::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c19:read-only {

@@ -112,6 +112,7 @@ exports[`auth2faType: off 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -388,6 +389,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -920,6 +922,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -1465,6 +1468,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2071,6 +2075,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2714,6 +2719,7 @@ exports[`server error rendering 1`] = `
 
 .c8::placeholder {
   color: rgba(255,255,255,0.24);
+  opacity: 1;
 }
 
 .c8:read-only {

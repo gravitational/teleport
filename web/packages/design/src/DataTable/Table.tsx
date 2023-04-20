@@ -216,7 +216,7 @@ function SearchableBasicTable<T>({
 }: SearchableBasicTableProps<T>) {
   return (
     <>
-      <StyledPanel borderTopLeftRadius={3} borderTopRightRadius={3}>
+      <StyledPanel>
         <InputSearch
           searchValue={searchValue}
           setSearchValue={setSearchValue}
@@ -268,7 +268,7 @@ function PagedTable<T>({
   return (
     <>
       {isTopPager && (
-        <StyledPanel borderTopLeftRadius={3} borderTopRightRadius={3}>
+        <StyledPanel>
           <InputSearch
             searchValue={searchValue}
             setSearchValue={setSearchValue}

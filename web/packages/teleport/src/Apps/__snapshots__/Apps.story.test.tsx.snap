@@ -365,7 +365,7 @@ exports[`failed state 1`] = `
   font-size: 14px;
 }
 
-.c38 {
+.c39 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -471,7 +471,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -584,7 +584,7 @@ exports[`failed state 1`] = `
 }
 
 .c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c24 tbody tr:hover {
@@ -592,6 +592,18 @@ exports[`failed state 1`] = `
 }
 
 .c5 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -627,29 +639,29 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 {
+.c38 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c37 .c20 {
+.c38 .c20 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c37:hover .c20,
-.c37:focus .c20 {
+.c38:hover .c20,
+.c38:focus .c20 {
   opacity: 1;
 }
 
-.c37:disabled {
+.c38:disabled {
   cursor: default;
 }
 
-.c37:disabled .c20 {
-  opacity: 0.1;
+.c38:disabled .c20 {
+  opacity: 0.2;
 }
 
 .c13 {
@@ -1247,30 +1259,30 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c5"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c37"
+              class="c38"
               title="Previous page"
             >
               <span
-                class="c20 c38 icon icon-arrow-left-circle "
+                class="c20 c39 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c37"
+              class="c38"
               title="Next page"
             >
               <span
-                class="c20 c38 icon icon-arrow-right-circle "
+                class="c20 c39 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
@@ -1397,7 +1409,7 @@ exports[`loaded state 1`] = `
   font-size: 14px;
 }
 
-.c38 {
+.c39 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1503,7 +1515,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1616,7 +1628,7 @@ exports[`loaded state 1`] = `
 }
 
 .c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c24 tbody tr:hover {
@@ -1624,6 +1636,18 @@ exports[`loaded state 1`] = `
 }
 
 .c5 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1659,29 +1683,29 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 {
+.c38 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c37 .c20 {
+.c38 .c20 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c37:hover .c20,
-.c37:focus .c20 {
+.c38:hover .c20,
+.c38:focus .c20 {
   opacity: 1;
 }
 
-.c37:disabled {
+.c38:disabled {
   cursor: default;
 }
 
-.c37:disabled .c20 {
-  opacity: 0.1;
+.c38:disabled .c20 {
+  opacity: 0.2;
 }
 
 .c13 {
@@ -2285,30 +2309,30 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c5"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c37"
+              class="c38"
               title="Previous page"
             >
               <span
-                class="c20 c38 icon icon-arrow-left-circle "
+                class="c20 c39 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c37"
+              class="c38"
               title="Next page"
             >
               <span
-                class="c20 c38 icon icon-arrow-right-circle "
+                class="c20 c39 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>

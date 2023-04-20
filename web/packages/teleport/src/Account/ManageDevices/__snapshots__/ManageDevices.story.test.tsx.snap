@@ -207,7 +207,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c11 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c11 tbody tr:hover {
@@ -751,7 +751,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c12 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c12 tbody tr:hover {
