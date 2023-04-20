@@ -185,7 +185,6 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.secondary};
   background: transparent;
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
