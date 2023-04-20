@@ -15,19 +15,28 @@
  */
 
 import React from 'react';
+import userEvent from '@testing-library/user-event';
+import { act } from '@testing-library/react';
 import { render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
+import Logger, { NullService } from 'teleterm/logger';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 import ModalsHost from 'teleterm/ui/ModalsHost';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
+import * as useSearch from './useSearch';
 import * as SearchContext from './SearchContext';
 
 import { SearchBarConnected } from './SearchBar';
+
+beforeAll(() => {
+  Logger.init(new NullService());
+});
 
 beforeEach(() => {
   jest.restoreAllMocks();
@@ -261,6 +270,55 @@ it('maintains focus on the search input after closing a resource search error mo
 
   expect(screen.getByRole('searchbox')).toHaveFocus();
   // Verify that the search bar wasn't closed.
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+});
+
+it('shows a login modal when a request to a cluster from the current workspace fails with a retryable error', async () => {
+  const user = userEvent.setup();
+  const cluster = makeRootCluster();
+  const resourceSearchError = new ResourceSearchError(
+    cluster.uri,
+    'server',
+    new Error('ssh: cert has expired')
+  );
+  const resourceSearchResult = {
+    results: [],
+    errors: [resourceSearchError],
+    search: 'foo',
+  };
+  const resourceSearch = async () => resourceSearchResult;
+  jest
+    .spyOn(useSearch, 'useResourceSearch')
+    .mockImplementation(() => resourceSearch);
+
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = cluster.uri;
+  });
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(cluster.uri, cluster);
+  });
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <SearchBarConnected />
+      <ModalsHost />
+    </MockAppContextProvider>
+  );
+
+  await user.type(screen.getByRole('searchbox'), 'foo');
+
+  // Verify that the login modal was shown after typing in the search box.
+  await waitFor(() => {
+    expect(screen.getByTestId('Modal')).toBeInTheDocument();
+  });
+  expect(screen.getByTestId('Modal')).toHaveTextContent('Login to');
+
+  // Verify that the search bar stays open after closing the modal.
+  screen.getByLabelText('Close').click();
+  await waitFor(() => {
+    expect(screen.queryByTestId('Modal')).not.toBeInTheDocument();
+  });
   expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
