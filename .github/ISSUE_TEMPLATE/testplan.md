@@ -90,14 +90,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Login via platform authenticator
       - [ ] Touch ID
       - [ ] Windows Hello
-    - [ ] Login via WebAuthn using an U2F device
-
-    U2F devices must be registered in a previous version of Teleport.
-
-    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
-    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
-    the installation to the current Teleport version (one major at a time) and try to
-    log in using the U2F device as your second factor - it should work.
+    - [ ] Login via WebAuthn using an U2F/CTAP1 device
 
   - [ ] Login OIDC
   - [ ] Login SAML
