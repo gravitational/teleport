@@ -16,7 +16,7 @@ from llama_index.langchain_helpers.agents import (
 node_config = IndexToolConfig(
     index=node_index,
     name=f"Vector Index Nodes",
-    description=f"useful for when you want to answer queries about Cluster Nodes",
+    description=f"useful for when you want to answer queries about Teleport Nodes in the cluster. You should use this tool when the user is referring any cluster resource or wants to perform an action.",
     index_query_kwargs={"similarity_top_k": 5},
     tool_kwargs={"return_direct": False},
 )
@@ -25,7 +25,7 @@ node_config = IndexToolConfig(
 docs_config = IndexToolConfig(
     index=docs_index,
     name=f"Vector Index Docs",
-    description=f"useful for when you want to answer queries about Teleport",
+    description=f"useful for when you want to answer queries about Teleport. You should use this one when you want to answer product questions, even if you think you know the answer.",
     index_query_kwargs={"similarity_top_k": 5},
     tool_kwargs={"return_direct": False},
 )

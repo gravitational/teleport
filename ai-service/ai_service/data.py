@@ -11,7 +11,7 @@ node_documents = SimpleDirectoryReader("./knowledge/nodes").load_data()
 node_index = GPTSimpleVectorIndex.from_documents(
     node_documents, service_context=service_context
 )
-node_summary = "Cluster Nodes"
+node_summary = "Teleport Cluster Nodes"
 
 # load Teleport docs for additional context
 docs_index = GPTSimpleVectorIndex.load_from_disk("trained/docs_index.json")
