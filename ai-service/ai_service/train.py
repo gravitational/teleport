@@ -4,12 +4,18 @@ from llama_index import (
     ServiceContext,
 )
 from llama_index import LLMPredictor, ServiceContext
-from langchain import OpenAI
+from langchain.chat_models import ChatOpenAI
+from llama_index.node_parser import SimpleNodeParser
 from pathlib import Path
+from langchain.text_splitter import NLTKTextSplitter
 
 # common settings for text chunking etc
-llm = OpenAI(model_name="text-davinci-003", temperature=0, max_tokens=512)
+llm = ChatOpenAI(model_name="text-davinci-003", temperature=0, max_tokens=512)
 llm_predictor = LLMPredictor(llm=llm)
+node_parser = SimpleNodeParser(text_splitter=NLTKTextSplitter())
+service_context_natural_language = ServiceContext.from_defaults(
+    llm_predictor=llm_predictor, node_parser=node_parser
+)
 service_context = ServiceContext.from_defaults(
     llm_predictor=llm_predictor, chunk_size_limit=512
 )
@@ -17,10 +23,10 @@ service_context = ServiceContext.from_defaults(
 if __name__ == "__main__":
     # load Teleport docs for additional context
     print("loading documents...")
-    docs_documents = SimpleDirectoryReader("../docs/pages", recursive=True).load_data()
+    docs_documents = SimpleDirectoryReader("../docs/pages", recursive=False).load_data()
     print("building index...")
     docs_index = GPTSimpleVectorIndex.from_documents(
-        docs_documents, service_context=service_context
+        docs_documents, service_context=service_context_natural_language
     )
 
     print("writing index to disk...")

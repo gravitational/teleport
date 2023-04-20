@@ -13,9 +13,8 @@ grpcio-tools = "^1.53.0"
 grpcio = "^1.53.0"
 black = "^23.3.0"
 load-dotenv = "^0.1.0"
-chromadb = "^0.3.21"
-tiktoken = "^0.3.3"
 llama-index = "^0.5.18"
+nltk = "^3.8.1"
 
 [build-system]
 requires = ["poetry-core"]
