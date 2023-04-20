@@ -19,7 +19,7 @@ import { useAttempt } from 'shared/hooks';
 
 import { context, trace } from '@opentelemetry/api';
 
-import { Session } from 'teleport/services/session';
+import { ParticipantMode, Session } from 'teleport/services/session';
 
 import Ctx from 'teleport/teleportContext';
 
@@ -36,7 +36,24 @@ export default function useSessions(ctx: Ctx, clusterId: string) {
       context.active(),
       span => {
         return ctx.sshService.fetchSessions(clusterId).then(resp => {
-          setSessions(resp);
+          // setSessions(resp);
+          setSessions([
+            {
+              kind: 'ssh',
+              sid: 'sid',
+              serverId: 'serverid',
+              namespace: 'namespace',
+              addr: 'localhost:3080',
+              clusterId: 'cluster',
+              created: new Date(),
+              durationText: '1 hour',
+              login: 'user login',
+              parties: [],
+              resourceName: 'my-app',
+              participantModes: ['observer', 'peer'] as ParticipantMode[],
+              moderated: false,
+            },
+          ]);
           span.end();
           return resp;
         });
