@@ -1,4 +1,4 @@
-.version: &version "10.3.15-dev.fred.1"
+.version: &version "10.3.15-dev.fred.2"
 
 name: teleport-kube-agent
 apiVersion: v2
