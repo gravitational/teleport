@@ -5175,6 +5175,12 @@ func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListen
 		if !ok {
 			return nil, mode, trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
 		}
+
+		// In case the web address has "https" scheme for TLS Routing, make
+		// sure "tcp" is used when dialing reverse tunnel.
+		if mode == types.ProxyListenerMode_Multiplex && addr.AddrNetwork == "https" {
+			addr.AddrNetwork = "tcp"
+		}
 		return addr, mode, nil
 	}
 }
