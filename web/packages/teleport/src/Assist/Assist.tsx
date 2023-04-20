@@ -17,9 +17,13 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
+import { useParams } from 'react-router';
+
 import { MessagesContextProvider } from 'teleport/Assist/contexts/messages';
 import { Sidebar } from 'teleport/Assist/Sidebar';
 import { Chat } from 'teleport/Assist/Chat';
+import { ConversationsContextProvider } from 'teleport/Assist/contexts/conversations';
+import { NewChat } from 'teleport/Assist/Chat/Chat';
 
 const Container = styled.div`
   display: flex;
@@ -42,15 +46,26 @@ const Width = styled.div`
 `;
 
 export function Assist() {
+  const params = useParams<{ conversationId: string }>();
+
   return (
-    <MessagesContextProvider>
+    <ConversationsContextProvider>
       <Container>
         <Width>
           <Sidebar />
 
-          <Chat />
+          {params.conversationId ? (
+            <MessagesContextProvider
+              conversationId={params.conversationId}
+              key={params.conversationId}
+            >
+              <Chat />
+            </MessagesContextProvider>
+          ) : (
+            <NewChat />
+          )}
         </Width>
       </Container>
-    </MessagesContextProvider>
+    </ConversationsContextProvider>
   );
 }

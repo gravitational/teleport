@@ -17,9 +17,15 @@ limitations under the License.
 import React, { useCallback } from 'react';
 import styled from 'styled-components';
 
+import { Link, NavLink } from 'react-router-dom';
+
+import { CaretLeft } from 'design/Icon';
+
 import { useHistory } from 'react-router';
 
 import { useTeleport } from 'teleport';
+
+import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 import { ChatIcon } from '../Icons/ChatIcon';
 import { PlusIcon } from '../Icons/PlusIcon';
@@ -40,8 +46,9 @@ const Logo = styled.div`
   background-size: cover;
   width: 43px;
   height: 40px;
+  flex: 0 0 40px;
   position: relative;
-  margin: 35px 30px 60px 0;
+  margin: 10px 30px 40px 0;
 
   &:before {
     position: absolute;
@@ -65,30 +72,30 @@ const Logo = styled.div`
   }
 `;
 
-const ChatHistory = styled.div`
-  margin-top: 60px;
-  flex: 1;
-`;
-
 const ChatHistoryTitle = styled.div`
   color: rgba(255, 255, 255, 0.6);
   font-weight: bold;
   font-size: 16px;
   margin-bottom: 20px;
+  margin-top: 60px;
 `;
 
-const ChatHistoryItem = styled.div`
+const ChatHistoryItem = styled(NavLink)`
   color: white;
   display: flex;
   margin-bottom: 15px;
   border-radius: 10px;
   padding: 13px 20px 12px;
   line-height: 1.4;
-  margin-left: -12px;
   cursor: pointer;
+  text-decoration: none;
 
   &:hover {
     background: rgba(255, 255, 255, 0.1);
+  }
+
+  &.active {
+    background: rgba(255, 255, 255, 0.2);
   }
 `;
 
@@ -152,17 +159,60 @@ const UserInfoContent = styled.div`
   margin-left: 20px;
 `;
 
+const BackToTeleport = styled(Link)`
+  color: white;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 5px;
+  padding: 5px 10px;
+  margin-left: -10px;
+  margin-top: -5px;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  span {
+    margin-right: 10px;
+  }
+`;
+
+const ChatHistoryList = styled.div`
+  overflow-y: auto;
+`;
+
 export function Sidebar() {
   const ctx = useTeleport();
-
   const history = useHistory();
 
+  const { create, conversations } = useConversations();
+
   const handleNewChat = useCallback(() => {
-    history.push(`/web/assist`);
+    create().then(id => history.push(`/web/assist/${id}`));
   }, []);
+
+  const chatHistory = conversations.map(conversation => (
+    <ChatHistoryItem
+      key={conversation.id}
+      to={`/web/assist/${conversation.id}`}
+    >
+      <ChatHistoryItemIcon>
+        <ChatIcon size={18} />
+      </ChatHistoryItemIcon>
+      <ChatHistoryItemTitle>New Chat</ChatHistoryItemTitle>
+    </ChatHistoryItem>
+  ));
 
   return (
     <Container>
+      <div>
+        <BackToTeleport to={`/web`}>
+          <CaretLeft /> Back to Teleport
+        </BackToTeleport>
+      </div>
+
       <Logo />
 
       <NewChatButton onClick={() => handleNewChat()}>
@@ -170,24 +220,8 @@ export function Sidebar() {
         New Chat
       </NewChatButton>
 
-      <ChatHistory>
-        <ChatHistoryTitle>Chat History</ChatHistoryTitle>
-
-        <ChatHistoryItem>
-          <ChatHistoryItemIcon>
-            <ChatIcon size={18} />
-          </ChatHistoryItemIcon>
-          <ChatHistoryItemTitle>
-            Update all production servers
-          </ChatHistoryItemTitle>
-        </ChatHistoryItem>
-        <ChatHistoryItem>
-          <ChatHistoryItemIcon>
-            <ChatIcon size={18} />
-          </ChatHistoryItemIcon>
-          <ChatHistoryItemTitle>Check for audit anomalies</ChatHistoryItemTitle>
-        </ChatHistoryItem>
-      </ChatHistory>
+      <ChatHistoryTitle>Chat History</ChatHistoryTitle>
+      <ChatHistoryList>{chatHistory}</ChatHistoryList>
 
       <UserInfo>
         <UserInfoAvatar>

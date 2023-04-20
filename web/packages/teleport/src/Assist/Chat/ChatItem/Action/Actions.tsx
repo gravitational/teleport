@@ -14,25 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, {
-  Children,
-  PropsWithChildren,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { Dots } from 'teleport/Assist/Dots';
-
 import { RunIcon } from '../../../Icons/RunIcon';
-import { ExecOutput, MessageContent } from '../../../services/messages';
-
-import { ExecResult } from './ExecResult';
+import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
+import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
+import {
+  Command,
+  NodesAndLabels,
+} from 'teleport/Assist/Chat/ChatItem/Action/Action';
+import { RunCommand } from 'teleport/Assist/Chat/ChatItem/Action/RunAction';
 
 interface ActionsProps {
-  contents: MessageContent[];
+  actions: ExecuteRemoteCommandContent;
   scrollTextarea: () => void;
 }
 
@@ -93,51 +88,111 @@ const LoadingContainer = styled.div`
   margin: 30px 0;
 `;
 
-export function Actions(props: PropsWithChildren<ActionsProps>) {
-  const children: ReactNode[] = [];
-  const [loading, setLoading] = useState(false);
-  const [result] = useState<ExecOutput | null>(null);
+function serverMessageToState(
+  message: ExecuteRemoteCommandContent
+): ActionState[] {
+  const state: ActionState[] = [];
 
-  Children.forEach(props.children, (child, index) => {
-    children.push(child);
-    children.push(<Spacer key={`spacer-${index}`}>and</Spacer>);
-  });
+  if (message.nodes) {
+    for (const node of message.nodes) {
+      state.push({ type: 'node', value: node });
+    }
+  }
+
+  // if (message.labels) {
+  //   for (const label of message.labels) {
+  //     state.push({ type: 'label', value: label });
+  //   }
+  // }
+
+  return state;
+}
+
+export function Actions(props: ActionsProps) {
+  const [running, setRunning] = useState(false);
+  const [actions, setActions] = useState({ ...props.actions });
+
+  console.log(actions);
+
+  const [result] = useState(false);
 
   useEffect(() => {
     props.scrollTextarea();
-  }, [loading, props.scrollTextarea]);
+  }, [running, props.scrollTextarea]);
 
   const run = useCallback(async () => {
-    if (loading) {
+    if (running) {
       return;
     }
 
-    setLoading(true);
-  }, [props.contents, loading]);
+    setRunning(true);
+  }, [running]);
+
+  const handleSave = useCallback(
+    (newActionState: ActionState[]) => {
+      const newActions: ExecuteRemoteCommandContent = {
+        type: Type.ExecuteRemoteCommand,
+        labels: [],
+        nodes: [],
+        command: actions.command,
+      };
+
+      for (const item of newActionState) {
+        if (item.type === 'node') {
+          newActions.nodes.push(item.value);
+        }
+
+        if (item.type === 'user') {
+          newActions.login = item.value;
+        }
+      }
+
+      setActions(newActions);
+    },
+    [actions]
+  );
+
+  const handleCommandUpdate = useCallback(
+    (newCommand: string) => {
+      const newActions: ExecuteRemoteCommandContent = {
+        ...actions,
+        command: newCommand,
+      };
+
+      setActions(newActions);
+    },
+    [actions]
+  );
+
+  console.log(actions.command);
 
   return (
     <Container>
       {!result && <Title>Teleport would like to</Title>}
 
-      {children.slice(0, -1)}
+      <NodesAndLabels
+        initialLabels={actions.labels}
+        initialNodes={actions.nodes}
+        login={actions.login}
+        onStateUpdate={handleSave}
+        disabled={running}
+      />
 
-      {!result && (
+      <Spacer>and</Spacer>
+
+      <Command command={actions.command} onStateUpdate={handleCommandUpdate} disabled={running} />
+
+      {!result && !running && (
         <Buttons>
-          {!loading && <ButtonCancel>Cancel</ButtonCancel>}
-          <ButtonRun onClick={() => run()} disabled={loading}>
+          {!running && <ButtonCancel>Cancel</ButtonCancel>}
+          <ButtonRun onClick={() => run()}>
             <RunIcon size={30} />
-            {loading ? 'Running' : 'Run'}
+            Run
           </ButtonRun>
         </Buttons>
       )}
 
-      {loading && (
-        <LoadingContainer>
-          <Dots />
-        </LoadingContainer>
-      )}
-
-      {result && <ExecResult result={result} />}
+      {running && <RunCommand actions={actions} />}
     </Container>
   );
 }

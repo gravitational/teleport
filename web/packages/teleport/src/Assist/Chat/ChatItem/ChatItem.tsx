@@ -33,27 +33,28 @@ import teleport from './teleport-icon.png';
 import { codeCSS } from './styles/code';
 import { markdownCSS } from './styles/markdown';
 
-import { Action, Actions } from './Action';
+import { Actions } from './Action';
+import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
 interface ChatItemProps {
   message: Message;
   isLast: boolean;
+  isNew: boolean;
   scrollTextarea: () => void;
 }
 
 const appear = keyframes`
-  0% {
-    transform: translate3d(0, 30px, 0);
-    opacity: 0;
-  }
-
-  100% {
+  to {
     transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 `;
 
-const Container = styled.div<{ teleport?: boolean; isLast: boolean }>`
+const Container = styled.div<{
+  teleport?: boolean;
+  isLast: boolean;
+  isNew: boolean;
+}>`
   padding: 20px 30px;
   background: ${p => (p.teleport ? '#0c143d' : 'rgba(255, 255, 255, 0.1)')};
   display: flex;
@@ -61,8 +62,8 @@ const Container = styled.div<{ teleport?: boolean; isLast: boolean }>`
   margin-bottom: ${p => (p.isLast ? 0 : '70px')};
   position: relative;
   animation: ${appear} 0.6s linear forwards;
-  transform: translate3d(0, 30px, 0);
-  opacity: 0;
+  transform: ${p => (p.isNew ? 'translate3d(0, 30px, 0)' : 'none')};
+  opacity: ${p => (p.isNew ? 0 : 1)};
 `;
 
 const ChatItemAvatar = styled.div`
@@ -133,66 +134,30 @@ marked.setOptions({
 export function ChatItem(props: ChatItemProps) {
   const ctx = useTeleport();
 
-  const content = [];
-  const commands = [];
+  let content;
 
-  for (const [index, item] of props.message.content.entries()) {
-    switch (item.type) {
-      case Type.Message:
-        if (Array.isArray(item.value)) {
-          for (const [i, value] of item.value.entries()) {
-            content.push(
-              <ChatItemContent
-                key={`message-${index}-${i}`}
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(marked.parse(value)),
-                }}
-              />
-            );
-          }
-        } else {
-          content.push(
-            <ChatItemContent
-              key={`message-${index}`}
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(marked.parse(item.value)),
-              }}
-            />
-          );
-        }
+  switch (props.message.content.type) {
+    case Type.Message:
+      content = (
+        <ChatItemContent
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(marked.parse(props.message.content.value)),
+          }}
+        />
+      );
 
-        break;
+      break;
 
-      case Type.Exec:
-        commands.push(
-          <Action key={`exec-${index}`} type={Type.Exec} value={item.value} />
-        );
+    case Type.ExecuteRemoteCommand:
+      content = (
+        <Actions
+          scrollTextarea={props.scrollTextarea}
+          actions={props.message.content}
+          key="commands"
+        />
+      );
 
-        break;
-
-      case Type.Connect:
-        commands.push(
-          <Action
-            key={`connect-${index}`}
-            type={Type.Connect}
-            value={item.value}
-          />
-        );
-
-        break;
-    }
-  }
-
-  if (commands.length) {
-    content.push(
-      <Actions
-        scrollTextarea={props.scrollTextarea}
-        contents={props.message.content}
-        key="commands"
-      >
-        {commands}
-      </Actions>
-    );
+      break;
   }
 
   let avatar = (
@@ -200,6 +165,7 @@ export function ChatItem(props: ChatItemProps) {
       <ChatItemAvatarImage backgroundImage={teleport} />
     </ChatItemAvatarTeleport>
   );
+
   if (props.message.author === Author.User) {
     avatar = (
       <ChatItemAvatar>
@@ -214,12 +180,12 @@ export function ChatItem(props: ChatItemProps) {
     <Container
       teleport={props.message.author === Author.Teleport}
       isLast={props.isLast}
+      isNew={props.isNew}
     >
       {avatar}
 
       <div
         style={{
-          paddingBottom: commands.length > 0 ? 0 : '10px',
           width: '100%',
         }}
       >
@@ -233,7 +199,7 @@ export function ExampleChatItem() {
   const ctx = useTeleport();
 
   return (
-    <Container teleport={true} isLast={false}>
+    <Container teleport={true} isLast={false} isNew={false}>
       <ChatItemAvatarTeleport>
         <ChatItemAvatarImage backgroundImage={teleport} />
       </ChatItemAvatarTeleport>
@@ -241,7 +207,8 @@ export function ExampleChatItem() {
         Hey {ctx.storeUser.state.username}, I'm Teleport - a powerful tool that
         can assist you in managing your Teleport cluster via ChatGPT. <br />
         <br />
-        Here are some things I can do:
+        Start a new chat with me on the left to get started! Here's some of the
+        things I can do:
         <ExampleList />
       </ChatItemContent>
     </Container>

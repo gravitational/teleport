@@ -24,12 +24,12 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/gravitational/teleport/api/defaults"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -168,83 +168,80 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
 	if conversationID == "" {
-		// new conversation, create a new ID
-		conversationID = uuid.New().String()
+		return trace.Errorf("conversation ID is required")
+	}
 
-		if err := ws.WriteJSON(struct {
-			ConversationID string `json:"conversation_id"`
-		}{
-			ConversationID: conversationID,
-		}); err != nil {
-			return trace.Wrap(err)
+	// existing conversation, retrieve old messages
+	messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var hasPreviousMessages bool
+	for _, msg := range messages.GetMessages() {
+		if !hasPreviousMessages {
+			hasPreviousMessages = true
 		}
-	} else {
-		// existing conversation, retrieve old messages
-		messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, msg := range messages.GetMessages() {
-			role := roleToKind(msg.Type)
-			if role != "" {
-				chat.Insert(role, string(msg.Payload))
-				if err := ws.WriteJSON(msg); err != nil {
-					return trace.Wrap(err)
-				}
-			}
+
+		role := roleToKind(msg.Type)
+		if role != "" {
+			chat.Insert(role, msg.Payload)
 		}
 	}
 
 	for {
-		// query the assistant and fetch an answer
-		message, completion, err := chat.Complete(r.Context(), 500)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if message != nil {
-			// write assistant message to both in-memory chain and persistent storage
-			chat.Insert(message.Role, message.Content)
-			protoMsg := &proto.AssistantMessage{
-				ConversationId: conversationID,
-				Type:           "CHAT_MESSAGE_ASSISTANT",
-				Payload:        message.Content,
-				CreatedTime:    h.clock.Now().UTC(),
-			}
-			if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := ws.WriteJSON(protoMsg); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if completion != nil {
-			payload := commandPayload{
-				Command: completion.Command,
-				Nodes:   completion.Nodes,
-				Labels:  completion.Labels,
-			}
-
-			payloadJson, err := json.Marshal(payload)
+		// if there's no previous messages (a new conversation), initiate the conversation
+		if !hasPreviousMessages {
+			// query the assistant and fetch an answer
+			message, completion, err := chat.Complete(r.Context(), 500)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			msg := &proto.AssistantMessage{
-				Type:           "COMMAND",
-				ConversationId: conversationID,
-				Payload:        string(payloadJson),
-				CreatedTime:    h.clock.Now().UTC(),
+			if message != nil {
+				// write assistant message to both in-memory chain and persistent storage
+				chat.Insert(message.Role, message.Content)
+				protoMsg := &proto.AssistantMessage{
+					ConversationId: conversationID,
+					Type:           "CHAT_MESSAGE_ASSISTANT",
+					Payload:        message.Content,
+					CreatedTime:    h.clock.Now().UTC(),
+				}
+				if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err := ws.WriteJSON(protoMsg); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 
-			if _, err := authClient.InsertAssistantMessage(r.Context(), msg); err != nil {
-				return trace.Wrap(err)
-			}
+			if completion != nil {
+				payload := commandPayload{
+					Command: completion.Command,
+					Nodes:   completion.Nodes,
+					Labels:  completion.Labels,
+				}
 
-			if err := ws.WriteJSON(msg); err != nil {
-				return trace.Wrap(err)
+				payloadJson, err := json.Marshal(payload)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				msg := &proto.AssistantMessage{
+					Type:           "COMMAND",
+					ConversationId: conversationID,
+					Payload:        string(payloadJson),
+					CreatedTime:    h.clock.Now().UTC(),
+				}
+
+				if _, err := authClient.InsertAssistantMessage(r.Context(), msg); err != nil {
+					return trace.Wrap(err)
+				}
+
+				if err := ws.WriteJSON(msg); err != nil {
+					return trace.Wrap(err)
+				}
 			}
 		}
 

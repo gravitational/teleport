@@ -17,6 +17,8 @@ limitations under the License.
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
+import { Dots } from 'teleport/Assist/Dots';
+
 import { useMessages } from '../contexts/messages';
 
 import { ChatBox } from './ChatBox';
@@ -58,10 +60,24 @@ const Padding = styled.div`
   box-sizing: border-box;
 `;
 
+const LoadingContainer = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const RespondingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  margin-top: 30px;
+`;
+
 export function Chat() {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { send, messages } = useMessages();
+  const { send, messages, loading, responding } = useMessages();
 
   const scrollTextarea = useCallback(() => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
@@ -78,32 +94,60 @@ export function Chat() {
     [messages]
   );
 
-  const items = messages
-    .filter(message => !message.hidden)
-    .map((message, index) => (
-      <ChatItem
-        scrollTextarea={scrollTextarea}
-        key={index}
-        message={message}
-        isLast={index === messages.length - 1}
-      />
-    ));
+  const items = messages.map((message, index) => (
+    <ChatItem
+      scrollTextarea={scrollTextarea}
+      key={index}
+      message={message}
+      isNew={message.isNew}
+      isLast={index === messages.length - 1}
+    />
+  ));
 
+  let content;
+  if (loading) {
+    content = (
+      <LoadingContainer>
+        <Dots />
+      </LoadingContainer>
+    );
+  } else {
+    content = (
+      <Padding>
+        {items}
+
+        {responding && (
+          <RespondingContainer>
+            <Dots />
+          </RespondingContainer>
+        )}
+
+        <div ref={ref} />
+      </Padding>
+    );
+  }
+
+  return (
+    <Container>
+      <Header>New Chat</Header>
+
+      <Content>{content}</Content>
+
+      <ChatBox onSubmit={handleSubmit} />
+    </Container>
+  );
+}
+
+export function NewChat() {
   return (
     <Container>
       <Header>New Chat</Header>
 
       <Content>
         <Padding>
-          {!items.length && <ExampleChatItem />}
-
-          {items}
-
-          <div ref={ref} />
+          <ExampleChatItem />
         </Padding>
       </Content>
-
-      <ChatBox onSubmit={handleSubmit} />
     </Container>
   );
 }

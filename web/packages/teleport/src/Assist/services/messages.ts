@@ -20,50 +20,32 @@ export enum Author {
 }
 
 export enum Type {
-  Exec = 'exec',
   Message = 'message',
-  Connect = 'connect',
+  ExecuteRemoteCommand = 'connect',
 }
 
-export interface MessageContent {
-  type: Type;
-  value: string | string[];
+export interface Label {
+  key: string;
+  value: string;
 }
+
+export interface ExecuteRemoteCommandContent {
+  type: Type.ExecuteRemoteCommand;
+  command: string;
+  labels?: string[];
+  nodes?: string[];
+  login?: string;
+}
+
+export interface TextMessageContent {
+  type: Type.Message;
+  value: string;
+}
+
+export type MessageContent = TextMessageContent | ExecuteRemoteCommandContent;
 
 export interface Message {
-  hidden?: boolean;
-  content: MessageContent[];
+  isNew?: boolean;
+  content: MessageContent;
   author: Author;
-}
-
-interface CommandOutput {
-  serverName: string;
-  commandOutput: string;
-}
-
-export interface ExecOutput {
-  commandOutputs: CommandOutput[];
-  humanInterpretation: string;
-}
-
-export async function sendMessage(
-  messages: Message[]
-): Promise<MessageContent[]> {
-  const res = await fetch('/api/request', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(messages),
-  });
-
-  return res.json();
-}
-
-export async function exec(contents: MessageContent[]): Promise<ExecOutput[]> {
-  const res = await fetch('/api/exec', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(contents),
-  });
-
-  return res.json();
 }

@@ -14,10 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, {
+  ChangeEvent,
+  KeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import styled from 'styled-components';
 
-import { ChangeEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { useMessages } from 'teleport/Assist/contexts/messages';
 
 interface ChatBoxProps {
   disabled?: boolean;
@@ -54,6 +60,8 @@ export function ChatBox(props: ChatBoxProps) {
   const [value, setValue] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
 
+  const { responding } = useMessages();
+
   useEffect(() => {
     if (ref.current) {
       ref.current.style.height = '0px';
@@ -78,8 +86,10 @@ export function ChatBox(props: ChatBoxProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      props.onSubmit(value);
-      setValue('');
+      if (!responding) {
+        props.onSubmit(value);
+        setValue('');
+      }
     }
   }
 
