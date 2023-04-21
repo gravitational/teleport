@@ -1,6 +1,6 @@
 ---
 authors: David Boslee (david@goteleport.com), Naji Obeid (naji@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 69 - Proxy Peering

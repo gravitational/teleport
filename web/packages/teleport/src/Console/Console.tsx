@@ -16,7 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Flex } from 'design';
+import { Box, Flex, Indicator } from 'design';
+import { Danger } from 'design/Alert';
+
+import useAttempt from 'shared/hooks/useAttemptNext';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
 
@@ -33,6 +36,8 @@ import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
 
+import { ConsoleThemeProvider } from './ThemeProvider';
+
 const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
@@ -44,6 +49,11 @@ export default function Console() {
   const documents = storeDocs.getDocuments();
   const activeDoc = documents.find(d => d.id === activeDocId);
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
+  const { attempt, run } = useAttempt();
+
+  React.useEffect(() => {
+    run(() => consoleCtx.initStoreUser());
+  }, []);
 
   useKeyboardNav(consoleCtx);
   useStoreDocs(consoleCtx);
@@ -77,25 +87,39 @@ export default function Console() {
   ));
 
   return (
-    <StyledConsole>
-      <Flex bg={colors.terminalDark} height="32px">
-        <Tabs
-          flex="1"
-          items={documents}
-          onClose={onTabClose}
-          onSelect={onTabClick}
-          activeTab={activeDocId}
-          clusterId={clusterId}
-          disableNew={disableNewTab}
-          onNew={onTabNew}
-        />
-        <ActionBar onLogout={onLogout} />
-      </Flex>
-      {$docs}
-      {hasSshSessions && (
-        <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
-      )}
-    </StyledConsole>
+    <ConsoleThemeProvider>
+      <StyledConsole>
+        {attempt.status === 'failed' && (
+          <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
+        )}
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'success' && (
+          <>
+            <Flex bg={colors.terminalDark} height="32px">
+              <Tabs
+                flex="1"
+                items={documents}
+                onClose={onTabClose}
+                onSelect={onTabClick}
+                activeTab={activeDocId}
+                clusterId={clusterId}
+                disableNew={disableNewTab}
+                onNew={onTabNew}
+              />
+              <ActionBar onLogout={onLogout} />
+            </Flex>
+            {$docs}
+            {hasSshSessions && (
+              <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
+            )}
+          </>
+        )}
+      </StyledConsole>
+    </ConsoleThemeProvider>
   );
 }
 

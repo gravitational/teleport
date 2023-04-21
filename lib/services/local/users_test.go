@@ -230,9 +230,9 @@ func TestRecoveryAttemptsCRUD(t *testing.T) {
 		attempts, err := identity.GetUserRecoveryAttempts(ctx, username)
 		require.NoError(t, err)
 		require.Len(t, attempts, 3)
-		require.Equal(t, time1, attempts[0].Time)
-		require.Equal(t, time2, attempts[1].Time)
-		require.Equal(t, time3, attempts[2].Time)
+		require.WithinDuration(t, time1, attempts[0].Time, time.Second)
+		require.WithinDuration(t, time2, attempts[1].Time, time.Second)
+		require.WithinDuration(t, time3, attempts[2].Time, time.Second)
 
 		// Test delete all recovery attempts.
 		err = identity.DeleteUserRecoveryAttempts(ctx, username)

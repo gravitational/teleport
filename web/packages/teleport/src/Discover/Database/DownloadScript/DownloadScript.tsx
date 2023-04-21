@@ -81,7 +81,7 @@ export default function Container(props: AgentStepProps) {
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning ml={1} color="danger" />
+                  <Icons.Warning ml={1} color="error.main" />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
@@ -272,7 +272,7 @@ export const Labels = ({
       <Box mt={3}>
         {hasError && (
           <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="danger" />
+            <Icons.Warning ml={1} color="error.main" />
             {message}
           </TextIcon>
         )}

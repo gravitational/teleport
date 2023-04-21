@@ -14,7 +14,13 @@
 
 package slack
 
-import "github.com/gravitational/teleport/integrations/access/common"
+import (
+	"context"
+	"sync/atomic"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
+)
 
 type SlackMessageSlice []Message
 type SlackDataMessageSet map[common.MessageData]struct{}
@@ -41,4 +47,21 @@ func (set SlackDataMessageSet) Add(msg common.MessageData) {
 func (set SlackDataMessageSet) Contains(msg common.MessageData) bool {
 	_, ok := set[msg]
 	return ok
+}
+
+type fakeStatusSink struct {
+	status atomic.Pointer[types.PluginStatus]
+}
+
+func (s *fakeStatusSink) Emit(_ context.Context, status types.PluginStatus) error {
+	s.status.Store(&status)
+	return nil
+}
+
+func (s *fakeStatusSink) Get() types.PluginStatus {
+	status := s.status.Load()
+	if status == nil {
+		panic("expected status to be set, but it has not been")
+	}
+	return *status
 }

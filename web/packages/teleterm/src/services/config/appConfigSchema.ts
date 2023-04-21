@@ -37,7 +37,7 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe('Enables collecting of anonymous usage data.'),
     'feature.searchBar': z
       .boolean()
-      .default(false)
+      .default(true)
       .describe('Replaces the command bar with the new search bar'),
     'keymap.tab1': shortcutSchema
       .default(defaultKeymap['tab1'])
@@ -90,9 +90,9 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.openProfiles': shortcutSchema
       .default(defaultKeymap['openProfiles'])
       .describe(getShortcutDesc('open the profile selector')),
-    'keymap.openCommandBar': shortcutSchema
-      .default(defaultKeymap['openCommandBar'])
-      .describe(getShortcutDesc('open the command bar')),
+    'keymap.openSearchBar': shortcutSchema
+      .default(defaultKeymap['openSearchBar'])
+      .describe(getShortcutDesc('open the search bar')),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -128,7 +128,7 @@ export type KeyboardShortcutAction =
   | 'newTerminalTab'
   | 'previousTab'
   | 'nextTab'
-  | 'openCommandBar'
+  | 'openSearchBar'
   | 'openConnections'
   | 'openClusters'
   | 'openProfiles';
@@ -153,7 +153,7 @@ const getDefaultKeymap = (
         newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openCommandBar: 'Ctrl+K',
+        openSearchBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -174,7 +174,7 @@ const getDefaultKeymap = (
         newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openCommandBar: 'Ctrl+K',
+        openSearchBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -195,7 +195,7 @@ const getDefaultKeymap = (
         newTerminalTab: 'Shift+Command+T',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
-        openCommandBar: 'Command+K',
+        openSearchBar: 'Command+K',
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',

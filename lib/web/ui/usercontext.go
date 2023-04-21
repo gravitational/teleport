@@ -29,6 +29,7 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
+	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
@@ -95,6 +96,8 @@ type userACL struct {
 	License access `json:"license"`
 	// Plugins defines whether the user has access to manage hosted plugin instances
 	Plugins access `json:"plugins"`
+	// Integrations defines whether the user has access to manage integrations.
+	Integrations access `json:"integrations"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust access `json:"deviceTrust"`
 }
@@ -143,6 +146,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
@@ -207,6 +211,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
+	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -232,6 +237,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Download:                download,
 		License:                 license,
 		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
 		DeviceTrust:             deviceTrust,
 	}
 

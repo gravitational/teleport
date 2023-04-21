@@ -9,7 +9,7 @@ and follow the installation [instructions](../../installation.mdx).
 ## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+the Auth and Proxy Services:
 
 ```yaml
 teleport:
@@ -72,7 +72,7 @@ comes with a built-in `access` role that grants access to all apps:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start application service with CLI flags
+## Start the Application Service with CLI flags
 
 Install Teleport:
 
@@ -91,7 +91,7 @@ $ sudo teleport start \
 ```
 
 Note that the `--auth-server` flag must point to the Teleport cluster's proxy
-endpoint because the application service always connects back to the cluster over
+endpoint because the Application Service always connects back to the cluster over
 a reverse tunnel.
 
 ### Application name
@@ -151,7 +151,7 @@ proxy_service:
   enabled: "no"
 ```
 
-Start the application service:
+Start the Application Service:
 
 ```code
 $ sudo teleport start --config=/path/to/teleport.yaml

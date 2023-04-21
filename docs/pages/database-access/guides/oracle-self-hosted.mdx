@@ -1,10 +1,10 @@
 ---
 title: Database Access with Oracle (Preview)
-description: How to configure Teleport Database Access with Oracle.
+description: How to configure Teleport database access with Oracle.
 ---
 
 <Admonition type="warning" title="Preview">
-  Database Access for Oracle Database is currently in Preview mode.
+  Database access for Oracle Database is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -86,7 +86,6 @@ Additionally, your Oracle Database user accounts must be configured to require a
 CREATE USER alice IDENTIFIED EXTERNALLY AS 'CN=alice';
 GRANT CREATE SESSION TO alice;
 ```
-
 ## Step 4/5. Configure and Start the Database Service
 Install and configure Teleport where you will run the Teleport Database Service:
 

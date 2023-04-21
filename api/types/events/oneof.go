@@ -403,6 +403,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *OpenSearchRequest:
+		out.Event = &OneOf_OpenSearchRequest{
+			OpenSearchRequest: e,
+		}
 	case *DynamoDBRequest:
 		out.Event = &OneOf_DynamoDBRequest{
 			DynamoDBRequest: e,
