@@ -32,7 +32,10 @@ export function FifthStageInstructions(props: CommonInstructionsProps) {
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": "rds:DescribeDBInstances",
+            "Action": [
+                "rds:DescribeDBInstances",
+                "rds:DescribeDBClusters"
+            ]
             "Resource": "*"
         }
     ]

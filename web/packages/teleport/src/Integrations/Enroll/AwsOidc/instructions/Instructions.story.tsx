@@ -28,6 +28,8 @@ import {
   SuccessfullyAddedIntegrationDialog,
 } from './SeventhStageInstructions';
 
+import type { DiscoverUrlLocState } from 'teleport/Discover/useDiscover';
+
 export default {
   title: 'Teleport/Integrations/Enroll/AwsOidc/Instructions',
 };
@@ -46,19 +48,15 @@ export const Step7 = () => (
 
 export const ConfirmDialog = () => (
   <MemoryRouter>
-    <SuccessfullyAddedIntegrationDialog
-      discoverEventId=""
-      integrationName="some-integration-name"
-    />
+    <SuccessfullyAddedIntegrationDialog integrationName="some-integration-name" />
   </MemoryRouter>
 );
 
 export const ConfirmDialogFromDiscover = () => (
-  <MemoryRouter>
-    <SuccessfullyAddedIntegrationDialog
-      discoverEventId="some-event-id"
-      integrationName="some-integration-name"
-    />
+  <MemoryRouter
+    initialEntries={[{ state: { discover: {} } as DiscoverUrlLocState }]}
+  >
+    <SuccessfullyAddedIntegrationDialog integrationName="some-integration-name" />
   </MemoryRouter>
 );
 
