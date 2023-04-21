@@ -111,7 +111,7 @@ export function useCreateDatabase() {
     updateAgentMeta({
       ...(agentMeta as DbMeta),
       resourceName: createdDb.name,
-      agentMatcherLabels: createdDb.labels,
+      agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
     });
 

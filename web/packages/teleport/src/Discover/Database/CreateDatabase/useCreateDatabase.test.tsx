@@ -286,9 +286,9 @@ describe('registering new databases, mainly error checking', () => {
     jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(null as never); // return value does not matter but required by ts
-    jest
-      .spyOn(teleCtx.databaseService, 'fetchDatabases')
-      .mockResolvedValue({ agents: [{ name: 'new-db' } as any] });
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [{ name: 'new-db', labels: dbLabels } as any],
+    });
     jest
       .spyOn(teleCtx.databaseService, 'createDatabase')
       .mockResolvedValue(null); // ret val not used
@@ -341,7 +341,7 @@ describe('registering new databases, mainly error checking', () => {
     expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
       agentMatcherLabels: dbLabels,
-      db: { name: 'new-db' },
+      db: { name: 'new-db', labels: dbLabels },
     });
 
     // Test the dynamic definition of nextStep is called with a number
