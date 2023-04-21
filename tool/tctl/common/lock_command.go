@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // LockCommand implements `tctl lock` group of commands.
@@ -47,11 +48,11 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.mainCmd.Flag("user", "Name of a Teleport user to disable.").StringVar(&c.spec.Target.User)
 	c.mainCmd.Flag("role", "Name of a Teleport role to disable.").StringVar(&c.spec.Target.Role)
 	c.mainCmd.Flag("login", "Name of a local UNIX user to disable.").StringVar(&c.spec.Target.Login)
-	c.mainCmd.Flag("node", "UUID of a Teleport node to disable.").StringVar(&c.spec.Target.Node)
-	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
+	utils.UUIDVar(c.mainCmd.Flag("node", "UUID of a Teleport node to disable."), &c.spec.Target.Node)
+	utils.UUIDVar(c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable."), &c.spec.Target.MFADevice)
+	utils.UUIDVar(c.mainCmd.Flag("access-request", "UUID of an access request to disable."), &c.spec.Target.AccessRequest)
+	utils.UUIDVar(c.mainCmd.Flag("device", "UUID of a trusted device to disable."), &c.spec.Target.Device)
 	c.mainCmd.Flag("windows-desktop", "Name of a Windows desktop to disable.").StringVar(&c.spec.Target.WindowsDesktop)
-	c.mainCmd.Flag("access-request", "UUID of an access request to disable.").StringVar(&c.spec.Target.AccessRequest)
-	c.mainCmd.Flag("device", "UUID of a trusted device to disable.").StringVar(&c.spec.Target.Device)
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)

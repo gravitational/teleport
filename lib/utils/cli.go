@@ -32,6 +32,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -574,4 +575,38 @@ func FormatAlert(alert types.ClusterAlert) string {
 		}
 	}
 	return buf.String()
+}
+
+// UUIDVar is like kingpin's StringVar, but it requires that the
+// provided flag is a valid UUID.
+//
+// Example usage:
+//
+//	var dest string
+//	UUIDVar(cmd.Flag("uuid", "a UUID value"), &dest)
+func UUIDVar(s kingpin.Settings, value *string) {
+	u := uuidFlag{target: value}
+	s.SetValue(&u)
+}
+
+// uuidFlag is a custom kingpin parser for CLI arguments that must be UUIDs.
+type uuidFlag struct {
+	target *string
+}
+
+func (u *uuidFlag) Set(value string) error {
+	_, err := uuid.Parse(value)
+	if err != nil {
+		return trace.BadParameter("%v is not a valid UUID", value)
+	}
+
+	*u.target = value
+	return nil
+}
+
+func (u *uuidFlag) String() string {
+	if u == nil || u.target == nil {
+		return ""
+	}
+	return string(*u.target)
 }
