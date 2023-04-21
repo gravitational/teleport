@@ -519,7 +519,7 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 
 	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
-		return nil, ClusterDetails{}, trace.Wrap(err)
+		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
