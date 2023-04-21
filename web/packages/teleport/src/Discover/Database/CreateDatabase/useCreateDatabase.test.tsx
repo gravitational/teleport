@@ -87,7 +87,19 @@ const services = [
 
 const testCases = [
   {
-    name: 'match in multiple services',
+    name: 'match with a service',
+    newLabels: dbLabels,
+    services: [
+      {
+        name: 'svc4',
+        matcherLabels: { env: ['prod'] },
+        awsIdentity: emptyAwsIdentity,
+      },
+    ],
+    expectedMatch: 'svc4',
+  },
+  {
+    name: 'match among multple service',
     newLabels: dbLabels,
     services,
     expectedMatch: 'svc2',
@@ -97,23 +109,11 @@ const testCases = [
     newLabels: dbLabels,
     services: [
       {
-        name: 'svc1',
-        matcherLabels: { os: ['windows', 'mac'], env: ['staging'] },
-        awsIdentity: emptyAwsIdentity,
-      },
-      {
         name: 'svc2',
         matcherLabels: {
           os: ['windows', 'mac', 'linux'],
-          tag: ['v11.0.0'],
-          env: ['staging', 'prod'],
           fruit: ['apple', '*'], // the non-matching label
         },
-        awsIdentity: emptyAwsIdentity,
-      },
-      {
-        name: 'svc3',
-        matcherLabels: { env: ['prod'], fruit: ['orange'] },
         awsIdentity: emptyAwsIdentity,
       },
     ],
@@ -161,7 +161,7 @@ const testCases = [
         name: 'svc2',
         matcherLabels: {
           os: ['linux', 'mac'],
-          '*': ['prod', 'apple', 'v11.0.0'],
+          '*': ['prod', 'apple'],
         },
         awsIdentity: emptyAwsIdentity,
       },
@@ -174,7 +174,7 @@ const testCases = [
     services: [
       {
         name: 'svc1',
-        matcherLabels: { '*': ['windows', 'mac'] },
+        matcherLabels: { '*': ['windows'] },
         awsIdentity: emptyAwsIdentity,
       },
     ],
@@ -204,7 +204,7 @@ const testCases = [
         name: 'svc1',
         matcherLabels: {
           fruit: ['*'],
-          os: ['mac'],
+          os: ['windows'],
         },
         awsIdentity: emptyAwsIdentity,
       },
@@ -239,9 +239,11 @@ const testCases = [
   },
 ];
 
-test.each(testCases)('$name', ({ newLabels, services, expectedMatch }) => {
-  const foundSvc = findActiveDatabaseSvc(newLabels, services);
-  expect(foundSvc?.name).toEqual(expectedMatch);
+describe('findActiveDatabaseSvc()', () => {
+  test.each(testCases)('$name', ({ newLabels, services, expectedMatch }) => {
+    const foundSvc = findActiveDatabaseSvc(newLabels, services);
+    expect(foundSvc?.name).toEqual(expectedMatch);
+  });
 });
 
 const newDatabaseReq: CreateDatabaseRequest = {

@@ -15,7 +15,7 @@
  */
 
 import React, { Suspense, useState } from 'react';
-import { Box, ButtonSecondary, Text } from 'design';
+import { Box, ButtonSecondary, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 
@@ -50,7 +50,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../Shared';
-import { makeLabelMaps, matchLabels } from '../util';
+import { matchLabels } from '../util';
 
 import type { AgentStepProps } from '../../types';
 
@@ -58,12 +58,11 @@ export default function Container(props: AgentStepProps) {
   const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
   const [labels, setLabels] = useState<DiscoverLabel[]>(
-    hasDbLabels
-      ? dbLabels
-      : // If user did not define any labels from previous step (create db)
-        // then the only way the agent will know how to pick up the
-        // new db is through asteriks.
-        [{ name: '*', value: '*', isFixed: true }]
+    // TODO(lisa): we will always be defaulting to asterisks, so
+    // instead of defining the default here, define it inside
+    // the LabelsCreator (component responsible for rendering
+    // label input boxes)
+    [{ name: '*', value: '*', isFixed: dbLabels.length === 0 }]
   );
 
   const [showScript, setShowScript] = useState(false);
@@ -230,11 +229,8 @@ export function DownloadScript(
 const Heading = () => {
   return (
     <>
-      <Header>Optionally Deploy a Database Service</Header>
+      <Header>Deploy a Database Service</Header>
       <HeaderSubtitle>
-        This step is optional if you already have a Teleport Database Service
-        running.
-        <br />
         On the host where you will run the Teleport Database Service, execute
         the generated command that will install and start Teleport with the
         appropriate configuration.
@@ -256,18 +252,48 @@ export const Labels = ({
 }) => {
   const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
   const hasError = !valid;
-
+  const hasDbLabels = dbLabels.length > 0;
   return (
     <Box mb={2}>
-      <Text bold>Labels</Text>
+      <Text bold>Optionally Define Matcher Labels</Text>
       <Text typography="subtitle1" mb={3}>
-        At least one label is required to help this service identify your
-        database.
+        {!hasDbLabels && (
+          <>
+            Since no labels were defined for the registered database from the
+            previous step, the matcher labels are defaulted to wildcard which
+            will allow this database service to match any database.
+          </>
+        )}
+        {hasDbLabels && (
+          <>
+            Wildcard labels allows this database service to match any database.
+            <br />
+            You can define your own labels that this database service will use
+            to identify your database.
+          </>
+        )}
       </Text>
+      {hasDbLabels && (
+        <Box mb={4}>
+          <Text>The registered database labels from previous step:</Text>
+          {dbLabels.map((label, index) => {
+            const labelText = `${label.name}: ${label.value}`;
+            return (
+              <Pill
+                key={`${label.name}${label.value}${index}`}
+                mr="1"
+                kind="secondary"
+              >
+                {labelText}
+              </Pill>
+            );
+          })}
+        </Box>
+      )}
       <LabelsCreater
         labels={labels}
         setLabels={setLabels}
-        disableBtns={disableBtns}
+        disableBtns={disableBtns || dbLabels.length === 0}
       />
       <Box mt={3}>
         {hasError && (
@@ -289,9 +315,9 @@ const requireMatchingLabels =
   (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
     if (!hasMatchingLabels(dbLabels, agentLabels)) {
       return {
-        valid: false,
-        message: `Labels must match with the labels defined for the database resource. \
-          To match any key, and/or any value, asteriks can be used.`,
+        valid: true,
+        message: `The matcher labels must be able to match with the labels defined for the registered database. \
+          Use wildcards to match by any labels.`,
       };
     }
     return { valid: true };
@@ -322,15 +348,5 @@ export function hasMatchingLabels(
     matcherLabels[l.name] = [...matcherLabels[l.name], l.value];
   });
 
-  // Create maps for easy lookup and matching.
-  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
-    makeLabelMaps(dbLabels);
-
-  return matchLabels({
-    hasLabelsToMatch: dbLabels.length > 0,
-    labelKeysToMatchMap,
-    labelValsToMatchMap,
-    labelToMatchSeenMap,
-    matcherLabels,
-  });
+  return matchLabels(dbLabels, matcherLabels);
 }
