@@ -2170,7 +2170,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 	for _, testcase := range tests {
 		t.Run(testcase.desc, func(t *testing.T) {
-			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus)
+			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus, "")
 			testcase.errorAssertion(t, err)
 			require.Equal(t, testcase.expectedValues, values)
 		})
