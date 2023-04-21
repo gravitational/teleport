@@ -485,6 +485,16 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
+		if c.c.PROXYHeaderGetter != nil {
+			signedHeader, err := c.c.PROXYHeaderGetter()
+			if err != nil {
+				return nil, trace.ConnectionProblem(err, "could get signed PROXY header: %v", err)
+			}
+			_, err = conn.Write(signedHeader)
+			if err != nil {
+				return nil, trace.ConnectionProblem(err, "could not write signed PROXY header into connection: %v", err)
+			}
+		}
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
@@ -562,6 +572,9 @@ type Config struct {
 	// will perform necessary tests to decide if connection upgrade is
 	// required.
 	ALPNConnUpgradeRequired bool
+	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
+	// auth server from the Proxy's web server, when we create user's client for the web session.
+	PROXYHeaderGetter func() ([]byte, error)
 }
 
 // CheckAndSetDefaults checks and sets default config values.

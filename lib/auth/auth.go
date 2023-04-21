@@ -1447,6 +1447,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}, nil
 }
 
+func certRequestPinIP(pinIP bool) certRequestOption {
+	return func(r *certRequest) { r.pinIP = pinIP }
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
@@ -2016,11 +2020,9 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	pinnedIP := ""
-	if req.checker.PinSourceIP() || req.pinIP {
+	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
-			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
-			// instead of warning, after merging #21080
-			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
+			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
 		}
 
 		pinnedIP = req.loginIP
@@ -2397,6 +2399,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	}
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
+		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
 		AccessRequests:       identity.ActiveRequests,
@@ -2993,6 +2996,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
+		LoginIP:              identity.LoginIP,
 		Roles:                roles,
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
@@ -3619,6 +3623,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
 		publicKey:      pub,
 		checker:        checker,

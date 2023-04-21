@@ -1122,6 +1122,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
+		PROXYHeaderGetter:          createPROXYHeaderGetter(ctx, proxy.teleportClient),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

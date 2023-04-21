@@ -40,15 +40,21 @@ var log = logrus.WithFields(logrus.Fields{
 // dialWithDeadline works around the case when net.DialWithTimeout
 // succeeds, but key exchange hangs. Setting deadline on connection
 // prevents this case from happening
-func dialWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+func dialWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig, headerGetter apiclient.PROXYHeaderGetter) (*tracessh.Client, error) {
 	dialer := &net.Dialer{
 		Timeout: config.Timeout,
 	}
 
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
+
+	err = maybeSendSignedPROXYHeader(conn, headerGetter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
@@ -78,6 +84,9 @@ type Dialer interface {
 type directDial struct {
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
+	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 }
 
 // Dial calls ssh.Dial directly.
@@ -89,7 +98,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 		}
 		return client, nil
 	}
-	client, err := dialWithDeadline(ctx, network, addr, config)
+	client, err := dialWithDeadline(ctx, network, addr, config, d.proxyHeaderGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,12 +115,26 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 	dialer := &net.Dialer{
 		Timeout: timeout,
 	}
-
 	conn, err := dialer.DialContext(ctx, network, address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return conn, nil
+
+	err = maybeSendSignedPROXYHeader(conn, d.proxyHeaderGetter)
+	return conn, trace.Wrap(err)
+}
+
+func maybeSendSignedPROXYHeader(conn net.Conn, headerGetter apiclient.PROXYHeaderGetter) error {
+	if headerGetter == nil {
+		return nil
+	}
+
+	signedHeader, err := headerGetter()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = conn.Write(signedHeader)
+	return trace.Wrap(err)
 }
 
 type proxyDial struct {
@@ -119,6 +142,9 @@ type proxyDial struct {
 	proxyURL *url.URL
 	// insecure is whether to skip certificate validation.
 	insecure bool
+	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
 }
@@ -138,7 +164,8 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		return tlsConn, trace.Wrap(err)
 	}
 
-	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithInsecureSkipVerify(d.insecure))
+	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithInsecureSkipVerify(d.insecure),
+		apiclient.WithPROXYHeaderGetter(d.proxyHeaderGetter))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -173,11 +200,15 @@ func (d proxyDial) Dial(ctx context.Context, network string, addr string, config
 	return tracessh.NewClient(c, chans, reqs), nil
 }
 
+//type proxyHeaderGetter func() ([]byte, error)
+
 type dialerOptions struct {
 	// insecureSkipTLSVerify is whether to skip certificate validation.
 	insecureSkipTLSVerify bool
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
+
+	proxyHeaderGetter func() ([]byte, error)
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
@@ -194,6 +225,13 @@ func WithALPNDialer(alpnDialerConfig apiclient.ALPNDialerConfig) DialerOptionFun
 func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 	return func(options *dialerOptions) {
 		options.insecureSkipTLSVerify = insecure
+	}
+}
+
+// WithPROXYHeaderGetter adds PROXY headers getter, which is used to propagate client's real IP
+func WithPROXYHeaderGetter(proxyHeaderGetter apiclient.PROXYHeaderGetter) DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.proxyHeaderGetter = proxyHeaderGetter
 	}
 }
 
@@ -215,14 +253,16 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	if proxyURL == nil {
 		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
-			alpnDialer: options.alpnDialer,
+			alpnDialer:        options.alpnDialer,
+			proxyHeaderGetter: options.proxyHeaderGetter,
 		}
 	}
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
 	return proxyDial{
-		proxyURL:   proxyURL,
-		insecure:   options.insecureSkipTLSVerify,
-		alpnDialer: options.alpnDialer,
+		proxyURL:          proxyURL,
+		insecure:          options.insecureSkipTLSVerify,
+		alpnDialer:        options.alpnDialer,
+		proxyHeaderGetter: options.proxyHeaderGetter,
 	}
 }
 
