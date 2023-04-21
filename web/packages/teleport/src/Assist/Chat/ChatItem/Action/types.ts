@@ -29,4 +29,9 @@ export interface UserState {
   value: string;
 }
 
-export type ActionState = CommandState | QueryState | UserState;
+export interface AvailableUsersState {
+  type: 'availableUsers';
+  value: string[];
+}
+
+export type ActionState = CommandState | QueryState | UserState | AvailableUsersState;

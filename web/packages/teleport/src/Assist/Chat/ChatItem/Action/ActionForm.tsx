@@ -28,7 +28,6 @@ import { Container, Items } from './common';
 
 interface ActionFormProps {
   initialState: ActionState[];
-  addNodes?: boolean;
   onSave: (state: ActionState[]) => void;
   onCancel: () => void;
 }
@@ -187,7 +186,7 @@ export function ActionForm(props: ActionFormProps) {
       );
     }
 
-    if (stateItem.type === 'user') {
+    if (stateItem.type === 'availableUsers') {
       items.push(
         <As key={`as-${index}`}>as</As>,
         <LabelForm key={`user-${index}`}>
@@ -195,7 +194,7 @@ export function ActionForm(props: ActionFormProps) {
             <UserIcon size={16} />
 
             <Input
-              key="command"
+              key="user"
               value={stateItem.value}
               onChange={event => handleChange(index, event.target.value)}
               style={{ color: 'white' }}

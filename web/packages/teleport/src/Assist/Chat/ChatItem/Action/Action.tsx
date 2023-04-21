@@ -27,6 +27,8 @@ import { EditIcon } from '../../../Icons/EditIcon';
 
 import { ActionForm } from './ActionForm';
 import { Container, Items, Title } from './common';
+import Select from 'shared/components/Select';
+import {Box} from "design";
 
 interface ActionProps {
   state: ActionState[];
@@ -115,12 +117,25 @@ function actionStateToItems(formState: ActionState[]) {
       );
     }
 
-    if (state.type === 'user') {
+    const handleChange = event => {
+      // setSelectedValue(event.target.value);
+    };
+
+    if (state.type === 'availableUsers') {
       items.push(
-        <As key="as">as</As>,
-        <User key="user">
-          <UserIcon size={16} /> {state.value}
-        </User>
+        <>
+          <As key="as">as</As>
+          <User key="user">
+            <UserIcon size={16} />
+            <Select
+              onChange={handleChange}
+              value={{ value: state.value[0], label: state.value[0] }}
+              options={state.value.map(option => {
+                return { label: option, value: option };
+              })}
+            />
+          </User>
+        </>
       );
     }
   }
@@ -168,7 +183,8 @@ export function Action(props: ActionProps) {
 
 interface NodesAndLabelsProps {
   initialQuery: string | undefined;
-  login: string | undefined;
+  selectedLogin: string | undefined;
+  availableLogins: string[] | undefined;
   onStateUpdate: (state: ActionState[]) => void;
   disabled: boolean;
 }
@@ -179,15 +195,23 @@ function propsToState(props: NodesAndLabelsProps): ActionState[] {
   // Always include query.
   items.push({ type: 'query', value: props.initialQuery ?? '' });
 
-  if (props.login) {
-    items.push({ type: 'user', value: props.login });
+  if (props.availableLogins) {
+    items.push({ type: 'availableUsers', value: props.availableLogins }); //TODO
+  }
+
+  if (props.selectedLogin) {
+    items.push({ type: 'user', value: props.selectedLogin }); //TODO
   }
 
   return items;
 }
 
-function stateToItems(formState: ActionState[]) {
+function stateToItems(
+  updateUser: (state: ActionState[]) => void,
+  formState: ActionState[]
+) {
   const items = [];
+  const [selectedValue, setSelectedValue] = useState('');
 
   for (const [index, state] of formState.entries()) {
     if (state.type === 'command') {
@@ -204,15 +228,32 @@ function stateToItems(formState: ActionState[]) {
       );
     }
 
-    if (state.type === 'user') {
+    const handleChange = event => {
+      setSelectedValue(event.value);
+      updateUser([...formState, { type: 'user', value: event.value }]);
+    };
+
+    if (state.type === 'availableUsers') {
       items.push(
-        <As key="as">as</As>,
-        <User key="user">
-          <UserIcon size={16} /> {state.value}
-        </User>
+        <React.Fragment key={'user-key'}>
+          <As key="as">as</As>
+          <User key="user">
+            <UserIcon size={16} />
+            <Select
+              onChange={handleChange}
+              value={{ value: selectedValue, label: selectedValue }}
+              options={state.value.map(option => {
+                return { label: option, value: option };
+              })}
+              css={"width: 40vh"}
+            />
+          </User>
+        </React.Fragment>
       );
     }
   }
+
+  console.log('elements', items);
 
   return items;
 }
@@ -222,6 +263,7 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
 
   const state = propsToState(props);
 
+  console.log('editing', editing);
   console.log('state', state, props);
 
   const handleSave = useCallback(
@@ -236,7 +278,6 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
     return (
       <ActionForm
         initialState={state}
-        addNodes={true}
         onSave={handleSave}
         onCancel={() => setEditing(false)}
       />
@@ -255,7 +296,7 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
         </Buttons>
       )}
 
-      <Items>{stateToItems(state)}</Items>
+      <Items>{stateToItems(handleSave, state)}</Items>
     </Container>
   );
 }
@@ -273,6 +314,7 @@ export function Command(props: CommandProps) {
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
+      console.log("aaaaaaaaaaaa", state)
       let command = '';
 
       for (const item of state) {
@@ -309,7 +351,7 @@ export function Command(props: CommandProps) {
         </Buttons>
       )}
 
-      <Items>{stateToItems(state)}</Items>
+      <Items>{stateToItems(handleSave, state)}</Items>
     </Container>
   );
 }

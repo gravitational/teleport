@@ -34,6 +34,8 @@ import {
   Message,
   Type,
 } from '../services/messages';
+import NodeService from 'teleport/services/nodes';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface MessageContextValue {
   send: (message: string) => Promise<void>;
@@ -64,7 +66,7 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
-function convertServerMessage(message: ServerMessage): Message {
+async function convertServerMessage(message: ServerMessage, clusterId: string): Promise<Message> {
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     return {
       author: Author.Teleport,
@@ -112,6 +114,14 @@ function convertServerMessage(message: ServerMessage): Message {
   if (message.type === 'COMMAND') {
     const execCmd: ExecuteRemoteCommandPayload = JSON.parse(message.payload);
 
+    // fetch available users
+    const ns = new NodeService();
+    const nodes = await ns.fetchNodes(clusterId, {
+      query: 'name == "localhost"',
+      limit: 100,
+    });
+    const hackLogin = nodes.agents[0].sshLogins;
+
     return {
       author: Author.Teleport,
       isNew: true,
@@ -119,7 +129,8 @@ function convertServerMessage(message: ServerMessage): Message {
         query: convertToQuery(execCmd),
         command: execCmd.command,
         type: Type.ExecuteRemoteCommand,
-        login: 'root',
+        selectedLogin: hackLogin[0],
+        availableLogins: hackLogin,
       },
     };
   }
@@ -129,6 +140,7 @@ export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
   const { conversationId } = useParams<{ conversationId: string }>();
+  const { clusterId } = useStickyClusterId();
 
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
@@ -151,7 +163,13 @@ export function MessagesContextProvider(
       return;
     }
 
-    setMessages(res.Messages.map(convertServerMessage));
+    setMessages(
+      await Promise.all(
+        res.Messages.map(async m => {
+          return await convertServerMessage(m, clusterId);
+        })
+      )
+    );
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -164,8 +182,10 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
-      setMessages(prev => prev.concat(convertServerMessage(value)));
-      setResponding(false);
+      convertServerMessage(value, clusterId).then(res => {
+        setMessages(prev => prev.concat(res));
+        setResponding(false);
+      });
     }
   }, [lastMessage, setMessages, conversationId]);
 
