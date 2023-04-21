@@ -93,7 +93,7 @@ describe('addWindowEventListener', () => {
       ),
     });
 
-    const cleanupFunction = result.current.addWindowEventListener(
+    const { cleanup } = result.current.addWindowEventListener(
       'click',
       onWindowClick,
       // Add an extra arg to make sure that the same set of args is passed to removeEventListener as
@@ -104,7 +104,7 @@ describe('addWindowEventListener', () => {
     fireEvent(window, createEvent.click(window));
     expect(onWindowClick).toHaveBeenCalledTimes(1);
 
-    cleanupFunction();
+    cleanup();
 
     fireEvent(window, createEvent.click(window));
     // Verify that the listener was removed by the cleanup function.
@@ -130,11 +130,11 @@ describe('addWindowEventListener', () => {
       );
     });
 
-    const cleanupFunction = result.current.addWindowEventListener(
+    const { cleanup } = result.current.addWindowEventListener(
       'click',
       jest.fn()
     );
-    expect(cleanupFunction).toBeUndefined();
+    expect(cleanup).toBeUndefined();
 
     await act(async () => {
       resolveAction();

@@ -101,7 +101,10 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    return addWindowEventListener('keydown', handleKeyDown, { capture: true });
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
   }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
 
   return (

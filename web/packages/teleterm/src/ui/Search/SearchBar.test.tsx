@@ -16,7 +16,6 @@
 
 import React from 'react';
 import userEvent from '@testing-library/user-event';
-import { act } from '@testing-library/react';
 import { render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
@@ -322,7 +321,7 @@ it('shows a login modal when a request to a cluster from the current workspace f
   expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
-const getMockedSearchContext = () => ({
+const getMockedSearchContext = (): SearchContext.SearchContext => ({
   inputValue: 'foo',
   filters: [],
   setFilter: () => {},
@@ -339,5 +338,7 @@ const getMockedSearchContext = () => ({
   pauseUserInteraction: async cb => {
     cb();
   },
-  addWindowEventListener: () => () => {},
+  addWindowEventListener: () => ({
+    cleanup: () => {},
+  }),
 });
