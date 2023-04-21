@@ -101,6 +101,10 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromSAMLConnector(r)
 	case types.ProvisionToken:
 		item, err = itemFromProvisionToken(r)
+	case *types.DeviceV1:
+		// devices should be ignored here and instead restored
+		// using enterprise resource bootstrapper.
+		return nil, nil
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
