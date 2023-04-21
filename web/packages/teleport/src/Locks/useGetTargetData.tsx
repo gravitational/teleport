@@ -29,6 +29,7 @@ export const lockTargets: LockTarget[] = [
   { label: 'Windows Desktop', value: 'windows_desktop' },
   // Skipped for now because it's not fully implemented.
   // { label: 'Device', value: 'device' },
+  // TODO(sshahcodes): add support for locking devices
 ];
 
 export type UseGetTargetData = (
@@ -64,30 +65,42 @@ export const useGetTargetData: UseGetTargetData = (
       user: {
         fetch: fetchUsers,
         handler: (setter, users) => {
-          const filteredData = users.map(u => ({
-            name: u.name,
-            roles: u.roles.join(', '),
-          }));
+          const filteredData = users.map(
+            u =>
+              ({
+                name: u.name,
+                roles: u.roles.join(', '),
+                targetValue: u.name,
+              } as TableData)
+          );
           setter(filteredData);
         },
       },
       role: {
         fetch: fetchRoles,
         handler: (setter, roles) => {
-          const filteredData = roles.map(r => ({
-            name: r.name,
-          }));
+          const filteredData = roles.map(
+            r =>
+              ({
+                name: r.name,
+                targetValue: r.name,
+              } as TableData)
+          );
           setter(filteredData);
         },
       },
       node: {
         fetch: fetchNodes,
         handler: (setter, nodes) => {
-          const filteredData = nodes.agents.map(n => ({
-            name: n.hostname,
-            addr: n.addr,
-            labels: n.labels,
-          }));
+          const filteredData = nodes.agents.map(
+            n =>
+              ({
+                name: n.hostname,
+                addr: n.addr,
+                labels: n.labels,
+                targetValue: n.id,
+              } as TableData)
+          );
           setter(filteredData);
         },
         options: [
@@ -100,23 +113,31 @@ export const useGetTargetData: UseGetTargetData = (
       mfa_device: {
         fetch: fetchDevices,
         handler: (setter, mfas) => {
-          const filteredData = mfas.map(m => ({
-            name: m.name,
-            id: m.id,
-            description: m.description,
-            lastUsed: m.lastUsedDate.toUTCString(),
-          }));
+          const filteredData = mfas.map(
+            m =>
+              ({
+                name: m.name,
+                id: m.id,
+                description: m.description,
+                lastUsed: m.lastUsedDate.toUTCString(),
+                targetValue: m.id,
+              } as TableData)
+          );
           setter(filteredData);
         },
       },
       windows_desktop: {
         fetch: fetchDesktops,
         handler: (setter, desktops) => {
-          const filteredData = desktops.agents.map(d => ({
-            name: d.name,
-            addr: d.addr,
-            labels: d.labels,
-          }));
+          const filteredData = desktops.agents.map(
+            d =>
+              ({
+                name: d.name,
+                addr: d.addr,
+                labels: d.labels,
+                targetValue: d.name,
+              } as TableData)
+          );
           setter(filteredData);
         },
         options: [clusterId, { limit: 10 }],
@@ -136,7 +157,7 @@ export const useGetTargetData: UseGetTargetData = (
       targetDataFilters[targetType] || additionalTargets?.[targetType];
     if (!action) {
       // eslint-disable-next-line no-console
-      console.log(`unknown target type ${targetType}`);
+      console.warn(`unknown target type ${targetType}`);
       setTargetData([]);
       return;
     }
