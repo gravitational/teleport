@@ -296,11 +296,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
 	}
+	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
