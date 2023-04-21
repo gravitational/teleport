@@ -69,6 +69,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     closeAndResetInput,
     filters,
     removeFilter,
+    addWindowEventListener,
   } = useSearchContext();
   const {
     filterActionsAttempt,
@@ -205,6 +206,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         attempts={actionAttempts}
         onPick={onPick}
         onBack={close}
+        addWindowEventListener={addWindowEventListener}
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {

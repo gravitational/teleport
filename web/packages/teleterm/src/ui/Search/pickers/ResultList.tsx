@@ -22,12 +22,11 @@ import React, {
   useState,
 } from 'react';
 import styled, { css } from 'styled-components';
-
 import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
-import { useSearchContext } from '../SearchContext';
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -43,13 +42,19 @@ type ResultListProps<T> = {
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraTopComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const { addWindowEventListener } = useSearchContext();
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
