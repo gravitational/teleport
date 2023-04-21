@@ -1168,6 +1168,19 @@ func TestSingleProcessModeResolver(t *testing.T) {
 		wantAddr  string
 	}{
 		{
+			name: "not single process mode",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: false,
+				},
+			},
+			wantError: true,
+		},
+		{
 			name: "reverse tunnel disabled",
 			mode: types.ProxyListenerMode_Separate,
 			config: servicecfg.Config{
@@ -1202,6 +1215,7 @@ func TestSingleProcessModeResolver(t *testing.T) {
 					Enabled: true,
 					TunnelPublicAddrs: []utils.NetAddr{
 						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
 					},
 				},
 				Auth: servicecfg.AuthConfig{
@@ -1218,6 +1232,7 @@ func TestSingleProcessModeResolver(t *testing.T) {
 					Enabled: true,
 					PublicAddrs: []utils.NetAddr{
 						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
 					},
 				},
 				Auth: servicecfg.AuthConfig{
@@ -1227,7 +1242,7 @@ func TestSingleProcessModeResolver(t *testing.T) {
 			wantAddr: "tcp://example.com:12345",
 		},
 		{
-			name: "multiplex web addr",
+			name: "multiplex web addr with https scheme",
 			mode: types.ProxyListenerMode_Multiplex,
 			config: servicecfg.Config{
 				Proxy: servicecfg.ProxyConfig{
