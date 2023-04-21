@@ -338,6 +338,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
 		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
 		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		WithPROXYHeaderGetter(params.cfg.PROXYHeaderGetter),
 	)
 
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -485,16 +486,6 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
 		conn, err := c.dialer.DialContext(ctx, "tcp", addr)
-		if c.c.PROXYHeaderGetter != nil {
-			signedHeader, err := c.c.PROXYHeaderGetter()
-			if err != nil {
-				return nil, trace.ConnectionProblem(err, "unable to get signed PROXY header: %v", err)
-			}
-			_, err = conn.Write(signedHeader)
-			if err != nil {
-				return nil, trace.ConnectionProblem(err, "could not write signed PROXY header into connection: %v", err)
-			}
-		}
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "failed to dial: %v", err)
 		}
