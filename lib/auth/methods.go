@@ -642,7 +642,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 	UserLoginCount.Inc()
 	return &SSHLoginResponse{
-		Username:    username,
+		Username:    user.GetName(),
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
 		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
