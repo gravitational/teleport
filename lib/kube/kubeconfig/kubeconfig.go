@@ -76,6 +76,10 @@ type Values struct {
 	// SelectCluster is the name of the kubernetes cluster to set in
 	// current-context.
 	SelectCluster string
+	// OverrideContext is the name of the context to set when adding a new cluster.
+	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
+	// It can only be used when adding a single cluster.
+	OverrideContext string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -96,6 +100,10 @@ type ExecValues struct {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values, storeAllCAs bool) error {
+	if v.OverrideContext != "" && len(v.KubeClusters) > 1 {
+		return trace.BadParameter("cannot override context when adding multiple clusters")
+	}
+
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,6 +142,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
+			if v.OverrideContext != "" {
+				contextName = v.OverrideContext
+			}
 			execArgs := []string{
 				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", c),
@@ -163,6 +174,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		}
 		if v.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
+			if v.OverrideContext != "" {
+				contextName = v.OverrideContext
+			}
 			if _, ok := config.Contexts[contextName]; !ok {
 				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}

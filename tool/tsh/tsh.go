@@ -4584,7 +4584,7 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "")
+	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
 	return trace.Wrap(err)
 }
 
