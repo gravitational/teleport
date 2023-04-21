@@ -3025,16 +3025,14 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 	return client, nil
 }
 
-type proxyHeaderGetter = func() ([]byte, error)
-
-// createPROXYHeaderGetter returns PROXY headers signer with embedded client source/destination IP addresses,
+// CreatePROXYHeaderGetter returns PROXY headers signer with embedded client source/destination IP addresses,
 // which are taken from the context.
-func createPROXYHeaderGetter(ctx context.Context, tc *TeleportClient) proxyHeaderGetter {
-	if tc.PROXYSigner != nil {
+func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYHeaderSigner) client.PROXYHeaderGetter {
+	if proxySigner != nil {
 		src, dst := utils.ClientAddrFromContext(ctx)
 		if src != nil && dst != nil {
 			return func() ([]byte, error) {
-				return tc.PROXYSigner.SignPROXYHeader(src, dst)
+				return proxySigner.SignPROXYHeader(src, dst)
 			}
 		}
 	}
@@ -3043,7 +3041,7 @@ func createPROXYHeaderGetter(ctx context.Context, tc *TeleportClient) proxyHeade
 }
 
 func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr, proxy.WithPROXYHeaderGetter(createPROXYHeaderGetter(ctx, tc)))
+	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr, proxy.WithPROXYHeaderGetter(CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -3053,7 +3051,7 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 		return nil, trace.Wrap(err)
 	}
 
-	headerGetter := createPROXYHeaderGetter(ctx, tc)
+	headerGetter := CreatePROXYHeaderGetter(ctx, tc.PROXYSigner)
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{

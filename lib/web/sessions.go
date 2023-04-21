@@ -960,18 +960,11 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
-	var proxyHeaderGetter func() ([]byte, error)
-	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
-	if s.proxySigner != nil && clientSrcAddr != nil && originalDst != nil {
-		proxyHeaderGetter = func() ([]byte, error) {
-			return s.proxySigner.SignPROXYHeader(clientSrcAddr, originalDst)
-		}
-	}
 	userClient, err := auth.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		PROXYHeaderGetter:    proxyHeaderGetter,
+		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

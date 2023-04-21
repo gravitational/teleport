@@ -574,7 +574,7 @@ type Config struct {
 	ALPNConnUpgradeRequired bool
 	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
 	// auth server from the Proxy's web server, when we create user's client for the web session.
-	PROXYHeaderGetter func() ([]byte, error)
+	PROXYHeaderGetter PROXYHeaderGetter
 }
 
 // CheckAndSetDefaults checks and sets default config values.

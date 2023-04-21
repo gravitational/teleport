@@ -200,15 +200,13 @@ func (d proxyDial) Dial(ctx context.Context, network string, addr string, config
 	return tracessh.NewClient(c, chans, reqs), nil
 }
 
-//type proxyHeaderGetter func() ([]byte, error)
-
 type dialerOptions struct {
 	// insecureSkipTLSVerify is whether to skip certificate validation.
 	insecureSkipTLSVerify bool
 	// alpnDialer is the dialer used for TLS routing.
 	alpnDialer apiclient.ContextDialer
 
-	proxyHeaderGetter func() ([]byte, error)
+	proxyHeaderGetter apiclient.PROXYHeaderGetter
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
