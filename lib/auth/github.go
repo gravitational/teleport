@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
@@ -890,7 +891,12 @@ type orgResponse struct {
 func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 	var result []teamResponse
 
-	bytes, nextPage, err := c.get("user/teams")
+	bp := "user/teams"
+	if pp := os.Getenv("TELEPORT_UNSTABLE_GH_PER_PAGE"); pp != "" {
+		bp = fmt.Sprintf("%s?per_page=%s", bp, pp)
+	}
+
+	bytes, nextPage, err := c.get(bp)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -958,7 +964,9 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(page string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
+	url := fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page)
+	log.Debugf("---> GET url=%q, page=%q", url, page)
+	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -980,6 +988,8 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 	// Parse web links header to extract any pagination links. This is used to
 	// return the next link which can be used in a loop to pull back all data.
 	wls := utils.ParseWebLinks(response)
+
+	log.Debug("---> NextPage: %q", wls.NextPage)
 
 	return bytes, wls.NextPage, nil
 }
