@@ -75,21 +75,10 @@ func TLSDial(ctx context.Context, dialer ContextDialer, network, addr string, tl
 	}
 
 	conn := tls.Client(plainConn, tlsConfig)
-	errC := make(chan error, 1)
-	go func() {
-		err := conn.HandshakeContext(ctx)
-		errC <- err
-	}()
-
-	select {
-	case err := <-errC:
-		if err != nil {
-			plainConn.Close()
-			return nil, trace.Wrap(err)
-		}
-	case <-ctx.Done():
+	err = conn.HandshakeContext(ctx)
+	if err != nil {
 		plainConn.Close()
-		return nil, trace.BadParameter("tls handshake has been canceled due to timeout")
+		return nil, trace.Wrap(err)
 	}
 
 	if tlsConfig.InsecureSkipVerify {
