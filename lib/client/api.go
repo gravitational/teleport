@@ -3028,12 +3028,14 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 // CreatePROXYHeaderGetter returns PROXY headers signer with embedded client source/destination IP addresses,
 // which are taken from the context.
 func CreatePROXYHeaderGetter(ctx context.Context, proxySigner multiplexer.PROXYHeaderSigner) client.PROXYHeaderGetter {
-	if proxySigner != nil {
-		src, dst := utils.ClientAddrFromContext(ctx)
-		if src != nil && dst != nil {
-			return func() ([]byte, error) {
-				return proxySigner.SignPROXYHeader(src, dst)
-			}
+	if proxySigner == nil {
+		return nil
+	}
+
+	src, dst := utils.ClientAddrFromContext(ctx)
+	if src != nil && dst != nil {
+		return func() ([]byte, error) {
+			return proxySigner.SignPROXYHeader(src, dst)
 		}
 	}
 
