@@ -56,3 +56,8 @@ export interface Message {
   content: MessageContent;
   author: Author;
 }
+
+export interface ExecOutput {
+  humanInterpretation: string;
+  commandOutputs: { serverName: string; commandOutput: string }[];
+}
