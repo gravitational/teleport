@@ -91,7 +91,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -99,7 +99,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 </TabItem>
 </Tabs>
 
@@ -115,9 +115,9 @@ databases:
 ```code
 $ tsh login --proxy=teleport.example.com --user=testuser
 $ tsh db ls
-# Name    Description        Labels
-# ------- ------------------ --------
-# example Example PostgreSQL env=dev
+# Name             Description        Labels
+# ---------------- ------------------ --------
+# example-postgres Example PostgreSQL env=dev
 ```
 
 </ScopedBlock>
@@ -126,9 +126,9 @@ $ tsh db ls
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=testuser
 $ tsh db ls
-# Name    Description        Labels
-# ------- ------------------ --------
-# example Example PostgreSQL env=dev
+# Name             Description        Labels
+# ---------------- ------------------ --------
+# example-postgres Example PostgreSQL env=dev
 ```
 
 </ScopedBlock>
@@ -139,21 +139,21 @@ Note that you will only be able to see databases your role has access to. See
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect example
+$ tsh db connect example-postgres
 ```
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db connect --db-user=postgres --db-name=postgres example
+$ tsh db connect --db-user=postgres --db-name=postgres example-postgres
 ```
 
 To log out of the database and remove credentials:
 
 ```code
 # Remove credentials for a particular database instance.
-$ tsh db logout example
+$ tsh db logout example-postgres
 # Remove credentials for all database instances.
 $ tsh db logout
 ```

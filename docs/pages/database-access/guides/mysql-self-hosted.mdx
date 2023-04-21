@@ -141,7 +141,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -149,7 +149,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 </TabItem>
 </Tabs>
 
@@ -165,9 +165,9 @@ databases:
 ```code
 $ tsh login --proxy=teleport.example.com --user=testuser
 $ tsh db ls
-# Name    Description   Labels
-# ------- ------------- --------
-# example Example MySQL env=dev
+# Name          Description   Labels
+# ------------- ------------- --------
+# example-mysql Example MySQL env=dev
 ```
 
 </ScopedBlock>
@@ -176,9 +176,9 @@ $ tsh db ls
 ```code
 $ tsh login --proxy=mytenant.teleport.sh --user=testuser
 $ tsh db ls
-# Name    Description   Labels
-# ------- ------------- --------
-# example Example MySQL env=dev
+# Name          Description   Labels
+# ------------- ------------- --------
+# example-mysql Example MySQL env=dev
 ```
 
 </ScopedBlock>
@@ -189,14 +189,14 @@ the [RBAC](../rbac.mdx) guide for more details.
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect example
+$ tsh db connect example-mysql
 ```
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db connect --db-user=root --db-name=mysql example
+$ tsh db connect --db-user=root --db-name=mysql example-mysql
 ```
 
 <Admonition type="note" title="Note">
@@ -208,7 +208,7 @@ To log out of the database and remove credentials:
 
 ```code
 # Remove credentials for a particular database instance.
-$ tsh db logout example
+$ tsh db logout example-mysql
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
