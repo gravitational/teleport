@@ -488,7 +488,7 @@ func (c *Client) grpcDialer() func(ctx context.Context, addr string) (net.Conn, 
 		if c.c.PROXYHeaderGetter != nil {
 			signedHeader, err := c.c.PROXYHeaderGetter()
 			if err != nil {
-				return nil, trace.ConnectionProblem(err, "could get signed PROXY header: %v", err)
+				return nil, trace.ConnectionProblem(err, "unable to get signed PROXY header: %v", err)
 			}
 			_, err = conn.Write(signedHeader)
 			if err != nil {
