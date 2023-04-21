@@ -80,6 +80,7 @@ describe('hook: useLocks', () => {
       expect(result.current).toStrictEqual([
         {
           name: 'watermelon',
+          targetValue: 'watermelon',
           addr: 'localhost.watermelon',
           labels: [
             {
@@ -102,6 +103,7 @@ describe('hook: useLocks', () => {
         },
         {
           name: 'banana',
+          targetValue: 'banana',
           addr: 'localhost.banana',
           labels: [
             {
@@ -133,6 +135,7 @@ describe('hook: useLocks', () => {
       expect(result.current).toStrictEqual([
         {
           name: 'node1.go.citadel',
+          targetValue: 'e14baac6-15c1-42c2-a7d9-99410d21cf4c',
           addr: '127.0.0.1:4022',
           labels: ['special:apple', 'user:orange'],
         },
