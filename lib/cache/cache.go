@@ -893,7 +893,9 @@ Outer:
 		// If the watch is for a kube_service resource, we need ignore it because
 		// Teleport 13 no longer supports kube_service resource type, but Teleport 12
 		// clients still expect it to be present in the server and try to watch it.
-		if requested.Kind == types.KindKubeService {
+		// Clients that request kube_service resource type do not support partial
+		// success.
+		if requested.Kind == types.KindKubeService && !watch.AllowPartialSuccess {
 			continue
 		}
 		if cacheOK {
