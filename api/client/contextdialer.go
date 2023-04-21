@@ -113,6 +113,7 @@ func newProxyURLDialer(proxyURL *url.URL, dialer ContextDialer, opts ...DialProx
 	})
 }
 
+// newPROXYHeaderDialer makes a new dialer that can propagate client IP if signed PROXY header getter is present
 func newPROXYHeaderDialer(dialer ContextDialer, headerGetter PROXYHeaderGetter) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		conn, err := dialer.DialContext(ctx, network, addr)

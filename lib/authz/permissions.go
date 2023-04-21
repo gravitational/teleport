@@ -295,7 +295,10 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	}
 }
 
+// ErrIPPinningMissing is returned when user cert should be pinned but isn't.
 var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+
+// ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
 var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
