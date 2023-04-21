@@ -24,8 +24,6 @@ import { marked } from 'marked';
 
 import { useTeleport } from 'teleport';
 
-import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
-
 import { ExampleList } from '../Examples/ExampleList';
 
 import { Author, Message, Type } from '../../services/messages';

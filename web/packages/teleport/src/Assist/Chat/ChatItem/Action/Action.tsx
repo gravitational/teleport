@@ -65,29 +65,6 @@ const EditButton = styled.div`
   }
 `;
 
-const LabelContainer = styled.div`
-  padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
-  margin-right: 10px;
-  font-size: 16px;
-  align-items: center;
-  display: flex;
-
-  svg {
-    margin-right: 10px;
-  }
-`;
-
-const LabelKey = styled.div`
-  opacity: 0.6;
-  margin-right: 10px;
-`;
-
-const LabelValue = styled.div`
-  font-weight: bold;
-`;
-
 const Node = styled.div`
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.1);

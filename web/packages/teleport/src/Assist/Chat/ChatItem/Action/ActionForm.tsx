@@ -152,16 +152,6 @@ export function ActionForm(props: ActionFormProps) {
     setFormState(existing => existing.filter((item, i) => i !== index));
   }, []);
 
-  const handleAddNode = useCallback(() => {
-    setFormState(existing => [
-      ...existing,
-      {
-        type: 'query',
-        value: 'node',
-      },
-    ]);
-  }, []);
-
   const handleAddLabel = useCallback(() => {
     setFormState(existing => [
       ...existing,
@@ -239,8 +229,8 @@ export function ActionForm(props: ActionFormProps) {
         <FooterAdd>
           {props.addNodes && (
             <FooterAddButton onClick={() => handleAddLabel()}>
-                Edit query
-              </FooterAddButton>
+              Edit query
+            </FooterAddButton>
           )}
         </FooterAdd>
 

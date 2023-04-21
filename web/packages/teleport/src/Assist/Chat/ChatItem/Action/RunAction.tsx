@@ -12,16 +12,6 @@ interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
 }
 
-const nodeNamesToIds: Record<string, string> = {
-  node: 'fbc3a404-32ac-408c-bc72-174f895a2fe6',
-  node2: '3a424d4c-59cb-4d9a-9994-09a94ee51aa2',
-};
-
-const nodeIdsToNames: Record<string, string> = {
-  'fbc3a404-32ac-408c-bc72-174f895a2fe6': 'node',
-  '3a424d4c-59cb-4d9a-9994-09a94ee51aa2': 'node2',
-};
-
 function convertContentToCommand(message: ExecuteRemoteCommandContent) {
   const command = {
     command: '',
@@ -194,14 +184,9 @@ const LoadingContainer = styled.div`
 `;
 
 function NodeOutput(props: NodeOutputProps) {
-  let status =
-    props.state.status === RunActionStatus.Connecting
-      ? 'connecting'
-      : 'finished';
-
   return (
     <NodeContainer>
-      <NodeTitle>{nodeIdsToNames[props.state.nodeId]}</NodeTitle>
+      <NodeTitle>{props.state.nodeId}</NodeTitle>
 
       {props.state.status === RunActionStatus.Connecting && (
         <LoadingContainer>

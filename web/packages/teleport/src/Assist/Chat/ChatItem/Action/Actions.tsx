@@ -83,12 +83,6 @@ const Spacer = styled.div`
   font-size: 14px;
 `;
 
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin: 30px 0;
-`;
-
 export function Actions(props: ActionsProps) {
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
