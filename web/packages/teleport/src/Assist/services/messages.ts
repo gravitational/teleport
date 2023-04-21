@@ -40,7 +40,7 @@ export interface ExecuteRemoteCommandPayload {
   type: Type.ExecuteRemoteCommand;
   command: string;
   login?: string;
-  labels?: { key: string; value: string }[]; // HERE
+  labels?: { key: string; value: string }[];
   nodes?: string[];
 }
 

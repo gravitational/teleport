@@ -107,23 +107,6 @@ const FormFooter = styled.div`
   align-items: flex-end;
 `;
 
-const FooterAdd = styled.div`
-  display: flex;
-  margin-left: -8px;
-`;
-
-const FooterAddButton = styled.div`
-  margin-right: 10px;
-  padding: 5px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-`;
-
 const FooterButtons = styled.div``;
 
 const As = styled.div`
@@ -150,16 +133,6 @@ export function ActionForm(props: ActionFormProps) {
 
   const handleDelete = useCallback(index => {
     setFormState(existing => existing.filter((item, i) => i !== index));
-  }, []);
-
-  const handleAddLabel = useCallback(() => {
-    setFormState(existing => [
-      ...existing,
-      {
-        type: 'query',
-        value: 'Blah', // TODO
-      },
-    ]);
   }, []);
 
   const items = [];
@@ -226,14 +199,6 @@ export function ActionForm(props: ActionFormProps) {
       <Items>{items}</Items>
 
       <FormFooter>
-        <FooterAdd>
-          {props.addNodes && (
-            <FooterAddButton onClick={() => handleAddLabel()}>
-              Edit query
-            </FooterAddButton>
-          )}
-        </FooterAdd>
-
         <FooterButtons>
           <CancelButton onClick={() => props.onCancel()}>Cancel</CancelButton>
           <SaveButton onClick={() => props.onSave(formState)}>Save</SaveButton>

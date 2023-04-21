@@ -2733,39 +2733,6 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 	return hosts, nil
 }
 
-// findByLabels returns all hosts matching the given labels.
-func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]string) ([]hostInfo, error) {
-	if len(labels) == 0 {
-		return nil, nil
-	}
-
-	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
-		ResourceType: types.KindNode,
-		Namespace:    apidefaults.Namespace,
-		Labels:       labels,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	hosts := make([]hostInfo, 0, len(resources))
-	for _, resource := range resources {
-		server, ok := resource.(types.Server)
-		if !ok {
-			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
-		}
-
-		h := hostInfo{
-			hostName: server.GetHostname(),
-			id:       server.GetName(),
-			port:     defaultPort,
-		}
-		hosts = append(hosts, h)
-	}
-
-	return hosts, nil
-}
-
 // findByHost return a host matching by the host name.
 func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
 	var host hostInfo

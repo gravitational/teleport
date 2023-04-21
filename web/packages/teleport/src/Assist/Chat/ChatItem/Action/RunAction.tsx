@@ -39,14 +39,6 @@ enum RunActionStatus {
   Finished,
 }
 
-function createInitialState(nodeIds: string[]): NodeState[] {
-  // TODO: probably can be removed
-  return nodeIds.map(nodeId => ({
-    nodeId: nodeId,
-    status: RunActionStatus.Connecting,
-  }));
-}
-
 interface NodeState {
   nodeId: string;
   status: RunActionStatus;
@@ -61,7 +53,7 @@ interface RawPayload {
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
 
-  const [state, setState] = useState(() => createInitialState([]));
+  const [state, setState] = useState(() => []);
 
   const params = convertContentToCommand(props.actions);
 

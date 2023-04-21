@@ -195,7 +195,7 @@ function stateToItems(formState: ActionState[]) {
     }
 
     if (state.type === 'query') {
-      // TODO replace node with query
+      // TODO(jakule || ryan) replace node with query
       items.push(
         <Node key={`query-${index}`}>
           <SearchIcon size={16} />
