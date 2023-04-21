@@ -154,12 +154,14 @@ jobs:
       # register the artifacts with the releases API. This is largely cribbed from
       # the old Drone release process
       - name: Register artifacts
+        shell: bash
+        env:
+          ARTIFACT_DIR: ${{ steps.download.outputs.download-path }}
+          RELEASES_HOST: https://releases-prod.platform.teleport.sh
+          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
+          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
         run: |
-          printenv RELEASES_CERT | base64 -d > ".releases.crt"
-          printenv RELEASES_KEY | base64 -d > ".releases.key"
-
-          CREDENTIALS="--cert .releases.crt --key .releases.key"
-          for file in ${{ steps.download.outputs.download-path }}/teleport-*.tar.gz
+          for file in "${ARTIFACT_DIR}"/teleport-*.tar.gz
           do
             name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
             shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
@@ -167,38 +169,37 @@ jobs:
             products="$name"
             productTagArgs=""
 
-            for product in $products
-            do
-              status_code=$(curl $CREDENTIALS -o "./curl_out.txt" -w "%{http_code}" \
-                -F product="$product"                             \
-                -F version="${{env.TELEPORT_VERSION}}"            \
-                -F notesMd="# Teleport ${{env.TELEPORT_VERSION}}" \
-                -F status=draft                                   \
-                "$RELEASES_HOST/releases")
-              if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+            rs_curl() {
+              status_code=$(
+                curl \
+                  --cert <(printenv RELEASES_CERT | base64 -d) \
+                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  -o "./curl_out.txt" -w "%{http_code}" "$@"
+              )
+              if (( status_code != 200 && status_code != 409 )); then
                 echo "curl HTTP status: $status_code"
                 cat ./curl_out.txt
                 exit 1
               fi
+            }
 
+            for product in $products
+            do
+              rs_curl \
+                -F product="$product" \
+                -F version="$TELEPORT_VERSION" \
+                -F notesMd="# Teleport $TELEPORT_VERSION" \
+                -F status=draft \
+                "$RELEASES_HOST/releases"
               productTagArgs="$productTagArgs -F releaseId=$product@$TELEPORT_VERSION"
             done
 
-            curl $CREDENTIALS                     \
-              --fail -o /dev/null                 \
-              -F description="$description"       \
-              -F os="linux"                       \
-              -F arch="arm64"                     \
-              -F "file=@$file"                    \
-              -F "sha256=$shasum"                 \
-              $productTagArgs                     \
+            rs_curl \
+              -F description="$description" \
+              -F os="linux" \
+              -F arch="arm64" \
+              -F "file=@$file" \
+              -F "sha256=$shasum" \
+              $productTagArgs \
               "$RELEASES_HOST/assets"
           done
-        env:
-          RELEASES_HOST: https://releases-prod.platform.teleport.sh
-          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
-          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
-
-      - name: Cleanup
-        if: ${{ always() }}
-        run: rm -rf .releases*

@@ -143,7 +143,6 @@ jobs:
     needs: [ build-artifacts, version ]
     runs-on: ubuntu-latest
     environment: staging
-
     steps:
       - name: Download artifacts
         id: download
@@ -156,16 +155,14 @@ jobs:
       # the old Drone release process
       - name: Register artifacts
         env:
+          ARTIFACT_DIR: ${{ steps.download.outputs.download-path }}
           RELEASES_HOST: https://releases-prod.platform.teleport.sh
           RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
           RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
           TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
+        shell: bash
         run: |
-          printenv RELEASES_CERT | base64 -d > ".releases.crt"
-          printenv RELEASES_KEY | base64 -d > ".releases.key"
-          CREDENTIALS="--cert .releases.crt --key .releases.key"
-
-          for file in ${{ steps.download.outputs.download-path }}/*; do
+          for file in "${ARTIFACT_DIR}"/*; do
             # We don't upload sha256 files, just use them to verify. skip them
             [[ "${file##*.}" == sha256 ]] && continue
             # Don't upload unsigned files/archives
@@ -196,38 +193,39 @@ jobs:
               ;;
             esac
 
-            echo "Releasing ${file##*/} for products $products ($description $TELEPORT_VERSION)"
-
-            release_params=""
-            for product in $products; do
+            rs_curl() {
               status_code=$(
-                curl $CREDENTIALS -o "./curl_out.txt" -w "%{http_code}" \
-                  -F "product=$product"                                 \
-                  -F "version=$TELEPORT_VERSION"                        \
-                  -F "notesMd=# Teleport $TELEPORT_VERSION"             \
-                  -F "status=draft"                                     \
-                  "$RELEASES_HOST/releases"
+                curl \
+                  --cert <(printenv RELEASES_CERT | base64 -d) \
+                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  -o "./curl_out.txt" -w "%{http_code}" "$@"
               )
-              if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+              if (( status_code != 200 && status_code != 409 )); then
                 echo "curl HTTP status: $status_code"
                 cat ./curl_out.txt
                 exit 1
               fi
+            }
 
+            echo "Releasing ${file##*/} for products $products ($description $TELEPORT_VERSION)"
+
+            release_params=""
+            for product in $products; do
+              rs_curl \
+                -F "product=$product" \
+                -F "version=$TELEPORT_VERSION" \
+                -F "notesMd=# Teleport $TELEPORT_VERSION" \
+                -F "status=draft" \
+                "$RELEASES_HOST/releases"
               release_params+=" -F releaseId=$product@$TELEPORT_VERSION"
             done
 
-            curl $CREDENTIALS                           \
-              --fail -o /dev/null                       \
-              -F "description=$description"             \
-              -F "os=darwin"                            \
-              -F "arch=amd64"                           \
-              -F "file=@$file"                          \
-              -F "sha256=$shasum"                       \
-              $release_params                           \
+            rs_curl \
+              -F "description=$description" \
+              -F "os=darwin" \
+              -F "arch=amd64" \
+              -F "file=@$file" \
+              -F "sha256=$shasum" \
+              $release_params \
               "$RELEASES_HOST/assets"
           done
-
-      - name: Cleanup
-        if: always()
-        run: rm -rf .releases*
