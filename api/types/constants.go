@@ -152,6 +152,13 @@ const (
 	// KindKubeServer is an kubernetes server resource.
 	KindKubeServer = "kube_server"
 
+	// KindKubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	KindKubeService = "kube_service"
+
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 

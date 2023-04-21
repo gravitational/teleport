@@ -850,7 +850,6 @@ func (c *Cache) Start() error {
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
-
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -891,6 +890,12 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 Outer:
 	for _, requested := range watch.Kinds {
+		// If the watch is for a kube_service resource, we need ignore it because
+		// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+		// clients still expect it to be present in the server and try to watch it.
+		if requested.Kind == types.KindKubeService {
+			continue
+		}
 		if cacheOK {
 			// if cache has been initialized, we already know which kinds are confirmed by the event source
 			// and can validate the kinds requested for fanout against that.
