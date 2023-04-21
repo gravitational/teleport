@@ -38,7 +38,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-Create the secrets:
+From your local workstation, create the secrets:
 
 ```code
 # Export Teleport's certificate authority and generate certificate/key pair
@@ -49,7 +49,8 @@ $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
 The command will create 3 files: `server.cas`, `server.crt` and `server.key`
-which you'll need to enable mutual TLS on your MySQL server.
+which you'll need to enable mutual TLS on your MySQL server. Copy these files
+to the environment running MySQL
 
 ## Step 3/4. Configure MySQL/MariaDB
 
