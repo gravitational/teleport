@@ -82,6 +82,11 @@ export function EnrollRdsDatabase() {
     fetchDatabases({ ...tableData });
   }
 
+  function refreshDatabaseList() {
+    // When refreshing, start the table back at page 1.
+    fetchDatabases({ ...tableData, startKey: '', items: [] });
+  }
+
   function fetchDatabases(data: TableData) {
     const integrationName = (agentMeta as DbMeta).integrationName;
 
@@ -128,9 +133,6 @@ export function EnrollRdsDatabase() {
   }
 
   function handleOnProceed() {
-    // Append `teleport_` to the RDS db name to
-    // lower the chance of duplicate db name.
-
     registerDatabase(
       {
         name: selectedDb.name,
@@ -157,9 +159,10 @@ export function EnrollRdsDatabase() {
       )}
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
+        onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
-        disableBtn={
+        disableFetch={
           fetchDbAttempt.status === 'processing' || tableData.items.length > 0
         }
       />
@@ -177,7 +180,7 @@ export function EnrollRdsDatabase() {
       {registerAttempt.status !== '' && (
         <CreateDatabaseDialog
           pollTimeout={pollTimeout}
-          attempt={fetchDbAttempt}
+          attempt={registerAttempt}
           next={nextStep}
           close={clearRegisterAttempt}
           retry={handleOnProceed}
