@@ -3,7 +3,7 @@
 package teleport
 
 const (
-	Version = "9.3.27.walt.docker.1"
+	Version = "9.3.27.walt.docker.2"
 )
 
 // Gitref variable is automatically set to the output of git-describe
