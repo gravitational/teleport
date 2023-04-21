@@ -26,11 +26,11 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
@@ -81,7 +81,7 @@ func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
 func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
 		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
-		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
+		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
 			return DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		}
 		return dialer.DialContext(ctx, network, addr)
@@ -116,7 +116,7 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration) ContextDialer {
 	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		if proxyURL := proxy.GetProxyURL(addr); proxyURL != nil {
+		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
 			conn, err = DialProxyWithDialer(ctx, proxyURL, addr, dialer)
 		} else {
 			conn, err = dialer.DialContext(ctx, network, addr)
