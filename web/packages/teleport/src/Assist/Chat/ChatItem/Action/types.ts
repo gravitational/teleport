@@ -34,4 +34,8 @@ export interface AvailableUsersState {
   value: string[];
 }
 
-export type ActionState = CommandState | QueryState | UserState | AvailableUsersState;
+export type ActionState =
+  | CommandState
+  | QueryState
+  | UserState
+  | AvailableUsersState;

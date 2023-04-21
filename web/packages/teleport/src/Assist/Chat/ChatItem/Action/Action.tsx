@@ -19,6 +19,8 @@ import styled from 'styled-components';
 
 import { UserIcon } from 'design/SVGIcon';
 
+import Select from 'shared/components/Select';
+
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
 import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
@@ -27,8 +29,6 @@ import { EditIcon } from '../../../Icons/EditIcon';
 
 import { ActionForm } from './ActionForm';
 import { Container, Items, Title } from './common';
-import Select from 'shared/components/Select';
-import {Box} from "design";
 
 interface ActionProps {
   state: ActionState[];
@@ -76,7 +76,6 @@ const Node = styled.div`
   font-weight: bold;
   display: flex;
   align-items: center;
-  display: flex;
 
   svg {
     margin-right: 10px;
@@ -117,10 +116,6 @@ function actionStateToItems(formState: ActionState[]) {
       );
     }
 
-    const handleChange = event => {
-      // setSelectedValue(event.target.value);
-    };
-
     if (state.type === 'availableUsers') {
       items.push(
         <>
@@ -128,11 +123,12 @@ function actionStateToItems(formState: ActionState[]) {
           <User key="user">
             <UserIcon size={16} />
             <Select
-              onChange={handleChange}
+              onChange={() => {}}
               value={{ value: state.value[0], label: state.value[0] }}
               options={state.value.map(option => {
                 return { label: option, value: option };
               })}
+              css={'width: 40vh; padding: 5px'}
             />
           </User>
         </>
@@ -211,7 +207,6 @@ function stateToItems(
   formState: ActionState[]
 ) {
   const items = [];
-  const [selectedValue, setSelectedValue] = useState('');
 
   for (const [index, state] of formState.entries()) {
     if (state.type === 'command') {
@@ -229,11 +224,10 @@ function stateToItems(
     }
 
     const handleChange = event => {
-      setSelectedValue(event.value);
       updateUser([...formState, { type: 'user', value: event.value }]);
     };
 
-    if (state.type === 'availableUsers') {
+    if (state.type === 'user') {
       items.push(
         <React.Fragment key={'user-key'}>
           <As key="as">as</As>
@@ -241,11 +235,10 @@ function stateToItems(
             <UserIcon size={16} />
             <Select
               onChange={handleChange}
-              value={{ value: selectedValue, label: selectedValue }}
-              options={state.value.map(option => {
-                return { label: option, value: option };
-              })}
-              css={"width: 40vh"}
+              value={{ value: state.value, label: state.value }}
+              options={[{ value: state.value, label: state.value }]}
+              isDisabled={true}
+              css={'width: 40vh'}
             />
           </User>
         </React.Fragment>
@@ -314,7 +307,7 @@ export function Command(props: CommandProps) {
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
-      console.log("aaaaaaaaaaaa", state)
+      console.log('aaaaaaaaaaaa', state);
       let command = '';
 
       for (const item of state) {

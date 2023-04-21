@@ -28,14 +28,15 @@ import { useParams } from 'react-router';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
+import NodeService from 'teleport/services/nodes';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import {
   Author,
   ExecuteRemoteCommandPayload,
   Message,
   Type,
 } from '../services/messages';
-import NodeService from 'teleport/services/nodes';
-import useStickyClusterId from 'teleport/useStickyClusterId';
 
 interface MessageContextValue {
   send: (message: string) => Promise<void>;
@@ -66,7 +67,10 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
-async function convertServerMessage(message: ServerMessage, clusterId: string): Promise<Message> {
+async function convertServerMessage(
+  message: ServerMessage,
+  clusterId: string
+): Promise<Message> {
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     return {
       author: Author.Teleport,

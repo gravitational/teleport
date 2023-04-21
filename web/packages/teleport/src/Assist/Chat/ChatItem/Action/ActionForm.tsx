@@ -20,6 +20,8 @@ import styled from 'styled-components';
 import { UserIcon } from 'design/SVGIcon';
 import { Cross } from 'design/Icon';
 
+import Select from 'shared/components/Select';
+
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
 import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
@@ -97,7 +99,7 @@ const Input = styled.input`
   font-size: 16px;
   font-weight: bold;
   border: none;
-  width: 140px;
+  width: 340px;
   box-sizing: border-box;
 
   &:focus {
@@ -129,7 +131,11 @@ const As = styled.div`
 `;
 
 export function ActionForm(props: ActionFormProps) {
+  const currentSelectedUser = props.initialState.find(e => e.type === 'user');
   const [formState, setFormState] = useState<ActionState[]>(props.initialState);
+  const [currentUser, setCurrentUser] = useState<string>(
+    currentSelectedUser ? (currentSelectedUser.value as string) : ''
+  );
 
   const handleChange = useCallback((index: number, value: any) => {
     setFormState(existing =>
@@ -143,6 +149,22 @@ export function ActionForm(props: ActionFormProps) {
 
         return item;
       })
+    );
+  }, []);
+
+  const handleUserChange = useCallback((index: number, value: string) => {
+    setCurrentUser(value);
+    setFormState(existing =>
+      existing.map(item => {
+        if (item.type === 'user') {
+          return {
+            ...item,
+            value: value,
+          };
+        }
+
+        return item;
+      }, [])
     );
   }, []);
 
@@ -192,12 +214,13 @@ export function ActionForm(props: ActionFormProps) {
         <LabelForm key={`user-${index}`}>
           <LabelFormContent>
             <UserIcon size={16} />
-
-            <Input
-              key="user"
-              value={stateItem.value}
-              onChange={event => handleChange(index, event.target.value)}
-              style={{ color: 'white' }}
+            <Select
+              onChange={event => handleUserChange(index, event['value'])}
+              value={{ value: currentUser, label: currentUser }}
+              options={stateItem.value.map(option => {
+                return { label: option, value: option };
+              })}
+              css={'width: 40vh; padding: 5px'}
             />
           </LabelFormContent>
 
