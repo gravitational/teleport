@@ -436,7 +436,7 @@ func checkCertIPPinning(tlsConn *tls.Conn) error {
 	}
 
 	if identity.PinnedIP != "" && clientIP != identity.PinnedIP {
-		return authz.ErrIPPinningMismatch
+		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
 
 	return nil
