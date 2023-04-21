@@ -220,7 +220,7 @@ export function ActionForm(props: ActionFormProps) {
               options={stateItem.value.map(option => {
                 return { label: option, value: option };
               })}
-              css={'width: 40vh; padding: 5px'}
+              css={'width: 20vh; padding: 5px'}
             />
           </LabelFormContent>
 

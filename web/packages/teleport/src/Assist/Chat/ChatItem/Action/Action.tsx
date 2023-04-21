@@ -128,7 +128,7 @@ function actionStateToItems(formState: ActionState[]) {
               options={state.value.map(option => {
                 return { label: option, value: option };
               })}
-              css={'width: 40vh; padding: 5px'}
+              css={'width: 20vh; padding: 5px'}
             />
           </User>
         </>
@@ -238,7 +238,7 @@ function stateToItems(
               value={{ value: state.value, label: state.value }}
               options={[{ value: state.value, label: state.value }]}
               isDisabled={true}
-              css={'width: 40vh'}
+              css={'width: 20vh'}
             />
           </User>
         </React.Fragment>

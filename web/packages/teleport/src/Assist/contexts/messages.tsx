@@ -117,27 +117,49 @@ async function convertServerMessage(
 
   if (message.type === 'COMMAND') {
     const execCmd: ExecuteRemoteCommandPayload = JSON.parse(message.payload);
+    const searchQuery = convertToQuery(execCmd);
 
     // fetch available users
     const ns = new NodeService();
+    // TODO: fetch users after the query is edited in the UI.
     const nodes = await ns.fetchNodes(clusterId, {
-      query: 'name == "localhost"',
-      limit: 100,
+      query: searchQuery,
+      limit: 100, // TODO: What is there is mode nodes?
     });
-    const hackLogin = nodes.agents[0].sshLogins;
+    const availableLogins = findIntersection(
+      nodes.agents.map(e => e.sshLogins)
+    );
 
     return {
       author: Author.Teleport,
       isNew: true,
       content: {
-        query: convertToQuery(execCmd),
+        query: searchQuery,
         command: execCmd.command,
         type: Type.ExecuteRemoteCommand,
-        selectedLogin: hackLogin[0],
-        availableLogins: hackLogin,
+        selectedLogin: availableLogins ? availableLogins[0] : '',
+        availableLogins: availableLogins,
       },
     };
   }
+}
+
+function findIntersection<T>(elems: T[][]): T[] {
+  if (elems.length == 0) {
+    return [];
+  }
+
+  if (elems.length == 1) {
+    return elems[0];
+  }
+
+  const intersectSets = (a: Set<T>, b: Set<T>) => {
+    const c = new Set<T>();
+    a.forEach(v => b.has(v) && c.add(v));
+    return c;
+  };
+
+  return [...elems.map(e => new Set(e)).reduce(intersectSets)];
 }
 
 export function MessagesContextProvider(
