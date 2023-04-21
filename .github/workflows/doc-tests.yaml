@@ -55,6 +55,7 @@ jobs:
           echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_HEAD_REF\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
           echo -e "cat config.json: \n$(cat config.json)"
           yarn install
+          yarn build-node
 
       - name: Check spelling
         run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
