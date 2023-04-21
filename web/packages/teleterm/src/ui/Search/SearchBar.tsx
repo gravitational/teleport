@@ -76,7 +76,10 @@ function SearchBar() {
       }
     };
     if (isOpen) {
-      return addWindowEventListener('click', onClickOutside, { capture: true });
+      const { cleanup } = addWindowEventListener('click', onClickOutside, {
+        capture: true,
+      });
+      return cleanup;
     }
   }, [close, isOpen, addWindowEventListener]);
 

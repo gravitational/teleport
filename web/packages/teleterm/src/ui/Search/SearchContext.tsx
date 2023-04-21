@@ -43,9 +43,9 @@ export interface SearchContext {
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
-  addWindowEventListener(
-    ...args: Parameters<typeof window.addEventListener>
-  ): () => void;
+  addWindowEventListener(...args: Parameters<typeof window.addEventListener>): {
+    cleanup: () => void;
+  };
 }
 
 const SearchContext = createContext<SearchContext>(null);
@@ -145,12 +145,15 @@ export const SearchContextProvider: FC = props => {
   const addWindowEventListener = useCallback(
     (...args: Parameters<typeof window.addEventListener>) => {
       if (isUserInteractionPaused) {
-        return;
+        return { cleanup: undefined };
       }
 
       window.addEventListener(...args);
-      return () => {
-        window.removeEventListener(...args);
+
+      return {
+        cleanup: () => {
+          window.removeEventListener(...args);
+        },
       };
     },
     [isUserInteractionPaused]
