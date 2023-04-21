@@ -137,11 +137,13 @@ export function AddDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
-                bg="levels.surface"
                 borderRadius={8}
                 height="256px"
                 p={3}
                 mb={4}
+                css={`
+                  background: ${props => props.theme.colors.spotBackground[0]};
+                `}
               >
                 {mfaOption.value === 'otp' && (
                   <>
@@ -201,6 +203,7 @@ export function AddDevice({
                   }}
                   mr={3}
                   isDisabled={addDeviceAttempt.status === 'processing'}
+                  elevated={true}
                 />
                 {mfaOption.value === 'otp' && (
                   <FieldInput
@@ -223,6 +226,7 @@ export function AddDevice({
                     options={deviceUsageOpts}
                     onChange={(o: DeviceusageOpt) => setUsageOption(o)}
                     isDisabled={addDeviceAttempt.status === 'processing'}
+                    elevated={true}
                   />
                 )}
               </Flex>

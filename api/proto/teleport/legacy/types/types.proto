@@ -1740,6 +1740,15 @@ message DeviceTrust {
   // Mode is always "off" for OSS.
   // Defaults to "optional" for Enterprise.
   string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
+
+  // Enable device auto-enroll.
+  // Auto-enroll lets any user issue a device enrollment token for a known
+  // device that is not already enrolled.
+  // `tsh` takes advantage of auto-enroll to automatically enroll devices on
+  // user login, when appropriate.
+  // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
+  // Mode="off".
+  bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -3721,6 +3730,9 @@ message OIDCAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3854,6 +3866,9 @@ message SAMLAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3974,6 +3989,8 @@ message GithubAuthRequest {
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -5276,6 +5293,12 @@ message OktaAssignmentSpecV1 {
   string User = 1 [(gogoproto.jsontag) = "user"];
   // Actions is a list of Okta actions to take on a user.
   repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+  // CleanupTime is an optional field that notes when the assignment should be cleaned up.
+  // If absent, the assignment will never be cleaned up.
+  google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true
+  ];
 }
 
 // OktaAssignmentActionV1 is a Okta assignment action.
@@ -5306,6 +5329,12 @@ message OktaAssignmentActionV1 {
   OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
   // Target is the target of the assignment action.
   OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
+  // LastTransition is an optional field that notes when the last state transition
+  // occurred for this action. If absent, this object has never transitioned.
+  google.protobuf.Timestamp LastTransition = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
@@ -5401,6 +5430,7 @@ enum HeadlessAuthenticationState {
 }
 
 // WatchKind specifies resource kind to watch
+// When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 message WatchKind {
   // Kind is a resource kind to watch
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
@@ -5416,6 +5446,7 @@ message WatchKind {
   // SubKind is a resource subkind to watch
   string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version optionally specifies the resource version to watch.
+  // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
 }
 

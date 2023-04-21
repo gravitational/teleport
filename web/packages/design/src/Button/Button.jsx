@@ -19,7 +19,6 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { space, width, height } from 'design/system';
-import defaultTheme from 'design/theme';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -58,10 +57,10 @@ const themedStyles = props => {
   const { kind } = props;
 
   const style = {
-    color: colors.buttons.text,
     '&:disabled': {
       background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
       color: colors.buttons.textDisabled,
+      cursor: 'auto',
     },
   };
 
@@ -81,34 +80,42 @@ export const kinds = props => {
   switch (kind) {
     case 'secondary':
       return {
+        color: theme.colors.buttons.text,
         background: theme.colors.buttons.secondary.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.secondary.hover,
         },
+        '&:active': {
+          background: theme.colors.buttons.secondary.active,
+        },
       };
     case 'border':
       return {
+        color: theme.colors.buttons.text,
         background: theme.colors.buttons.border.default,
         border: '1px solid ' + theme.colors.buttons.border.border,
-        opacity: '.87',
         '&:hover, &:focus': {
           background: theme.colors.buttons.border.hover,
           border: '1px solid ' + theme.colors.buttons.border.borderHover,
-          opacity: 1,
         },
         '&:active': {
-          opacity: 0.24,
+          background: theme.colors.buttons.border.active,
         },
       };
     case 'warning':
       return {
+        color: theme.colors.buttons.warning.text,
         background: theme.colors.buttons.warning.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.warning.hover,
         },
+        '&:active': {
+          background: theme.colors.buttons.warning.active,
+        },
       };
     case 'text':
       return {
+        color: theme.colors.buttons.text,
         background: 'none',
         'text-transform': 'none',
         '&:hover, &:focus': {
@@ -119,6 +126,7 @@ export const kinds = props => {
     case 'primary':
     default:
       return {
+        color: theme.colors.buttons.primary.text,
         background: theme.colors.buttons.primary.default,
         '&:hover, &:focus': {
           background: theme.colors.buttons.primary.hover,
@@ -157,10 +165,6 @@ const StyledButton = styled.button`
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
 
-  &:active {
-    opacity: 0.56;
-  }
-
   ${themedStyles}
 `;
 
@@ -193,10 +197,6 @@ Button.propTypes = {
 Button.defaultProps = {
   size: 'medium',
   kind: 'primary',
-};
-
-StyledButton.defaultProps = {
-  theme: defaultTheme,
 };
 
 Button.displayName = 'Button';

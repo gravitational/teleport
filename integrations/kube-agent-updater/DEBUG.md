@@ -16,7 +16,7 @@ specific cases.
   ```
 - open a new terminal, create a new temporary directory and create your new kubeconfig
   ```shell
-  export kubeconfig="$(mktemp)"
+  export KUBECONFIG="$(mktemp)"
   kubectl config set-credentials myself --username=foo
   kubectl config set-cluster local-server --server=http://localhost:8001
   kubectl config set-context default-context --cluster=local-server --user=myself

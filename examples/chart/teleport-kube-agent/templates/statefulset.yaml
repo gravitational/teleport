@@ -122,6 +122,10 @@ spec:
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         env:
+          # This variable is set for telemetry purposes.
+          # Telemetry is opt-in and controlled at the auth level.
+          - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
           - name: TELEPORT_REPLICA_NAME
             valueFrom:
               fieldRef:

@@ -51,6 +51,10 @@ var (
 		// The timeout for running all the tests (`go test ... -count=100`) is 600s, which is not enough.
 		// These tests are now skipped and should be added back when they take less time to run.
 		"TestCompletenessReset", "TestCompletenessInit",
+
+		// TestSSHOnMultipleNodes and its successor TestSSHWithMFA take ~10-15s to run which prevents
+		// it from ever completing the 100 runs successfully.
+		"TestSSHOnMultipleNodes", "TestSSHWithMFA",
 	}
 )
 

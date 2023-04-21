@@ -98,6 +98,6 @@ const DarkInput = styled(Input)`
   }
 
   &:focus {
-    border-color: ${props => props.theme.colors.brand.main};
+    border-color: ${props => props.theme.colors.brand};
   }
 `;

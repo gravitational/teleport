@@ -22,7 +22,7 @@ ARG TARGETARCH
 
 # Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
 RUN echo "Targeting $TARGETOS/$TARGETARCH" && \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 \
     go build -a -o /go/bin/teleport-kube-agent-updater github.com/gravitational/teleport/integrations/kube-agent-updater/cmd/teleport-kube-agent-updater
 
 # Create the image with the build operator on the $TARGETPLATFORM

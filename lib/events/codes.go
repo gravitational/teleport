@@ -185,9 +185,13 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
+	ElasticsearchRequestFailureCode = "TES00E"
 
 	// OpenSearchRequestCode is the db.session.opensearch.request event code.
 	OpenSearchRequestCode = "TOS00I"
+	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
+	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"

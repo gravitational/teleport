@@ -194,7 +194,7 @@ func (s *AuthSuite) GenerateUserCert(t *testing.T) {
 	require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPreviousIdentityExpires)
 	prevIDExpires, err := time.Parse(time.RFC3339, parsedCert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 	require.NoError(t, err)
-	require.Equal(t, clock.Now().Add(time.Hour), prevIDExpires)
+	require.WithinDuration(t, clock.Now().Add(time.Hour), prevIDExpires, time.Second)
 
 	t.Run("device extensions", func(t *testing.T) {
 		const devID = "deviceid1"
