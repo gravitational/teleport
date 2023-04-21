@@ -48,13 +48,16 @@ jobs:
           echo "" > .gitmodules
           echo -e "cat .gitmodules: \n$(cat .gitmodules)"
           rm -rf content/*
-          git submodule add --force -b $GITHUB_HEAD_REF https://github.com/gravitational/teleport -- ./content/docs
-          echo "{\"versions\": [{\"name\": \"docs\", \"branch\": \"$GITHUB_HEAD_REF\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          cd content
+          echo "GITHUB_HEAD_REF: $GITHUB_HEAD_REF"
+          git submodule add --force -b $GITHUB_HEAD_REF -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
+          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_HEAD_REF\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          echo -e "cat config.json: \n$(cat config.json)"
           yarn install
 
       - name: Check spelling
-        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/docs
+        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
 
       - name: Lint the docs
         run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
