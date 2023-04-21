@@ -155,7 +155,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 		event.Code = events.UserLocalLoginCode
 		event.Status.Success = true
 
-		user, err := s.GetUser(actualUser, false)
+		user, err := s.GetUser(actualUser, false /* withSecrets */)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
