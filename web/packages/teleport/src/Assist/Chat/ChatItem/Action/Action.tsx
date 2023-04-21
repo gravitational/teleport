@@ -67,7 +67,7 @@ const EditButton = styled.div`
   }
 `;
 
-const Node = styled.div`
+const Query = styled.div`
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 5px;
@@ -109,10 +109,10 @@ function actionStateToItems(formState: ActionState[]) {
 
     if (state.type === 'query') {
       items.push(
-        <Node key={`query-${index}`}>
+        <Query key={`query-${index}`}>
           <SearchIcon size={16} />
           {state.value}
-        </Node>
+        </Query>
       );
     }
 
@@ -192,11 +192,11 @@ function propsToState(props: NodesAndLabelsProps): ActionState[] {
   items.push({ type: 'query', value: props.initialQuery ?? '' });
 
   if (props.availableLogins) {
-    items.push({ type: 'availableUsers', value: props.availableLogins }); //TODO
+    items.push({ type: 'availableUsers', value: props.availableLogins });
   }
 
   if (props.selectedLogin) {
-    items.push({ type: 'user', value: props.selectedLogin }); //TODO
+    items.push({ type: 'user', value: props.selectedLogin });
   }
 
   return items;
@@ -214,12 +214,11 @@ function stateToItems(
     }
 
     if (state.type === 'query') {
-      // TODO(jakule || ryan) replace node with query
       items.push(
-        <Node key={`query-${index}`}>
+        <Query key={`query-${index}`}>
           <SearchIcon size={16} />
           {state.value}
-        </Node>
+        </Query>
       );
     }
 
@@ -255,9 +254,6 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
   const [editing, setEditing] = useState(false);
 
   const state = propsToState(props);
-
-  console.log('editing', editing);
-  console.log('state', state, props);
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
@@ -307,7 +303,6 @@ export function Command(props: CommandProps) {
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
-      console.log('aaaaaaaaaaaa', state);
       let command = '';
 
       for (const item of state) {
