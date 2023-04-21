@@ -70,9 +70,8 @@ func TLSDial(ctx context.Context, dialer ContextDialer, network, addr string, tl
 	// from the hostname we're connecting to.
 	if tlsConfig.ServerName == "" {
 		// Make a copy to avoid polluting argument or default.
-		c := tlsConfig.Clone()
-		c.ServerName = hostname
-		tlsConfig = c
+		tlsConfig = tlsConfig.Clone()
+		tlsConfig.ServerName = hostname
 	}
 
 	conn := tls.Client(plainConn, tlsConfig)
