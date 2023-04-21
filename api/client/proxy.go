@@ -24,10 +24,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/proxy"
+
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
@@ -109,40 +110,13 @@ func dialProxyWithHTTPDialer(
 	var conn net.Conn
 	var err error
 	if proxyURL.Scheme == "https" {
-		conn, err = dialer.DialContext(ctx, "tcp", proxyURL.Host)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
-
-		// matching the behavior of tls.Dial
-		cfg := tlsConfig.Clone()
-		if cfg == nil {
-			cfg = &tls.Config{}
-		}
-		if cfg.ServerName == "" {
-			colonPos := strings.LastIndex(proxyURL.Host, ":")
-			if colonPos == -1 {
-				colonPos = len(proxyURL.Host)
-			}
-			hostname := proxyURL.Host[:colonPos]
-
-			cfg = cfg.Clone()
-			cfg.ServerName = hostname
-		}
-
-		tlsConn := tls.Client(conn, cfg)
-		if err = tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
-			return nil, trace.Wrap(err)
-		}
-		conn = tlsConn
+		conn, err = tlsutils.TLSDial(ctx, dialer, "tcp", proxyURL.Host, tlsConfig.Clone())
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", proxyURL.Host)
-		if err != nil {
-			return nil, trace.ConvertSystemError(err)
-		}
 	}
-
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
 	header := make(http.Header)
 	if proxyURL.User != nil {
 		// dont use User.String() because it performs url encoding (rfc 1738),
