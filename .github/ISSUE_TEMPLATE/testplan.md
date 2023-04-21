@@ -1229,6 +1229,42 @@ TODO(lxea): replace links with actual docs once merged
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
 
+## IP Pinning
+
+Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
+Testing will require changing your IP (that Teleport Proxy sees).
+Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
+
+- Verify that it works for SSH Access
+  - [ ] You can access tunnel node with `tsh ssh` on root cluster
+  - [ ] You can access direct access node with `tsh ssh` on root cluster
+  - [ ] You can access tunnel node from Web UI on root cluster
+  - [ ] You can access direct access node from Web UI on root cluster
+  - [ ] You can access tunnel node with `tsh ssh` on leaf cluster
+  - [ ] You can access direct access node with `tsh ssh` on leaf cluster
+  - [ ] You can access tunnel node from Web UI on leaf cluster
+  - [ ] You can access direct access node from Web UI on leaf cluster
+  - [ ] You can download files from nodes in Web UI (small arrows at top left corner)
+  - [ ] If you change your IP you no longer can access nodes.
+- Verify that it works for Kube Access
+  - [ ] You can access Kubernetes cluster through standalone Kube service on root cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on root cluster
+  - [ ] You can access Kubernetes cluster through standalone Kube service on leaf cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on leaf cluster
+  - [ ] If you change your IP you no longer can access Kube clusters.
+- Verify that it works for DB Access
+  - [ ] You can access DB servers on root cluster
+  - [ ] You can access DB servers on leaf cluster
+  - [ ] If you change your IP you no longer can access DB servers.
+- Verify that it works for App Access
+  - [ ] You can access App service on root cluster
+  - [ ] You can access App service on leaf cluster
+  - [ ] If you change your IP you no longer can access App services.
+- Verify that it works for Desktop Access
+  - [ ] You can access Desktop service on root cluster
+  - [ ] You can access Desktop service on leaf cluster
+  - [ ] If you change your IP you no longer can access Desktop services.
+
 ## Documentation
 
 Checks should be performed on the version of documentation corresponding to the
