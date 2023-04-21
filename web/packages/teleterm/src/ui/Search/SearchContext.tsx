@@ -43,10 +43,14 @@ export interface SearchContext {
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
-  addWindowEventListener(...args: Parameters<typeof window.addEventListener>): {
-    cleanup: () => void;
-  };
+  addWindowEventListener: AddWindowEventListener;
 }
+
+export type AddWindowEventListener = (
+  ...args: Parameters<typeof window.addEventListener>
+) => {
+  cleanup: () => void;
+};
 
 const SearchContext = createContext<SearchContext>(null);
 
