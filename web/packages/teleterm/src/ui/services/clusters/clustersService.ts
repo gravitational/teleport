@@ -71,11 +71,14 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return cluster;
   }
 
+  /**
+   * Logs out of the cluster and removes the profile.
+   * Does not remove the cluster from the state.
+   */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
-    await this.removeCluster(clusterUri);
-    await this.removeClusterKubeConfigs(clusterUri);
+    await this.client.removeCluster(clusterUri);
   }
 
   async loginLocal(
@@ -301,11 +304,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return response;
   }
 
-  /**
-   * Removes cluster and its leaf clusters (if any)
-   */
-  async removeCluster(clusterUri: uri.RootClusterUri) {
-    await this.client.removeCluster(clusterUri);
+  /** Removes cluster, its leafs and other resources. */
+  async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
     const leafClustersUris = this.getClusters()
       .filter(
         item =>
@@ -318,6 +318,7 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
         draft.clusters.delete(leafClusterUri);
       });
     });
+    await this.removeClusterKubeConfigs(clusterUri);
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
