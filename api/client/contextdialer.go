@@ -113,8 +113,8 @@ func newProxyURLDialer(proxyURL *url.URL, dialer ContextDialer, opts ...DialProx
 	})
 }
 
-// newPROXYHeaderDialer makes a new dialer that can propagate client IP if signed PROXY header getter is present
-func newPROXYHeaderDialer(dialer ContextDialer, headerGetter PROXYHeaderGetter) ContextDialer {
+// NewPROXYHeaderDialer makes a new dialer that can propagate client IP if signed PROXY header getter is present
+func NewPROXYHeaderDialer(dialer ContextDialer, headerGetter PROXYHeaderGetter) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		conn, err := dialer.DialContext(ctx, network, addr)
 		if err != nil {
@@ -175,7 +175,7 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		// Wrap with PROXY header dialer if getter is present.
 		// Used by Proxy's web server to propagate real client IP when making calls on behalf of connected clients
 		if cfg.proxyHeaderGetter != nil {
-			dialer = newPROXYHeaderDialer(dialer, cfg.proxyHeaderGetter)
+			dialer = NewPROXYHeaderDialer(dialer, cfg.proxyHeaderGetter)
 		}
 
 		// Wrap with proxy URL dialer if proxy URL is detected.

@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
@@ -36,41 +35,6 @@ import (
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentConnectProxy,
 })
-
-// dialWithDeadline works around the case when net.DialWithTimeout
-// succeeds, but key exchange hangs. Setting deadline on connection
-// prevents this case from happening
-func dialWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig, headerGetter apiclient.PROXYHeaderGetter) (*tracessh.Client, error) {
-	dialer := &net.Dialer{
-		Timeout: config.Timeout,
-	}
-
-	conn, err := dialer.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = maybeSendSignedPROXYHeader(conn, headerGetter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
-}
-
-// dialALPNWithDeadline allows connecting to Teleport in single-port mode. SSH protocol is wrapped into
-// TLS connection where TLS ALPN protocol is set to ProtocolReverseTunnel allowing ALPN Proxy to route the
-// incoming connection to ReverseTunnel proxy service.
-func (d directDial) dialALPNWithDeadline(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	ctx, span := tracing.DefaultProvider().Tracer("dialer").Start(ctx, "directDial/dialALPNWithDeadline")
-	defer span.End()
-
-	tlsConn, err := d.alpnDialer.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tracessh.NewClientConnWithDeadline(ctx, tlsConn, addr, config)
-}
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
@@ -89,20 +53,16 @@ type directDial struct {
 	proxyHeaderGetter apiclient.PROXYHeaderGetter
 }
 
-// Dial calls ssh.Dial directly.
+// Dial returns traced SSH client connection
 func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
-	if d.alpnDialer != nil {
-		client, err := d.dialALPNWithDeadline(ctx, network, addr, config)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return client, nil
-	}
-	client, err := dialWithDeadline(ctx, network, addr, config, d.proxyHeaderGetter)
+	conn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return client, nil
+
+	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
+	// Setting deadline on connection prevents this case from happening
+	return tracessh.NewClientConnWithDeadline(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -112,29 +72,12 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 		return conn, trace.Wrap(err)
 	}
 
-	dialer := &net.Dialer{
+	dialer := apiclient.NewPROXYHeaderDialer(&net.Dialer{
 		Timeout: timeout,
-	}
+	}, d.proxyHeaderGetter)
+
 	conn, err := dialer.DialContext(ctx, network, address)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = maybeSendSignedPROXYHeader(conn, d.proxyHeaderGetter)
 	return conn, trace.Wrap(err)
-}
-
-func maybeSendSignedPROXYHeader(conn net.Conn, headerGetter apiclient.PROXYHeaderGetter) error {
-	if headerGetter == nil {
-		return nil
-	}
-
-	signedHeader, err := headerGetter()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = conn.Write(signedHeader)
-	return trace.Wrap(err)
 }
 
 type proxyDial struct {
