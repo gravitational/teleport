@@ -120,7 +120,7 @@ func dialProxyWithHTTPDialer(
 		}
 
 		// matching the behavior of tls.Dial
-		cfg := tlsConfig
+		cfg := tlsConfig.Clone()
 		if cfg == nil {
 			cfg = &tls.Config{}
 		}
