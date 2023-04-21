@@ -42,18 +42,12 @@ jobs:
         # single version of the docs.
         run: |
           cd $GITHUB_WORKSPACE/docs
-          echo "Current system: $(uname -a)"
-          echo "pwd after first cd: $(pwd)"
-          echo "GitHub workspace: $GITHUB_WORKSPACE"
           echo "" > .gitmodules
-          echo -e "cat .gitmodules: \n$(cat .gitmodules)"
           rm -rf content/*
           cd content
-          echo "GITHUB_HEAD_REF: $GITHUB_HEAD_REF"
           git submodule add --force -b $GITHUB_HEAD_REF -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
           echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_HEAD_REF\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
-          echo -e "cat config.json: \n$(cat config.json)"
           yarn install
           yarn build-node
 
