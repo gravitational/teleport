@@ -301,7 +301,7 @@ jobs:
           # rm -rf "$CACHE_PATH"/*
       - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
         env:
-          LOG_LEVEL: 4
+          LOG_LEVEL: 6
         run: >
             "./$TOOL_BINARY_PATH" ${{ inputs.repo-type }}
             -bucket "$BUCKET_NAME"
