@@ -273,6 +273,11 @@ spec:
           sources:
             - serviceAccountToken:
                 path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
 {{- end }}
 {{- if $proxy.highAvailability.certManager.enabled }}
       - name: teleport-tls
