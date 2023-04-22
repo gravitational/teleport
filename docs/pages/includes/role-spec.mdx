@@ -209,7 +209,9 @@ spec:
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
       # can also be matchers. the below mapping says that users with
-      # the claims `groups: admins` can request any role in the system.
+      # claims that match to `projects: project-(.*)` can request
+      # roles that match with '$1-admin' with the first match group.
+      # Example: `projects: project-foo` claim allows requesting `foo-admin` role
       claims_to_roles:
         - claim: 'projects'
           # matches all group names with a leading 'product-'
