@@ -4970,6 +4970,21 @@ func (g *GRPCServer) GetAssistantConversations(ctx context.Context, request *pro
 	return resp, nil
 }
 
+// SetAssistantConversationTitle sets the given title as the assistant conversation title.
+func (g *GRPCServer) SetAssistantConversationTitle(ctx context.Context, request *proto.ConversationInfo) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetAssistantConversationTitle(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (g *GRPCServer) CreateAssistantConversation(ctx context.Context, request *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
 	auth, err := g.authenticate(ctx)

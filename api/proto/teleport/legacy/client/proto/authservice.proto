@@ -2307,8 +2307,13 @@ message GetAssistantMessagesResponse {
 
 message GetAssistantConversationsRequest {}
 
+message ConversationInfo {
+  string id = 1;
+  string title = 2;
+}
+
 message GetAssistantConversationsResponse {
-  repeated string conversation_id = 1;
+  repeated ConversationInfo conversations = 1;
 }
 
 message CreateAssistantConversationRequest {}
@@ -2330,6 +2335,9 @@ service AuthService {
 
   //InsertAssistantMessage adds a message to given conversation.
   rpc InsertAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
+
+  // SetAssistantConversationTitle sets the given conversation title.
+  rpc SetAssistantConversationTitle(ConversationInfo) returns (google.protobuf.Empty);
 
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
   // presence/version/etc to the auth server.

@@ -1420,6 +1420,34 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	return &proto.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
+// SetAssistantConversationTitle sets the given title as the assistant conversation title.
+func (s *IdentityService) SetAssistantConversationTitle(ctx context.Context, username string, request *proto.ConversationInfo) error {
+	if request.Id == "" || request.Title == "" {
+		return trace.BadParameter("missing conversation ID or title")
+	}
+
+	msg := &Conversation{
+		Title:          request.Title,
+		ConversationID: request.Id,
+	}
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(assistantConversationPrefix, username, request.Id),
+		Value: payload,
+	}
+
+	if _, err = s.Update(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // GetAssistantConversations returns all conversations started by a user.
 func (s *IdentityService) GetAssistantConversations(ctx context.Context, username string, _ *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
 	startKey := backend.Key(assistantConversationPrefix, username)
@@ -1428,18 +1456,21 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	conversationsIDs := make([]string, 0, len(result.Items))
+	conversationsIDs := make([]*proto.ConversationInfo, 0, len(result.Items))
 	for _, item := range result.Items {
 		payload := &Conversation{}
 		if err := json.Unmarshal(item.Value, payload); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		conversationsIDs = append(conversationsIDs, payload.ConversationID)
+		conversationsIDs = append(conversationsIDs, &proto.ConversationInfo{
+			Id:    payload.ConversationID,
+			Title: payload.Title,
+		})
 	}
 
 	return &proto.GetAssistantConversationsResponse{
-		ConversationId: conversationsIDs,
+		Conversations: conversationsIDs,
 	}, nil
 }
 

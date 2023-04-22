@@ -5977,6 +5977,12 @@ func (a *ServerWithRoles) InsertAssistantMessage(ctx context.Context, msg *proto
 	return &emptypb.Empty{}, a.authServer.InsertAssistantMessage(ctx, msg)
 }
 
+// SetAssistantConversationTitle set the given title as the assistant conversation title.
+func (a *ServerWithRoles) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.SetAssistantConversationTitle(ctx, msg)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")
