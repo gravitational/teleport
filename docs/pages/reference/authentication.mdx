@@ -121,6 +121,49 @@ $ tctl create -f cap.yaml
 </TabItem>
 </Tabs>
 
+### Local User Locks
+
+A lock on attempting logins is placed for 20 minutes if within a 30 minute window 
+a local user has:
+- 5 failed login attempts or
+- 3 failed password resets
+
+After the lock has expired the user may attempt to login again.
+
+Overriding the lock is available to users with rights to maintain `user` resources,
+available in the builtin `editor` role.  To turn off a lock update the user entry
+to disable the lock. Here are steps to complete that.
+
+Retrieve the user entry so you can edit the status:
+
+```code
+$ tctl get users/jeff > jeff.yaml`
+```
+
+Example user file:
+```yaml
+kind: user
+metadata:
+  name: jeff
+spec:
+  roles:
+  - access
+  status:
+    is_locked: true
+    lock_expires: "2023-04-22T01:55:02.228158166Z"
+    locked_message: user has exceeded maximum failed login attempts
+version: v2
+```
+
+Update the `is_locked` under `status` to `false` and save the file. Now
+update the user entry with the below command.
+
+```code
+$ tctl create -f jeff.yaml
+```
+
+The user will now be unlocked and can attempt to authenticate again.
+
 ## Authentication connectors
 
 <Tabs>
