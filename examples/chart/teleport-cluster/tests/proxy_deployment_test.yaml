@@ -845,6 +845,11 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -871,6 +876,11 @@ tests:
               sources:
                 - serviceAccountToken:
                     path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
