@@ -512,7 +512,7 @@ func TestCheckIPPinning(t *testing.T) {
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 
-		err := CheckIPPinning(ctx, identity, tt.pinIP)
+		err := CheckIPPinning(ctx, identity, tt.pinIP, nil)
 
 		if tt.wantErr != "" {
 			require.ErrorContains(t, err, tt.wantErr)

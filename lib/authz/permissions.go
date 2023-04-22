@@ -232,7 +232,8 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP()); err != nil {
+	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(),
+		logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -303,7 +304,7 @@ var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed 
 
 // CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
 // Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
 	if identity.PinnedIP == "" {
 		if pinSourceIP {
 			return ErrIPPinningMissing
@@ -322,10 +323,12 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 	}
 
 	if clientIP != identity.PinnedIP {
-		logrus.WithFields(logrus.Fields{
-			"client_ip": clientIP,
-			"pinned_ip": identity.PinnedIP,
-		}).Debug("Pinned IP and client IP mismatch")
+		if log != nil {
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug("Pinned IP and client IP mismatch")
+		}
 		return ErrIPPinningMismatch
 	}
 
