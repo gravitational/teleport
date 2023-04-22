@@ -48,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -419,6 +420,27 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 
 	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
 	return trace.Wrap(err)
+}
+
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Token, nil
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -2868,6 +2890,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
+		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()

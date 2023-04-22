@@ -177,6 +177,8 @@ func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 type OktaAssignment interface {
 	ResourceWithLabels
 
+	// SetMetadata will set the metadata for the Okta assignment.
+	SetMetadata(metadata Metadata)
 	// GetUser will return the user that the Okta assignment actions applies to.
 	GetUser() string
 	// GetActions will return the list of actions that will be performed as part of this assignment.
@@ -199,6 +201,11 @@ func NewOktaAssignment(metadata Metadata, spec OktaAssignmentSpecV1) (OktaAssign
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+// SetMetadata will set the metadata for the Okta assignment.
+func (o *OktaAssignmentV1) SetMetadata(metadata Metadata) {
+	o.Metadata = metadata
 }
 
 // GetUser returns the user that the actions will be applied to.

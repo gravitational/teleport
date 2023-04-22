@@ -298,11 +298,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
 	}
+	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -4988,7 +4988,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner:
+	case types.JWTSigner, types.OIDCIdPCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)
