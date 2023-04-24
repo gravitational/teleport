@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
@@ -958,7 +959,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(page string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
+	request, err := http.NewRequest("GET", formatGithubURL(c.apiEndpointHostname, page), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -982,6 +983,11 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 	wls := utils.ParseWebLinks(response)
 
 	return bytes, wls.NextPage, nil
+}
+
+// formatGithubURL is a helper for formatting github api request URLs.
+func formatGithubURL(host string, path string) string {
+	return fmt.Sprintf("https://%s/%s", host, strings.TrimPrefix(path, "/"))
 }
 
 const (
