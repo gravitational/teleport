@@ -671,7 +671,6 @@ func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
 	}
 
 	var errs []error
-
 	for _, hook := range loginHooks {
 		errs = append(errs, hook(ctx, user))
 	}

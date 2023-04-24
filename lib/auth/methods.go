@@ -575,6 +575,8 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
+	// It's safe to extract the roles and traits directly from services.User as
+	// this endpoint is only used for local accounts.
 	user, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
