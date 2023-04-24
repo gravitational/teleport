@@ -1004,6 +1004,7 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 	}
 }
 
+// newRemoteSiteWithLocalTunnel creates and initializes remoteSite instance with tunnels to peer proxies.
 func newRemoteSiteWithPeerTunnels(srv *server, clusterName string, tunnels []types.TunnelConnection) (*remoteSite, error) {
 	remoteSite, err := newRemoteSite(srv, clusterName, nil, tunnels)
 	if err != nil {
@@ -1014,7 +1015,7 @@ func newRemoteSiteWithPeerTunnels(srv *server, clusterName string, tunnels []typ
 	return remoteSite, nil
 }
 
-// newRemoteSite helper creates and initializes 'remoteSite' instance
+// newRemoteSiteWithLocalTunnel creates and initializes remoteSite instance with a local tunnel connection.
 func newRemoteSiteWithLocalTunnel(srv *server, clusterName string, sconn *ssh.ServerConn) (*remoteSite, error) {
 	remoteSite, err := newRemoteSite(srv, clusterName, sconn, nil)
 	return remoteSite, trace.Wrap(err)
