@@ -189,7 +189,7 @@ func (s *remoteSite) checkConnectivity() error {
 }
 
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
-	if err := s.checkConnectivity();  err != nil {
+	if err := s.checkConnectivity(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.remoteClient, nil
@@ -843,7 +843,7 @@ func (s *remoteSite) updateTunnels(tunnels []types.TunnelConnection) {
 func (s *remoteSite) DialAuthServer(params DialParams) (net.Conn, error) {
 	conn, err := s.getConn(params, true)
 	if err != nil {
-		s.logger.WithError(err).Debugf("Failed to connect to remote auth")
+		s.logger.WithError(err).Debug("Failed to connect to remote auth server.")
 	}
 	return conn, err
 }
@@ -992,15 +992,18 @@ func (s *remoteSite) getConn(params DialParams, wantsAuth bool) (net.Conn, error
 		conn net.Conn
 		err  error
 		req  *sshutils.DialReq
+		kind string
 	)
 
 	if wantsAuth {
+		kind = "auth server"
 		req = &sshutils.DialReq{
 			Address:       constants.RemoteAuthServer,
 			ClientSrcAddr: stringOrEmpty(params.From),
 			ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
 		}
 	} else {
+		kind = "resource"
 		req = &sshutils.DialReq{
 			Address:         params.To.String(),
 			ServerID:        params.ServerID,
@@ -1011,6 +1014,7 @@ func (s *remoteSite) getConn(params DialParams, wantsAuth bool) (net.Conn, error
 		}
 	}
 
+	s.logger.Debugf("Dialing remote %s through a tunnel.", kind)
 	conn, err = s.connThroughTunnel(req)
 	if err == nil {
 		return conn, nil
@@ -1018,7 +1022,7 @@ func (s *remoteSite) getConn(params DialParams, wantsAuth bool) (net.Conn, error
 		return nil, trace.Wrap(err)
 	}
 
-	s.logger.Info("Dialing remote cluster over peer proxy")
+	s.logger.Debugf("Dialing remote %s through a peer proxy.", kind)
 	ids := s.peerProxiesWithTunnels()
 
 	var peerErr error
