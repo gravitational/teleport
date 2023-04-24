@@ -150,6 +150,7 @@ func run(rootLog logrus.FieldLogger) error {
 	}
 	logger := rootLog.WithField(trace.Component, "CLIENT")
 
+	logger.Infof("Starting enrollment")
 	eks, err := tpm.EKs()
 	if err != nil {
 		return trace.Wrap(err)
@@ -188,7 +189,7 @@ func run(rootLog logrus.FieldLogger) error {
 	}
 
 	logger.Infof("Enrollment complete")
-	logger.Infof("Trying re-authentication")
+	logger.Infof("Starting re-authentication")
 
 	// Used to inject a failure case that should occur if a different AK is
 	// used.
