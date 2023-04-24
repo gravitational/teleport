@@ -1692,6 +1692,114 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
+func TestSSHHeadless(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	// Headless ssh should pass session mfa requirements
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"ssh-login"})
+
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(sshLoginRole, alice))
+
+	authAddr, err := rootAuth.AuthAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		},
+	}))
+
+	sshHostname := "test-ssh-server"
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
+	sshHostID := node.Config.HostUUID
+
+	hasNodes := func(hostIDs ...string) func() bool {
+		return func() bool {
+			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			foundCount := 0
+			for _, node := range nodes {
+				if slices.Contains(hostIDs, node.GetName()) {
+					foundCount++
+				}
+			}
+			return foundCount == len(hostIDs)
+		}
+	}
+
+	// wait for auth to see nodes
+	require.Eventually(t, hasNodes(sshHostID), 10*time.Second, 100*time.Millisecond, "nodes never showed up")
+
+	// perform "tsh --headless ssh"
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--headless",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// "tsh --auth headless ssh" should also perform headless ssh
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--auth", constants.HeadlessConnector,
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// headless ssh should fail if user is not set.
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--headless",
+		"--proxy", proxyAddr.String(),
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
+}
+
 func TestFormatConnectCommand(t *testing.T) {
 	t.Parallel()
 
@@ -2567,11 +2675,45 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
-			constants.CertificateFormatStandard,
-			clusterName.GetClusterName(), "",
-		)
+		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+			Key:            priv.MarshalSSHPublicKey(),
+			Username:       user.GetName(),
+			TTL:            time.Hour,
+			Compatibility:  constants.CertificateFormatStandard,
+			RouteToCluster: clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+
+		// load CA cert
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName.GetClusterName(),
+		}, false)
+		require.NoError(t, err)
+
+		// build login response
+		return &auth.SSHLoginResponse{
+			Username:    user.GetName(),
+			Cert:        sshCert,
+			TLSCert:     tlsCert,
+			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+		}, nil
+	}
+}
+
+func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
+		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+			Key:            priv.MarshalSSHPublicKey(),
+			Username:       user.GetName(),
+			TTL:            time.Hour,
+			Compatibility:  constants.CertificateFormatStandard,
+			RouteToCluster: clusterName.GetClusterName(),
+			MFAVerified:    "mfa-verified",
+		})
 		require.NoError(t, err)
 
 		// load CA cert
