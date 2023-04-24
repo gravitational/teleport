@@ -48,6 +48,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -610,6 +611,11 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -624,6 +630,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		NodeName:              params.NodeName,
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 

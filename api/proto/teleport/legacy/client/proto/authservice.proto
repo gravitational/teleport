@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -307,6 +308,9 @@ message UserCertsRequest {
   // https://github.com/gravitational/teleport/issues/24817
   reserved 18;
   reserved "RequesterName";
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
