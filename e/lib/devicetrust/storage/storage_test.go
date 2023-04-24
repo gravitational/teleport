@@ -2764,6 +2764,17 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
+	devEnrolled, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama2",
+		// A nil Profile makes this device very easy to auto-enroll, if not for the
+		// fact that it already is enrolled.
+		Profile: nil,
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
 	isDriftError := func(err error) bool {
 		return errors.Is(err, &storage.CollectedDataDriftError{})
 	}
@@ -2788,7 +2799,7 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 			name: "unknown device (SerialNumber)",
 			createCD: func() *devicepb.DeviceCollectedData {
 				cd := collectedDataForDevice(dev)
-				cd.SerialNumber = "llama2" // unknown
+				cd.SerialNumber = "unknown"
 				return cd
 			},
 			assertErr: trace.IsNotFound,
@@ -2853,6 +2864,14 @@ func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
 			},
 			assertErr: isDriftError,
 			wantErr:   "jamf binary",
+		},
+		{
+			name: "device already enrolled",
+			createCD: func() *devicepb.DeviceCollectedData {
+				return collectedDataForDevice(devEnrolled)
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "already enrolled",
 		},
 	}
 	for _, test := range tests {
