@@ -16,29 +16,33 @@ limitations under the License.
 
 package services
 
-import "context"
+import (
+	"context"
+
+	"github.com/gravitational/teleport/lib/utils"
+)
 
 // ProcessReloadContext adds a flag to the context to indicate the Teleport
 // process is reloading.
 func ProcessReloadContext(parent context.Context) context.Context {
-	return addFlagToContext[processReloadFlag](parent)
+	return utils.AddFlagToContext[processReloadFlag](parent)
 }
 
 // IsProcessReloading returns true if the Teleport process is reloading.
 func IsProcessReloading(ctx context.Context) bool {
-	return getFlagFromContext[processReloadFlag](ctx)
+	return utils.GetFlagFromContext[processReloadFlag](ctx)
 }
 
 // ProcessForkedContext adds a flag to the context to indicate the Teleport
 // process has running forked child(ren).
 func ProcessForkedContext(parent context.Context) context.Context {
-	return addFlagToContext[processForkedFlag](parent)
+	return utils.AddFlagToContext[processForkedFlag](parent)
 }
 
 // HasProcessForked returns true if the Teleport process has running forked
 // child(ren).
 func HasProcessForked(ctx context.Context) bool {
-	return getFlagFromContext[processForkedFlag](ctx)
+	return utils.GetFlagFromContext[processForkedFlag](ctx)
 }
 
 // ShouldDeleteServerHeartbeatsOnShutdown checks whether server heartbeats
@@ -60,14 +64,6 @@ func ShouldDeleteServerHeartbeatsOnShutdown(ctx context.Context) bool {
 	default:
 		return true
 	}
-}
-
-func addFlagToContext[FlagType any](parent context.Context) context.Context {
-	return context.WithValue(parent, (*FlagType)(nil), (*FlagType)(nil))
-}
-func getFlagFromContext[FlagType any](ctx context.Context) bool {
-	_, ok := ctx.Value((*FlagType)(nil)).(*FlagType)
-	return ok
 }
 
 type processReloadFlag struct{}

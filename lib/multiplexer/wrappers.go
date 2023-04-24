@@ -104,6 +104,11 @@ func (c *Conn) ReadProxyLine() (*ProxyLine, error) {
 	return proxyLine, nil
 }
 
+// HasProxyLine returns true if Conn has a valid proxy line.
+func (c *Conn) HasProxyLine() bool {
+	return c.proxyLine != nil
+}
+
 // returns a Listener that pretends to be listening on addr, closed whenever the
 // parent context is done.
 func newListener(parent context.Context, addr net.Addr) *Listener {

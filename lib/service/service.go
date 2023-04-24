@@ -3788,9 +3788,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
-				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
-				},
+				ConnContext:       web.ConnContextForWebServer,
 			},
 			Handler: webHandler,
 			Log:     log,
