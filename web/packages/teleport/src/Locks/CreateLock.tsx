@@ -59,7 +59,7 @@ export function CreateLock({
     setCreatePending(true);
     selectedLockTargets.forEach(async lockTarget => {
       const lockData: CreateLockData = {
-        targets: { [lockTarget.type]: lockTarget.name },
+        target: { [lockTarget.resource]: lockTarget.targetValue },
       };
       const message = messageRef?.current?.value;
       const ttl = ttlRef?.current?.value;
@@ -82,7 +82,9 @@ export function CreateLock({
   }
 
   function onRemove(name) {
-    const index = selectedLockTargets.findIndex(target => target.name === name);
+    const index = selectedLockTargets.findIndex(
+      target => target.targetValue === name
+    );
     selectedLockTargets.splice(index, 1);
     setSelectedLockTargets([...selectedLockTargets]);
   }
@@ -123,13 +125,13 @@ export function CreateLock({
             },
             {
               altKey: 'remove-btn',
-              render: ({ name }) => (
+              render: ({ targetValue }) => (
                 <Cell align="right">
                   <Trash
                     fontSize={13}
                     borderRadius={2}
                     p={2}
-                    onClick={onRemove.bind(null, name)}
+                    onClick={onRemove.bind(null, targetValue)}
                     css={`
                       cursor: pointer;
                       background-color: ${({ theme }) =>

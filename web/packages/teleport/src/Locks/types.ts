@@ -15,6 +15,8 @@ limitations under the License.
 */
 
 import { LabelDescription } from 'design/DataTable/types';
+import { Option } from 'shared/components/Select';
+
 import { AgentLabel } from 'teleport/services/agents';
 
 export type Lock = {
@@ -44,7 +46,10 @@ export type LockForTable = {
   targets: LabelDescription[];
 };
 
-export type AllowedTargets =
+/**
+ * TargetResource is the type of resource that a lock can be applied to.
+ */
+export type TargetResource =
   | 'user'
   | 'role'
   | 'login'
@@ -54,10 +59,18 @@ export type AllowedTargets =
   | 'access_request'
   | 'device';
 
+/**
+ * TargetValue is the value of the target resource that a lock is applied to.
+ * For example, if a TargetResource is 'node', its corresponding TargetValue should be
+ * the node's UUID. If a TargetResource is 'role', its corresponding TargetValue should be
+ * its name.
+ */
+export type TargetValue = string;
+
 export type TableData = {
   // targetValue is not displayed in the table, but is the value
   // that will be used when creating the lock target
-  targetValue: string;
+  targetValue: TargetValue;
 
   labels?: AgentLabel[];
 
@@ -65,14 +78,11 @@ export type TableData = {
   [key: string]: any;
 };
 
-export type LockTarget = {
-  label: string;
-  value: AllowedTargets;
-};
+export type DropdownOption = Option<TargetResource>;
 
 export type SelectedLockTarget = {
-  type: AllowedTargets;
-  name: string;
+  resource: TargetResource;
+  targetValue: TargetValue;
 };
 
 export type OnAdd = (name: string) => void;
@@ -80,12 +90,12 @@ export type OnAdd = (name: string) => void;
 export type TargetListProps = {
   data: TableData[];
   onAdd: OnAdd;
-  selectedTarget: AllowedTargets;
+  selectedResource: TargetResource;
   selectedLockTargets: SelectedLockTarget[];
 };
 
 export type CreateLockData = {
-  targets: { [K in AllowedTargets]?: string };
+  target: { [K in TargetResource]?: TargetValue };
   message?: string;
   ttl?: string;
 };

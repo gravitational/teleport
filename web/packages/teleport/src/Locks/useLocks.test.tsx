@@ -47,7 +47,7 @@ describe('hook: useLocks', () => {
     // happen before continuing on.
     await waitForNextUpdate();
     const resp = await result.current.createLock('cluster-id', {
-      targets: { user: 'banned' },
+      target: { user: 'banned' },
       message: "you've been bad",
       ttl: '5h',
     });

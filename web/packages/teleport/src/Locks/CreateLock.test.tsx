@@ -39,8 +39,8 @@ jest.mock('./useLocks', () => ({
 describe('component: CreateLock', () => {
   it('displays the list of targets to lock', () => {
     const selectedLockTargets: SelectedLockTarget[] = [
-      { type: 'user', name: 'worker' },
-      { type: 'role', name: 'contractor' },
+      { resource: 'user', targetValue: 'worker' },
+      { resource: 'role', targetValue: 'contractor' },
     ];
     render(
       <ThemeProvider>
@@ -58,8 +58,8 @@ describe('component: CreateLock', () => {
 
   it('can remove a target from the target list', async () => {
     const selectedLockTargets: SelectedLockTarget[] = [
-      { type: 'user', name: 'worker' },
-      { type: 'role', name: 'contractor' },
+      { resource: 'user', targetValue: 'worker' },
+      { resource: 'role', targetValue: 'contractor' },
     ];
     const cb = jest.fn();
     render(
@@ -80,7 +80,7 @@ describe('component: CreateLock', () => {
 
   it('creates a lock with a message and ttl', async () => {
     const selectedLockTargets: SelectedLockTarget[] = [
-      { type: 'user', name: 'worker' },
+      { resource: 'user', targetValue: 'worker' },
     ];
     render(
       <ThemeProvider>
@@ -114,7 +114,7 @@ describe('component: CreateLock', () => {
 
   it('displays errors when create fails', async () => {
     const selectedLockTargets: SelectedLockTarget[] = [
-      { type: 'user', name: 'worker' },
+      { resource: 'user', targetValue: 'worker' },
     ];
     render(
       <ThemeProvider>

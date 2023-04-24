@@ -37,10 +37,12 @@ import { lockTargets, useGetTargetData } from './useGetTargetData';
 
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
-  LockTarget,
+  TargetResource,
+  DropdownOption,
   OnAdd,
   SelectedLockTarget,
   TargetListProps,
+  TargetValue,
 } from './types';
 import type { TableColumn } from 'design/DataTable/types';
 import type { Positions } from 'design/SlidePanel/SlidePanel';
@@ -59,23 +61,24 @@ export function NewLockContent({
   const { clusterId } = useStickyClusterId();
   const [createPanelPosition, setCreatePanelPosition] =
     useState<Positions>('closed');
-  const [selectedTargetType, setSelectedTargetType] = useState<LockTarget>({
-    label: 'User',
-    value: 'user',
-  });
+  const [selectedDropdownOption, setSelectedDropdownOption] =
+    useState<DropdownOption>({
+      label: 'User',
+      value: 'user',
+    });
   const [selectedLockTargets, setSelectedLockTargets] = useState<
     SelectedLockTarget[]
   >([]);
   const targetData = useGetTargetData(
-    selectedTargetType?.value,
+    selectedDropdownOption?.value,
     clusterId,
     additionalTargets
   );
 
-  function onAdd(target: string) {
+  function onAdd(targetValue: TargetValue) {
     selectedLockTargets.push({
-      type: selectedTargetType.value,
-      name: target,
+      resource: selectedDropdownOption.value,
+      targetValue,
     });
     setSelectedLockTargets([...selectedLockTargets]);
   }
@@ -110,14 +113,14 @@ export function NewLockContent({
       <Flex justifyContent="space-between">
         <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
-            value={selectedTargetType}
+            value={selectedDropdownOption}
             options={lockTargets}
-            onChange={(o: LockTarget) => setSelectedTargetType(o)}
+            onChange={(o: DropdownOption) => setSelectedDropdownOption(o)}
             label="lock-target-type"
           />
         </Box>
         <QuickAdd
-          selectedTarget={selectedTargetType.value}
+          selectedResource={selectedDropdownOption.value}
           selectedLockTargets={selectedLockTargets}
           onAdd={onAdd}
         />
@@ -125,7 +128,7 @@ export function NewLockContent({
       <TargetList
         data={targetData}
         onAdd={onAdd}
-        selectedTarget={selectedTargetType.value}
+        selectedResource={selectedDropdownOption.value}
         selectedLockTargets={selectedLockTargets}
       />
       <Flex
@@ -168,17 +171,17 @@ export function NewLockContent({
 
 function TargetList({
   data,
-  selectedTarget,
+  selectedResource,
   selectedLockTargets,
   onAdd,
 }: TargetListProps) {
   if (!data) data = [];
 
-  if (selectedTarget === 'device') {
+  if (selectedResource === 'device') {
     return <Box>Listing Devices not implemented.</Box>;
   }
 
-  if (selectedTarget === 'login') {
+  if (selectedResource === 'login') {
     return <Box>Unable to list logins, use quick add box.</Box>;
   }
 
@@ -213,7 +216,8 @@ function TargetList({
             data-testid="btn-cell"
             disabled={selectedLockTargets.some(
               target =>
-                target.type === selectedTarget && target.name === targetValue
+                target.resource === selectedResource &&
+                target.targetValue === targetValue
             )}
           >
             + Add
@@ -228,15 +232,15 @@ function TargetList({
 }
 
 function QuickAdd({
-  selectedTarget,
+  selectedResource,
   selectedLockTargets,
   onAdd,
 }: {
-  selectedTarget: string;
+  selectedResource: TargetResource;
   selectedLockTargets: SelectedLockTarget[];
   onAdd: OnAdd;
 }) {
-  const [inputValue, setInputValue] = useState<string>('');
+  const [targetValue, setTargetValue] = useState<TargetValue>('');
   return (
     <Flex
       justifyContent="flex-end"
@@ -245,21 +249,22 @@ function QuickAdd({
       mb={4}
     >
       <Input
-        placeholder={`Quick add ${selectedTarget}`}
+        placeholder={`Quick add ${selectedResource}`}
         width={500}
-        value={inputValue}
-        onChange={e => setInputValue(e.currentTarget.value)}
+        value={targetValue}
+        onChange={e => setTargetValue(e.currentTarget.value)}
       />
       <ButtonPrimary
         onClick={() => {
-          onAdd(inputValue);
-          setInputValue('');
+          onAdd(targetValue);
+          setTargetValue('');
         }}
         disabled={
-          !inputValue.length ||
+          !targetValue.length ||
           selectedLockTargets?.some(
             target =>
-              target.type === selectedTarget && target.name === inputValue
+              target.resource === selectedResource &&
+              target.targetValue === targetValue
           )
         }
       >
