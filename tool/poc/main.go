@@ -102,8 +102,13 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("passed event log")
-	sbs, err := attest.ParseSecurebootState(eventLog.Events(attest.HashSHA256))
+	logger.Infof("parsed event log")
+	events, err := eventLog.Verify(platformsParams.PCRs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("verified event log, entries: %d", len(events))
+	sbs, err := attest.ParseSecurebootState(events)
 	if err != nil {
 		return trace.Wrap(err)
 	}
