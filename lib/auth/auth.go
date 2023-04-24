@@ -1449,6 +1449,7 @@ func certRequestPinIP(pinIP bool) certRequestOption {
 	return func(r *certRequest) { r.pinIP = pinIP }
 }
 
+// GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
 	Key            []byte
 	Username       string
@@ -1456,7 +1457,7 @@ type GenerateUserTestCertsRequest struct {
 	Compatiblity   string
 	RouteToCluster string
 	PinnedIP       string
-	MFAVerified    bool
+	MFAVerified    string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -1484,7 +1485,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 		traits:         user.GetTraits(),
 		loginIP:        req.PinnedIP,
 		pinIP:          req.PinnedIP != "",
-		mfaVerified:    "mfa-verified",
+		mfaVerified:    req.MFAVerified,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

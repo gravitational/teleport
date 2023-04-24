@@ -332,7 +332,7 @@ type CLIConf struct {
 	mockSSOLogin client.SSOLoginFunc
 
 	// mockHeadlessLogin used in tests to override Headless login handler in teleport client.
-	mockHeadlessLogin client.HeadlessLoginFunc
+	mockHeadlessLogin client.SSHLoginFunc
 
 	// HomePath is where tsh stores profiles
 	HomePath string

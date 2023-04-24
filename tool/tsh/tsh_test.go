@@ -2735,7 +2735,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 	}
 }
 
-func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.HeadlessLoginFunc {
+func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
 	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
@@ -2746,7 +2746,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 			TTL:            time.Hour,
 			Compatiblity:   constants.CertificateFormatStandard,
 			RouteToCluster: clusterName.GetClusterName(),
-			MFAVerified:    true,
+			MFAVerified:    "mfa-verified",
 		})
 		require.NoError(t, err)
 
