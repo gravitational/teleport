@@ -1,4 +1,4 @@
-export const cta = {
+export const ctaService = {
   showAuthConnectorsCTA: false,
   showTrustedDevicesCTA: false,
   showAccessRequestsCTA: false,
