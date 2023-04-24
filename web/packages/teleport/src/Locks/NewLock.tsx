@@ -37,7 +37,7 @@ import { lockTargets, useGetTargetData } from './useGetTargetData';
 
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
-  AllowedTargets,
+  AllowedTargetResource,
   LockTarget,
   OnAdd,
   SelectedLockTarget,
@@ -235,7 +235,7 @@ function QuickAdd({
   selectedLockTargets,
   onAdd,
 }: {
-  selectedResource: AllowedTargets;
+  selectedResource: AllowedTargetResource;
   selectedLockTargets: SelectedLockTarget[];
   onAdd: OnAdd;
 }) {
