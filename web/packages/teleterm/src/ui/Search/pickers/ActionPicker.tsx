@@ -596,7 +596,7 @@ export function NoResultsItem(props: {
 
   if (clustersWithExpiredCerts.length > 1) {
     // prettier-ignore
-    expiredCertsCopy = `The following clusters were excluded from the search because you are not logged in to them: ${clustersWithExpiredCerts.join( ', ')}.`;
+    expiredCertsCopy = `The following clusters were excluded from the search because you are not logged in to them: ${clustersWithExpiredCerts.join(', ')}.`;
   }
 
   return (
