@@ -701,7 +701,8 @@ Use Discover Wizard to enroll new resources and access them:
       - [ ] Verify that closing the login modal without logging in shows an appropriate error.
    - Log in, create a db connection, then remove access to that db server for that user; wait for
      the cert to expire, then attempt to make a connection through the proxy; log in.
-      - [ ] Verify that the db tab shows an appropriate error.
+      - [ ] Verify that psql shows an appropriate access denied error ("access to db denied. User
+        does not have permissions. Confirm database user and name").
    - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
      databases view.
       - [ ] Verify that a login modal was shown.
