@@ -36,9 +36,11 @@ This guide is applicable if you self-host Teleport in Kubernetes using the
   <Admonition type="tip">
     Users wanting to experiment locally with the Operator can use [minikube](https://minikube.sigs.k8s.io/docs/start/)
     to start a local Kubernetes cluster:
+
     ```code
     $ minikube start
     ```
+
   </Admonition>
 
 - Follow Step 1 of the
@@ -46,41 +48,39 @@ This guide is applicable if you self-host Teleport in Kubernetes using the
   to install the Teleport Operator in your Kubernetes cluster.
   Make sure to follow the Enterprise instructions.
 
-## Step 1/3. Ensure the Login Rule CRD has been installed
+  Confirm that the CRD (Custom Resource Definition) for Login Rules has been
+  installed with the following command:
 
-Confirm that the CRD (Custom Resource Definition) for Login Rules has been
-installed with the following command:
+  ```code
+  $ kubectl explain TeleportLoginRule.spec
+  KIND:     TeleportLoginRule
+  VERSION:  resources.teleport.dev/v1
 
-```code
-$ kubectl explain TeleportLoginRule.spec
-KIND:     TeleportLoginRule
-VERSION:  resources.teleport.dev/v1
+  RESOURCE: spec <Object>
 
-RESOURCE: spec <Object>
+  DESCRIPTION:
+      LoginRule resource definition v1 from Teleport
 
-DESCRIPTION:
-     LoginRule resource definition v1 from Teleport
+  FIELDS:
+    priority     <integer>
+      Priority is the priority of the login rule relative to other login rules in
+      the same cluster. Login rules with a lower numbered priority will be
+      evaluated first.
 
-FIELDS:
-   priority     <integer>
-     Priority is the priority of the login rule relative to other login rules in
-     the same cluster. Login rules with a lower numbered priority will be
-     evaluated first.
+    traits_expression    <string>
+      TraitsExpression is a predicate expression which should return the desired
+      traits for the user upon login.
 
-   traits_expression    <string>
-     TraitsExpression is a predicate expression which should return the desired
-     traits for the user upon login.
+    traits_map   <>
+      TraitsMap is a map of trait keys to lists of predicate expressions which
+      should evaluate to the desired values for that trait.
+  ```
 
-   traits_map   <>
-     TraitsMap is a map of trait keys to lists of predicate expressions which
-     should evaluate to the desired values for that trait.
-```
+  If this fails, you may not have installed the Teleport Operator, or you may have
+  installed an older version.
+  The minimum version for Login Rule support is `v12.1.5`.
 
-If this fails, you may not have installed the Teleport Operator, or you may have
-installed an older version.
-The minimum version for Login Rule support is `v12.1.5`.
-
-## Step 2/3. Create a Login Rule using `kubectl`
+## Step 1/2. Create a Login Rule using `kubectl`
 
 Paste the following into a file called `login-rules.yaml` that describes two
 custom Login Rule resources:
@@ -208,7 +208,7 @@ logins:
 - root
 ```
 
-## Step 3/3. Edit the Login Rules with `kubectl`
+## Step 2/2. Edit the Login Rules with `kubectl`
 
 Edit the `example-traits-map-rule` to add an extra login `example` login.
 
