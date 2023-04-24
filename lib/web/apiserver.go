@@ -317,6 +317,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
 		sessionLingeringThreshold: sessionLingeringThreshold,
+		proxySigner:               cfg.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1965,6 +1966,12 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
 		}}
 	}
+
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoReq.LoginIP = remoteAddr
 
 	res, err := h.auth.proxyClient.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {
