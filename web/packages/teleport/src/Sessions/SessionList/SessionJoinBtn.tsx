@@ -23,6 +23,7 @@ import { CarrotDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { cta } from 'teleport/services/cta/cta';
 
 export const SessionJoinBtn = ({
   sid,
@@ -43,7 +44,7 @@ export const SessionJoinBtn = ({
     (a, b) => modes[a] - modes[b]
   );
 
-  if (cfg.isTeams) {
+  if (cta.showActiveSessionsCTA) {
     return <LockedFeatureJoinMenu modes={sortedParticipantModes} />;
   }
 
