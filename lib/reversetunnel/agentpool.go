@@ -702,7 +702,7 @@ func (c *runtimeConfig) reportConnectedProxies() bool {
 	return c.getTunnelStrategyType() == types.ProxyPeering
 }
 
-// reportConnectedProxies returns true if the number of agents should be restricted.
+// restrictConnectionCount returns true if the number of agents should be restricted.
 func (c *runtimeConfig) restrictConnectionCount() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
