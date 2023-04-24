@@ -572,8 +572,6 @@ Use Discover Wizard to enroll new resources and access them:
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
-   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
-     error from tsh ssh.
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
    - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
@@ -634,23 +632,6 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
      the modal when asked for credentials. Verify that the cluster was still added and is visible in
      the profile selector.
-- Command bar & autocomplete
-   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
-     autocompletes them.
-   - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
-   - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
-   - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
-     autocompletes them.
-   - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
-     running.
-   - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
-     various points.
-   - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
-     command bar.
-   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a
-     new local shell with that command running.
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
