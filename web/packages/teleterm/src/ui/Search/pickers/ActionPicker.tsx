@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { ReactElement, useCallback } from 'react';
+import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
 import {
   Box,
@@ -26,7 +26,7 @@ import {
 } from 'design';
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
-import { hasFinished } from 'shared/hooks/useAsync';
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -38,13 +38,17 @@ import {
   SearchResultServer,
   SearchResultCluster,
   SearchResultResourceType,
+  SearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
+import { CrossClusterResourceSearchResult } from '../useSearch';
 
 import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
@@ -77,6 +81,11 @@ export function ActionPicker(props: { input: ReactElement }) {
     resourceSearchAttempt,
   } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
+  // The order of attempts is important. Filter actions should be displayed before resource actions.
+  const actionAttempts = useMemo(
+    () => [filterActionsAttempt, resourceActionsAttempt],
+    [filterActionsAttempt, resourceActionsAttempt]
+  );
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
@@ -146,55 +155,38 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
-  let ExtraTopComponent = null;
-  // The order of attempts is important. Filter actions should be displayed before resource actions.
-  const actionAttempts = [filterActionsAttempt, resourceActionsAttempt];
-  const attemptsHaveFinishedWithoutActions = actionAttempts.every(
-    a => hasFinished(a) && a.data.length === 0
+  const actionPickerStatus = useMemo(
+    () =>
+      getActionPickerStatus(
+        inputValue,
+        filters,
+        clustersService.getClusters(),
+        actionAttempts,
+        resourceSearchAttempt
+      ),
+    [
+      inputValue,
+      filters,
+      clustersService,
+      actionAttempts,
+      resourceSearchAttempt,
+    ]
   );
-  const noRemainingFilters =
-    filterActionsAttempt.status === 'success' &&
-    filterActionsAttempt.data.length === 0;
-
-  if (inputValue && attemptsHaveFinishedWithoutActions) {
-    ExtraTopComponent = (
-      <NoResultsItem clusters={clustersService.getRootClusters()} />
-    );
-  }
-
-  if (!inputValue && noRemainingFilters) {
-    ExtraTopComponent = <TypeToSearchItem />;
-  }
-
-  if (
-    resourceSearchAttempt.status === 'success' &&
-    resourceSearchAttempt.data.errors.length > 0
-  ) {
-    const showErrorsInModal = () => {
+  const showErrorsInModal = useCallback(
+    errors =>
       pauseUserInteraction(
         () =>
           new Promise(resolve => {
             modalsService.openRegularDialog({
               kind: 'resource-search-errors',
-              errors: resourceSearchAttempt.data.errors,
+              errors,
               getClusterName,
               onCancel: () => resolve(undefined),
             });
           })
-      );
-    };
-
-    ExtraTopComponent = (
-      <>
-        <ResourceSearchErrorsItem
-          errors={resourceSearchAttempt.data.errors}
-          getClusterName={getClusterName}
-          onShowDetails={showErrorsInModal}
-        />
-        {ExtraTopComponent}
-      </>
-    );
-  }
+      ),
+    [pauseUserInteraction, modalsService, getClusterName]
+  );
 
   return (
     <PickerContainer>
@@ -222,7 +214,13 @@ export function ActionPicker(props: { input: ReactElement }) {
             ),
           };
         }}
-        ExtraTopComponent={ExtraTopComponent}
+        ExtraTopComponent={
+          <ExtraTopComponents
+            status={actionPickerStatus}
+            getClusterName={getClusterName}
+            showErrorsInModal={showErrorsInModal}
+          />
+        }
       />
     </PickerContainer>
   );
@@ -244,6 +242,109 @@ export const InputWrapper = styled(Flex).attrs({ px: 2 })`
     flex: 1;
   }
 `;
+
+const ExtraTopComponents = (props: {
+  status: ActionPickerStatus;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  showErrorsInModal: (errors: ResourceSearchError[]) => void;
+}) => {
+  const { status, getClusterName, showErrorsInModal } = props;
+
+  switch (status.status) {
+    case 'no-input': {
+      return status.hasSelectedAllFilters && <TypeToSearchItem />;
+    }
+    case 'processing': {
+      return null;
+    }
+    case 'finished': {
+      return (
+        <>
+          {status.nonRetryableResourceSearchErrors.length > 0 && (
+            <ResourceSearchErrorsItem
+              errors={status.nonRetryableResourceSearchErrors}
+              getClusterName={getClusterName}
+              showErrorsInModal={() => {
+                showErrorsInModal(status.nonRetryableResourceSearchErrors);
+              }}
+            />
+          )}
+          {status.hasNoResults && (
+            <NoResultsItem
+              clustersWithExpiredCerts={status.clustersWithExpiredCerts}
+              getClusterName={getClusterName}
+            />
+          )}
+        </>
+      );
+    }
+    default: {
+      assertUnreachable(status);
+    }
+  }
+};
+
+type ActionPickerStatus =
+  | { status: 'no-input'; hasSelectedAllFilters: boolean }
+  | { status: 'processing' }
+  | {
+      status: 'finished';
+      hasNoResults: boolean;
+      nonRetryableResourceSearchErrors: ResourceSearchError[];
+      clustersWithExpiredCerts: Set<uri.ClusterUri>;
+    };
+
+export function getActionPickerStatus(
+  inputValue: string,
+  filters: SearchFilter[],
+  allClusters: tsh.Cluster[],
+  actionAttempts: Attempt<SearchAction[]>[],
+  resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>
+): ActionPickerStatus {
+  if (!inputValue) {
+    const hasSelectedAllFilters = filters.length === 2;
+
+    return {
+      status: 'no-input',
+      hasSelectedAllFilters,
+    };
+  }
+
+  const haveActionAttemptsFinished = actionAttempts.every(attempt =>
+    hasFinished(attempt)
+  );
+
+  if (!haveActionAttemptsFinished) {
+    return {
+      status: 'processing',
+    };
+  }
+
+  const hasNoResults = actionAttempts.every(
+    attempt => attempt.data.length === 0
+  );
+  const clustersWithExpiredCerts = new Set(
+    allClusters.filter(c => !c.connected).map(c => c.uri)
+  );
+  let nonRetryableResourceSearchErrors = [];
+
+  if (resourceSearchAttempt.status === 'success') {
+    resourceSearchAttempt.data.errors.forEach(err => {
+      if (isRetryable(err.cause)) {
+        clustersWithExpiredCerts.add(err.clusterUri);
+      } else {
+        nonRetryableResourceSearchErrors.push(err);
+      }
+    });
+  }
+
+  return {
+    status: 'finished',
+    hasNoResults,
+    clustersWithExpiredCerts,
+    nonRetryableResourceSearchErrors,
+  };
+}
 
 export const ComponentMap: Record<
   SearchResult['kind'],
@@ -478,15 +579,31 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   );
 }
 
-export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
-  const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
+export function NoResultsItem(props: {
+  clustersWithExpiredCerts: Set<uri.ClusterUri>;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+}) {
+  const clustersWithExpiredCerts = Array.from(
+    props.clustersWithExpiredCerts,
+    clusterUri => props.getClusterName(clusterUri)
+  );
+  clustersWithExpiredCerts.sort();
+  let expiredCertsCopy = '';
+
+  if (clustersWithExpiredCerts.length === 1) {
+    expiredCertsCopy = `The cluster ${clustersWithExpiredCerts[0]} was excluded from the search because you are not logged in to it.`;
+  }
+
+  if (clustersWithExpiredCerts.length > 1) {
+    // prettier-ignore
+    expiredCertsCopy = `The following clusters were excluded from the search because you are not logged in to them: ${clustersWithExpiredCerts.join( ', ')}.`;
+  }
+
   return (
     <NonInteractiveItem>
       <Item Icon={icons.Info} iconColor={MUTED_WHITE_COLOR}>
         <Text typography="body1">No matching results found.</Text>
-        {excludedClustersCopy && (
-          <Text typography="body2">{excludedClustersCopy}</Text>
-        )}
+        {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </Item>
     </NonInteractiveItem>
   );
@@ -505,7 +622,7 @@ export function TypeToSearchItem() {
 export function ResourceSearchErrorsItem(props: {
   errors: ResourceSearchError[];
   getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
-  onShowDetails: () => void;
+  showErrorsInModal: () => void;
 }) {
   const { errors, getClusterName } = props;
 
@@ -547,7 +664,7 @@ export function ResourceSearchErrorsItem(props: {
             css={`
               flex-shrink: 0;
             `}
-            onClick={props.onShowDetails}
+            onClick={props.showErrorsInModal}
           >
             Show details
           </ButtonBorder>
@@ -555,19 +672,6 @@ export function ResourceSearchErrorsItem(props: {
       </Item>
     </NonInteractiveItem>
   );
-}
-
-function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
-  // TODO(ravicious): Include leaf clusters.
-  const excludedClusters = allClusters.filter(c => !c.connected);
-  const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
-  if (excludedClusters.length === 0) {
-    return '';
-  }
-  if (excludedClusters.length === 1) {
-    return `The cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
-  }
-  return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
 }
 
 function Labels(
