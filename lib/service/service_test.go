@@ -1156,3 +1156,121 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 		})
 	}
 }
+
+func TestSingleProcessModeResolver(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		mode      types.ProxyListenerMode
+		config    servicecfg.Config
+		wantError bool
+		wantAddr  string
+	}{
+		{
+			name: "not single process mode",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: false,
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "reverse tunnel disabled",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled:              true,
+					DisableReverseTunnel: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "separate port localhost",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://localhost:3024",
+		},
+		{
+			name: "separate port tunnel addr",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					TunnelPublicAddrs: []utils.NetAddr{
+						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
+					},
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+		{
+			name: "multiplex public addr",
+			mode: types.ProxyListenerMode_Multiplex,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					PublicAddrs: []utils.NetAddr{
+						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
+					},
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+		{
+			name: "multiplex web addr with https scheme",
+			mode: types.ProxyListenerMode_Multiplex,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					WebAddr: *utils.MustParseAddr("https://example.com:12345"),
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process := TeleportProcess{Config: &test.config}
+			resolver := process.SingleProcessModeResolver(test.mode)
+			require.NotNil(t, resolver)
+			addr, mode, err := resolver(context.Background())
+			if test.wantError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, mode, test.mode)
+			require.Equal(t, addr.FullAddress(), test.wantAddr)
+		})
+	}
+}
