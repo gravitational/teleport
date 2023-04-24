@@ -158,7 +158,7 @@ func splitServerID(address string) (string, string, error) {
 	return split[0], strings.Join(split[1:], "."), nil
 }
 
-// ClusterDialer dials a node in the given cluster.
+// ClusterDialer allows dialing resources or the auth server of a cluster.
 type ClusterDialer interface {
 	Dial(clusterName string, request DialParams) (net.Conn, error)
 	DialAuth(clusterName string, request DialParams) (net.Conn, error)
