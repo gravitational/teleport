@@ -1131,11 +1131,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	)
 	defer span.End()
 
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
 		// end (by their proxy), after that cluster has remapped used roles.
