@@ -340,6 +340,7 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 	return trace.NewAggregate(errs...)
 }
 
+// DialAuth dials a remote clusters auth server through a peer proxy.
 func (c *Client) DialAuth(clusterName string, src net.Addr, dst net.Addr, proxyIDs []string) (net.Conn, error) {
 	if src == nil || dst == nil {
 		return nil, trace.BadParameter("unable to dial auth: source and destination address must not be nil")
