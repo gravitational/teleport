@@ -905,6 +905,7 @@ func TestJoinScript(t *testing.T) {
 				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport'")
 		})
 
 		t.Run("ent", func(t *testing.T) {
@@ -920,6 +921,7 @@ func TestJoinScript(t *testing.T) {
 				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
 			})
 			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport-ent'")
 		})
 	})
 
