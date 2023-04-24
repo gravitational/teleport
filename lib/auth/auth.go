@@ -275,10 +275,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
-
-		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -298,11 +297,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
 	}
+	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -379,11 +378,10 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.Okta
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
-
-	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -400,7 +398,7 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
-	return r.okta
+	return r
 }
 
 var (
@@ -1447,6 +1445,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}, nil
 }
 
+func certRequestPinIP(pinIP bool) certRequestOption {
+	return func(r *certRequest) { r.pinIP = pinIP }
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
@@ -1499,6 +1501,8 @@ type AppTestCertRequest struct {
 	AzureIdentity string
 	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
 	GCPServiceAccount string
+	// PinnedIP is optional IP to pin certificate to.
+	PinnedIP string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1541,6 +1545,8 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
+		pinIP:             req.PinnedIP != "",
+		loginIP:           req.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2016,11 +2022,9 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	pinnedIP := ""
-	if req.checker.PinSourceIP() || req.pinIP {
+	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
-			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
-			// instead of warning, after merging #21080
-			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
+			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
 		}
 
 		pinnedIP = req.loginIP
@@ -2397,6 +2401,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	}
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
+		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
 		AccessRequests:       identity.ActiveRequests,
@@ -2993,6 +2998,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
+		LoginIP:              identity.LoginIP,
 		Roles:                roles,
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
@@ -3619,6 +3625,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
 		publicKey:      pub,
 		checker:        checker,

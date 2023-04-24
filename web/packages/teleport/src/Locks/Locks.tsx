@@ -34,12 +34,28 @@ import { NavLink } from 'teleport/components/Router';
 
 import { useLocks } from './useLocks';
 import { StyledSpinner } from './shared';
+import { LockForTable } from './types';
 
 function getFormattedDate(d: string): string {
   try {
     return formatRelative(new Date(d), Date.now());
   } catch (e) {
     return '';
+  }
+}
+
+function lockTargetsMatcher(
+  targetValue: any,
+  searchValue: string,
+  propName: keyof LockForTable & string
+) {
+  if (propName === 'targets') {
+    return targetValue.some(
+      ({ name, value }) =>
+        name.toLocaleUpperCase().includes(searchValue) ||
+        value.toLocaleUpperCase().includes(searchValue) ||
+        `${name}: ${value}`.toLocaleUpperCase().includes(searchValue)
+    );
   }
 }
 
@@ -122,6 +138,7 @@ export function Locks() {
         ]}
         emptyText="No Locks Found"
         isSearchable
+        customSearchMatchers={[lockTargetsMatcher]}
         pagination={{ pageSize: 20 }}
       />
     </FeatureBox>
@@ -158,9 +175,8 @@ const ButtonBG = styled.span`
   font-size: 13px;
   border-radius: 2px;
   padding: 8px;
-  background-color: #2e3860;
-  border-radius: 2px;
+  background-color: ${({ theme }) => theme.colors.buttons.trashButton.default};
   :hover {
-    background-color: #414b70;
+    background-color: ${({ theme }) => theme.colors.buttons.trashButton.hover};
   }
 `;
