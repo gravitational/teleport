@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.19
+go 1.20
 
 require (
 	cloud.google.com/go/container v1.16.0
