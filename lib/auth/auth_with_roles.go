@@ -326,7 +326,7 @@ func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]t
 
 // ListPlugins lists plugin resources.
 func (a *ServerWithRoles) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
+	return a.authServer.ListPlugins(ctx, limit, startKey, withSecrets)
 }
 
 // SetPluginCredentials sets the credentials for a plugin resource.

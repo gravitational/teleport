@@ -113,6 +113,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindPlugin},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -370,7 +371,7 @@ func ForDiscovery(cfg Config) Config {
 func ForPlugins(cfg Config) Config {
 	cfg.target = "plugins"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindAccessRequest},
+		{Kind: types.KindPlugin},
 	}
 	cfg.QueueSize = defaults.PluginsQueueSize
 	return cfg
@@ -477,6 +478,7 @@ type Cache struct {
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
+	pluginCache                  services.Plugins
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -630,6 +632,8 @@ type Config struct {
 	Okta services.Okta
 	// Integrations is an Integrations service.
 	Integrations services.Integrations
+	// Plugin is a plugin service.
+	Plugin services.Plugins
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -827,6 +831,7 @@ func New(config Config) (*Cache, error) {
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
+		pluginCache:                  local.NewPluginsService(config.Backend),
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,

@@ -182,6 +182,7 @@ type cacheCollections struct {
 	databaseServers          collectionReader[databaseServerGetter]
 	installers               collectionReader[installerGetter]
 	integrations             collectionReader[services.IntegrationsGetter]
+	plugins                  collectionReader[services.PluginGetter]
 	kubeClusters             collectionReader[kubernetesClusterGetter]
 	kubeServers              collectionReader[kubeServerGetter]
 	locks                    collectionReader[services.LockGetter]
@@ -589,6 +590,14 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindPlugin:
+			if c.Plugin == nil {
+				return nil, trace.BadParameter("missing parameter Plugins")
+			}
+			collections.plugins = &genericCollection[types.Plugin, services.PluginGetter, pluginsExecutor]{
+				cache: c,
+				watch: watch,
+			}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2233,6 +2242,52 @@ type oktaAssignmentGetter interface {
 }
 
 var _ executor[types.OktaAssignment, oktaAssignmentGetter] = oktaAssignmentsExecutor{}
+
+type pluginsExecutor struct{}
+
+func (pluginsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Plugin, error) {
+	var (
+		startKey  string
+		resources []types.Plugin
+	)
+	for {
+		var assignments []types.Plugin
+		var err error
+		assignments, startKey, err = cache.Plugin.ListPlugins(ctx, 0, startKey, loadSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = append(resources, assignments...)
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (pluginsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Plugin) error {
+	return trace.Wrap(cache.pluginCache.CreatePlugin(ctx, resource))
+}
+
+func (pluginsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.pluginCache.DeleteAllPlugins(ctx)
+}
+
+func (pluginsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.pluginCache.DeletePlugin(ctx, resource.GetName())
+}
+
+func (pluginsExecutor) isSingleton() bool { return false }
+
+func (pluginsExecutor) getReader(cache *Cache, cacheOK bool) services.PluginGetter {
+	if cacheOK {
+		return cache.pluginCache
+	}
+	return cache.Config.Plugins
+}
+
+var _ executor[types.Plugin, services.PluginGetter] = pluginsExecutor{}
 
 // collectionReader extends the collection interface, adding routing capabilities.
 type collectionReader[R any] interface {

@@ -4977,6 +4977,34 @@ func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceReques
 	return nil, trace.Wrap(auth.DeletePlugin(ctx, req.Name))
 }
 
+// ListPlugins lists plugin resources.
+func (g *GRPCServer) ListPlugins(ctx context.Context, req *types.ListPluginsRequest) (*types.ListPluginsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rawPlugins, lastkey, err := auth.ListPlugins(ctx, int(req.Limit), req.StartKey, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	encodedPlugins := make([]*types.PluginV1, 0, len(rawPlugins))
+	for _, rawPlugin := range rawPlugins {
+		plugin, ok := rawPlugin.(*types.PluginV1)
+		if !ok {
+			log.Warnf("Skipping unexpected plugin type %T, expected %T.", rawPlugin, plugin)
+			continue
+		}
+		encodedPlugins = append(encodedPlugins, plugin)
+	}
+	return &types.ListPluginsResponse{
+		Items:   encodedPlugins,
+		LastKey: lastkey,
+	}, nil
+
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk

@@ -496,7 +496,11 @@ func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plug
 }
 
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
+	plugins, lastKey, err := c.APIClient.ListPlugins(ctx, limit, startKey, withSecrets)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return plugins, lastKey, nil
 }
 
 func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {

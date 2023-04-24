@@ -3661,7 +3661,22 @@ func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plug
 }
 
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	return nil, "", trace.NotImplemented(notImplementedMessage)
+	request := &types.ListPluginsRequest{
+		Limit:    int32(limit),
+		StartKey: startKey,
+	}
+
+	response, err := c.grpc.ListPlugins(ctx, request, c.callOpts...)
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	plugins := make([]types.Plugin, 0, len(response.Items))
+	for _, plugin := range response.Items {
+		plugins = append(plugins, plugin)
+	}
+
+	return plugins, response.LastKey, nil
 }
 
 func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {

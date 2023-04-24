@@ -2195,6 +2195,26 @@ message PluginDataUpdateParams {
   map<string, string> Expect = 5 [(gogoproto.jsontag) = "expect,omitempty"];
 }
 
+// ListPluginsRequest is used for making ListPlugins requests
+message ListPluginsRequest {
+  // Limit is the maximum amount of plugins returned
+  int32 Limit = 1;
+  // StartKey is used to resume a query in order to enable pagination.
+  // If the previous response had LastKey set then this should be
+  // set to its value. Otherwise leave empty.
+  string StartKey = 2;
+}
+
+// ListPluginsResponse is a response to ListPlugins
+message ListPluginsResponse {
+  // Items is a list of plugins.
+  repeated PluginV1 Items = 1;
+  // The key of the last plugin if the returned set did not contain all plugins found i.e limit <
+  // actual amount. this is the key clients can supply in another API request to continue fetching
+  // plugins from the previous last position
+  string LastKey = 2;
+}
+
 // RoleV6 represents role resource specification
 message RoleV6 {
   option (gogoproto.goproto_stringer) = false;

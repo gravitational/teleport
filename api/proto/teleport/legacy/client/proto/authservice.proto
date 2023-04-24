@@ -135,6 +135,8 @@ message Event {
     types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
+    // Plugin is a plugin resource.
+    types.PluginV1 Plugin = 44 [(gogoproto.jsontag) = "plugin,omitempty"];
   }
 }
 
@@ -2949,4 +2951,7 @@ service AuthService {
 
   // DeletePlugins deletes a plugin resource.
   rpc DeletePlugin(types.ResourceRequest) returns (google.protobuf.Empty);
+
+  // ListPlugins lists current plugin resources.
+  rpc ListPlugins(types.ListPluginsRequest) returns (types.ListPluginsResponse);
 }
