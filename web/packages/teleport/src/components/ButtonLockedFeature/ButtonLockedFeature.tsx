@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
-import Text from 'design/Text';
 // import theme from 'design/theme';
 
 export type Props = {
@@ -16,10 +15,8 @@ const salesUrl = 'https://goteleport.com/signup/enterprise/';
 export function ButtonLockedFeature({ children, ...rest }) {
   return (
     <StyledButton onClick={() => window.open(salesUrl, 'blank')} {...rest}>
-      <Flex alignItems="flex-start">
-        <Text>
-          <UnlockIcon />
-        </Text>
+      <Flex alignItems="center">
+        <UnlockIcon />
         {children}
       </Flex>
     </StyledButton>
