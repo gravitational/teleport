@@ -70,7 +70,7 @@ func (s *proxyService) handleDialRequest(stream proto.ProxyService_DialNodeServe
 		"src":     dial.Source.Addr,
 		"dst":     dial.Destination.Addr,
 	})
-	log.Debugf("Node dial request from peer.")
+	log.Debug("Received node dial request from peer.")
 
 	source := &utils.NetAddr{
 		Addr:        dial.Source.Addr,
@@ -106,7 +106,7 @@ func (s *proxyService) handleDialAuth(stream proto.ProxyService_DialNodeServer, 
 		"src":     dial.Source.Addr,
 		"dst":     dial.Destination.Addr,
 	})
-	log.Debugf("Auth dial request from peer.")
+	log.Debug("Received auth dial request from peer.")
 
 	source := &utils.NetAddr{
 		Addr:        dial.Source.Addr,
