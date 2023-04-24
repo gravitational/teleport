@@ -141,6 +141,11 @@ should set nodeSelector when set in values:
             - key: ca.crt
               path: ca.crt
             name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -252,6 +257,11 @@ should set resources when set in values:
             - key: ca.crt
               path: ca.crt
             name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -355,6 +365,11 @@ should set securityContext for initContainers when set in values:
             - key: ca.crt
               path: ca.crt
             name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -458,6 +473,11 @@ should set securityContext when set in values:
             - key: ca.crt
               path: ca.crt
             name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config

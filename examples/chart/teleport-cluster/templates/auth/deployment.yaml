@@ -265,6 +265,8 @@ spec:
 {{- end }}
       volumes:
 {{- if $projectedServiceAccountToken }}
+      # This projected token volume mimics the `automountServiceAccountToken`
+      # behaviour but defaults to a 1h TTL instead of 1y.
       - name: auth-serviceaccount-token
         projected:
           sources:
@@ -275,6 +277,11 @@ spec:
                 - key: ca.crt
                   path: ca.crt
                 name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                  - path: "namespace"
+                    fieldRef:
+                      fieldPath: metadata.namespace
 {{- end }}
 {{- if $auth.enterprise }}
       - name: license
