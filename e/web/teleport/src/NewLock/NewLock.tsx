@@ -31,18 +31,17 @@ export function NewLock() {
     <NewLockContent
       additionalTargets={{
         access_request: {
-          fetch: workflowService.fetchAccessRequests,
-          handler: (setter, requests) => {
-            const filteredData = requests.map(r => ({
+          fetchData: async () => {
+            const requests = await workflowService.fetchAccessRequests({});
+            return requests.map(r => ({
               id: r.id,
               user: r.user,
               roles: r.roles.join(', '),
-              created: r.created,
+              created: r.created.toDateString(),
               reason: r.requestReason,
+              targetValue: r.id,
             }));
-            setter(filteredData);
           },
-          options: {},
         },
       }}
     />
