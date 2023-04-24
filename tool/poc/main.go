@@ -87,6 +87,7 @@ func run() error {
 	if !bytes.Equal(foundSolution, solution) {
 		return trace.BadParameter("incorrect solution")
 	}
+	logger.Infof("passed credential activation check")
 	// Check platform attestation
 	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
 	if err != nil {
@@ -96,6 +97,17 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	logger.Infof("passed platofrm params verifyall")
+	eventLog, err := attest.ParseEventLog(platformsParams.EventLog)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("passed event log")
+	sbs, err := attest.ParseSecurebootState(eventLog.Events(attest.HashSHA256))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("Secure boot state parsed %s", sbs.Enabled)
 	// Woohoo :D
 
 	return nil
