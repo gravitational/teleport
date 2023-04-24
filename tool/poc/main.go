@@ -24,6 +24,95 @@ func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
 	return nil, nil
 }
 
+type server struct {
+	storedAK *attest.AKPublic
+}
+
+type enrollChallenge func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error)
+
+func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParameters, callback enrollChallenge) error {
+	// TODO: IRL we would validate EK has trusted cert first.
+
+	activationParams := attest.ActivationParameters{
+		TPMVersion: attest.TPMVersion20,
+		EK:         ek.Public,
+		AK:         attestationParams,
+	}
+	realSolution, encryptedCredentials, err := activationParams.Generate()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("generated activatation challenge, solution: %s", realSolution)
+
+	// Generate a nonce to use for attesting platform
+	nonce := make([]byte, 32)
+	_, err = rand.Read(nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientSolution, platformParams, err := callback(encryptedCredentials, nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !bytes.Equal(clientSolution, realSolution) {
+		return trace.BadParameter("incorrect solution")
+	}
+	logger.Infof("passed credential activation check")
+	// Check platform attestation
+	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = akPub.VerifyAll(platformParams.Quotes, platformParams.PCRs, nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("passed platofrm params verifyall")
+	eventLog, err := attest.ParseEventLog(platformParams.EventLog)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("parsed event log")
+	events, err := eventLog.Verify(platformParams.PCRs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("verified event log, entries: %d", len(events))
+	sbs, err := attest.ParseSecurebootState(events)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	logger.Infof("Secure boot state parsed %s", sbs.Enabled)
+
+	s.storedAK = akPub
+	return nil
+}
+
+type authenticateChallenge func(platformAttestationNonce []byte) (*attest.PlatformParameters, error)
+
+func (s *server) Authenticate(callback authenticateChallenge) error {
+	// Generate a nonce to use for attesting platform
+	nonce := make([]byte, 32)
+	_, err := rand.Read(nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	platformParams, err := callback(nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = s.storedAK.VerifyAll(platformParams.Quotes, platformParams.PCRs, nonce)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func run() error {
 	var tpm *attest.TPM
 	var err error
@@ -47,6 +136,8 @@ func run() error {
 		}
 	}
 
+	srv := server{}
+
 	eks, err := tpm.EKs()
 	if err != nil {
 		return trace.Wrap(err)
@@ -62,72 +153,43 @@ func run() error {
 	}
 	attestationParams := ak.AttestationParameters()
 
-	// SERVER
-	// TODO: Validate EK
-	activationParams := attest.ActivationParameters{
-		TPMVersion: attest.TPMVersion20,
-		EK:         ek.Public,
-		AK:         attestationParams,
-	}
-	solution, encryptedCredentials, err := activationParams.Generate()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("generated activatation challenge, solution: %s", solution)
+	err = srv.Enroll(ek, attestationParams, func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error) {
+		foundSolution, err := ak.ActivateCredential(tpm, *challenge)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		logger.Infof("activating credentials found solution: %s", foundSolution)
 
-	// Generate a nonce to use for attesting platform
-	nonce := make([]byte, 32)
-	_, err = rand.Read(nonce)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		platformsParams, err := tpm.AttestPlatform(ak, platformAttestationNonce, &attest.PlatformAttestConfig{
+			EventLog: nil,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 
-	// BACK ON CLIENT
-	foundSolution, err := ak.ActivateCredential(tpm, *encryptedCredentials)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("activating credentials found solution: %s", foundSolution)
-
-	platformsParams, err := tpm.AttestPlatform(ak, nonce, &attest.PlatformAttestConfig{
-		EventLog: nil,
+		return foundSolution, platformsParams, nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// BACK ON SERVER
-	// Check credential activation was valid
-	if !bytes.Equal(foundSolution, solution) {
-		return trace.BadParameter("incorrect solution")
-	}
-	logger.Infof("passed credential activation check")
-	// Check platform attestation
-	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
+	logger.Infof("Enrollment complete")
+	logger.Infof("Trying re-authentication")
+
+	err = srv.Authenticate(func(platformAttestationNonce []byte) (*attest.PlatformParameters, error) {
+		platformsParams, err := tpm.AttestPlatform(ak, platformAttestationNonce, &attest.PlatformAttestConfig{
+			EventLog: nil,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return platformsParams, nil
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = akPub.VerifyAll(platformsParams.Quotes, platformsParams.PCRs, nonce)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("passed platofrm params verifyall")
-	eventLog, err := attest.ParseEventLog(platformsParams.EventLog)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("parsed event log")
-	events, err := eventLog.Verify(platformsParams.PCRs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("verified event log, entries: %d", len(events))
-	sbs, err := attest.ParseSecurebootState(events)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	logger.Infof("Secure boot state parsed %s", sbs.Enabled)
-	// Woohoo :D
+	logger.Infof("Authentication complete")
 
 	return nil
 }
