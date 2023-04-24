@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"github.com/sirupsen/logrus"
 	"io"
 
 	"github.com/google/go-attestation/attest"
@@ -15,6 +16,8 @@ var logger = utils.NewLogger()
 
 const useSimulator = false
 
+const useDifferentAK = false
+
 // TODO: Determine what value this has
 type windowsCmdChannel struct {
 	io.ReadWriteCloser
@@ -26,6 +29,7 @@ func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
 
 type server struct {
 	storedAK *attest.AKPublic
+	logger   logrus.FieldLogger
 }
 
 type enrollChallenge func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error)
@@ -136,7 +140,10 @@ func run() error {
 		}
 	}
 
-	srv := server{}
+	srv := server{
+		logger: logger.WithField(trace.Component, "SERVER"),
+	}
+	logger := logger.WithField(trace.Component, "CLIENT")
 
 	eks, err := tpm.EKs()
 	if err != nil {
@@ -176,9 +183,13 @@ func run() error {
 	logger.Infof("Enrollment complete")
 	logger.Infof("Trying re-authentication")
 
-	ak, err = tpm.NewAK(akConfig)
-	if err != nil {
-		return trace.Wrap(err)
+	// Used to inject a failure case that should occur if a different AK is
+	// used.
+	if useDifferentAK {
+		ak, err = tpm.NewAK(akConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = srv.Authenticate(func(platformAttestationNonce []byte) (*attest.PlatformParameters, error) {
