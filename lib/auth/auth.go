@@ -1454,7 +1454,7 @@ type GenerateUserTestCertsRequest struct {
 	Key            []byte
 	Username       string
 	TTL            time.Duration
-	Compatiblity   string
+	Compatibility  string
 	RouteToCluster string
 	PinnedIP       string
 	MFAVerified    string
@@ -1478,7 +1478,7 @@ func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
 		ttl:            req.TTL,
-		compatibility:  req.Compatiblity,
+		compatibility:  req.Compatibility,
 		publicKey:      req.Key,
 		routeToCluster: req.RouteToCluster,
 		checker:        checker,

@@ -120,7 +120,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 		Key:            sshPub,
 		Username:       req.Username,
 		TTL:            ttl,
-		Compatiblity:   constants.CertificateFormatStandard,
+		Compatibility:  constants.CertificateFormatStandard,
 		RouteToCluster: req.RouteToCluster,
 		PinnedIP:       req.SourceIP,
 	})

@@ -209,7 +209,7 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 		Key:            key.MarshalSSHPublicKey(),
 		Username:       username,
 		TTL:            ttl,
-		Compatiblity:   constants.CertificateFormatStandard,
+		Compatibility:  constants.CertificateFormatStandard,
 		RouteToCluster: tc.Secrets.SiteName,
 	})
 	require.NoError(t, err)

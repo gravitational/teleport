@@ -2713,7 +2713,7 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 			Key:            priv.MarshalSSHPublicKey(),
 			Username:       user.GetName(),
 			TTL:            time.Hour,
-			Compatiblity:   constants.CertificateFormatStandard,
+			Compatibility:  constants.CertificateFormatStandard,
 			RouteToCluster: clusterName.GetClusterName(),
 		})
 		require.NoError(t, err)
@@ -2744,7 +2744,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 			Key:            priv.MarshalSSHPublicKey(),
 			Username:       user.GetName(),
 			TTL:            time.Hour,
-			Compatiblity:   constants.CertificateFormatStandard,
+			Compatibility:  constants.CertificateFormatStandard,
 			RouteToCluster: clusterName.GetClusterName(),
 			MFAVerified:    "mfa-verified",
 		})
