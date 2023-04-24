@@ -114,12 +114,12 @@ export function CreateLock({
           data={selectedLockTargets}
           columns={[
             {
-              key: 'type',
+              key: 'resource',
               headerText: 'Type',
               isSortable: false,
             },
             {
-              key: 'name',
+              key: 'targetValue',
               headerText: 'Name',
               isSortable: false,
             },

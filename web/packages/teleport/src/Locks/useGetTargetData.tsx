@@ -20,11 +20,11 @@ import useTeleport from 'teleport/useTeleport';
 
 import type {
   AllowedTargetResource,
-  LockTargetDropdownOption,
+  LockTargetOption,
   TableData,
 } from './types';
 
-export const lockTargetDropdownOptions: LockTargetDropdownOption[] = [
+export const lockTargetDropdownOptions: LockTargetOption[] = [
   { label: 'User', value: 'user' },
   { label: 'Role', value: 'role' },
   { label: 'Login', value: 'login' },
@@ -136,8 +136,8 @@ export const useGetTargetData: UseGetTargetData = (
       return;
     }
 
-    action.fetchData().then(td => {
-      setTargetData(td);
+    action.fetchData().then(targetData => {
+      setTargetData(targetData);
     });
   }, [additionalTargets, targetDataFilters, targetType]);
 

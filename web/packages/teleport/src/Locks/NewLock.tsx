@@ -41,7 +41,7 @@ import {
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
   AllowedTargetResource,
-  LockTargetDropdownOption,
+  LockTargetOption,
   OnAdd,
   SelectedLockTarget,
   TargetListProps,
@@ -65,7 +65,7 @@ export function NewLockContent({
   const [createPanelPosition, setCreatePanelPosition] =
     useState<Positions>('closed');
   const [selectedLockTarget, setSelectedLockTarget] =
-    useState<LockTargetDropdownOption>({
+    useState<LockTargetOption>({
       label: 'User',
       value: 'user',
     });
@@ -118,7 +118,7 @@ export function NewLockContent({
           <Select
             value={selectedLockTarget}
             options={lockTargetDropdownOptions}
-            onChange={(o: LockTargetDropdownOption) => setSelectedLockTarget(o)}
+            onChange={(o: LockTargetOption) => setSelectedLockTarget(o)}
             label="lock-target-type"
           />
         </Box>

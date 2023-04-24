@@ -79,14 +79,14 @@ export type TableData = {
   [key: string]: any;
 };
 
-export type LockTargetDropdownOption = Option<AllowedTargetResource>;
+export type LockTargetOption = Option<AllowedTargetResource>;
 
 export type SelectedLockTarget = {
   resource: AllowedTargetResource;
   targetValue: TargetValue;
 };
 
-export type OnAdd = (name: string) => void;
+export type OnAdd = (targetValue: TargetValue) => void;
 
 export type TargetListProps = {
   data: TableData[];
