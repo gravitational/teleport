@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
@@ -89,8 +90,41 @@ func (h *Handler) getAssistantConversations(w http.ResponseWriter, r *http.Reque
 	return resp, err
 }
 
-func (h *Handler) generateAssistantTitle(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
-	return nil, trace.NotImplemented("handler is not implemented")
+func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+	req := struct {
+		Message string `json:"message"`
+	}{}
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationID := p.ByName("conversation_id")
+
+	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	titleSummary, err := chat.Summary(r.Context(), req.Message)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationInfo := &proto.ConversationInfo{
+		Id:    conversationID,
+		Title: titleSummary,
+	}
+	if err := authClient.SetAssistantConversationTitle(r.Context(), conversationInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conversationInfo, nil
 }
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
@@ -149,22 +183,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	go startPingLoop(r.Context(), ws, keepAliveInterval, h.log, nil)
 
-	prefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	prefsV2, ok := prefs.(*types.AuthPreferenceV2)
-	if !ok {
-		return trace.Errorf("bad case, expected AuthPreferenceV2 found %T", prefs)
-	}
-
-	if prefsV2.Spec.Assist == nil {
-		return trace.Errorf("assist spec is not set")
-	}
-
-	client := ai.NewClient(prefsV2.Spec.Assist.APIURL)
-	chat := client.NewChat(sctx.cfg.User)
 
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -227,6 +249,27 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	h.log.Debugf("end assistant conversation loop")
 
 	return nil
+}
+
+func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+	prefs, err := proxyClient.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	prefsV2, ok := prefs.(*types.AuthPreferenceV2)
+	if !ok {
+		return nil, trace.Errorf("bad cast, expected AuthPreferenceV2 found %T", prefs)
+	}
+
+	if prefsV2.Spec.Assist == nil {
+		return nil, trace.Errorf("assist spec is not set")
+	}
+
+	client := ai.NewClient(prefsV2.Spec.Assist.APIURL)
+	chat := client.NewChat(sctx.cfg.User)
+
+	return chat, nil
 }
 
 func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversationID string,

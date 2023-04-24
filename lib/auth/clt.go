@@ -669,6 +669,8 @@ type IdentityService interface {
 	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 	// InsertAssistantMessage adds the message to the backend.
 	InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
+	// SetAssistantConversationTitle sets the given title as the conversation title.
+	SetAssistantConversationTitle(ctx context.Context, in *proto.ConversationInfo) error
 }
 
 // ProvisioningService is a service in control

@@ -201,7 +201,7 @@ export function Sidebar() {
       <ChatHistoryItemIcon>
         <ChatIcon size={18} />
       </ChatHistoryItemIcon>
-      <ChatHistoryItemTitle>New Chat</ChatHistoryItemTitle>
+      <ChatHistoryItemTitle>{conversation.title}</ChatHistoryItemTitle>
     </ChatHistoryItem>
   ));
 

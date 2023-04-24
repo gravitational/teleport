@@ -731,8 +731,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// WebSocket endpoint for the chat conversation
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
 
-	// Sets the title for the conversation. TODO(jakule) The title should be a summary from OpenAI instead of passed here text.
-	h.POST("/webapi/assistant/title", h.WithAuth(h.generateAssistantTitle))
+	// Sets the title for the conversation.
+	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.generateAssistantTitle))
 
 	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))

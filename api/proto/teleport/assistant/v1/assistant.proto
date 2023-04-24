@@ -46,8 +46,20 @@ message CompletionResponse {
   repeated Label labels = 5;
 }
 
+// TitleSummaryRequest is request for TitleSummary endpoint.
+message TitleSummaryRequest {
+  string message = 1;
+}
+
+// TitleSummaryResponse is response for TitleSummary endpoint.
+message TitleSummaryResponse {
+  string title = 1;
+}
+
 // AssistantService is the GRPC service used by Teleport and Assist service.
 service AssistantService {
   // Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
   rpc Complete(CompleteRequest) returns (CompletionResponse);
+  // Create title summary. The title will be saved in the DB after before the title is returned.
+  rpc TitleSummary(TitleSummaryRequest) returns (TitleSummaryResponse);
 }

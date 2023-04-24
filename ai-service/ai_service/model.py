@@ -1,3 +1,5 @@
+from typing import List
+
 from langchain.schema import HumanMessage, SystemMessage
 
 
@@ -50,3 +52,13 @@ def add_try_extract(messages):
             """
         )
     )
+
+
+def title_summary_context(message: str) -> List[any]:
+    return [
+        SystemMessage(
+            content="You will be given a message. Create a short summary of that message. "
+            "Respond only with summary, nothing else"
+        ),
+        HumanMessage(content=message),
+    ]

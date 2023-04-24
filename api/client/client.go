@@ -3665,3 +3665,12 @@ func (c *Client) InsertAssistantMessage(ctx context.Context, in *proto.Assistant
 	}
 	return resp, nil
 }
+
+// SetAssistantConversationTitle set the given assistant conversation title.
+func (c *Client) SetAssistantConversationTitle(ctx context.Context, in *proto.ConversationInfo) error {
+	_, err := c.grpc.SetAssistantConversationTitle(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}

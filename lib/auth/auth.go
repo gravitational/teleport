@@ -5148,6 +5148,16 @@ func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.Assistan
 	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, username, msg))
 }
 
+// SetAssistantConversationTitle stores the given conversation title in the DB.
+func (a *Server) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.Services.SetAssistantConversationTitle(ctx, username, msg))
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
 	username, err := authz.GetClientUsername(ctx)

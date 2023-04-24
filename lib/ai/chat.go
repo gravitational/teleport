@@ -80,6 +80,31 @@ func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 	return ret
 }
 
+// Summary create a short summary for the given input.
+func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
+	var opts []grpc.DialOption
+
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.Dial(chat.client.apiURL, opts...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	assistantClient := assistantservice.NewAssistantServiceClient(conn)
+
+	resp, err := assistantClient.TitleSummary(ctx, &assistantservice.TitleSummaryRequest{
+		Message: message,
+	})
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Title, nil
+}
+
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 	var opts []grpc.DialOption

@@ -33,7 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	AssistantService_Complete_FullMethodName = "/teleport.assistant.v1.AssistantService/Complete"
+	AssistantService_Complete_FullMethodName     = "/teleport.assistant.v1.AssistantService/Complete"
+	AssistantService_TitleSummary_FullMethodName = "/teleport.assistant.v1.AssistantService/TitleSummary"
 )
 
 // AssistantServiceClient is the client API for AssistantService service.
@@ -42,6 +43,8 @@ const (
 type AssistantServiceClient interface {
 	// Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
 	Complete(ctx context.Context, in *CompleteRequest, opts ...grpc.CallOption) (*CompletionResponse, error)
+	// Create title summary. The title will be saved in the DB after before the title is returned.
+	TitleSummary(ctx context.Context, in *TitleSummaryRequest, opts ...grpc.CallOption) (*TitleSummaryResponse, error)
 }
 
 type assistantServiceClient struct {
@@ -61,12 +64,23 @@ func (c *assistantServiceClient) Complete(ctx context.Context, in *CompleteReque
 	return out, nil
 }
 
+func (c *assistantServiceClient) TitleSummary(ctx context.Context, in *TitleSummaryRequest, opts ...grpc.CallOption) (*TitleSummaryResponse, error) {
+	out := new(TitleSummaryResponse)
+	err := c.cc.Invoke(ctx, AssistantService_TitleSummary_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AssistantServiceServer is the server API for AssistantService service.
 // All implementations must embed UnimplementedAssistantServiceServer
 // for forward compatibility
 type AssistantServiceServer interface {
 	// Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
 	Complete(context.Context, *CompleteRequest) (*CompletionResponse, error)
+	// Create title summary. The title will be saved in the DB after before the title is returned.
+	TitleSummary(context.Context, *TitleSummaryRequest) (*TitleSummaryResponse, error)
 	mustEmbedUnimplementedAssistantServiceServer()
 }
 
@@ -76,6 +90,9 @@ type UnimplementedAssistantServiceServer struct {
 
 func (UnimplementedAssistantServiceServer) Complete(context.Context, *CompleteRequest) (*CompletionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Complete not implemented")
+}
+func (UnimplementedAssistantServiceServer) TitleSummary(context.Context, *TitleSummaryRequest) (*TitleSummaryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TitleSummary not implemented")
 }
 func (UnimplementedAssistantServiceServer) mustEmbedUnimplementedAssistantServiceServer() {}
 
@@ -108,6 +125,24 @@ func _AssistantService_Complete_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AssistantService_TitleSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TitleSummaryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistantServiceServer).TitleSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistantService_TitleSummary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistantServiceServer).TitleSummary(ctx, req.(*TitleSummaryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AssistantService_ServiceDesc is the grpc.ServiceDesc for AssistantService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +153,10 @@ var AssistantService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Complete",
 			Handler:    _AssistantService_Complete_Handler,
+		},
+		{
+			MethodName: "TitleSummary",
+			Handler:    _AssistantService_TitleSummary_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

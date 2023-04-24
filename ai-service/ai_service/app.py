@@ -12,6 +12,8 @@ import ai_service.model as model
 from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
     CompleteRequest,
     CompletionResponse,
+    TitleSummaryRequest,
+    TitleSummaryResponse,
 )
 
 DEFAULT_HELLO_MESSAGE = "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
@@ -54,6 +56,18 @@ async def assistant_query(
         return CompletionResponse(kind="chat", content=completion)
 
 
+async def create_summary(
+    chat_llm: ChatOpenAI, request: TitleSummaryRequest
+) -> TitleSummaryResponse:
+    messages = model.title_summary_context(request.message)
+    result = await chat_llm.agenerate([messages])
+    completion = result.generations[0][0].message.content
+
+    return TitleSummaryResponse(
+        title=completion,
+    )
+
+
 class AssistantServicer(assistant_grpc.AssistantServiceServicer):
     def __init__(self) -> None:
         self.chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.1)
@@ -62,6 +76,9 @@ class AssistantServicer(assistant_grpc.AssistantServiceServicer):
         self, request: CompleteRequest, context: grpc.aio.ServicerContext
     ):
         return await assistant_query(self.chat_llm, request)
+
+    async def TitleSummary(self, request, context):
+        return await create_summary(self.chat_llm, request)
 
 
 async def serve():

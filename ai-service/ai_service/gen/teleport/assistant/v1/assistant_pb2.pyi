@@ -44,3 +44,15 @@ class Label(_message.Message):
     key: str
     value: str
     def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+
+class TitleSummaryRequest(_message.Message):
+    __slots__ = ["message"]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    message: str
+    def __init__(self, message: _Optional[str] = ...) -> None: ...
+
+class TitleSummaryResponse(_message.Message):
+    __slots__ = ["title"]
+    TITLE_FIELD_NUMBER: _ClassVar[int]
+    title: str
+    def __init__(self, title: _Optional[str] = ...) -> None: ...

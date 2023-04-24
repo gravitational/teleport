@@ -279,6 +279,9 @@ type Identity interface {
 	// GetAssistantConversations returns all conversations started by a user.
 	GetAssistantConversations(ctx context.Context, username string, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
 
+	// SetAssistantConversationTitle sets the given title as the assistant conversation title.
+	SetAssistantConversationTitle(ctx context.Context, username string, msg *proto.ConversationInfo) error
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
