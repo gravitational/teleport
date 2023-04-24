@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import useTeleport from 'teleport/useTeleport';
 
@@ -38,13 +38,9 @@ export type UseGetTargetData = (
   additionalTargets?: AdditionalTargets
 ) => TableData[];
 
-export type AdditionalTargets = {
-  [key: string]: {
-    fetch: (options: any) => Promise<any>;
-    handler: (setter: (data: TableData[]) => void, data: any) => void;
-    options: any;
-  };
-};
+export type AdditionalTargets = Partial<
+  Record<AllowedTargets, { fetchData(): Promise<TableData[]> }>
+>;
 
 export const useGetTargetData: UseGetTargetData = (
   targetType,
@@ -60,87 +56,59 @@ export const useGetTargetData: UseGetTargetData = (
     userService: { fetchUsers },
   } = useTeleport();
 
-  const targetDataFilters = useMemo(() => {
+  const targetDataFilters = useMemo<
+    Partial<Record<AllowedTargets, { fetchData(): Promise<TableData[]> }>>
+  >(() => {
     return {
       user: {
-        fetch: fetchUsers,
-        handler: (setter, users) => {
-          const filteredData = users.map(
-            u =>
-              ({
-                name: u.name,
-                roles: u.roles.join(', '),
-                targetValue: u.name,
-              } as TableData)
-          );
-          setter(filteredData);
+        fetchData: async () => {
+          const users = await fetchUsers();
+          return users.map(u => ({
+            name: u.name,
+            roles: u.roles.join(', '),
+            targetValue: u.name,
+          }));
         },
       },
       role: {
-        fetch: fetchRoles,
-        handler: (setter, roles) => {
-          const filteredData = roles.map(
-            r =>
-              ({
-                name: r.name,
-                targetValue: r.name,
-              } as TableData)
-          );
-          setter(filteredData);
+        fetchData: async () => {
+          const roles = await fetchRoles();
+          return roles.map(r => ({ name: r.name, targetValue: r.name }));
         },
       },
       node: {
-        fetch: fetchNodes,
-        handler: (setter, nodes) => {
-          const filteredData = nodes.agents.map(
-            n =>
-              ({
-                name: n.hostname,
-                addr: n.addr,
-                labels: n.labels,
-                targetValue: n.id,
-              } as TableData)
-          );
-          setter(filteredData);
+        fetchData: async () => {
+          const nodes = await fetchNodes(clusterId, { limit: 10 });
+          return nodes.agents.map(n => ({
+            name: n.hostname,
+            addr: n.addr,
+            labels: n.labels,
+            targetValue: n.id,
+          }));
         },
-        options: [
-          clusterId,
-          {
-            limit: 10,
-          },
-        ],
       },
       mfa_device: {
-        fetch: fetchDevices,
-        handler: (setter, mfas) => {
-          const filteredData = mfas.map(
-            m =>
-              ({
-                name: m.name,
-                id: m.id,
-                description: m.description,
-                lastUsed: m.lastUsedDate.toUTCString(),
-                targetValue: m.id,
-              } as TableData)
-          );
-          setter(filteredData);
+        fetchData: async () => {
+          const mfas = await fetchDevices();
+          return mfas.map(m => ({
+            name: m.name,
+            id: m.id,
+            description: m.description,
+            lastUsed: m.lastUsedDate.toUTCString(),
+            targetValue: m.id,
+          }));
         },
       },
       windows_desktop: {
-        fetch: fetchDesktops,
-        handler: (setter, desktops) => {
-          const filteredData = desktops.agents.map(
-            d =>
-              ({
-                name: d.name,
-                addr: d.addr,
-                labels: d.labels,
-                targetValue: d.name,
-              } as TableData)
-          );
-          setter(filteredData);
+        fetchData: async () => {
+          const desktops = await fetchDesktops(clusterId, { limit: 10 });
+          return desktops.agents.map(d => ({
+            name: d.name,
+            addr: d.addr,
+            labels: d.labels,
+            targetValue: d.name,
+          }));
         },
-        options: [clusterId, { limit: 10 }],
       },
     };
   }, [
@@ -162,9 +130,9 @@ export const useGetTargetData: UseGetTargetData = (
       return;
     }
 
-    action.fetch
-      .apply(null, action.options)
-      .then(action.handler.bind(null, setTargetData));
+    action.fetchData().then(td => {
+      setTargetData(td);
+    });
   }, [additionalTargets, targetDataFilters, targetType]);
 
   return targetData;

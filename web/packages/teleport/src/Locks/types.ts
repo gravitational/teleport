@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import { LabelDescription } from 'design/DataTable/types';
+import { AgentLabel } from 'teleport/services/agents';
 
 export type Lock = {
   name: string;
@@ -54,11 +55,14 @@ export type AllowedTargets =
   | 'device';
 
 export type TableData = {
-  // targetValue is not displayed in the table, but is is the value
+  // targetValue is not displayed in the table, but is the value
   // that will be used when creating the lock target
   targetValue: string;
+
+  labels?: AgentLabel[];
+
   // these values are shown in the UI (each key is a separate column)
-  [key: string]: string;
+  [key: string]: any;
 };
 
 export type LockTarget = {
