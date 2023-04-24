@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -416,18 +417,17 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
 	}
 
-	// Check if proxyAddr is behind a load balancer. If so, the connection
-	// upgrade will verify the load balancer's cert using system cert pool.
-	// This provides the same level of security as the client only verifies
-	// Proxy's web cert against system cert pool when connection upgrade is not
+	// Check if proxy is behind a load balancer. If so, the connection upgrade
+	// will verify the load balancer's cert using system cert pool. This
+	// provides the same level of security as the client only verifies Proxy's
+	// web cert against system cert pool when connection upgrade is not
 	// required.
 	//
 	// With the ALPN connection upgrade, the tunneled TLS Routing request will
 	// skip verify as the Proxy server will present its host cert which is not
 	// fully verifiable at this point since the client does not have the host
 	// CAs yet before completing registration.
-	proxyAddr := params.ProxyServer.Addr
-	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(proxyAddr, insecure)
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(getHostAddresses(params)[0], insecure)
 	if alpnConnUpgrade && !insecure {
 		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
@@ -442,7 +442,7 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 	)
 
 	conn, err := grpc.Dial(
-		proxyAddr,
+		getHostAddresses(params)[0],
 		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
@@ -462,10 +462,8 @@ func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientCon
 func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) error {
 	return func(server tls.ConnectionState) error {
 		for _, cert := range server.PeerCertificates {
-			for _, dnsName := range cert.DNSNames {
-				if dnsName == constants.APIDomain && clock.Now().Before(cert.NotAfter) {
-					return nil
-				}
+			if slices.Contains(cert.DNSNames, constants.APIDomain) && clock.Now().Before(cert.NotAfter) {
+				return nil
 			}
 		}
 		return trace.AccessDenied("server is not a Teleport proxy or server certificate is expired")
