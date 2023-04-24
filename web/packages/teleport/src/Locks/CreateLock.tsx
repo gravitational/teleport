@@ -30,7 +30,7 @@ import { useLocks } from './useLocks';
 import { StyledSpinner } from './shared';
 
 import type { Positions } from 'design/SlidePanel/SlidePanel';
-import type { CreateLockData, SelectedLockTarget } from './types';
+import type { CreateLockData, SelectedLockTarget, TargetValue } from './types';
 import type { ApiError } from 'teleport/services/api/parseError';
 
 type Props = {
@@ -81,9 +81,9 @@ export function CreateLock({
     });
   }
 
-  function onRemove(name) {
+  function onRemove(targetValue: TargetValue) {
     const index = selectedLockTargets.findIndex(
-      target => target.targetValue === name
+      target => target.targetValue === targetValue
     );
     selectedLockTargets.splice(index, 1);
     setSelectedLockTargets([...selectedLockTargets]);
