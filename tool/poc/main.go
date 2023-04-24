@@ -176,6 +176,11 @@ func run() error {
 	logger.Infof("Enrollment complete")
 	logger.Infof("Trying re-authentication")
 
+	ak, err = tpm.NewAK(akConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	err = srv.Authenticate(func(platformAttestationNonce []byte) (*attest.PlatformParameters, error) {
 		platformsParams, err := tpm.AttestPlatform(ak, platformAttestationNonce, &attest.PlatformAttestConfig{
 			EventLog: nil,
