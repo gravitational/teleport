@@ -317,6 +317,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		cipherSuites:              cfg.CipherSuites,
 		clock:                     h.clock,
 		sessionLingeringThreshold: sessionLingeringThreshold,
+		proxySigner:               cfg.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -886,6 +887,7 @@ func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, 
 		Local:               &webclient.LocalSettings{},
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
+		DeviceTrust:         deviceTrustSettings(cap),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -926,6 +928,7 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
+		DeviceTrust:         deviceTrustSettings(cap),
 	}
 }
 
@@ -941,6 +944,7 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
+		DeviceTrust:         deviceTrustSettings(cap),
 	}
 }
 
@@ -956,6 +960,15 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 		PreferredLocalMFA:   cap.GetPreferredLocalMFA(),
 		PrivateKeyPolicy:    cap.GetPrivateKeyPolicy(),
 		DeviceTrustDisabled: deviceTrustDisabled(cap),
+		DeviceTrust:         deviceTrustSettings(cap),
+	}
+}
+
+func deviceTrustSettings(cap types.AuthPreference) webclient.DeviceTrustSettings {
+	dt := cap.GetDeviceTrust()
+	return webclient.DeviceTrustSettings{
+		Disabled:   deviceTrustDisabled(cap),
+		AutoEnroll: dt != nil && dt.AutoEnroll,
 	}
 }
 
@@ -1983,6 +1996,12 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 			TOTP: &proto.TOTPRegisterResponse{Code: req.SecondFactorToken},
 		}}
 	}
+
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoReq.LoginIP = remoteAddr
 
 	res, err := h.auth.proxyClient.ChangeUserAuthentication(r.Context(), protoReq)
 	if err != nil {

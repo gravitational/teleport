@@ -428,7 +428,13 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		return
 	}
 
-	signer := agentless.SignerFromSSHCertificate(cert, t.authProvider)
+	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to get site client")
+		t.writeError(err)
+		return
+	}
+	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")

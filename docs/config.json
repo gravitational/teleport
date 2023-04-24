@@ -989,6 +989,10 @@
                "slug": "/database-access/guides/sql-server-ad/"
             },
             {
+               "title": "SQL Server with PKINIT (Preview)",
+               "slug": "/database-access/guides/sql-server-ad-pkinit/"
+            },
+            {
                "title": "Self-Hosted Cassandra & ScyllaDB",
                "slug": "/database-access/guides/cassandra-self-hosted/"
             },
@@ -1432,7 +1436,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.2.1",
+      "version": "12.2.3",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",

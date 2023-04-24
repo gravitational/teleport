@@ -105,6 +105,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
 					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
