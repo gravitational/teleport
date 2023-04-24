@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Box, ButtonSecondary, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
-import Validation, { useRule, Validator } from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -98,17 +98,7 @@ export default function Container(props: AgentStepProps) {
             }
           >
             {!showScript && (
-              <Box>
-                <Heading />
-                <Labels {...labelProps} />
-                <ButtonSecondary
-                  width="200px"
-                  onClick={() => setShowScript(true)}
-                >
-                  Generate Command
-                </ButtonSecondary>
-                <ActionButtons onProceed={() => null} disableProceed={true} />
-              </Box>
+              <LoadedView {...labelProps} setShowScript={setShowScript} />
             )}
             {showScript && (
               <DownloadScript
@@ -244,38 +234,40 @@ export const Labels = ({
   setLabels,
   disableBtns = false,
   dbLabels,
+  showLabelMatchErr = false,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
   dbLabels: AgentLabel[];
+  showLabelMatchErr?: boolean;
 }) => {
-  const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
-  const hasError = !valid;
   const hasDbLabels = dbLabels.length > 0;
   return (
     <Box mb={2}>
       <Text bold>Optionally Define Matcher Labels</Text>
-      <Text typography="subtitle1" mb={3}>
+      <Text typography="subtitle1" mb={2}>
         {!hasDbLabels && (
           <>
             Since no labels were defined for the registered database from the
-            previous step, the matcher labels are defaulted to wildcard which
+            previous step, the matcher labels are defaulted to wildcards which
             will allow this database service to match any database.
           </>
         )}
         {hasDbLabels && (
           <>
-            Wildcard labels allows this database service to match any database.
+            Default wildcards label allows this database service to match any
+            database.
             <br />
             You can define your own labels that this database service will use
-            to identify your database.
+            to identify your registered database. The labels you define must
+            match with the labels that was defined for the registered database
+            (from previous step):
           </>
         )}
       </Text>
       {hasDbLabels && (
-        <Box mb={4}>
-          <Text>The registered database labels from previous step:</Text>
+        <Box mb={3}>
           {dbLabels.map((label, index) => {
             const labelText = `${label.name}: ${label.value}`;
             return (
@@ -295,11 +287,12 @@ export const Labels = ({
         setLabels={setLabels}
         disableBtns={disableBtns || dbLabels.length === 0}
       />
-      <Box mt={3}>
-        {hasError && (
-          <TextIcon mt={3}>
+      <Box mt={1} mb={3}>
+        {showLabelMatchErr && (
+          <TextIcon>
             <Icons.Warning ml={1} color="error.main" />
-            {message}
+            The matcher labels must be able to match with the labels defined for
+            the registered database. Use wildcards to match by any labels.
           </TextIcon>
         )}
       </Box>
@@ -310,18 +303,6 @@ export const Labels = ({
 function createBashCommand(tokenId: string) {
   return `sudo bash -c "$(curl -fsSL ${cfg.getDbScriptUrl(tokenId)})"`;
 }
-
-const requireMatchingLabels =
-  (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
-    if (!hasMatchingLabels(dbLabels, agentLabels)) {
-      return {
-        valid: true,
-        message: `The matcher labels must be able to match with the labels defined for the registered database. \
-          Use wildcards to match by any labels.`,
-      };
-    }
-    return { valid: true };
-  };
 
 // hasMatchingLabels will go through each 'agentLabels' and find matches from
 // 'dbLabels'. The 'agentLabels' must have same amount of matching labels
@@ -349,4 +330,41 @@ export function hasMatchingLabels(
   });
 
   return matchLabels(dbLabels, matcherLabels);
+}
+
+function LoadedView({ labels, setLabels, dbLabels, setShowScript }) {
+  const [showLabelMatchErr, setShowLabelMatchErr] = useState(true);
+
+  useEffect(() => {
+    // Turn off error once user changes labels.
+    if (showLabelMatchErr) {
+      setShowLabelMatchErr(false);
+    }
+  }, [labels]);
+
+  function handleGenerateCommand() {
+    if (!hasMatchingLabels(dbLabels, labels)) {
+      setShowLabelMatchErr(true);
+      return;
+    }
+
+    setShowLabelMatchErr(false);
+    setShowScript(true);
+  }
+
+  return (
+    <Box>
+      <Heading />
+      <Labels
+        labels={labels}
+        setLabels={setLabels}
+        dbLabels={dbLabels}
+        showLabelMatchErr={showLabelMatchErr}
+      />
+      <ButtonSecondary width="200px" onClick={handleGenerateCommand}>
+        Generate Command
+      </ButtonSecondary>
+      <ActionButtons onProceed={() => null} disableProceed={true} />
+    </Box>
+  );
 }

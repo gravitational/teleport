@@ -119,6 +119,7 @@ export function DiscoverProvider(
           id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
+          selectedResourcesCount: custom?.selectedResourcesCount,
           ...status,
         },
       });
@@ -367,10 +368,13 @@ export function DiscoverProvider(
   }
 
   function emitErrorEvent(errorStr = '') {
-    emitEvent({
-      stepStatus: DiscoverEventStatus.Error,
-      stepStatusError: errorStr,
-    });
+    emitEvent(
+      {
+        stepStatus: DiscoverEventStatus.Error,
+        stepStatusError: errorStr,
+      },
+      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
+    );
   }
 
   const value: DiscoverContextState = {

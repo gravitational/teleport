@@ -62,7 +62,7 @@ export function EnrollRdsDatabase() {
     nextStep,
   } = useCreateDatabase();
 
-  const { agentMeta, resourceSpec } = useDiscover();
+  const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
   const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
     useAttempt('');
 
@@ -115,6 +115,7 @@ export function EnrollRdsDatabase() {
       .catch((err: Error) => {
         setFetchDbAttempt({ status: 'failed', statusText: err.message });
         setTableData(data); // fallback to previous data
+        emitErrorEvent(`failed to fetch aws rds list: ${err.message}`);
       });
   }
 
