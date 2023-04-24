@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"github.com/google/go-attestation/attest"
 	"github.com/google/go-tpm-tools/simulator"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 func run() error {
+	logger := utils.NewLogger()
 	sim, err := simulator.Get()
 	if err != nil {
 		return trace.Wrap(err)
@@ -20,7 +22,9 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	logger.Printf("%+v", eks)
 	ek := eks[0]
+	logger.Printf("ek %+v", ek)
 
 	akConfig := &attest.AKConfig{}
 	ak, err := tpm.NewAK(akConfig)
@@ -35,7 +39,6 @@ func run() error {
 		TPMVersion: attest.TPMVersion20,
 		EK:         ek,
 		AK:         attestationParams,
-		Rand:       nil,
 	}
 	solution, encryptedCredentials, err := activationParams.Generate()
 	if err != nil {
