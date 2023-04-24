@@ -532,7 +532,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			out:  []*types.DatabaseResourceMatcher{},
 		},
 		{
-			name: "sinlge element with single label",
+			name: "single element with single label",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem1": []string{"elem1"}}},
 			},
@@ -541,7 +541,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			},
 		},
 		{
-			name: "sinlge element with multiple labels",
+			name: "single element with multiple labels",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
 			},
