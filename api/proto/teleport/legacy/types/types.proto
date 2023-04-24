@@ -2545,6 +2545,13 @@ message RoleConditions {
     (gogoproto.jsontag) = "db_service_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+
+  // GroupLabels is a map of labels used as part of the RBAC system.
+  wrappers.LabelValues GroupLabels = 27 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "group_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
