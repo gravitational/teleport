@@ -166,7 +166,7 @@ For existing users of per-session MFA, upgrading to `hardware_key_touch` may be 
 
 For users who want this mash-up of functionality, you can use the `require_session_mfa: hardware_key` option in both roles and cluster auth preference settings. This option will continue to use per-session MFA checks while also requiring hardware-based private keys for all Teleport requests.
 
-This prevents basic data exfiltration attacks for Teleport sesssion and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming its connected.
+This prevents basic data exfiltration attacks for Teleport session and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming its connected.
 
 ## Troubleshooting
 
