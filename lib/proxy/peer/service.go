@@ -46,7 +46,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(s.handleDialAuth(stream, r))
 	}
 
-	return trace.BadParameter("unknown dial request")
+	return trace.BadParameter("invalid first frame: expected DialRequest or DialAuth")
 }
 
 func (s *proxyService) handleDialRequest(stream proto.ProxyService_DialNodeServer, dial *proto.DialRequest) error {
