@@ -69,6 +69,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 	certs, err := s.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        identity.LoginIP,
 		publicKey:      publicKey,
 		checker:        checker,
 		ttl:            ttl,

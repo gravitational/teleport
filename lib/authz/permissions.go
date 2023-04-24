@@ -19,6 +19,7 @@ package authz
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -230,6 +231,12 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(),
+		logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Enforce applicable locks.
 	authPref, err := a.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
@@ -287,6 +294,45 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
+}
+
+// ErrIPPinningMissing is returned when user cert should be pinned but isn't.
+var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+
+// ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
+var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
+
+// CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
+// Check is considered successful if no error is returned.
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
+	if identity.PinnedIP == "" {
+		if pinSourceIP {
+			return ErrIPPinningMissing
+		}
+		return nil
+	}
+
+	clientSrcAddr, err := ClientAddrFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if clientIP != identity.PinnedIP {
+		if log != nil {
+			log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug("Pinned IP and client IP mismatch")
+		}
+		return ErrIPPinningMismatch
+	}
+
+	return nil
 }
 
 // authorizeLocalUser returns authz context based on the username
@@ -372,7 +418,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
-		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+		return nil, ErrIPPinningMissing
 	}
 
 	return &Context{
@@ -1025,6 +1071,9 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	case trace.IsNotFound(err):
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
+	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch):
+		log.Warn(err)
+		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		// don't print stack trace, just log the warning
 		log.Warn(err)
