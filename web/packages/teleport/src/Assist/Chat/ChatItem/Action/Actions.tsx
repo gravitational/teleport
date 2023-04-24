@@ -107,6 +107,8 @@ export function Actions(props: ActionsProps) {
     (newActionState: ActionState[]) => {
       const newActions: ExecuteRemoteCommandContent = {
         type: Type.ExecuteRemoteCommand,
+        selectedLogin: '',
+        availableLogins: [],
         query: '',
         command: actions.command,
       };
@@ -117,7 +119,11 @@ export function Actions(props: ActionsProps) {
         }
 
         if (item.type === 'user') {
-          newActions.login = item.value;
+          newActions.selectedLogin = item.value;
+        }
+
+        if (item.type === 'availableUsers') {
+          newActions.availableLogins = item.value;
         }
       }
 
@@ -146,7 +152,8 @@ export function Actions(props: ActionsProps) {
 
       <NodesAndLabels
         initialQuery={actions.query}
-        login={actions.login}
+        selectedLogin={actions.selectedLogin}
+        availableLogins={actions.availableLogins}
         onStateUpdate={handleSave}
         disabled={running}
       />

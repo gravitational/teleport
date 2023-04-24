@@ -35,8 +35,8 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
     query: '',
   };
 
-  if (message.login) {
-    command.login = message.login;
+  if (message.selectedLogin) {
+    command.login = message.selectedLogin;
   }
 
   if (message.command) {

@@ -32,7 +32,8 @@ export interface Label {
 export interface ExecuteRemoteCommandContent {
   type: Type.ExecuteRemoteCommand;
   command: string;
-  login?: string;
+  selectedLogin: string;
+  availableLogins: string[];
   query: string;
 }
 

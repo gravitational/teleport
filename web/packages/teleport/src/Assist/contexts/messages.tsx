@@ -28,6 +28,9 @@ import { useParams } from 'react-router';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
+import NodeService from 'teleport/services/nodes';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import {
   Author,
   ExecuteRemoteCommandPayload,
@@ -64,7 +67,10 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
-function convertServerMessage(message: ServerMessage): Message {
+async function convertServerMessage(
+  message: ServerMessage,
+  clusterId: string
+): Promise<Message> {
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     return {
       author: Author.Teleport,
@@ -111,24 +117,56 @@ function convertServerMessage(message: ServerMessage): Message {
 
   if (message.type === 'COMMAND') {
     const execCmd: ExecuteRemoteCommandPayload = JSON.parse(message.payload);
+    const searchQuery = convertToQuery(execCmd);
+
+    // fetch available users
+    const ns = new NodeService();
+    // TODO: fetch users after the query is edited in the UI.
+    const nodes = await ns.fetchNodes(clusterId, {
+      query: searchQuery,
+      limit: 100, // TODO: What is there is mode nodes?
+    });
+    const availableLogins = findIntersection(
+      nodes.agents.map(e => e.sshLogins)
+    );
 
     return {
       author: Author.Teleport,
       isNew: true,
       content: {
-        query: convertToQuery(execCmd),
+        query: searchQuery,
         command: execCmd.command,
         type: Type.ExecuteRemoteCommand,
-        login: 'root',
+        selectedLogin: availableLogins ? availableLogins[0] : '',
+        availableLogins: availableLogins,
       },
     };
   }
+}
+
+function findIntersection<T>(elems: T[][]): T[] {
+  if (elems.length == 0) {
+    return [];
+  }
+
+  if (elems.length == 1) {
+    return elems[0];
+  }
+
+  const intersectSets = (a: Set<T>, b: Set<T>) => {
+    const c = new Set<T>();
+    a.forEach(v => b.has(v) && c.add(v));
+    return c;
+  };
+
+  return [...elems.map(e => new Set(e)).reduce(intersectSets)];
 }
 
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
   const { conversationId } = useParams<{ conversationId: string }>();
+  const { clusterId } = useStickyClusterId();
 
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
@@ -151,7 +189,13 @@ export function MessagesContextProvider(
       return;
     }
 
-    setMessages(res.Messages.map(convertServerMessage));
+    setMessages(
+      await Promise.all(
+        res.Messages.map(async m => {
+          return await convertServerMessage(m, clusterId);
+        })
+      )
+    );
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -164,8 +208,10 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
-      setMessages(prev => prev.concat(convertServerMessage(value)));
-      setResponding(false);
+      convertServerMessage(value, clusterId).then(res => {
+        setMessages(prev => prev.concat(res));
+        setResponding(false);
+      });
     }
   }, [lastMessage, setMessages, conversationId]);
 
