@@ -10,9 +10,12 @@ export type Props = {
   children: React.ReactNode;
   [index: string]: any;
 };
+
+const salesUrl = 'https://goteleport.com/signup/enterprise/';
+
 export function ButtonLockedFeature({ children, ...rest }) {
   return (
-    <StyledButton onClick={() => console.log('TODO')} {...rest}>
+    <StyledButton onClick={() => window.open(salesUrl, 'blank')} {...rest}>
       <Flex alignItems="flex-start">
         <Text>
           <UnlockIcon />
