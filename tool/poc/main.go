@@ -16,7 +16,7 @@ const useSimulator = false
 
 const useDifferentAK = false
 
-// TODO: Determine what value this has
+// TODO: Determine if windowsCmdChannel is needed. It's in joel's POC.
 type windowsCmdChannel struct {
 	io.ReadWriteCloser
 }
@@ -26,6 +26,8 @@ func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
 }
 
 type server struct {
+	// storedAK holds the public key of the device's AK for use re-authenticating
+	// the device.
 	storedAK *attest.AKPublic
 	log      logrus.FieldLogger
 }
