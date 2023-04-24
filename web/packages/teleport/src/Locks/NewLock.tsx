@@ -37,8 +37,8 @@ import { lockTargets, useGetTargetData } from './useGetTargetData';
 
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
-  TargetResource,
-  DropdownOption,
+  AllowedTargets,
+  LockTarget,
   OnAdd,
   SelectedLockTarget,
   TargetListProps,
@@ -61,23 +61,22 @@ export function NewLockContent({
   const { clusterId } = useStickyClusterId();
   const [createPanelPosition, setCreatePanelPosition] =
     useState<Positions>('closed');
-  const [selectedDropdownOption, setSelectedDropdownOption] =
-    useState<DropdownOption>({
-      label: 'User',
-      value: 'user',
-    });
+  const [selectedLockTarget, setSelectedLockTarget] = useState<LockTarget>({
+    label: 'User',
+    value: 'user',
+  });
   const [selectedLockTargets, setSelectedLockTargets] = useState<
     SelectedLockTarget[]
   >([]);
   const targetData = useGetTargetData(
-    selectedDropdownOption?.value,
+    selectedLockTarget?.value,
     clusterId,
     additionalTargets
   );
 
   function onAdd(targetValue: TargetValue) {
     selectedLockTargets.push({
-      resource: selectedDropdownOption.value,
+      resource: selectedLockTarget.value,
       targetValue,
     });
     setSelectedLockTargets([...selectedLockTargets]);
@@ -113,14 +112,14 @@ export function NewLockContent({
       <Flex justifyContent="space-between">
         <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
-            value={selectedDropdownOption}
+            value={selectedLockTarget}
             options={lockTargets}
-            onChange={(o: DropdownOption) => setSelectedDropdownOption(o)}
+            onChange={(o: LockTarget) => setSelectedLockTarget(o)}
             label="lock-target-type"
           />
         </Box>
         <QuickAdd
-          selectedResource={selectedDropdownOption.value}
+          selectedResource={selectedLockTarget.value}
           selectedLockTargets={selectedLockTargets}
           onAdd={onAdd}
         />
@@ -128,7 +127,7 @@ export function NewLockContent({
       <TargetList
         data={targetData}
         onAdd={onAdd}
-        selectedResource={selectedDropdownOption.value}
+        selectedResource={selectedLockTarget.value}
         selectedLockTargets={selectedLockTargets}
       />
       <Flex
@@ -236,7 +235,7 @@ function QuickAdd({
   selectedLockTargets,
   onAdd,
 }: {
-  selectedResource: TargetResource;
+  selectedResource: AllowedTargets;
   selectedLockTargets: SelectedLockTarget[];
   onAdd: OnAdd;
 }) {

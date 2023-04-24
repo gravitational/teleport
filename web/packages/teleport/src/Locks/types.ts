@@ -47,9 +47,9 @@ export type LockForTable = {
 };
 
 /**
- * TargetResource is the type of resource that a lock can be applied to.
+ * AllowedTargets is the type of resource that a lock can be applied to.
  */
-export type TargetResource =
+export type AllowedTargets =
   | 'user'
   | 'role'
   | 'login'
@@ -78,10 +78,10 @@ export type TableData = {
   [key: string]: any;
 };
 
-export type DropdownOption = Option<TargetResource>;
+export type LockTarget = Option<AllowedTargets>;
 
 export type SelectedLockTarget = {
-  resource: TargetResource;
+  resource: AllowedTargets;
   targetValue: TargetValue;
 };
 
@@ -90,12 +90,12 @@ export type OnAdd = (name: string) => void;
 export type TargetListProps = {
   data: TableData[];
   onAdd: OnAdd;
-  selectedResource: TargetResource;
+  selectedResource: AllowedTargets;
   selectedLockTargets: SelectedLockTarget[];
 };
 
 export type CreateLockData = {
-  targets: { [K in TargetResource]?: TargetValue };
+  targets: { [K in AllowedTargets]?: TargetValue };
   message?: string;
   ttl?: string;
 };
