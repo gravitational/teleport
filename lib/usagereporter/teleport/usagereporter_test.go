@@ -84,7 +84,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
-			name: "error when discover metadata dones't have id",
+			name: "error when discover metadata doesn't have id",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
 				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
 					Metadata: &usageeventsv1.DiscoverMetadata{Id: ""},

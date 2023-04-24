@@ -187,10 +187,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.LimiterRate < 0 {
-		return trace.BadParameter("LimiterRate cannot be nagative")
+		return trace.BadParameter("LimiterRate cannot be negative")
 	}
 	if cfg.LimiterBurst < 0 {
-		return trace.BadParameter("LimiterBurst cannot be nagative")
+		return trace.BadParameter("LimiterBurst cannot be negative")
 	}
 
 	if cfg.LimiterRate > 0 && cfg.LimiterBurst == 0 {
