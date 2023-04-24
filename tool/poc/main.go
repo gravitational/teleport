@@ -12,8 +12,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-var logger = utils.NewLogger()
-
 const useSimulator = false
 
 const useDifferentAK = false
@@ -29,7 +27,7 @@ func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
 
 type server struct {
 	storedAK *attest.AKPublic
-	logger   logrus.FieldLogger
+	log      logrus.FieldLogger
 }
 
 type enrollChallenge func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error)
@@ -46,7 +44,7 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("generated activatation challenge, solution: %s", realSolution)
+	s.log.Infof("generated activatation challenge, solution: %s", realSolution)
 
 	// Generate a nonce to use for attesting platform
 	nonce := make([]byte, 32)
@@ -63,7 +61,7 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if !bytes.Equal(clientSolution, realSolution) {
 		return trace.BadParameter("incorrect solution")
 	}
-	logger.Infof("passed credential activation check")
+	s.log.Infof("passed credential activation check")
 	// Check platform attestation
 	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
 	if err != nil {
@@ -73,22 +71,22 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("passed platofrm params verifyall")
+	s.log.Infof("passed platofrm params verifyall")
 	eventLog, err := attest.ParseEventLog(platformParams.EventLog)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("parsed event log")
+	s.log.Infof("parsed event log")
 	events, err := eventLog.Verify(platformParams.PCRs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("verified event log, entries: %d", len(events))
+	s.log.Infof("verified event log, entries: %d", len(events))
 	sbs, err := attest.ParseSecurebootState(events)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("Secure boot state parsed %s", sbs.Enabled)
+	s.log.Infof("Secure boot state parsed %s", sbs.Enabled)
 
 	s.storedAK = akPub
 	return nil
@@ -117,7 +115,7 @@ func (s *server) Authenticate(callback authenticateChallenge) error {
 	return nil
 }
 
-func run() error {
+func run(rootLog logrus.FieldLogger) error {
 	var tpm *attest.TPM
 	var err error
 	if useSimulator {
@@ -141,9 +139,9 @@ func run() error {
 	}
 
 	srv := server{
-		logger: logger.WithField(trace.Component, "SERVER"),
+		log: rootLog.WithField(trace.Component, "SERVER"),
 	}
-	logger := logger.WithField(trace.Component, "CLIENT")
+	logger := rootLog.WithField(trace.Component, "CLIENT")
 
 	eks, err := tpm.EKs()
 	if err != nil {
@@ -211,7 +209,8 @@ func run() error {
 }
 
 func main() {
-	if err := run(); err != nil {
+	logger := utils.NewLogger()
+	if err := run(logger); err != nil {
 		logger.WithError(err).Fatalf("Bad thing happened")
 	}
 }
