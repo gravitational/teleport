@@ -17,14 +17,15 @@ limitations under the License.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
-import { RunIcon } from '../../../Icons/RunIcon';
-import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 import {
   Command,
   NodesAndLabels,
 } from 'teleport/Assist/Chat/ChatItem/Action/Action';
 import { RunCommand } from 'teleport/Assist/Chat/ChatItem/Action/RunAction';
+
+import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
+import { RunIcon } from '../../../Icons/RunIcon';
 
 interface ActionsProps {
   actions: ExecuteRemoteCommandContent;
@@ -82,32 +83,6 @@ const Spacer = styled.div`
   font-size: 14px;
 `;
 
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin: 30px 0;
-`;
-
-function serverMessageToState(
-  message: ExecuteRemoteCommandContent
-): ActionState[] {
-  const state: ActionState[] = [];
-
-  if (message.nodes) {
-    for (const node of message.nodes) {
-      state.push({ type: 'node', value: node });
-    }
-  }
-
-  // if (message.labels) {
-  //   for (const label of message.labels) {
-  //     state.push({ type: 'label', value: label });
-  //   }
-  // }
-
-  return state;
-}
-
 export function Actions(props: ActionsProps) {
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
@@ -132,14 +107,13 @@ export function Actions(props: ActionsProps) {
     (newActionState: ActionState[]) => {
       const newActions: ExecuteRemoteCommandContent = {
         type: Type.ExecuteRemoteCommand,
-        labels: [],
-        nodes: [],
+        query: '',
         command: actions.command,
       };
 
       for (const item of newActionState) {
-        if (item.type === 'node') {
-          newActions.nodes.push(item.value);
+        if (item.type == 'query') {
+          newActions.query = item.value;
         }
 
         if (item.type === 'user') {
@@ -171,8 +145,7 @@ export function Actions(props: ActionsProps) {
       {!result && <Title>Teleport would like to</Title>}
 
       <NodesAndLabels
-        initialLabels={actions.labels}
-        initialNodes={actions.nodes}
+        initialQuery={actions.query}
         login={actions.login}
         onStateUpdate={handleSave}
         disabled={running}
@@ -180,7 +153,11 @@ export function Actions(props: ActionsProps) {
 
       <Spacer>and</Spacer>
 
-      <Command command={actions.command} onStateUpdate={handleCommandUpdate} disabled={running} />
+      <Command
+        command={actions.command}
+        onStateUpdate={handleCommandUpdate}
+        disabled={running}
+      />
 
       {!result && !running && (
         <Buttons>

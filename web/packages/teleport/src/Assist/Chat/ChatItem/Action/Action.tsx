@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useState } from 'react';
+import React, { ReactElement, useCallback, useState } from 'react';
 import styled from 'styled-components';
 
-import { LabelIcon, ServerIcon, UserIcon } from 'design/SVGIcon';
+import { UserIcon } from 'design/SVGIcon';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
+
+import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
 
 import { EditIcon } from '../../../Icons/EditIcon';
 
@@ -63,29 +65,6 @@ const EditButton = styled.div`
   }
 `;
 
-const LabelContainer = styled.div`
-  padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
-  margin-right: 10px;
-  font-size: 16px;
-  align-items: center;
-  display: flex;
-
-  svg {
-    margin-right: 10px;
-  }
-`;
-
-const LabelKey = styled.div`
-  opacity: 0.6;
-  margin-right: 10px;
-`;
-
-const LabelValue = styled.div`
-  font-weight: bold;
-`;
-
 const Node = styled.div`
   padding: 10px 15px;
   background: rgba(255, 255, 255, 0.1);
@@ -120,27 +99,17 @@ const User = styled.div`
 `;
 
 function actionStateToItems(formState: ActionState[]) {
-  const items = [];
+  const items = [] as ReactElement[];
 
   for (const [index, state] of formState.entries()) {
     if (state.type === 'command') {
       items.push(<Item key={0}>{state.value}</Item>);
     }
 
-    if (state.type === 'label') {
+    if (state.type === 'query') {
       items.push(
-        <LabelContainer key={`label-${index}`}>
-          <LabelIcon size={16} />
-          <LabelKey>{state.value.key}</LabelKey>
-          <LabelValue>{state.value.value}</LabelValue>
-        </LabelContainer>
-      );
-    }
-
-    if (state.type === 'node') {
-      items.push(
-        <Node key={`node-${index}`}>
-          <ServerIcon size={16} />
+        <Node key={`query-${index}`}>
+          <SearchIcon size={16} />
           {state.value}
         </Node>
       );
@@ -174,7 +143,6 @@ export function Action(props: ActionProps) {
     return (
       <ActionForm
         initialState={props.state}
-        type={props.type}
         onSave={handleSave}
         onCancel={() => setEditing(false)}
       />
@@ -199,8 +167,7 @@ export function Action(props: ActionProps) {
 }
 
 interface NodesAndLabelsProps {
-  initialNodes: string[] | undefined;
-  initialLabels: string[] | undefined;
+  initialQuery: string | undefined;
   login: string | undefined;
   onStateUpdate: (state: ActionState[]) => void;
   disabled: boolean;
@@ -209,11 +176,8 @@ interface NodesAndLabelsProps {
 function propsToState(props: NodesAndLabelsProps): ActionState[] {
   const items: ActionState[] = [];
 
-  if (props.initialNodes) {
-    for (const node of props.initialNodes) {
-      items.push({ type: 'node', value: node });
-    }
-  }
+  // Always include query.
+  items.push({ type: 'query', value: props.initialQuery ?? '' });
 
   if (props.login) {
     items.push({ type: 'user', value: props.login });
@@ -230,20 +194,11 @@ function stateToItems(formState: ActionState[]) {
       items.push(<Item key={0}>{state.value}</Item>);
     }
 
-    if (state.type === 'label') {
+    if (state.type === 'query') {
+      // TODO(jakule || ryan) replace node with query
       items.push(
-        <LabelContainer key={`label-${index}`}>
-          <LabelIcon size={16} />
-          <LabelKey>{state.value.key}</LabelKey>
-          <LabelValue>{state.value.value}</LabelValue>
-        </LabelContainer>
-      );
-    }
-
-    if (state.type === 'node') {
-      items.push(
-        <Node key={`node-${index}`}>
-          <ServerIcon size={16} />
+        <Node key={`query-${index}`}>
+          <SearchIcon size={16} />
           {state.value}
         </Node>
       );
@@ -290,7 +245,7 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
 
   return (
     <Container>
-      <Title>Connect to</Title>
+      <Title>Connect using query</Title>
 
       {!editing && !props.disabled && (
         <Buttons>

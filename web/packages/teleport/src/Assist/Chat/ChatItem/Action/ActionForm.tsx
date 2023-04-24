@@ -1,13 +1,30 @@
+/**
+ * Copyright 2023 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useCallback, useState } from 'react';
 import styled from 'styled-components';
 
-import { LabelIcon, ServerIcon, UserIcon } from 'design/SVGIcon';
+import { UserIcon } from 'design/SVGIcon';
 import { Cross } from 'design/Icon';
 
-import { ExecuteRemoteCommandContent, Label, Type } from 'teleport/Assist/services/messages';
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 
-import { Container, getTextForType, Items, Title } from './common';
+import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
+
+import { Container, Items } from './common';
 
 interface ActionFormProps {
   initialState: ActionState[];
@@ -42,7 +59,7 @@ const CancelButton = styled.div`
   align-self: flex-end;
   cursor: pointer;
   margin-right: 10px;
-  
+
   &:hover {
     background: rgba(255, 255, 255, 0.1);
   }
@@ -100,28 +117,10 @@ const DeleteButton = styled.div`
   }
 `;
 
-
 const FormFooter = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-`;
-
-const FooterAdd = styled.div`
-  display: flex;
-  margin-left: -8px;
-`;
-
-const FooterAddButton = styled.div`
-  margin-right: 10px;
-  padding: 5px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
 `;
 
 const FooterButtons = styled.div``;
@@ -148,49 +147,8 @@ export function ActionForm(props: ActionFormProps) {
     );
   }, []);
 
-  const handleLabelChange = useCallback(
-    (index: number, key: string, value: any) => {
-      setFormState(existing =>
-        existing.map((item, i) => {
-          if (index === i) {
-            return {
-              type: 'label',
-              value: {
-                ...(item.value as Label),
-                [key]: value,
-              },
-            };
-          }
-
-          return item;
-        })
-      );
-    },
-    []
-  );
-
   const handleDelete = useCallback(index => {
     setFormState(existing => existing.filter((item, i) => i !== index));
-  }, []);
-
-  const handleAddNode = useCallback(() => {
-    setFormState(existing => [
-      ...existing,
-      {
-        type: 'node',
-        value: 'node',
-      },
-    ]);
-  }, []);
-
-  const handleAddLabel = useCallback(() => {
-    setFormState(existing => [
-      ...existing,
-      {
-        type: 'label',
-        value: { key: 'key', value: 'value' },
-      },
-    ]);
   }, []);
 
   const items = [];
@@ -208,46 +166,14 @@ export function ActionForm(props: ActionFormProps) {
       );
     }
 
-    if (stateItem.type === 'label') {
+    if (stateItem.type === 'query') {
       items.push(
-        <LabelForm key={`label-${index}`}>
+        <LabelForm key={`query-${index}`}>
           <LabelFormContent>
-            <LabelIcon />
+            <SearchIcon size={16} />
 
             <Input
-              key="2"
-              value={stateItem.value.key}
-              onChange={event =>
-                handleLabelChange(index, 'key', event.target.value)
-              }
-              style={{ color: 'rgba(255, 255, 255, 0.6)' }}
-            />
-
-            <Input
-              key="1"
-              value={stateItem.value.value}
-              onChange={event =>
-                handleLabelChange(index, 'value', event.target.value)
-              }
-              style={{ color: 'white' }}
-            />
-          </LabelFormContent>
-
-          <DeleteButton onClick={() => handleDelete(index)}>
-            <Cross />
-          </DeleteButton>
-        </LabelForm>
-      );
-    }
-
-    if (stateItem.type === 'node') {
-      items.push(
-        <LabelForm key={`node-${index}`}>
-          <LabelFormContent>
-            <ServerIcon size={16} />
-
-            <Input
-              key="node"
+              key="query"
               value={stateItem.value}
               onChange={event => handleChange(index, event.target.value)}
               style={{ color: 'white' }}
@@ -289,20 +215,6 @@ export function ActionForm(props: ActionFormProps) {
       <Items>{items}</Items>
 
       <FormFooter>
-        <FooterAdd>
-          {props.addNodes && (
-            <>
-              <FooterAddButton onClick={() => handleAddLabel()}>
-                Add label
-              </FooterAddButton>
-
-              <FooterAddButton onClick={() => handleAddNode()}>
-                Add node
-              </FooterAddButton>
-            </>
-          )}
-        </FooterAdd>
-
         <FooterButtons>
           <CancelButton onClick={() => props.onCancel()}>Cancel</CancelButton>
           <SaveButton onClick={() => props.onSave(formState)}>Save</SaveButton>

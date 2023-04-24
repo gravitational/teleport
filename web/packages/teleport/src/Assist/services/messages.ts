@@ -32,9 +32,16 @@ export interface Label {
 export interface ExecuteRemoteCommandContent {
   type: Type.ExecuteRemoteCommand;
   command: string;
-  labels?: string[];
-  nodes?: string[];
   login?: string;
+  query: string;
+}
+
+export interface ExecuteRemoteCommandPayload {
+  type: Type.ExecuteRemoteCommand;
+  command: string;
+  login?: string;
+  labels?: { key: string; value: string }[];
+  nodes?: string[];
 }
 
 export interface TextMessageContent {
@@ -48,4 +55,9 @@ export interface Message {
   isNew?: boolean;
   content: MessageContent;
   author: Author;
+}
+
+export interface ExecOutput {
+  humanInterpretation: string;
+  commandOutputs: { serverName: string; commandOutput: string }[];
 }

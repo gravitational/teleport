@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
@@ -12,21 +28,11 @@ interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
 }
 
-const nodeNamesToIds: Record<string, string> = {
-  node: 'fbc3a404-32ac-408c-bc72-174f895a2fe6',
-  node2: '3a424d4c-59cb-4d9a-9994-09a94ee51aa2',
-};
-
-const nodeIdsToNames: Record<string, string> = {
-  'fbc3a404-32ac-408c-bc72-174f895a2fe6': 'node',
-  '3a424d4c-59cb-4d9a-9994-09a94ee51aa2': 'node2',
-};
-
 function convertContentToCommand(message: ExecuteRemoteCommandContent) {
   const command = {
     command: '',
     login: '',
-    node_ids: [],
+    query: '',
   };
 
   if (message.login) {
@@ -37,10 +43,8 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
     command.command = message.command;
   }
 
-  if (message.nodes) {
-    for (const node of message.nodes) {
-      command.node_ids.push(nodeNamesToIds[node]);
-    }
+  if (message.query) {
+    command.query = message.query;
   }
 
   return command;
@@ -51,25 +55,21 @@ enum RunActionStatus {
   Finished,
 }
 
-function createInitialState(nodeIds: string[]): NodeState[] {
-  return nodeIds.map(nodeId => ({
-    nodeId: nodeNamesToIds[nodeId],
-    status: RunActionStatus.Connecting,
-  }));
-}
-
 interface NodeState {
   nodeId: string;
   status: RunActionStatus;
   stdout?: string;
 }
 
+interface RawPayload {
+  node_id: string;
+  payload: string;
+}
+
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
 
-  const [state, setState] = useState(() =>
-    createInitialState(props.actions.nodes)
-  );
+  const [state, setState] = useState(() => []);
 
   const params = convertContentToCommand(props.actions);
 
@@ -98,19 +98,37 @@ export function RunCommand(props: RunCommandProps) {
             break;
 
           case MessageTypeEnum.RAW:
-            const data = JSON.parse(msg.payload);
+            const data = JSON.parse(msg.payload) as RawPayload;
             const payload = atob(data.payload);
 
             console.log('hello');
+            console.log(payload);
             setState(state => {
-              console.log('state!', state);
+              console.log('state!!!', state);
+
+              const results = state.find(node => node.nodeId == data.node_id);
+              if (!results) {
+                state.push({
+                  nodeId: data.node_id,
+                  status: RunActionStatus.Connecting,
+                });
+              }
+
               const s = state.map(item => {
-                console.log('item.nodeId', item.nodeId, 'data.node_id', data.node_id);
+                console.log(
+                  'item.nodeId',
+                  item.nodeId,
+                  'data.node_id',
+                  data.node_id
+                );
                 if (item.nodeId === data.node_id) {
+                  if (!item.stdout) {
+                    item.stdout = '';
+                  }
                   return {
                     ...item,
                     status: RunActionStatus.Finished,
-                    stdout: payload,
+                    stdout: item.stdout + payload,
                   };
                 }
 
@@ -140,7 +158,7 @@ export function RunCommand(props: RunCommandProps) {
     <NodeOutput key={index} state={item} />
   ));
 
-  return <div style={{marginTop: '40px'}}>{nodes}</div>;
+  return <div style={{ marginTop: '40px' }}>{nodes}</div>;
 }
 
 interface NodeOutputProps {
@@ -174,18 +192,21 @@ const LoadingContainer = styled.div`
 `;
 
 function NodeOutput(props: NodeOutputProps) {
-  let status =
-    props.state.status === RunActionStatus.Connecting
-      ? 'connecting'
-      : 'finished';
-
   return (
     <NodeContainer>
-      <NodeTitle>{nodeIdsToNames[props.state.nodeId]}</NodeTitle>
+      <NodeTitle>{props.state.nodeId}</NodeTitle>
 
-      {props.state.status === RunActionStatus.Connecting && <LoadingContainer><Dots /></LoadingContainer>}
+      {props.state.status === RunActionStatus.Connecting && (
+        <LoadingContainer>
+          <Dots />
+        </LoadingContainer>
+      )}
 
-      {props.state.stdout && <NodeContent><pre>{props.state.stdout}</pre></NodeContent>}
+      {props.state.stdout && (
+        <NodeContent>
+          <pre>{props.state.stdout}</pre>
+        </NodeContent>
+      )}
     </NodeContainer>
   );
 }

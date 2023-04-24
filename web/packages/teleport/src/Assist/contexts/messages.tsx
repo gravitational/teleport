@@ -28,7 +28,12 @@ import { useParams } from 'react-router';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { Author, ExecuteRemoteCommandContent, Message, MessageContent, TextMessageContent, Type } from '../services/messages';
+import {
+  Author,
+  ExecuteRemoteCommandPayload,
+  Message,
+  Type,
+} from '../services/messages';
 
 interface MessageContextValue {
   send: (message: string) => Promise<void>;
@@ -80,14 +85,39 @@ function convertServerMessage(message: ServerMessage): Message {
     };
   }
 
+  const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
+    let query = '';
+
+    if (cmd.nodes) {
+      for (const node of cmd.nodes) {
+        if (query) {
+          query += ' || ';
+        }
+        query += `name == "${node}"`;
+      }
+    }
+
+    if (cmd.labels) {
+      for (const label of cmd.labels) {
+        if (query) {
+          query += ' || ';
+        }
+        query += `labels["${label.key}"] == "${label.value}"`;
+      }
+    }
+
+    return query;
+  };
+
   if (message.type === 'COMMAND') {
-    const execCmd: ExecuteRemoteCommandContent = JSON.parse(message.payload);
+    const execCmd: ExecuteRemoteCommandPayload = JSON.parse(message.payload);
 
     return {
       author: Author.Teleport,
       isNew: true,
       content: {
-        ...execCmd,
+        query: convertToQuery(execCmd),
+        command: execCmd.command,
         type: Type.ExecuteRemoteCommand,
         login: 'root',
       },
