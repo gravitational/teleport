@@ -209,6 +209,12 @@ message OpenSSHCertRequest {
   ];
   // Cluster is the Teleport cluster name.
   string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  repeated string Roles = 5 [(gogoproto.jsontag) = "roles"];
+  wrappers.LabelValues Traits = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "traits,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
+  ];
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.

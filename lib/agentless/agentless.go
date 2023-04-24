@@ -26,9 +26,11 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // CertGenerator generates certificates from a certificate request.
@@ -44,7 +46,16 @@ func SignerFromSSHCertificate(certificate *ssh.Certificate, teleportUser, cluste
 		validBefore := time.Unix(int64(certificate.ValidBefore), 0)
 		ttl := time.Until(validBefore)
 
-		signer, err := createAuthSigner(ctx, teleportUser, clusterName, ttl, generator)
+		roles, err := services.ExtractRolesFromCert(certificate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		traits, err := services.ExtractTraitsFromCert(certificate)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		signer, err := createAuthSigner(ctx, teleportUser, clusterName, ttl, roles, traits, generator)
 		return signer, trace.Wrap(err)
 	}
 }
@@ -57,14 +68,14 @@ func SignerFromAuthzContext(authzCtx *authz.Context, generator CertGenerator) fu
 		identity := authzCtx.Identity.GetIdentity()
 		ttl := time.Until(identity.Expires)
 
-		signer, err := createAuthSigner(ctx, authzCtx.User.GetName(), identity.TeleportCluster, ttl, generator)
+		signer, err := createAuthSigner(ctx, authzCtx.User.GetName(), identity.TeleportCluster, ttl, identity.Groups, identity.Traits, generator)
 		return signer, trace.Wrap(err)
 	}
 }
 
 // createAuthSigner creates a [ssh.Signer] that is signed with
 // OpenSSH CA and can be used to authenticate to agentless nodes.
-func createAuthSigner(ctx context.Context, username, clusterName string, ttl time.Duration, generator CertGenerator) (ssh.Signer, error) {
+func createAuthSigner(ctx context.Context, username, clusterName string, ttl time.Duration, roles []string, traits wrappers.Traits, generator CertGenerator) (ssh.Signer, error) {
 	// generate a new key pair
 	priv, err := native.GeneratePrivateKey()
 	if err != nil {
@@ -77,6 +88,8 @@ func createAuthSigner(ctx context.Context, username, clusterName string, ttl tim
 		PublicKey: priv.MarshalSSHPublicKey(),
 		TTL:       proto.Duration(ttl),
 		Cluster:   clusterName,
+		Roles:     roles,
+		Traits:    traits,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

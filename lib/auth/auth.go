@@ -1414,25 +1414,31 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+
+	accessInfo := &services.AccessInfo{
+		Roles:  req.Roles,
+		Traits: req.Traits,
+	}
+	parsedRoles, err := services.FetchRoleList(accessInfo.Roles, a, accessInfo.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// add implicit roles to the set and build a checker
+	roleSet := services.NewRoleSet(parsedRoles...)
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	certs, err := a.generateOpenSSHCert(certRequest{
-		user:          user,
-		publicKey:     req.PublicKey,
-		compatibility: constants.CertificateFormatStandard,
-		checker:       checker,
-		ttl:           time.Duration(req.TTL),
-		traits: map[string][]string{
-			constants.TraitLogins: {req.Username},
-		},
+		user:            user,
+		publicKey:       req.PublicKey,
+		compatibility:   constants.CertificateFormatStandard,
+		checker:         checker,
+		ttl:             time.Duration(req.TTL),
+		traits:          req.Traits,
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})

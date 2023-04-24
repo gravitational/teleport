@@ -259,14 +259,14 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
-	aGetter := t.ctx.StartAgentChannel
-
 	client, err := t.router.GetSiteClient(ctx, t.clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	signer := agentless.SignerFromSSHCertificate(t.ctx.Identity.Certificate, t.ctx.Identity.TeleportUser, t.clusterName, client)
+	identity := t.ctx.Identity
+	signer := agentless.SignerFromSSHCertificate(identity.Certificate, identity.TeleportUser, t.clusterName, client)
+	aGetter := t.ctx.StartAgentChannel
 	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)
