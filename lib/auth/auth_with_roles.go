@@ -306,7 +306,7 @@ func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin)
 
 // DeleteAllPlugins deletes all plugin resources.
 func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
+	return a.authServer.DeleteAllPlugins(ctx)
 }
 
 // DeletePlugin deletes a plugin resource.
@@ -316,12 +316,12 @@ func (a *ServerWithRoles) DeletePlugin(ctx context.Context, name string) error {
 
 // GetPlugin returns a plugin resource.
 func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+	return a.authServer.GetPlugin(ctx, name, withSecrets)
 }
 
 // GetPlugins returns all plugin resources.
 func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+	return a.authServer.GetPlugins(ctx, withSecrets)
 }
 
 // ListPlugins lists plugin resources.

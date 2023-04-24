@@ -3644,7 +3644,8 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 }
 
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
+	_, err := c.grpc.DeleteAllPlugins(ctx, &emptypb.Empty{})
+	return trace.Wrap(err)
 }
 
 func (c *Client) DeletePlugin(ctx context.Context, name string) error {
@@ -3653,11 +3654,11 @@ func (c *Client) DeletePlugin(ctx context.Context, name string) error {
 }
 
 func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+	return c.grpc.GetPlugin(ctx, &types.ResourceRequest{Name: name})
 }
 
-func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) (*types.PluginListV1, error) {
+	return c.grpc.GetPlugins(ctx, &emptypb.Empty{})
 }
 
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {

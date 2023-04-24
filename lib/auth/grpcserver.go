@@ -4977,6 +4977,15 @@ func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceReques
 	return nil, trace.Wrap(auth.DeletePlugin(ctx, req.Name))
 }
 
+// DeleteAllPlugins deletes all plugin resources.
+func (g *GRPCServer) DeleteAllPlugins(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(auth.DeleteAllPlugins(ctx))
+}
+
 // ListPlugins lists plugin resources.
 func (g *GRPCServer) ListPlugins(ctx context.Context, req *types.ListPluginsRequest) (*types.ListPluginsResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -5003,6 +5012,47 @@ func (g *GRPCServer) ListPlugins(ctx context.Context, req *types.ListPluginsRequ
 		LastKey: lastkey,
 	}, nil
 
+}
+
+// GetPlugin gets a plugin resource.
+func (g *GRPCServer) GetPlugin(ctx context.Context, req *types.ResourceRequest) (*types.PluginV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rawPlugin, err := auth.GetPlugin(ctx, req.Name, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	plugin, ok := rawPlugin.(*types.PluginV1)
+	if !ok {
+		return nil, trace.Errorf("unexpected plugin type %T, expected %T.", rawPlugin, plugin)
+	}
+	return plugin, nil
+}
+
+// GetPlugins gets all plugin resources.
+func (g *GRPCServer) GetPlugins(ctx context.Context, _ *emptypb.Empty) (*types.PluginListV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rawPlugins, err := auth.GetPlugins(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	encodedPlugins := make([]*types.PluginV1, 0, len(rawPlugins))
+	for _, rawPlugin := range rawPlugins {
+		plugin, ok := rawPlugin.(*types.PluginV1)
+		if !ok {
+			log.Warnf("Skipping unexpected plugin type %T, expected %T.", rawPlugin, plugin)
+			continue
+		}
+		encodedPlugins = append(encodedPlugins, plugin)
+	}
+	return &types.PluginListV1{
+		Plugins: encodedPlugins,
+	}, nil
 }
 
 // GetBackend returns the backend from the underlying auth server.

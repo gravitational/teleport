@@ -2952,6 +2952,15 @@ service AuthService {
   // DeletePlugins deletes a plugin resource.
   rpc DeletePlugin(types.ResourceRequest) returns (google.protobuf.Empty);
 
+  // DeleteAllPlugins deletes all plugin resources.
+  rpc DeleteAllPlugins(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // ListPlugins lists current plugin resources.
   rpc ListPlugins(types.ListPluginsRequest) returns (types.ListPluginsResponse);
+
+  // GetPlugin gets a plugin resource.
+  rpc GetPlugin(types.ResourceRequest) returns (types.PluginV1);
+
+  // GetPlugins gets all Plugin resources.
+  rpc GetPlugins(google.protobuf.Empty) returns (types.PluginListV1);
 }

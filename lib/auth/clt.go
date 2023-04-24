@@ -480,7 +480,7 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 }
 
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
+	return c.APIClient.DeleteAllPlugins(ctx)
 }
 
 func (c *Client) DeletePlugin(ctx context.Context, name string) error {
@@ -488,11 +488,19 @@ func (c *Client) DeletePlugin(ctx context.Context, name string) error {
 }
 
 func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+	return c.APIClient.GetPlugin(ctx, name, withSecrets)
 }
 
 func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+	plugins, err := c.APIClient.GetPlugins(ctx, withSecrets)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retPlugins := make([]types.Plugin, 0, len(plugins.Plugins))
+	for _, plugin := range plugins.Plugins {
+		retPlugins = append(retPlugins, plugin)
+	}
+	return retPlugins, nil
 }
 
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
