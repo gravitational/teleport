@@ -215,6 +215,9 @@ const cfg = {
     integrationExecutePath:
       '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
 
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
   },
@@ -621,11 +624,21 @@ const cfg = {
   },
 
   getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
+    // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.integrationExecutePath, {
       clusterId,
       ...params,
+    });
+  },
+
+  getAwsRdsDbListUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
     });
   },
 
@@ -722,7 +735,7 @@ export interface UrlIntegrationExecuteRequestParams {
   name: string;
   // action is the expected backend string value
   // used to describe what to use the integration for.
-  action: 'list_databases';
+  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;
