@@ -205,6 +205,7 @@ auth_service:
  ...
  tunnel_strategy:
   type: proxy_peering
+  agent_connection_count: 2
 ```
 Reference the [Auth Server configuration](https://goteleport.com/docs/reference/config/#auth-service) reference page 
 for additional settings.
@@ -223,7 +224,6 @@ teleport:
 proxy_service:
   ...
   peer_public_addr: teleport.example.com:3021
-  agent_connection_count: 2
   ...
 ```
 
@@ -239,14 +239,13 @@ teleport:
 proxy_service:
   ...
   peer_public_addr: teleport-example-nlb-us-east-1.amazonaws.com:3021
-  agent_connection_count: 2
   ...
 ```
 <Admonition
   type="warning"
   title="Note"
 >
-For both Option 1 and 2, agent_connection_count should be set to a value >=2 to decrease
+For both Option 1 and 2, agent_connection_count on the Auth service should be set to a value >=2 to decrease
 the likelihood of agents being unavailable.
 </Admonition>
 Refrence the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
