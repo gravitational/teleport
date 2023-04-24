@@ -33,12 +33,15 @@ import cfg from 'teleport/config';
 import { CreateLock } from './CreateLock';
 import { StyledTable } from './shared';
 
-import { lockTargets, useGetTargetData } from './useGetTargetData';
+import {
+  lockTargetDropdownOptions,
+  useGetTargetData,
+} from './useGetTargetData';
 
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
   AllowedTargetResource,
-  LockTarget,
+  LockTargetDropdownOption,
   OnAdd,
   SelectedLockTarget,
   TargetListProps,
@@ -61,10 +64,11 @@ export function NewLockContent({
   const { clusterId } = useStickyClusterId();
   const [createPanelPosition, setCreatePanelPosition] =
     useState<Positions>('closed');
-  const [selectedLockTarget, setSelectedLockTarget] = useState<LockTarget>({
-    label: 'User',
-    value: 'user',
-  });
+  const [selectedLockTarget, setSelectedLockTarget] =
+    useState<LockTargetDropdownOption>({
+      label: 'User',
+      value: 'user',
+    });
   const [selectedLockTargets, setSelectedLockTargets] = useState<
     SelectedLockTarget[]
   >([]);
@@ -113,8 +117,8 @@ export function NewLockContent({
         <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
             value={selectedLockTarget}
-            options={lockTargets}
-            onChange={(o: LockTarget) => setSelectedLockTarget(o)}
+            options={lockTargetDropdownOptions}
+            onChange={(o: LockTargetDropdownOption) => setSelectedLockTarget(o)}
             label="lock-target-type"
           />
         </Box>

@@ -18,9 +18,13 @@ import { useEffect, useMemo, useState } from 'react';
 
 import useTeleport from 'teleport/useTeleport';
 
-import type { AllowedTargetResource, LockTarget, TableData } from './types';
+import type {
+  AllowedTargetResource,
+  LockTargetDropdownOption,
+  TableData,
+} from './types';
 
-export const lockTargets: LockTarget[] = [
+export const lockTargetDropdownOptions: LockTargetDropdownOption[] = [
   { label: 'User', value: 'user' },
   { label: 'Role', value: 'role' },
   { label: 'Login', value: 'login' },

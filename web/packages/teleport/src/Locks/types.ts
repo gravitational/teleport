@@ -63,7 +63,8 @@ export type AllowedTargetResource =
  * TargetValue is the value of the target resource that a lock is applied to.
  * For example, if a TargetResource is 'node', its corresponding TargetValue should be
  * the node's UUID. If a TargetResource is 'role', its corresponding TargetValue should be
- * its name.
+ * its name. See the LockTarget proto definition for the canonical mapping of AllowedTargetResource
+ * to TargetValue.
  */
 export type TargetValue = string;
 
@@ -78,7 +79,7 @@ export type TableData = {
   [key: string]: any;
 };
 
-export type LockTarget = Option<AllowedTargetResource>;
+export type LockTargetDropdownOption = Option<AllowedTargetResource>;
 
 export type SelectedLockTarget = {
   resource: AllowedTargetResource;
