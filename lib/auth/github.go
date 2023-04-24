@@ -619,6 +619,10 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
+	if err := a.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
