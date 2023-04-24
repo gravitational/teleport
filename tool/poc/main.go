@@ -75,20 +75,21 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	}
 	s.log.Infof("Quotes and PCRs sent by client validated against known AK public key and nonce")
 
-	eventLog, err := attest.ParseEventLog(platformParams.EventLog)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	events, err := eventLog.Verify(platformParams.PCRs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.log.Infof("Verified event log, entry count: %d", len(events))
-	sbs, err := attest.ParseSecurebootState(events)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.log.Infof("Secure boot state: %v", sbs.Enabled)
+	// TODO: Get event log working on windows
+	//eventLog, err := attest.ParseEventLog(platformParams.EventLog)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//events, err := eventLog.Verify(platformParams.PCRs)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//s.log.Infof("Verified event log, entry count: %d", len(events))
+	//sbs, err := attest.ParseSecurebootState(events)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//s.log.Infof("Secure boot state: %v", sbs.Enabled)
 
 	s.log.Infof("Enrollment request complete, persisting AK public key")
 	s.storedAK = akPub
