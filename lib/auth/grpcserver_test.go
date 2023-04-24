@@ -1166,6 +1166,11 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 }
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
+		TestFeatures:  modules.GetModules().Features(),
+	})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
@@ -1287,10 +1292,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
-					require.NotEmpty(t, crt)
+					sshCertBytes := c.GetSSH()
+					require.NotEmpty(t, sshCertBytes)
 
-					cert, err := sshutils.ParseCertificate(crt)
+					cert, err := sshutils.ParseCertificate(sshCertBytes)
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
@@ -1519,6 +1524,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
 					require.NoError(t, err, "ParseCertificate failed")
+
 					gotSSH := tlsca.DeviceExtensions{
 						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
 						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -453,7 +454,15 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(ctx, user)
+	loginIP := ""
+	if req.ClientMetadata != nil {
+		loginIP, _, err = net.SplitHostPort(req.ClientMetadata.RemoteAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	sess, err := s.createUserWebSession(ctx, user, loginIP)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -666,11 +675,12 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(ctx context.Context, user types.User) (types.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user types.User, loginIP string) (types.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
 	return s.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
 		User:      user.GetName(),
+		LoginIP:   loginIP,
 		Roles:     user.GetRoles(),
 		Traits:    user.GetTraits(),
 		LoginTime: s.clock.Now().UTC(),
