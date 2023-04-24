@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"io"
+
 	"github.com/google/go-attestation/attest"
-	"github.com/google/go-tpm-tools/simulator"
+	"github.com/google/go-tpm/tpm2"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -13,19 +15,31 @@ var logger = utils.NewLogger()
 
 const useSimulator = false
 
+// TODO: Determine what value this has
+type windowsCmdChannel struct {
+	io.ReadWriteCloser
+}
+
+func (cc *windowsCmdChannel) MeasurementLog() ([]byte, error) {
+	return nil, nil
+}
+
 func run() error {
 	var tpm *attest.TPM
 	var err error
 	if useSimulator {
-		sim, err := simulator.Get()
+		tpm, err = simulatedTPM()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		tpm = attest.InjectSimulatedTPMForTest(sim)
 	} else {
+		_, err := tpm2.OpenTPM()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		openCfg := &attest.OpenConfig{
 			TPMVersion: attest.TPMVersion20,
+			// CommandChannel: &windowsCmdChannel{rawConn},
 		}
 		tpm, err = attest.OpenTPM(openCfg)
 		if err != nil {
