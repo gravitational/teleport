@@ -933,9 +933,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 
 	// Headless login approval
-	headless := app.Command("headless", "headless commands").Interspersed(true)
-	approve := headless.Command("approve", "headless approval").Interspersed(true)
-	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
+	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
+	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	approve.Arg("request id", "Headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
