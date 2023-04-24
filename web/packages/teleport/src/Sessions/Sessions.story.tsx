@@ -37,3 +37,18 @@ export function Loaded() {
 
   return <Sessions {...props} />;
 }
+
+export function LoadedWithCTA() {
+  const props = {
+    sessions,
+    attempt: {
+      isSuccess: true,
+      isProcessing: false,
+      isFailed: false,
+      message: '',
+    },
+    showActiveSessionsCTA: true,
+  };
+
+  return <Sessions {...props} />;
+}

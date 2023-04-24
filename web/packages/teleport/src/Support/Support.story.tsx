@@ -30,6 +30,10 @@ export const SupportEnterprise = () => (
   <Support {...props} isEnterprise={true} />
 );
 
+export const SupportEnterpriseWithCTA = () => (
+  <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
+);
+
 export const SupportWithTunnelAddress = () => (
   <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
 );

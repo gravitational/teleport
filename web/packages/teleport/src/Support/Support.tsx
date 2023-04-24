@@ -63,7 +63,7 @@ export const Support = ({
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
             <Header title="Support" icon={<Icons.LocalPlay />} />
-            {isEnterprise && (
+            {isEnterprise && !showPremiumSupportCTA && (
               <SupportLink
                 title="Create a Support Ticket"
                 url="https://support.goteleport.com"
