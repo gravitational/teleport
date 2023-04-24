@@ -33,8 +33,8 @@ type server struct {
 type enrollChallenge func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error)
 
 func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParameters, callback enrollChallenge) error {
+	s.log.Infof("Received enrollment request")
 	// TODO: IRL we would validate EK has trusted cert first.
-
 	activationParams := attest.ActivationParameters{
 		TPMVersion: attest.TPMVersion20,
 		EK:         ek.Public,
@@ -44,7 +44,7 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("generated activatation challenge, solution: %s", realSolution)
+	s.log.Infof("Generated ActivateCredential challenge with solution %v", realSolution)
 
 	// Generate a nonce to use for attesting platform
 	nonce := make([]byte, 32)
@@ -52,6 +52,7 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Infof("Generated nonce for platform attestation: %v", nonce)
 
 	clientSolution, platformParams, err := callback(encryptedCredentials, nonce)
 	if err != nil {
@@ -61,7 +62,8 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if !bytes.Equal(clientSolution, realSolution) {
 		return trace.BadParameter("incorrect solution")
 	}
-	s.log.Infof("passed credential activation check")
+	s.log.Infof("ActivateCredential solution returned by client correct")
+
 	// Check platform attestation
 	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
 	if err != nil {
@@ -71,23 +73,24 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("passed platofrm params verifyall")
+	s.log.Infof("Client provided quotes and PCRs validated against activated AK public key")
+
 	eventLog, err := attest.ParseEventLog(platformParams.EventLog)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("parsed event log")
 	events, err := eventLog.Verify(platformParams.PCRs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("verified event log, entries: %d", len(events))
+	s.log.Infof("Verified event log, entry count: %d", len(events))
 	sbs, err := attest.ParseSecurebootState(events)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("Secure boot state parsed %s", sbs.Enabled)
+	s.log.Infof("Secure boot state: %v", sbs.Enabled)
 
+	s.log.Infof("Enrollment request complete, persisting AK public key")
 	s.storedAK = akPub
 	return nil
 }
@@ -95,6 +98,7 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 type authenticateChallenge func(platformAttestationNonce []byte) (*attest.PlatformParameters, error)
 
 func (s *server) Authenticate(callback authenticateChallenge) error {
+	s.log.Infof("Received authentication request")
 	// Generate a nonce to use for attesting platform
 	nonce := make([]byte, 32)
 	_, err := rand.Read(nonce)
@@ -112,6 +116,7 @@ func (s *server) Authenticate(callback authenticateChallenge) error {
 		return trace.Wrap(err)
 	}
 
+	s.log.Infof("Authentication request successful")
 	return nil
 }
 
@@ -147,9 +152,8 @@ func run(rootLog logrus.FieldLogger) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Printf("%+v", eks)
 	ek := eks[0]
-	logger.Printf("ek %+v %T", ek, ek.Public)
+	logger.Printf("TPM EK: %+v type: %T", ek, ek.Public)
 
 	akConfig := &attest.AKConfig{}
 	ak, err := tpm.NewAK(akConfig)
@@ -159,11 +163,12 @@ func run(rootLog logrus.FieldLogger) error {
 	attestationParams := ak.AttestationParameters()
 
 	err = srv.Enroll(ek, attestationParams, func(challenge *attest.EncryptedCredential, platformAttestationNonce []byte) ([]byte, *attest.PlatformParameters, error) {
+		logger.Infof("Enrollment callback called")
 		foundSolution, err := ak.ActivateCredential(tpm, *challenge)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		logger.Infof("activating credentials found solution: %s", foundSolution)
+		logger.Infof("ActivateCredentials gave solution: %v", foundSolution)
 
 		platformsParams, err := tpm.AttestPlatform(ak, platformAttestationNonce, &attest.PlatformAttestConfig{
 			EventLog: nil,
@@ -171,7 +176,9 @@ func run(rootLog logrus.FieldLogger) error {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		logger.Infof("Produced PCRs and Quotes")
 
+		logger.Infof("Enrollment callback complete")
 		return foundSolution, platformsParams, nil
 	})
 	if err != nil {
