@@ -428,9 +428,14 @@ func (s *S) UpdateDevice(
 		updated.Profile.UpdateTime = timestamppb.New(now)
 	}
 
-	// System-managed: erase credential if the device was forcefully "unenrolled".
-	if updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
+	// System-managed: erase credential and collected data if device was
+	// unenrolled.
+	if stored.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED &&
+		updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
 		updated.Credential = nil
+		if err := s.deleteCollectedData(ctx, deviceID); err != nil {
+			return nil, trace.Wrap(err, "deleting collected data on unenroll")
+		}
 	}
 
 	// Convert updated dev to storage.
@@ -499,9 +504,7 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	}
 
 	// Remove collected data.
-	cdStart := collectedDataKeyStart(deviceID)
-	cdEnd := backend.RangeEnd(cdStart)
-	if err := s.backend.DeleteRange(ctx, cdStart, cdEnd); err != nil {
+	if err := s.deleteCollectedData(ctx, deviceID); err != nil {
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
@@ -563,6 +566,12 @@ func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag stri
 	}
 
 	return nil
+}
+
+func (s *S) deleteCollectedData(ctx context.Context, deviceID string) error {
+	cdStart := collectedDataKeyStart(deviceID)
+	cdEnd := backend.RangeEnd(cdStart)
+	return trace.Wrap(s.backend.DeleteRange(ctx, cdStart, cdEnd))
 }
 
 // GetDeviceByID reads a device by ID.

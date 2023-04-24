@@ -1154,9 +1154,15 @@ func TestS_UpdateDevice(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetDeviceByID failed: %v", err)
 			}
+			cd := stored.CollectedData
 			stored.CollectedData = nil // not returned by UpdateDevice
 			if diff := cmp.Diff(updated, stored, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDeviceByID mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify collected data deletion on unenroll.
+			if updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED && len(cd) > 0 {
+				t.Errorf("Unenrolled device has collected data=%v, want none", cd)
 			}
 		})
 	}
