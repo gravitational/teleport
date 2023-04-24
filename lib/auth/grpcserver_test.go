@@ -1166,6 +1166,11 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 }
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
+		TestFeatures:  modules.GetModules().Features(),
+	})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
@@ -1287,15 +1292,18 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
-					require.NotEmpty(t, crt)
+					sshCertBytes := c.GetSSH()
+					require.NotEmpty(t, sshCertBytes)
 
-					cert, err := sshutils.ParseCertificate(crt)
+					cert, err := sshutils.ParseCertificate(sshCertBytes)
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
+					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
+					require.True(t, ok)
+					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -1366,6 +1374,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1405,6 +1414,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1519,6 +1529,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
 					require.NoError(t, err, "ParseCertificate failed")
+					pinnedIP, ok := sshCert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
+					require.True(t, ok, "missing 'source-address' critical option from SSH certificate")
+					require.Equal(t, "127.0.0.1/32", pinnedIP, "pinned IP mismatch on SSH certificate")
+
 					gotSSH := tlsca.DeviceExtensions{
 						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
 						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],
@@ -1576,6 +1590,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
 						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
 					}
+					require.Equal(t, "127.0.0.1", singleUseIdentity.PinnedIP,
+						"missing pinned IP on single use identity")
 				},
 			},
 		},

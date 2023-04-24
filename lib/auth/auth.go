@@ -275,10 +275,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
-
-		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -379,11 +378,10 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.Okta
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
-
-	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -400,7 +398,7 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
-	return r.okta
+	return r
 }
 
 var (
@@ -470,6 +468,11 @@ var (
 		registeredAgents, migrations,
 	}
 )
+
+// LoginHook is a function that will be called on a successful login. This will likely be used
+// for enterprise services that need to add in feature specific operations after a user has been
+// successfully authenticated. An example would be creating objects based on the user.
+type LoginHook func(context.Context, types.User) error
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
@@ -586,6 +589,10 @@ type Server struct {
 	// headlessAuthenticationWatcher is a headless authentication watcher,
 	// used to catch and propagate headless authentication request changes.
 	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
+
+	loginHooksMu sync.RWMutex
+	// loginHooks are a list of hooks that will be called on login.
+	loginHooks []LoginHook
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -639,6 +646,41 @@ func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
 		return loginrule.NullEvaluator{}
 	}
 	return a.loginRuleEvaluator
+}
+
+// RegisterLoginHook will register a login hook with the auth server.
+func (a *Server) RegisterLoginHook(hook LoginHook) {
+	a.loginHooksMu.Lock()
+	defer a.loginHooksMu.Unlock()
+
+	a.loginHooks = append(a.loginHooks, hook)
+}
+
+// CallLoginHooks will call the registered login hooks.
+func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
+	// Make a copy of the login hooks to operate on.
+	a.loginHooksMu.RLock()
+	loginHooks := make([]LoginHook, len(a.loginHooks))
+	copy(loginHooks, a.loginHooks)
+	a.loginHooksMu.RUnlock()
+
+	if len(loginHooks) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for _, hook := range loginHooks {
+		errs = append(errs, hook(ctx, user))
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// ResetLoginHooks will clear out the login hooks.
+func (a *Server) ResetLoginHooks() {
+	a.loginHooksMu.Lock()
+	a.loginHooks = nil
+	a.loginHooksMu.Unlock()
 }
 
 // CloseContext returns the close context
@@ -1447,9 +1489,24 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}, nil
 }
 
+func certRequestPinIP(pinIP bool) certRequestOption {
+	return func(r *certRequest) { r.pinIP = pinIP }
+}
+
+// GenerateUserTestCertsRequest is a request to generate test certificates.
+type GenerateUserTestCertsRequest struct {
+	Key            []byte
+	Username       string
+	TTL            time.Duration
+	Compatibility  string
+	RouteToCluster string
+	PinnedIP       string
+	MFAVerified    string
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1464,14 +1521,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		ttl:            ttl,
-		compatibility:  compatibility,
-		publicKey:      key,
-		routeToCluster: routeToCluster,
+		ttl:            req.TTL,
+		compatibility:  req.Compatibility,
+		publicKey:      req.Key,
+		routeToCluster: req.RouteToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		loginIP:        pinnedIP,
-		pinIP:          pinnedIP != "",
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
+		mfaVerified:    req.MFAVerified,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1499,6 +1557,8 @@ type AppTestCertRequest struct {
 	AzureIdentity string
 	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
 	GCPServiceAccount string
+	// PinnedIP is optional IP to pin certificate to.
+	PinnedIP string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1541,6 +1601,8 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
+		pinIP:             req.PinnedIP != "",
+		loginIP:           req.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2016,11 +2078,9 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	pinnedIP := ""
-	if req.checker.PinSourceIP() || req.pinIP {
+	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
 		if req.loginIP == "" {
-			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
-			// instead of warning, after merging #21080
-			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
+			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
 		}
 
 		pinnedIP = req.loginIP
@@ -2397,6 +2457,7 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	}
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
+		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
 		AccessRequests:       identity.ActiveRequests,
@@ -2993,6 +3054,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
+		LoginIP:              identity.LoginIP,
 		Roles:                roles,
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
@@ -3619,6 +3681,7 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
 		publicKey:      pub,
 		checker:        checker,
