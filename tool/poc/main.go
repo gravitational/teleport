@@ -24,7 +24,7 @@ func run() error {
 	}
 	logger.Printf("%+v", eks)
 	ek := eks[0]
-	logger.Printf("ek %+v", ek)
+	logger.Printf("ek %+v %T", ek, ek.Public)
 
 	akConfig := &attest.AKConfig{}
 	ak, err := tpm.NewAK(akConfig)
