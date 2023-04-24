@@ -753,6 +753,11 @@ tests:
                       - key: ca.crt
                         path: ca.crt
                     name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
       - notContains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
@@ -792,6 +797,11 @@ tests:
                       - key: ca.crt
                         path: ca.crt
                     name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
           content:
