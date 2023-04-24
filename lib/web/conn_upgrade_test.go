@@ -161,6 +161,11 @@ func TestConnWithXForwardedAddr(t *testing.T) {
 			inputForwardedAddr: "[2001:db8::21f:5bff:febf:ce22:8a2e]:22222",
 			wantRemoteAddr:     "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:22222",
 		},
+		{
+			name:               "multiple",
+			inputForwardedAddr: "3.4.5.6, 7.8.9.10, 11.12.13.14",
+			wantRemoteAddr:     "3.4.5.6:12345",
+		},
 	}
 
 	for _, test := range tests {

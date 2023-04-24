@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -83,10 +84,17 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	return nil, nil
 }
 
+// connWithXForwardedAddr overwrites conn.RemoteAddr if X-Forwarded-For is specificed.
+//
+// AWS ALB reference:
+// https://docs.aws.amazon.com/elasticloadbalancing/latest/application/x-forwarded-headers.html
 func connWithXForwardedAddr(conn net.Conn, forwardedAddr string) net.Conn {
 	if forwardedAddr == "" {
 		return conn
 	}
+
+	// In case multiple IPs are appended to X-Forwarded-For, use the first one.
+	forwardedAddr, _, _ = strings.Cut(forwardedAddr, ",")
 
 	// If forwardedAddr has a port.
 	if ipAddrPort, err := netip.ParseAddrPort(forwardedAddr); err == nil {
