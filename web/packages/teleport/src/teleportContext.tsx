@@ -34,6 +34,7 @@ import desktopService from './services/desktops';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
+import { ctaService } from './services/cta/cta';
 
 class TeleportContext implements types.Context {
   // stores
@@ -57,6 +58,7 @@ class TeleportContext implements types.Context {
   mfaService = new MfaService();
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
+  ctaService = ctaService;
 
   automaticUpgradesEnabled = false;
 

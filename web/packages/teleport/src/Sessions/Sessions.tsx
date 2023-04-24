@@ -29,8 +29,6 @@ import useStickerClusterId from 'teleport/useStickyClusterId';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
-import { cta } from 'teleport/services/cta/cta';
-
 import SessionList from './SessionList';
 import useSessions from './useSessions';
 
@@ -42,12 +40,12 @@ export default function Container() {
 }
 
 export function Sessions(props: ReturnType<typeof useSessions>) {
-  const { attempt, sessions } = props;
+  const { attempt, sessions, showActiveSessionsCTA } = props;
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
-        {cta.showActiveSessionsCTA ? (
+        {showActiveSessionsCTA ? (
           <Box width="340px">
             <ButtonLockedFeature height="36px">
               Join Active Sessions With Teleport Enterprise
@@ -61,7 +59,12 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
           <Indicator />
         </Box>
       )}
-      {attempt.isSuccess && <SessionList sessions={sessions} />}
+      {attempt.isSuccess && (
+        <SessionList
+          sessions={sessions}
+          showActiveSessionsCTA={showActiveSessionsCTA}
+        />
+      )}
     </FeatureBox>
   );
 }

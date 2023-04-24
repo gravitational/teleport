@@ -32,6 +32,7 @@ export function Loaded() {
       isFailed: false,
       message: '',
     },
+    showActiveSessionsCTA: false,
   };
 
   return <Sessions {...props} />;

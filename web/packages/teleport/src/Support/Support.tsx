@@ -24,7 +24,6 @@ import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { cta } from 'teleport/services/cta/cta';
 
 export default function Container({
   children,
@@ -40,7 +39,7 @@ export default function Container({
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
-      showPremiumSupportCTA={cta.showSupportCTA}
+      showPremiumSupportCTA={ctx.ctaService.showSupportCTA}
       children={children}
     />
   );

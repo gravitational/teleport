@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
-// import theme from 'design/theme';
 
 export type Props = {
   children: React.ReactNode;

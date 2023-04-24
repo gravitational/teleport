@@ -23,16 +23,17 @@ import { CarrotDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { cta } from 'teleport/services/cta/cta';
 
 export const SessionJoinBtn = ({
   sid,
   clusterId,
   participantModes,
+  showCTA,
 }: {
   sid: string;
   clusterId: string;
   participantModes: ParticipantMode[];
+  showCTA: boolean;
 }) => {
   // Sorts the list of participantModes so that they are consistently shown in the order of "observer" -> "moderator" -> "peer"
   const modes = {
@@ -44,7 +45,7 @@ export const SessionJoinBtn = ({
     (a, b) => modes[a] - modes[b]
   );
 
-  if (cta.showActiveSessionsCTA) {
+  if (showCTA) {
     return <LockedFeatureJoinMenu modes={sortedParticipantModes} />;
   }
 

@@ -41,4 +41,5 @@ const props: Props = {
   isEnterprise: false,
   isCloud: false,
   tunnelPublicAddress: null,
+  showPremiumSupportCTA: false,
 };
