@@ -9,8 +9,10 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var logger = utils.NewLogger()
+
 func run() error {
-	logger := utils.NewLogger()
+
 	sim, err := simulator.Get()
 	if err != nil {
 		return trace.Wrap(err)
@@ -37,7 +39,7 @@ func run() error {
 	// TODO: Validate EK
 	activationParams := attest.ActivationParameters{
 		TPMVersion: attest.TPMVersion20,
-		EK:         ek,
+		EK:         ek.Public,
 		AK:         attestationParams,
 	}
 	solution, encryptedCredentials, err := activationParams.Generate()
@@ -86,6 +88,6 @@ func run() error {
 
 func main() {
 	if err := run(); err != nil {
-		panic(err)
+		logger.Fatalf(err.Error())
 	}
 }
