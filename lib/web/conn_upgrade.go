@@ -21,10 +21,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
@@ -73,10 +75,34 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 		return nil, nil
 	}
 
+	// Update remote addr.
+	conn = connWithXForwardedAddr(conn, r.Header.Get("X-Forwarded-For"))
 	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
 		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
 	}
 	return nil, nil
+}
+
+func connWithXForwardedAddr(conn net.Conn, forwardedAddr string) net.Conn {
+	if forwardedAddr == "" {
+		return conn
+	}
+
+	// If forwardedAddr has a port.
+	if ipAddrPort, err := netip.ParseAddrPort(forwardedAddr); err == nil {
+		return newConnWithRemoteAddr(conn, net.TCPAddrFromAddrPort(ipAddrPort))
+	}
+
+	// If forwardedAddr does not have a port.
+	ipAddr, err := netip.ParseAddr(forwardedAddr)
+	if err != nil {
+		logrus.WithError(err).Warnf("Invalid value for X-Forwarded-For: %v.", forwardedAddr)
+		return conn
+	}
+
+	orgRemoteAddr := utils.FromAddr(conn.RemoteAddr())
+	port := uint16(orgRemoteAddr.Port(0))
+	return newConnWithRemoteAddr(conn, net.TCPAddrFromAddrPort(netip.AddrPortFrom(ipAddr, port)))
 }
 
 func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
@@ -138,6 +164,25 @@ func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 		ProtoMinor: 1,
 	}
 	return response.Write(w)
+}
+
+// connWithRemoteAddr is a net.Conn that overwrites RemoteAddr of the original
+// net.Conn.
+type connWithRemoteAddr struct {
+	net.Conn
+	remoteAddr net.Addr
+}
+
+func newConnWithRemoteAddr(conn net.Conn, remoteAddr net.Addr) net.Conn {
+	return &connWithRemoteAddr{
+		Conn:       conn,
+		remoteAddr: remoteAddr,
+	}
+}
+
+// RemoteAddr returns the remote network address.
+func (c *connWithRemoteAddr) RemoteAddr() net.Addr {
+	return c.remoteAddr
 }
 
 // waitConn is a net.Conn that provides a "WaitForClose" function to wait until

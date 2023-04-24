@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -53,11 +55,17 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
 	expectedPayload := "hello@"
+	expectedIP := "1.2.3.4"
 	alpnHandler := func(_ context.Context, conn net.Conn) error {
 		// Handles connection asynchronously to verify web handler waits until
 		// connection is closed.
 		go func() {
 			defer conn.Close()
+
+			clientIP, err := utils.ClientIPFromConn(conn)
+			require.NoError(t, err)
+			require.Equal(t, expectedIP, clientIP)
+
 			n, err := conn.Write([]byte(expectedPayload))
 			require.NoError(t, err)
 			require.Equal(t, len(expectedPayload), n)
@@ -89,7 +97,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn)
+		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn, expectedIP)
 
 		// Verify clientConn receives data sent by Config.ALPNHandler.
 		receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
@@ -102,7 +110,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn)
+		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn, expectedIP)
 
 		// Verify ping-wrapped clientConn receives data sent by Config.ALPNHandler.
 		receive, err := bufio.NewReader(pingconn.New(clientConn)).ReadString(byte('@'))
@@ -111,12 +119,66 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	})
 }
 
-func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn) {
+func TestConnWithXForwardedAddr(t *testing.T) {
+	t.Parallel()
+
+	mockConn, _ := net.Pipe()
+	mockIPv4Addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(netip.MustParseAddr("1.2.3.4"), 12345))
+	mockInputConn := newConnWithRemoteAddr(mockConn, mockIPv4Addr)
+
+	tests := []struct {
+		name               string
+		inputForwardedAddr string
+		wantRemoteAddr     string
+	}{
+		{
+			name:               "empty X-Forwarded-For",
+			inputForwardedAddr: "",
+			wantRemoteAddr:     "1.2.3.4:12345",
+		},
+		{
+			name:               "invalid X-Forwarded-For",
+			inputForwardedAddr: "not-an-ip",
+			wantRemoteAddr:     "1.2.3.4:12345",
+		},
+		{
+			name:               "ipv4",
+			inputForwardedAddr: "3.4.5.6",
+			wantRemoteAddr:     "3.4.5.6:12345",
+		},
+		{
+			name:               "ipv4 with port",
+			inputForwardedAddr: "3.4.5.6:22222",
+			wantRemoteAddr:     "3.4.5.6:22222",
+		},
+		{
+			name:               "ipv6",
+			inputForwardedAddr: "2001:db8::21f:5bff:febf:ce22:8a2e",
+			wantRemoteAddr:     "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:12345",
+		},
+		{
+			name:               "ipv6 with port",
+			inputForwardedAddr: "[2001:db8::21f:5bff:febf:ce22:8a2e]:22222",
+			wantRemoteAddr:     "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:22222",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conn := connWithXForwardedAddr(mockInputConn, test.inputForwardedAddr)
+			require.NotNil(t, conn)
+			require.Equal(t, test.wantRemoteAddr, conn.RemoteAddr().String())
+		})
+	}
+}
+
+func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn, xForwardedFor string) {
 	t.Helper()
 
 	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 	require.NoError(t, err)
 	r.Header.Add("Upgrade", upgradeType)
+	r.Header.Add("X-Forwarded-For", xForwardedFor)
 
 	go func() {
 		// serverConn will be hijacked.
