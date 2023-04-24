@@ -40,10 +40,12 @@ interface CreateConversationResponse {
 }
 
 interface ListConversationsResponse {
-  conversations: [{
-    id: string
-    title?: string;
-  }];
+  conversations: [
+    {
+      id: string;
+      title?: string;
+    }
+  ];
 }
 
 const ConversationsContext = createContext<MessageContextValue>({
@@ -62,7 +64,7 @@ export function ConversationsContextProvider(
     const res: ListConversationsResponse = await api.get(
       '/v1/webapi/assistant/conversations'
     );
-    console.log("asadasda", res)
+    console.log('asadasda', res);
 
     setConversations(
       res.conversations.reverse().map(conversation => ({
