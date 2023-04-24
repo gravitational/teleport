@@ -832,7 +832,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
+  - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
 
