@@ -44,6 +44,7 @@ type Config struct {
 	// APIClient is the the teleport client
 	APIClient commonTeleport.Client
 
+	// ResourceMatchers are the labels to match against plugin resources
 	ResourceMatchers []services.ResourceMatcher
 
 	// monitoredPlugins contains all plugins
@@ -76,7 +77,8 @@ type Server struct {
 	cancelfn context.CancelFunc
 	// accessRequestWatcher is an access request watcher.
 	accessRequestWatcher *services.AccessRequestWatcher
-
+	// pluginWatcher watches plugin resources.
+	pluginWatcher *services.PluginWatcher
 	// reconcileCh triggers reconciliation of plugins.
 	reconcileCh chan struct{}
 	// mu protects access to  plugins.
@@ -100,6 +102,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 // Start starts the plugins service.
 func (s *Server) Start(ctx context.Context) error {
+	watcher, err := s.startResourceWatcher(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.pluginWatcher = watcher
 	return nil
 }
 
@@ -184,7 +191,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.PluginWatc
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentPlugins,
 			Log:       s.Log,
-			Client:    s.Config.AccessPoint,
+			Client:    s.APIClient,
 		},
 	})
 	if err != nil {
@@ -224,7 +231,7 @@ func (s *Server) onCreate(ctx context.Context, resource types.ResourceWithLabels
 	return s.registerPlugin(ctx, plugin)
 }
 
-// onUpdate is called by reconciler when an already proxied plugin is updated.
+// onUpdate is called by reconciler when an already plugin is updated.
 func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
 	plugin, ok := resource.(types.Plugin)
 	if !ok {
@@ -233,7 +240,7 @@ func (s *Server) onUpdate(ctx context.Context, resource types.ResourceWithLabels
 	return s.updatePlugin(ctx, plugin)
 }
 
-// onDelete is called by reconciler when a proxied plugin is deleted.
+// onDelete is called by reconciler when a plugin is deleted.
 func (s *Server) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
 	plugin, ok := resource.(types.Plugin)
 	if !ok {

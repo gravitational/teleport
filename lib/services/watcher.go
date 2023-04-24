@@ -1926,9 +1926,9 @@ func (*oktaAssignmentCollector) notifyStale() {}
 // PluginGetter defines interface for fetching plugin resources.
 type PluginGetter interface {
 	// GetPlugins returns all plugin resources.
-	GetPlugins(context.Context) ([]types.Plugin, error)
+	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 	// GetPlugin returns the specified plugin resource.
-	GetPlugin(ctx context.Context, name string) (types.Plugin, error)
+	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
 }
 
 // PluginWatcherConfig is a PluginWatcher configuration.
@@ -2007,7 +2007,7 @@ func (p *pluginCollector) initializationChan() <-chan struct{} {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (p *pluginCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	plugins, err := p.PluginGetter.GetPlugins(ctx)
+	plugins, err := p.PluginGetter.GetPlugins(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}

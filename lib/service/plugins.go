@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/plugins"
 )
 
@@ -55,10 +57,20 @@ func (process *TeleportProcess) initPluginsService() error {
 		return trace.Wrap(err)
 	}
 
+	pluginMatcher := types.Labels{}
+	for k, v := range process.Config.Plugins.Plugins {
+		pluginMatcher[k] = utils.Strings{v}
+	}
 	pluginsService, err := plugins.New(process.ExitContext(), &plugins.Config{
+		APIClient:   conn.Client,
 		Emitter:     asyncEmitter,
-		AccessPoint: accessPoint,
 		Log:         process.log,
+		AccessPoint: accessPoint,
+		ResourceMatchers: []services.ResourceMatcher{
+			{
+				Labels: pluginMatcher,
+			},
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)

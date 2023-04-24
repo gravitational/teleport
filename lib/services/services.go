@@ -44,6 +44,7 @@ type Services interface {
 	SAMLIdPServiceProviders
 	UserGroups
 	Integrations
+	Plugins
 
 	OktaClient() Okta
 }
