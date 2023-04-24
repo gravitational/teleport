@@ -538,7 +538,11 @@ type session struct {
 
 	access SessionAccessEvaluator
 
-	tracker *SessionTracker
+	// trackerAsync is a tracker for the session. Along with trackerAsyncError, it must only be accessed
+	// via getTracker() and only once trackSession() has been called.
+	trackerAsync      *SessionTracker
+	trackerAsyncError error
+	trackerReady      chan struct{}
 
 	initiator string
 
@@ -697,8 +701,14 @@ func (s *session) Stop() {
 	// Make sure that the terminal has been closed
 	s.haltTerminal()
 
+	tracker, err := s.getTracker()
+	if err != nil {
+		s.log.WithError(err).Debug("Failed to get session tracker for closing")
+		return
+	}
+
 	// Close session tracker and mark it as terminated
-	if err := s.tracker.Close(s.serverCtx); err != nil {
+	if err := tracker.Close(s.serverCtx); err != nil {
 		s.log.WithError(err).Debug("Failed to close session tracker")
 	}
 }
@@ -961,7 +971,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 
 // launch launches the session.
 // Must be called under session Lock.
-func (s *session) launch() {
+func (s *session) launch(tracker *SessionTracker) {
 	// Mark the session as started here, as we want to avoid double initialization.
 	if s.started.Swap(true) {
 		s.log.Debugf("Session has already started")
@@ -973,7 +983,7 @@ func (s *session) launch() {
 
 	s.io.On()
 
-	if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+	if err := tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
 		s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 	}
 
@@ -1356,9 +1366,14 @@ func (s *session) removePartyUnderLock(p *party) error {
 
 	s.BroadcastMessage("User %v left the session.", p.user)
 
+	tracker, err := s.getTracker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Update session tracker
 	s.log.Debugf("No longer tracking participant: %v", p.id)
-	if err := s.tracker.RemoveParticipant(s.serverCtx, p.id.String()); err != nil {
+	if err := tracker.RemoveParticipant(s.serverCtx, p.id.String()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1384,12 +1399,12 @@ func (s *session) removePartyUnderLock(p *party) error {
 		// pause session and wait for another party to resume
 		s.io.Off()
 		s.BroadcastMessage("Session paused, Waiting for required participants...")
-		if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
+		if err := tracker.UpdateState(s.serverCtx, types.SessionState_SessionStatePending); err != nil {
 			s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStatePending)
 		}
 
 		go func() {
-			if state := s.tracker.WaitForStateUpdate(types.SessionState_SessionStatePending); state == types.SessionState_SessionStateRunning {
+			if state := tracker.WaitForStateUpdate(types.SessionState_SessionStatePending); state == types.SessionState_SessionStateRunning {
 				s.BroadcastMessage("Resuming session...")
 				s.io.On()
 			}
@@ -1445,7 +1460,12 @@ func (s *session) checkPresence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, participant := range s.tracker.GetParticipants() {
+	tracker, err := s.getTracker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, participant := range tracker.GetParticipants() {
 		if participant.User == s.initiator {
 			continue
 		}
@@ -1528,7 +1548,12 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			s.login, p.login, s.id)
 	}
 
-	if s.tracker.GetState() == types.SessionState_SessionStateTerminated {
+	tracker, err := s.getTracker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if tracker.GetState() == types.SessionState_SessionStateTerminated {
 		return trace.AccessDenied("The requested session is not active")
 	}
 
@@ -1562,7 +1587,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		Mode:       string(p.mode),
 		LastActive: time.Now().UTC(),
 	}
-	if err := s.tracker.AddParticipant(s.serverCtx, participant); err != nil {
+	if err := tracker.AddParticipant(s.serverCtx, participant); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1589,7 +1614,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 		}()
 	}
 
-	if s.tracker.GetState() == types.SessionState_SessionStatePending {
+	if tracker.GetState() == types.SessionState_SessionStatePending {
 		canStart, _, err := s.checkIfStart()
 		if err != nil {
 			return trace.Wrap(err)
@@ -1597,7 +1622,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 
 		switch {
 		case canStart && !s.started.Load():
-			s.launch()
+			s.launch(tracker)
 
 			return nil
 		case canStart:
@@ -1609,7 +1634,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			// the goroutine will unblock the s.io terminal.
 			// types.SessionState_SessionStatePending marks a session that is waiting for
 			// a moderator to rejoin.
-			if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+			if err := tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
 				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
 			}
 		default:
@@ -1773,33 +1798,42 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		svc = nil
 	}
 
-	s.log.Debug("Attempting to create session tracker")
-	tracker, err := NewSessionTracker(ctx, trackerSpec, svc)
-	switch {
-	// there was an error creating the tracker for a moderated session - terminate the session
-	case err != nil && svc != nil && s.access.IsModerated():
-		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
-		return trace.Wrap(err)
-	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
-	case err != nil && svc != nil && !s.access.IsModerated():
-		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+	// getTracker() will block until this channel is closed
+	s.trackerReady = make(chan struct{})
 
-		localTracker, err := NewSessionTracker(ctx, trackerSpec, nil)
-		// this error means there are problems with the trackerSpec, we need to return it
-		if err != nil {
-			return trace.Wrap(err)
+	// initialize session tracker asynchronously to improve user experience when auth is experiencing downtime
+	go func() {
+		createSessionTracker := func() (*SessionTracker, error) {
+			s.log.Debug("Attempting to create session tracker")
+			tracker, err := NewSessionTracker(ctx, trackerSpec, svc)
+			switch {
+			// there was an error creating the tracker for a moderated session - terminate the session
+			case err != nil && svc != nil && s.access.IsModerated():
+				s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
+				return nil, trace.Wrap(err)
+			// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
+			case err != nil && svc != nil && !s.access.IsModerated():
+				s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+
+				localTracker, err := NewSessionTracker(ctx, trackerSpec, nil)
+				// this error means there are problems with the trackerSpec, we need to return it
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return localTracker, nil
+			}
+
+			return tracker, trace.Wrap(err)
 		}
 
-		s.tracker = localTracker
-	// there was an error even though the tracker wasn't being propagated - return it
-	case err != nil && svc == nil:
-		return trace.Wrap(err)
-	// the tracker was created successfully
-	case err == nil:
-		s.tracker = tracker
-	}
+		s.trackerAsync, s.trackerAsyncError = createSessionTracker()
+		close(s.trackerReady)
 
-	go func() {
+		if s.trackerAsyncError != nil {
+			return
+		}
+
 		ctx, span := tracing.DefaultProvider().Tracer("session").Start(
 			s.serverCtx,
 			"session/UpdateExpirationLoop",
@@ -1811,12 +1845,25 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		)
 		defer span.End()
 
-		if err := s.tracker.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
+		if err := s.trackerAsync.UpdateExpirationLoop(ctx, s.registry.clock); err != nil {
 			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 
+	// if this is a moderated session, block until session tracker is ready
+	if s.access.IsModerated() {
+		<-s.trackerReady
+		return s.trackerAsyncError
+	}
+
 	return nil
+}
+
+// getTracker returns the result of the asynchronous session tracker initialized inside trackSession() once it's ready.
+// trackSession() must be called once prior to any calls to getTracker().
+func (s *session) getTracker() (*SessionTracker, error) {
+	<-s.trackerReady
+	return s.trackerAsync, s.trackerAsyncError
 }
 
 // emitAuditEvent emits audit events.
