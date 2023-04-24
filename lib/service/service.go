@@ -3791,6 +3791,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Router:           proxyRouter,
 			SessionControl:   sessionController,
 			PROXYSigner:      proxySigner,
+			UseXForwardedFor: cfg.Proxy.UseXForwardedFor,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {

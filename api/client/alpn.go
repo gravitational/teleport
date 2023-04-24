@@ -63,8 +63,7 @@ type ALPNDialerConfig struct {
 // ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
 // with ALPN and SNI configured in the provided TLSConfig. An ALPN connection
 // upgrade is also performed at the initial connection, if an upgrade is
-// required. If the negotiated protocol is a Ping protocol, it will return the
-// de-multiplexed connection without the Ping.
+// required.
 type ALPNDialer struct {
 	cfg ALPNDialerConfig
 }
