@@ -235,10 +235,13 @@ spec:
 
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
-      # can also be matchers. this example leverages Teleport's regular expression
-      # support that allows for dynamic mapping from claims. the below mapping
-      # says that users with claims that match with `projects: project-(.*)` can request
-      # roles that match with '$1-admin' with the first match group.
+      # can also be matchers. 
+      #
+      # This example leverages Teleport's regular expression support, which allows 
+      # for dynamic mapping from claims. The below mapping says that users with
+      # claims that match "projects: project-(.*)" can request roles that match 
+      # "$1-admin", where "$1" is the first capture group in the 
+      # regular expression.
       # Example: `projects: project-foo` claim allows requesting `foo-admin` role
       claims_to_roles:
         - claim: 'projects'
