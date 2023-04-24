@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -599,9 +598,6 @@ func (a *agent) handleDrainChannels() error {
 // GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
 // trace.NotImplemented is returned when the proxy rejects the request.
 func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaults.DefaultIOTimeout)
-	defer cancel()
-
 	ok, payload, err := a.client.SendRequest(ctx, teleport.NetconfigRequest, true, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
