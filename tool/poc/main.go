@@ -44,6 +44,10 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	s.log.Infof("Generated ActivateCredential challenge with solution %v", realSolution)
 
 	// Generate a nonce to use for attesting platform
@@ -62,18 +66,14 @@ func (s *server) Enroll(ek attest.EK, attestationParams attest.AttestationParame
 	if !bytes.Equal(clientSolution, realSolution) {
 		return trace.BadParameter("incorrect solution")
 	}
-	s.log.Infof("ActivateCredential solution returned by client correct")
+	s.log.Infof("ActivateCredential solution sent by client matches expected solution")
 
 	// Check platform attestation
-	akPub, err := attest.ParseAKPublic(attest.TPMVersion20, attestationParams.Public)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	err = akPub.VerifyAll(platformParams.Quotes, platformParams.PCRs, nonce)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Infof("Client provided quotes and PCRs validated against activated AK public key")
+	s.log.Infof("Quotes and PCRs sent by client validated against known AK public key and nonce")
 
 	eventLog, err := attest.ParseEventLog(platformParams.EventLog)
 	if err != nil {
@@ -105,6 +105,7 @@ func (s *server) Authenticate(callback authenticateChallenge) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Infof("Generated nonce for platform attestation: %v", nonce)
 
 	platformParams, err := callback(nonce)
 	if err != nil {
@@ -115,6 +116,7 @@ func (s *server) Authenticate(callback authenticateChallenge) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.log.Infof("Quotes and PCRs sent by client validated against known AK public key and nonce")
 
 	s.log.Infof("Authentication request successful")
 	return nil
@@ -198,13 +200,14 @@ func run(rootLog logrus.FieldLogger) error {
 	}
 
 	err = srv.Authenticate(func(platformAttestationNonce []byte) (*attest.PlatformParameters, error) {
+		logger.Infof("Authentication callback called")
 		platformsParams, err := tpm.AttestPlatform(ak, platformAttestationNonce, &attest.PlatformAttestConfig{
 			EventLog: nil,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
+		logger.Infof("Authentication callback complete")
 		return platformsParams, nil
 	})
 	if err != nil {
