@@ -764,6 +764,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Logins:                []string{},
 					NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
 					AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GroupLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 					KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -862,8 +863,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
-					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:  []string{types.Wildcard},
+					AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GroupLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
