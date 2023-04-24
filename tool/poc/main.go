@@ -11,14 +11,27 @@ import (
 
 var logger = utils.NewLogger()
 
+const useSimulator = false
+
 func run() error {
+	var tpm *attest.TPM
+	var err error
+	if useSimulator {
+		sim, err := simulator.Get()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-	sim, err := simulator.Get()
-	if err != nil {
-		return trace.Wrap(err)
+		tpm = attest.InjectSimulatedTPMForTest(sim)
+	} else {
+		openCfg := &attest.OpenConfig{
+			TPMVersion: attest.TPMVersion20,
+		}
+		tpm, err = attest.OpenTPM(openCfg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
-
-	tpm := attest.InjectSimulatedTPMForTest(sim)
 
 	eks, err := tpm.EKs()
 	if err != nil {
@@ -49,7 +62,7 @@ func run() error {
 	logger.Infof("generated activatation challenge, solution: %s", solution)
 
 	// Generate a nonce to use for attesting platform
-	nonce := make([]byte, 64)
+	nonce := make([]byte, 32)
 	_, err = rand.Read(nonce)
 	if err != nil {
 		return trace.Wrap(err)
