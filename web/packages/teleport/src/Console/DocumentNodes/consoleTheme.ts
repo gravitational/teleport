@@ -76,8 +76,6 @@ const colors = {
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
     primaryInverse: '#324148',
-    // Black text
-    black: '#000000',
   },
 
   buttons: {
@@ -125,11 +123,6 @@ const colors = {
     trashButton: {
       default: '#2e3860',
       hover: '#414b70',
-    },
-
-    cta: {
-      text: '#222C59',
-      default: '#9F85FF',
     },
   },
 
