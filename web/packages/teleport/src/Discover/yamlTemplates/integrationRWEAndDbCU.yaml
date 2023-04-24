@@ -8,3 +8,8 @@ spec:
       - list
       - create
       - use
+    - resources:
+      - db
+      verbs:
+      - create
+      - update
