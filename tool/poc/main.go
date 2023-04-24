@@ -46,10 +46,10 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("generated activatation challenge, solution: %s", err)
+	logger.Infof("generated activatation challenge, solution: %s", solution)
 
 	// Generate a nonce to use for attesting platform
-	nonce := make([]byte, 128)
+	nonce := make([]byte, 64)
 	_, err = rand.Read(nonce)
 	if err != nil {
 		return trace.Wrap(err)
@@ -60,7 +60,7 @@ func run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	logger.Infof("activating credentials found solution: %s", err)
+	logger.Infof("activating credentials found solution: %s", foundSolution)
 
 	platformsParams, err := tpm.AttestPlatform(ak, nonce, &attest.PlatformAttestConfig{
 		EventLog: nil,
