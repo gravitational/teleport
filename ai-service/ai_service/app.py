@@ -56,7 +56,7 @@ async def assistant_query(
 
 class AssistantServicer(assistant_grpc.AssistantServiceServicer):
     def __init__(self) -> None:
-        self.chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
+        self.chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.1)
 
     async def Complete(
         self, request: CompleteRequest, context: grpc.aio.ServicerContext
