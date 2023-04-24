@@ -15,6 +15,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -405,15 +406,39 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	}, nil
 }
 
-func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (token *devicepb.DeviceEnrollToken, err error) {
-	// Redact for auto-enroll scenarios.
-	defer func() { err = s.redactDataDriftErr(nil /* dev */, err) }()
-
-	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreateEnrollToken); err != nil {
+func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
+	// Verify access to the necessary verbs.
+	// It's possible to issue an enroll token without the verb if auto-enrollment
+	// is enabled.
+	checkErr := authCtx.Checker.CheckAccessToRule(
+		&services.Context{User: authCtx.User},
+		defaults.Namespace, types.KindDevice, types.VerbCreateEnrollToken,
+		false, /* silent */
+	)
+	if checkErr != nil && !dtent.AutoEnrollEnabled {
+		return nil, trace.Wrap(checkErr)
+	}
+
+	// Auto-enroll if:
+	// - User failed verb check
+	// - User succeeded verb check, but only supplied auto-enroll information.
+	//   (Otherwise, favor legacy behavior.)
+	var token *devicepb.DeviceEnrollToken
+	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && dtent.AutoEnrollEnabled) {
+		var dev *devicepb.Device
+		dev, err = s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
+		// err verified below
+		token = dev.GetEnrollToken() // This is safe even if `dev` is nil, proto getters don't panic.
+		err = s.redactTokenErr(dev, authCtx.User.GetName(), checkErr, err)
+	} else {
+		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
+		// err verified below
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -432,6 +457,33 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	})
 
 	return token, nil
+}
+
+func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, actualErr error) error {
+	if actualErr == nil {
+		return nil
+	}
+
+	if checkErr != nil {
+		// Reply with checkErr instead of err, so we don't relay information about
+		// what might be wrong with the collected data.
+		s.logger.
+			WithError(actualErr).
+			WithFields(log.Fields{
+				"User":     user,
+				"DeviceID": dev.GetId(),
+				"AssetTag": dev.GetAssetTag(),
+			}).
+			Warn("Attempt to issue device enrollment token via auto-enroll denied")
+		return trace.Wrap(checkErr)
+	}
+
+	// Transform drift errors into BadParameter, but otherwise no need to redact.
+	// The user already has permissions to create tokens without data.
+	if errors.Is(actualErr, &storage.CollectedDataDriftError{}) {
+		actualErr = trace.BadParameter(actualErr.Error())
+	}
+	return trace.Wrap(actualErr)
 }
 
 func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (err error) {

@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sort"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -1627,6 +1629,329 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	// Prepare an authorizer and a set of users with the following powers:
+	// - adminUser: logged in and has all necessary verbs
+	// - endUser: logged in but has no device verbs
+	// - unknownUser: not logged in
+	const adminUser = "llama"
+	const endUser = "alpaca"
+	const unknownUser = "eve"
+	authorizer := &userAwareAuthorizer{
+		knownUsers:      []string{adminUser, endUser},
+		authorizedUsers: []string{adminUser},
+	}
+
+	env := testenv.NewUsingT(
+		t,
+		testenv.WithAuthorizer(authorizer),
+	)
+	defer env.Close()
+	devices := env.DevicesClient
+
+	ctx := context.Background()
+	withUser := func(ctx context.Context, user string) context.Context {
+		return metadata.AppendToOutgoingContext(ctx, authorizerUserKey, user)
+	}
+
+	// Register a device for testing.
+	dev, err := devices.CreateDevice(withUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama1",
+			// Have a profile so we can check that validation happens, but we don't
+			// need an extensive profile here.
+			Profile: &devicepb.DeviceProfile{
+				ModelIdentifier: "MacBookPro9,2",
+				OsVersion:       "13.3.1",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	cdValid := defaultCollectData(dev)
+	cdBad := proto.Clone(cdValid).(*devicepb.DeviceCollectedData)
+	cdBad.ModelIdentifier = "MacBookPro9,3" // doesn't match
+	cdUnknown := &devicepb.DeviceCollectedData{
+		CollectTime:  timestamppb.Now(),
+		OsType:       devicepb.OSType_OS_TYPE_MACOS,
+		SerialNumber: "unknown",
+	}
+
+	oldAutoEnroll := dtent.AutoEnrollEnabled
+	t.Cleanup(func() { dtent.AutoEnrollEnabled = oldAutoEnroll })
+
+	type testCase struct {
+		name      string
+		user      string
+		req       *devicepb.CreateDeviceEnrollTokenRequest
+		assertErr func(err error) bool
+		wantErr   string // optional, used to disambiguate errors.
+	}
+	runTests := func(t *testing.T, tests []testCase) {
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				token, err := devices.CreateDeviceEnrollToken(withUser(ctx, test.user), test.req)
+				if !test.assertErr(err) {
+					t.Errorf("CreateDeviceEnrollToken: assertErr failed, err=%v (%T)", err, err)
+				}
+				if err != nil {
+					assert.ErrorContains(t, err, test.wantErr, "CreateDeviceEnrollToken error mismatch")
+					return
+				}
+
+				// Verify that token is returned.
+				if token.GetToken() == "" {
+					t.Errorf("CreateDeviceEnrollToken got=%v, want non-empty", token)
+				}
+			})
+		}
+	}
+
+	assertNoErr := func(err error) bool { return err == nil }
+
+	// We run 2 batches of scenarios below, first with auto-enroll disabled and
+	// later with enabled.
+	// The same device is used for the majority of tests. This works because the
+	// device is never enrolled, so multiple token creation is allowed.
+
+	dtent.AutoEnrollEnabled = false
+	runTests(t, []testCase{
+		{
+			name: "admin auto-enroll not allowed",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdValid,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device ID",
+		},
+		{
+			name: "admin with both DeviceId and cd favors DeviceId",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId:   dev.Id,
+				DeviceData: cdUnknown,
+			},
+			assertErr: assertNoErr,
+		},
+		{
+			name:      "admin empty request fails",
+			user:      adminUser,
+			req:       &devicepb.CreateDeviceEnrollTokenRequest{},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device ID",
+		},
+		{
+			name: "user auto-enroll not allowed",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdValid,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+		{
+			name: "user device ID not allowed",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: dev.Id,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+		{
+			name:      "user empty request fails",
+			user:      endUser,
+			req:       &devicepb.CreateDeviceEnrollTokenRequest{},
+			assertErr: trace.IsAccessDenied,
+		},
+		{
+			name: "unknown user auto-enroll not allowed",
+			user: unknownUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdValid,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+		{
+			name: "unknown user device ID not allowed",
+			user: unknownUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: dev.Id,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+	})
+
+	dtent.AutoEnrollEnabled = true
+	runTests(t, []testCase{
+		{
+			name: "admin auto-enroll",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdValid,
+			},
+			assertErr: assertNoErr,
+		},
+		{
+			name: "admin with both DeviceId and cd favors DeviceId",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				// This is a tad unrealistic, but should still work without issue.
+				// The DeviceId is favored if both are present.
+				DeviceId: dev.Id,
+				// DeviceData ignored.
+				DeviceData: cdBad,
+			},
+			assertErr: assertNoErr,
+		},
+		{
+			name: "admin invalid cd fails",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdBad,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "model drift",
+		},
+		{
+			name: "admin unknown device fails",
+			user: adminUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdUnknown,
+			},
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "admin empty request fails",
+			user:      adminUser,
+			req:       &devicepb.CreateDeviceEnrollTokenRequest{},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device ID",
+		},
+		{
+			name: "user auto-enroll",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId:   "unknown", // ignored
+				DeviceData: cdValid,
+			},
+			assertErr: assertNoErr,
+		},
+		{
+			name: "user device ID not allowed",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: dev.Id,
+			},
+			assertErr: trace.IsAccessDenied, // redacted
+		},
+		{
+			name:      "user empty request fails",
+			user:      endUser,
+			req:       &devicepb.CreateDeviceEnrollTokenRequest{},
+			assertErr: trace.IsAccessDenied, // redacted
+		},
+		{
+			name: "user invalid cd fails",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdBad,
+			},
+			assertErr: trace.IsAccessDenied, // redacted
+		},
+		{
+			name: "user unknown device fails",
+			user: endUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdUnknown,
+			},
+			assertErr: trace.IsAccessDenied, // redacted
+		},
+		{
+			name: "unknown user auto-enroll not allowed",
+			user: unknownUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceData: cdValid,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+		{
+			name: "unknown user device ID not allowed",
+			user: unknownUser,
+			req: &devicepb.CreateDeviceEnrollTokenRequest{
+				DeviceId: dev.Id,
+			},
+			assertErr: trace.IsAccessDenied,
+		},
+	})
+}
+
+// authorizerUserKey is used by [userAwareAuthorizer].
+const authorizerUserKey = "user"
+
+// userAwareAuthorizer allows access based on the context user. See [metadata]
+// and [authorizerUserKey]
+// Used by CreateDeviceEnrollToken/auto-enroll tests.
+type userAwareAuthorizer struct {
+	services.AccessChecker // double as an AccessChecker.
+
+	knownUsers      []string
+	authorizedUsers []string
+}
+
+func (a *userAwareAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	// Fetch the user from the "user" metadata key.
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, errors.New("ctx lacks metadata")
+	}
+	users := md.Get(authorizerUserKey)
+	if len(users) == 0 || len(users[0]) == 0 {
+		return nil, errors.New("ctx lacks user")
+	}
+	username := users[0]
+
+	// Fail Authorize for unknown users.
+	found := false
+	for _, known := range a.knownUsers {
+		if username == known {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, trace.AccessDenied("unknown user")
+	}
+
+	// Proceed.
+	user, err := types.NewUser(username)
+	if err != nil {
+		return nil, fmt.Errorf("creating user: %v", err)
+	}
+	return &authz.Context{
+		User:    user,
+		Checker: a,
+	}, nil
+}
+
+func (a *userAwareAuthorizer) CheckAccessToRule(ruleCtx services.RuleContext, namespace, rule, verb string, silent bool) error {
+	user, err := ruleCtx.GetIdentifier([]string{"user", "metadata", "name"})
+	if err != nil {
+		return err
+	}
+
+	for _, authz := range a.authorizedUsers {
+		if user == authz {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied")
 }
 
 func TestService_dataDriftErrorsRedacted(t *testing.T) {
