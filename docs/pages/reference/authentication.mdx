@@ -123,16 +123,16 @@ $ tctl create -f cap.yaml
 
 ### Local User Locks
 
-A lock on attempting logins is placed for 20 minutes if within a 30 minute window 
-a local user has:
+A lock is placed on a local user if, within a 30 minute window, a local user has:
+
 - 5 failed login attempts or
 - 3 failed password resets
 
-After the lock has expired the user may attempt to login again.
+The lock lasts 20 minutes. After the lock has expired the user may attempt to login again.
 
-Overriding the lock is available to users with rights to maintain `user` resources,
-available in the builtin `editor` role.  To turn off a lock update the user entry
-to disable the lock. Here are steps to complete that.
+Overriding a lock is available to users with rights to maintain `user` resources,
+available in the builtin `editor` role. To turn off a lock, update the user entry
+to disable the lock, following these steps.
 
 Retrieve the user entry so you can edit the status:
 
