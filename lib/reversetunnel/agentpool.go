@@ -214,9 +214,8 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	pool.newAgentFunc = pool.newAgent
 	pool.tlsRoutingUpgradeRequired = tlsRoutingUpgradeRequiredCache(ctx, time.Second*15, config.Resolver, pool.Clock, pool.log)
 
-	err = pool.updateRuntimeConfig(ctx)
-	if err != nil {
-		pool.log.WithError(err).Debugf("unable to init runtime config")
+	if err := pool.updateRuntimeConfig(ctx); err != nil {
+		pool.log.WithError(err).Debug("unable to init runtime config")
 	}
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)

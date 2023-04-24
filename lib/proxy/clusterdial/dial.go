@@ -57,12 +57,13 @@ func (cd *ClusterDialer) DialAuth(clusterName string, request peer.DialParams) (
 		return nil, trace.Wrap(err)
 	}
 
-	return site.DialAuthServer(reversetunnel.DialParams{
+	conn, err := site.DialAuthServer(reversetunnel.DialParams{
 		From:                  request.From,
 		To:                    request.To,
 		OriginalClientDstAddr: request.To,
 		FromPeerProxy:         true,
 	})
+	return conn, trace.Wrap(err)
 }
 
 // NewClusterDialer implements proxy.ClusterDialer for a reverse tunnel server.

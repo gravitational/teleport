@@ -165,8 +165,7 @@ func (s *remoteSite) tunnelCount() int {
 }
 
 func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
-	err := s.checkConnectivity()
-	if err != nil {
+	if err := s.checkConnectivity(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.remoteAccessPoint, nil
@@ -174,8 +173,7 @@ func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
 func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
-	err := s.checkConnectivity()
-	if err != nil {
+	if err := s.checkConnectivity(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.nodeWatcher, nil
@@ -191,8 +189,7 @@ func (s *remoteSite) checkConnectivity() error {
 }
 
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
-	err := s.checkConnectivity()
-	if err != nil {
+	if err := s.checkConnectivity();  err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.remoteClient, nil

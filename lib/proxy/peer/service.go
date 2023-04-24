@@ -90,11 +90,7 @@ func (s *proxyService) handleDialRequest(stream proto.ProxyService_DialNodeServe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.handleConnectionStream(stream, conn, source, destination, log)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(s.handleConnectionStream(stream, conn, source, destination, log))
 }
 
 func (s *proxyService) handleDialAuth(stream proto.ProxyService_DialNodeServer, dial *proto.DialAuth) error {
@@ -128,11 +124,7 @@ func (s *proxyService) handleDialAuth(stream proto.ProxyService_DialNodeServer, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = s.handleConnectionStream(stream, conn, source, destination, log)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(s.handleConnectionStream(stream, conn, source, destination, log))
 }
 
 func (s *proxyService) handleConnectionStream(stream proto.ProxyService_DialNodeServer, conn net.Conn, source, destination net.Addr, log logrus.FieldLogger) error {
