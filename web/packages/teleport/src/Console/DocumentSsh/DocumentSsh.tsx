@@ -45,14 +45,14 @@ export default function DocumentSshWrapper(props: PropTypes) {
   );
 }
 
-export function DocumentSsh({ doc, visible }: PropTypes) {
+function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
   const {
     getMfaResponseAttempt,
-    handleDownload,
-    handleUpload,
+    getDownloader,
+    getUploader,
     fileTransferRequests,
   } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
 
@@ -106,8 +106,8 @@ export function DocumentSsh({ doc, visible }: PropTypes) {
         afterClose={handleCloseFileTransfer}
         backgroundColor={colors.levels.surface}
         transferHandlers={{
-          getDownloader: handleDownload,
-          getUploader: handleUpload,
+          getDownloader,
+          getUploader,
         }}
       />
     </Document>

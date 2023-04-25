@@ -65,10 +65,7 @@ export default function useSshSession(doc: DocumentSsh) {
             const data = JSON.parse(payload);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;
-            setSession(prev => ({
-              ...prev,
-              moderated: data.session.moderated,
-            }));
+            setSession(data.session);
             handleTtyConnect(ctx, data.session, doc.id);
           });
 

@@ -18,7 +18,11 @@ import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
-import { FileTransferRequest } from 'teleport/Console/DocumentSsh/useFileTransfer';
+import {
+  FileTransferRequest,
+  isOwnRequest,
+} from 'teleport/Console/DocumentSsh/useFileTransfer';
+import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];
@@ -31,6 +35,9 @@ export const FileTransferRequests = ({
   onApprove,
   onDeny,
 }: FileTransferRequestsProps) => {
+  const ctx = useConsoleContext();
+  const currentUser = ctx.getStoreUser();
+
   if (requests.length > 0) {
     return (
       <Container show={requests.length > 0}>
@@ -40,7 +47,7 @@ export const FileTransferRequests = ({
           </Text>
         </Flex>
         {requests.map(request =>
-          request.isOwnRequest ? (
+          isOwnRequest(request, currentUser.username) ? (
             <OwnForm
               key={request.requestID}
               request={request}

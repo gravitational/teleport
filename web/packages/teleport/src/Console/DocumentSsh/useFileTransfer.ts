@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useFileTransferContext } from 'shared/components/FileTransfer';
 
 import Tty from 'teleport/lib/term/tty';
@@ -35,7 +35,13 @@ export type FileTransferRequest = {
   location: string;
   filename?: string;
   download: boolean;
-  isOwnRequest?: boolean;
+};
+
+export const isOwnRequest = (
+  request: FileTransferRequest,
+  currentUser: string
+) => {
+  return request.requester === currentUser;
 };
 
 export const useFileTransfer = (
@@ -46,42 +52,176 @@ export const useFileTransfer = (
 ) => {
   const { filesStore } = useFileTransferContext();
   const ctx = useConsoleContext();
-  const user = ctx.getStoreUser();
+  const currentUser = ctx.getStoreUser();
   const [fileTransferRequests, setFileTransferRequests] = useState<
     FileTransferRequest[]
   >([]);
   const { getScpUrl, attempt: getMfaResponseAttempt } =
     useGetScpUrl(addMfaToScpUrls);
 
+  const download = useCallback(
+    async (
+      location: string,
+      abortController: AbortController,
+      moderatedSessionParams?: ModeratedSessionParams
+    ) => {
+      const { clusterId, serverId, login } = currentDoc;
+      const url = await getScpUrl({
+        location,
+        clusterId: clusterId,
+        serverId: serverId,
+        login: login,
+        filename: location,
+        moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
+        fileTransferRequestId: moderatedSessionParams?.fileRequestId,
+      });
+      if (!url) {
+        // if we return nothing here, the file transfer will not be added to the
+        // file transfer list. If we add it to the list, the file will continue to
+        // start the download and return another here. This prevents a second network
+        // request that we know will fail.
+        return;
+      }
+      return getHttpFileTransferHandlers().download(url, abortController);
+    },
+    [currentDoc, getScpUrl]
+  );
+
+  const upload = useCallback(
+    async (
+      location: string,
+      file: File,
+      abortController: AbortController,
+      moderatedSessionParams?: ModeratedSessionParams
+    ) => {
+      const { clusterId, serverId, login } = currentDoc;
+      const url = await getScpUrl({
+        location,
+        clusterId: clusterId,
+        serverId: serverId,
+        login: login,
+        filename: file.name,
+        moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
+        fileTransferRequestId: moderatedSessionParams?.fileRequestId,
+      });
+      if (!url) {
+        // if we return nothing here, the file transfer will not be added to the
+        // file transfer list. If we add it to the list, the file will continue to
+        // start the download and return another here. This prevents a second network
+        // request that we know will fail.
+        return;
+      }
+      return getHttpFileTransferHandlers().upload(url, file, abortController);
+    },
+    [currentDoc, getScpUrl]
+  );
+
+  /*
+   * TTY event listeners
+   */
+
+  // handleFileTransferDenied is called when a FILE_TRANSFER_REQUEST_DENY event is received
+  // from the tty.
+  const handleFileTransferDenied = useCallback(
+    (request: FileTransferRequest) => {
+      removeFileTransferRequest(request.requestID);
+    },
+    []
+  );
+
+  // handleFileTransferApproval is called when a FILE_TRANSFER_REQUEST_APPROVE event is received.
+  // This isn't called when a single approval is received, but rather when the request approval policy has been
+  // completely fulfilled, i.e. "This request requires two moderators approval and we received both". Any approve that
+  // doesn't fulfill the policy will be sent as an update and handled in handleFileTransferUpdate
+  const handleFileTransferApproval = useCallback(
+    (request: FileTransferRequest, file?: File) => {
+      removeFileTransferRequest(request.requestID);
+      if (!isOwnRequest(request, currentUser.username)) {
+        return;
+      }
+
+      if (request.download) {
+        return filesStore.start({
+          name: request.location,
+          runFileTransfer: abortController =>
+            download(request.location, abortController, {
+              fileRequestId: request.requestID,
+              moderatedSessionId: request.sid,
+            }),
+        });
+      }
+
+      // if it gets here, it's an upload
+      if (!file) {
+        throw new Error('Approved file not found for upload.');
+      }
+      return filesStore.start({
+        name: request.filename,
+        runFileTransfer: abortController =>
+          upload(request.location, file, abortController, {
+            fileRequestId: request.requestID,
+            moderatedSessionId: request.sid,
+          }),
+      });
+    },
+    [currentUser.username, download, filesStore, upload]
+  );
+
+  // handleFileTransferUpdate is called when a FILE_TRANSFER_REQUEST event is received. This is used when
+  // we receive a new file transfer request, or when a request has been updated with an approval but its policy isn't
+  // completely approved yet. An update in this way generally means that the approver array is updated.
+  function handleFileTransferUpdate(data: FileTransferRequest) {
+    setFileTransferRequests(prevstate => {
+      // We receive the same data type when a file transfer request is created and
+      // when an update event happens. Check if we already have this request in our list. If not
+      // in our list, we add it
+      const foundRequest = prevstate.find(
+        ft => ft.requestID === data.requestID
+      );
+      if (!foundRequest) {
+        return [...prevstate, data];
+      } else {
+        return prevstate.map(ft => {
+          if (ft.requestID === data.requestID) {
+            return data;
+          }
+          return ft;
+        });
+      }
+    });
+  }
+
   useEffect(() => {
     // the tty will be init outside of this hook, so we wait until
     // it exists and then attach file transfer handlers to it
-    if (tty) {
-      tty.on(EventType.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
-      tty.on(
+    if (!tty) {
+      return;
+    }
+    tty.on(EventType.FILE_TRANSFER_REQUEST, handleFileTransferUpdate);
+    tty.on(EventType.FILE_TRANSFER_REQUEST_APPROVE, handleFileTransferApproval);
+    tty.on(EventType.FILE_TRANSFER_REQUEST_DENY, handleFileTransferDenied);
+    return () => {
+      if (!tty) {
+        return;
+      }
+      tty.removeListener(
+        EventType.FILE_TRANSFER_REQUEST,
+        handleFileTransferUpdate
+      );
+      tty.removeListener(
         EventType.FILE_TRANSFER_REQUEST_APPROVE,
         handleFileTransferApproval
       );
-      tty.on(EventType.FILE_TRANSFER_REQUEST_DENY, handleFileTransferDenied);
-    }
-
-    return () => {
-      if (tty) {
-        tty.removeListener(
-          EventType.FILE_TRANSFER_REQUEST,
-          updateFileTransferRequests
-        );
-        tty.removeListener(
-          EventType.FILE_TRANSFER_REQUEST_APPROVE,
-          handleFileTransferApproval
-        );
-        tty.removeListener(
-          EventType.FILE_TRANSFER_REQUEST_DENY,
-          handleFileTransferDenied
-        );
-      }
+      tty.removeListener(
+        EventType.FILE_TRANSFER_REQUEST_DENY,
+        handleFileTransferDenied
+      );
     };
-  }, [tty]);
+  }, [tty, handleFileTransferDenied, handleFileTransferApproval]);
+
+  /*
+   * Transfer handlers
+   */
 
   function removeFileTransferRequest(requestId: string) {
     setFileTransferRequests(prevstate =>
@@ -89,31 +229,7 @@ export const useFileTransfer = (
     );
   }
 
-  async function download(
-    location: string,
-    abortController: AbortController,
-    moderatedSessionParams?: ModeratedSessionParams
-  ) {
-    const url = await getScpUrl({
-      location,
-      clusterId: currentDoc.clusterId,
-      serverId: currentDoc.serverId,
-      login: currentDoc.login,
-      filename: location,
-      moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
-      fileTransferRequestId: moderatedSessionParams?.fileRequestId,
-    });
-    if (!url) {
-      // if we return nothing here, the file transfer will not be added to the
-      // file transfer list. If we add it to the list, the file will continue to
-      // start the download and return another here. This prevents a second network
-      // request that we know will fail.
-      return;
-    }
-    return getHttpFileTransferHandlers().download(url, abortController);
-  }
-
-  async function handleDownload(
+  async function getDownloader(
     location: string,
     abortController: AbortController
   ) {
@@ -125,32 +241,7 @@ export const useFileTransfer = (
     return download(location, abortController);
   }
 
-  async function upload(
-    location: string,
-    file: File,
-    abortController: AbortController,
-    moderatedSessionParams?: ModeratedSessionParams
-  ) {
-    const url = await getScpUrl({
-      location,
-      clusterId: currentDoc.clusterId,
-      serverId: currentDoc.serverId,
-      login: currentDoc.login,
-      filename: file.name,
-      moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
-      fileTransferRequestId: moderatedSessionParams?.fileRequestId,
-    });
-    if (!url) {
-      // if we return nothing here, the file transfer will not be added to the
-      // file transfer list. If we add it to the list, the file will continue to
-      // start the download and return another here. This prevents a second network
-      // request that we know will fail.
-      return;
-    }
-    return getHttpFileTransferHandlers().upload(url, file, abortController);
-  }
-
-  async function handleUpload(
+  async function getUploader(
     location: string,
     file: File,
     abortController: AbortController
@@ -163,74 +254,11 @@ export const useFileTransfer = (
     return upload(location, file, abortController);
   }
 
-  function handleFileTransferDenied(request: FileTransferRequest) {
-    removeFileTransferRequest(request.requestID);
-  }
-
-  function handleFileTransferApproval(
-    request: FileTransferRequest,
-    file?: File
-  ) {
-    removeFileTransferRequest(request.requestID);
-    if (request.requester !== user.username) {
-      return;
-    }
-
-    if (request.download) {
-      return filesStore.start({
-        name: request.location,
-        runFileTransfer: abortController =>
-          download(request.location, abortController, {
-            fileRequestId: request.requestID,
-            moderatedSessionId: request.sid,
-          }),
-      });
-    }
-
-    // if it gets here, it's an upload
-    if (!file) {
-      throw new Error('Approved file not found for upload.');
-    }
-    return filesStore.start({
-      name: request.filename,
-      runFileTransfer: abortController =>
-        upload(request.location, file, abortController, {
-          fileRequestId: request.requestID,
-          moderatedSessionId: request.sid,
-        }),
-    });
-  }
-
-  function updateFileTransferRequests(data: FileTransferRequest) {
-    const newFileTransferRequest: FileTransferRequest = {
-      ...data,
-      isOwnRequest: user.username === data.requester,
-    };
-    setFileTransferRequests(prevstate => {
-      // We receive the same data type when a file transfer request is created and
-      // when an update event happens. Check if we already have this request in our list. If not
-      // in our list, we add it
-      const foundRequest = prevstate.find(
-        ft => ft.requestID === newFileTransferRequest.requestID
-      );
-      if (!foundRequest) {
-        return [...prevstate, newFileTransferRequest];
-      } else {
-        return prevstate.map(ft => {
-          if (ft.requestID === newFileTransferRequest.requestID) {
-            return newFileTransferRequest;
-          }
-          return ft;
-        });
-      }
-    });
-  }
-
   return {
     fileTransferRequests,
     getMfaResponseAttempt,
-    handleUpload,
-    handleDownload,
+    getUploader,
+    getDownloader,
   };
 };
 
