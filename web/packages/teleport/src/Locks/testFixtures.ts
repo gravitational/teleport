@@ -205,13 +205,21 @@ export const mockedUseTeleportUtils = {
 };
 
 export const USER_RESULT = [
-  { name: 'admin-local', roles: 'access, admin, auditor, editor' },
-  { name: 'admin', roles: 'access, admin, auditor, editor, locksmith' },
-  { name: 'worker', roles: 'access, contractor' },
+  {
+    name: 'admin-local',
+    targetValue: 'admin-local',
+    roles: 'access, admin, auditor, editor',
+  },
+  {
+    name: 'admin',
+    targetValue: 'admin',
+    roles: 'access, admin, auditor, editor, locksmith',
+  },
+  { name: 'worker', targetValue: 'worker', roles: 'access, contractor' },
 ];
 
 export const ROLES_RESULT = [
-  { name: 'admin' },
-  { name: 'contractor' },
-  { name: 'locksmith' },
+  { name: 'admin', targetValue: 'admin' },
+  { name: 'contractor', targetValue: 'contractor' },
+  { name: 'locksmith', targetValue: 'locksmith' },
 ];
