@@ -594,6 +594,10 @@ type Server struct {
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
 
+	// httpClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests.
+	httpClientForAWSSTS stsClient
+
 	// firstStart indicates if the auth service is starting for the first time.
 	firstStart bool
 }
@@ -5410,4 +5414,13 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
+}
+
+// WithHTTPClientForAWSSTS is a ServerOption that overwrites default HTTP
+// client used for STS requests.
+func WithHTTPClientForAWSSTS(client stsClient) ServerOption {
+	return func(s *Server) error {
+		s.httpClientForAWSSTS = client
+		return nil
+	}
 }
