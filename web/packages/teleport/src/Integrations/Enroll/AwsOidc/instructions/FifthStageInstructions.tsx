@@ -35,7 +35,7 @@ export function FifthStageInstructions(props: CommonInstructionsProps) {
             "Action": [
                 "rds:DescribeDBInstances",
                 "rds:DescribeDBClusters"
-            ]
+            ],
             "Resource": "*"
         }
     ]

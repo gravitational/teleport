@@ -261,8 +261,8 @@ export const Labels = ({
             <br />
             You can define your own labels that this database service will use
             to identify your registered database. The labels you define must
-            match with the labels that was defined for the registered database
-            (from previous step):
+            match the labels that were defined for the registered database (from
+            previous step):
           </>
         )}
       </Text>
@@ -292,7 +292,7 @@ export const Labels = ({
           <TextIcon>
             <Icons.Warning ml={1} color="error.main" />
             The matcher labels must be able to match with the labels defined for
-            the registered database. Use wildcards to match by any labels.
+            the registered database. Use wildcards to match with any labels.
           </TextIcon>
         )}
       </Box>

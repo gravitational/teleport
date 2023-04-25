@@ -42,7 +42,11 @@ import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, HeaderSubtitle, HeaderWithBackBtn } from '../../Shared';
 
-import { DbMeta, DiscoverUrlLocState, useDiscover } from '../../useDiscover';
+import {
+  DbMeta,
+  DiscoverUrlLocationState,
+  useDiscover,
+} from '../../useDiscover';
 
 export function ConnectAwsAccount() {
   const { storeUser } = useTeleport();
@@ -164,7 +168,7 @@ export function ConnectAwsAccount() {
         resourceSpec,
         currentStep,
       },
-    } as DiscoverUrlLocState,
+    } as DiscoverUrlLocationState,
   };
   return (
     <Box maxWidth="700px">

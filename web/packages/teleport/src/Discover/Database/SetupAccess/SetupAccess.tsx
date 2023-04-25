@@ -207,7 +207,7 @@ function DbEngineInstructions({
         return (
           <Box mb={3}>
             <Text mb={2}>
-              Users must have a <Mark>rds_iam</Mark> role:
+              Users must have an <Mark>rds_iam</Mark> role:
             </Text>
             <TextSelectCopyMulti
               bash={false}

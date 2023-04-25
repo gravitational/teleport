@@ -37,7 +37,7 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
-import { DiscoverUrlLocState } from 'teleport/Discover/useDiscover';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
 import { InstructionsContainer } from './common';
 
@@ -119,7 +119,7 @@ export function SuccessfullyAddedIntegrationDialog({
 }: {
   integrationName: string;
 }) {
-  const location = useLocation<DiscoverUrlLocState>();
+  const location = useLocation<DiscoverUrlLocationState>();
 
   return (
     <Dialog

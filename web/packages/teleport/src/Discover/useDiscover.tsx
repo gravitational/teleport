@@ -74,13 +74,13 @@ type DiscoverProviderProps = {
   mockCtx?: DiscoverContextState;
 };
 
-// DiscoverUrlLocState define fields to preserve state between
+// DiscoverUrlLocationState define fields to preserve state between
 // react routes (eg. in RDS database flow, it is required of user
 // to create a AWS OIDC integration which requires changing route
 // and then coming back to resume the flow.)
-export type DiscoverUrlLocState = {
+export type DiscoverUrlLocationState = {
   // discover contains the fields necessary to be able to resume
-  // the flow from where user left of.
+  // the flow from where user left off.
   discover: {
     eventState: EventState;
     resourceSpec: ResourceSpec;
@@ -97,7 +97,7 @@ export function DiscoverProvider(
   props: React.PropsWithChildren<DiscoverProviderProps>
 ) {
   const history = useHistory();
-  const location = useLocation<DiscoverUrlLocState>();
+  const location = useLocation<DiscoverUrlLocationState>();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
