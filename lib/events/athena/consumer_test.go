@@ -573,3 +573,112 @@ func TestConsumerWriteToS3(t *testing.T) {
 		})
 	}
 }
+
+func TestDeleteMessagesFromQueue(t *testing.T) {
+	ctx := context.Background()
+
+	handlesGen := func(n int) []string {
+		out := make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			out = append(out, fmt.Sprintf("handle-%d", i))
+		}
+		return out
+	}
+
+	t.Run("delete returns no error, expect 2 calls to delete", func(t *testing.T) {
+		noOfHandles := 18
+		mock := &mockSQSDeleter{
+			respFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				if aws.ToString(params.QueueUrl) == "" {
+					return nil, errors.New("mock called with empty QueueUrl")
+				}
+				if noOfEntries := len(params.Entries); noOfEntries > 10 || noOfEntries == 0 {
+					return nil, fmt.Errorf("mock called with invalid number of entries %d", noOfEntries)
+				}
+				return &sqs.DeleteMessageBatchOutput{}, nil
+			},
+		}
+		c := consumer{
+			sqsDeleter: mock,
+			queueURL:   "queue-url",
+		}
+		err := c.deleteMessagesFromQueue(ctx, handlesGen(noOfHandles))
+		require.NoError(t, err)
+		require.Equal(t, 2, mock.calls)
+		require.Equal(t, noOfHandles, mock.noOfEntries)
+	})
+
+	t.Run("delete returns top level error, make sure it's returned", func(t *testing.T) {
+		noOfHandles := 18
+		mock := &mockSQSDeleter{
+			respFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				if aws.ToString(params.QueueUrl) == "" {
+					return nil, errors.New("mock called with empty QueueUrl")
+				}
+				if noOfEntries := len(params.Entries); noOfEntries > 10 || noOfEntries == 0 {
+					return nil, fmt.Errorf("mock called with invalid number of entries %d", noOfEntries)
+				}
+				return nil, errors.New("AWS API err")
+			},
+		}
+		c := consumer{
+			sqsDeleter: mock,
+			queueURL:   "queue-url",
+		}
+		err := c.deleteMessagesFromQueue(ctx, handlesGen(noOfHandles))
+		require.ErrorContains(t, err, "AWS API err")
+	})
+	t.Run("half of entries returns error", func(t *testing.T) {
+		noOfHandles := 18
+		mock := &mockSQSDeleter{
+			respFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				success := make([]sqsTypes.DeleteMessageBatchResultEntry, 0)
+				failed := make([]sqsTypes.BatchResultErrorEntry, 0)
+				for i, e := range params.Entries {
+					if i%2 == 0 {
+						success = append(success, sqsTypes.DeleteMessageBatchResultEntry{
+							Id: e.Id,
+						})
+					} else {
+						failed = append(failed, sqsTypes.BatchResultErrorEntry{
+							Id:      e.Id,
+							Message: aws.String("entry failed"),
+						})
+					}
+				}
+				return &sqs.DeleteMessageBatchOutput{
+					Failed:     failed,
+					Successful: success,
+				}, nil
+			},
+		}
+		c := consumer{
+			sqsDeleter: mock,
+			queueURL:   "queue-url",
+		}
+		err := c.deleteMessagesFromQueue(ctx, handlesGen(noOfHandles))
+		require.Error(t, err)
+		agg, ok := trace.Unwrap(err).(trace.Aggregate)
+		require.True(t, ok)
+		for _, errFromAgg := range agg.Errors() {
+			require.ErrorContains(t, errFromAgg, "entry failed")
+		}
+	})
+}
+
+type mockSQSDeleter struct {
+	respFn func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
+
+	// mu protects fields below
+	mu          sync.Mutex
+	calls       int
+	noOfEntries int
+}
+
+func (m *mockSQSDeleter) DeleteMessageBatch(ctx context.Context, params *sqs.DeleteMessageBatchInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	m.noOfEntries += len(params.Entries)
+	return m.respFn(ctx, params)
+}
