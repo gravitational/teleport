@@ -73,12 +73,26 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   /**
    * Logs out of the cluster and removes the profile.
-   * Does not remove the cluster from the state.
+   * Does not remove the cluster from the state, but sets the cluster and its leafs as disconnected.
+   * It needs to be done, because some code can operate on the cluster the intermediate period between logout
+   * and actually removing it from the state.
+   * A code that operates on that intermediate state is in `useClusterLogout.tsx`.
+   * After invoking `logout()`, it looks for the next workspace to switch to. If we hadn't marked the cluster as disconnected,
+   * the method might have returned us the same cluster we wanted to log out of.
    */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
     await this.client.removeCluster(clusterUri);
+
+    this.setState(draft => {
+      draft.clusters.forEach(cluster => {
+        const isRootOrLeafThatBelongsToRoot = routing.ensureRootClusterUri(cluster.uri) === clusterUri;
+        if (isRootOrLeafThatBelongsToRoot) {
+          cluster.connected = false;
+        }
+      });
+    });
   }
 
   async loginLocal(
@@ -306,17 +320,13 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   /** Removes cluster, its leafs and other resources. */
   async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
-    const leafClustersUris = this.getClusters()
-      .filter(
-        item =>
-          item.leaf && routing.ensureRootClusterUri(item.uri) === clusterUri
-      )
-      .map(cluster => cluster.uri);
     this.setState(draft => {
-      draft.clusters.delete(clusterUri);
-      leafClustersUris.forEach(leafClusterUri => {
-        draft.clusters.delete(leafClusterUri);
-      });
+      draft.clusters.forEach(cluster => {
+        const isRootOrLeafThatBelongsToRoot = routing.ensureRootClusterUri(cluster.uri) === clusterUri;
+        if (isRootOrLeafThatBelongsToRoot) {
+          draft.clusters.delete(cluster.uri);
+        }
+      })
     });
     await this.removeClusterKubeConfigs(clusterUri);
   }

@@ -189,6 +189,8 @@ test('logout from cluster', async () => {
 
   expect(logout).toHaveBeenCalledWith(clusterUri);
   expect(removeCluster).toHaveBeenCalledWith(clusterUri);
+  expect(service.findCluster(clusterMock.uri).connected).toBe(false);
+  expect(service.findCluster(leafClusterMock.uri).connected).toBe(false);
 });
 
 test('create a gateway', async () => {
