@@ -16,7 +16,6 @@
 
 import { useEffect, useState } from 'react';
 import { useFileTransferContext } from 'shared/components/FileTransfer';
-import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests';
 
 import Tty from 'teleport/lib/term/tty';
 import { EventType } from 'teleport/lib/term/enums';
@@ -28,7 +27,18 @@ import { useConsoleContext } from '../consoleContextProvider';
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 import useGetScpUrl from './useGetScpUrl';
 
-const useFileTransfer = (
+export type FileTransferRequest = {
+  sid: string;
+  requestID: string;
+  requester: string;
+  approvers: string[];
+  location: string;
+  filename?: string;
+  download: boolean;
+  isOwnRequest?: boolean;
+};
+
+export const useFileTransfer = (
   tty: Tty,
   session: Session,
   currentDoc: DocumentSsh,
@@ -54,6 +64,23 @@ const useFileTransfer = (
       );
       tty.on(EventType.FILE_TRANSFER_REQUEST_DENY, handleFileTransferDenied);
     }
+
+    return () => {
+      if (tty) {
+        tty.removeListener(
+          EventType.FILE_TRANSFER_REQUEST,
+          updateFileTransferRequests
+        );
+        tty.removeListener(
+          EventType.FILE_TRANSFER_REQUEST_APPROVE,
+          handleFileTransferApproval
+        );
+        tty.removeListener(
+          EventType.FILE_TRANSFER_REQUEST_DENY,
+          handleFileTransferDenied
+        );
+      }
+    };
   }, [tty]);
 
   function removeFileTransferRequest(requestId: string) {
@@ -67,10 +94,6 @@ const useFileTransfer = (
     abortController: AbortController,
     moderatedSessionParams?: ModeratedSessionParams
   ) {
-    if (session.moderated) {
-      tty.sendFileTransferRequest(location, true);
-      return;
-    }
     const url = await getScpUrl({
       location,
       clusterId: currentDoc.clusterId,
@@ -90,16 +113,24 @@ const useFileTransfer = (
     return getHttpFileTransferHandlers().download(url, abortController);
   }
 
+  async function handleDownload(
+    location: string,
+    abortController: AbortController
+  ) {
+    if (session.moderated) {
+      tty.sendFileDownloadRequest(location);
+      return;
+    }
+
+    return download(location, abortController);
+  }
+
   async function upload(
     location: string,
     file: File,
     abortController: AbortController,
     moderatedSessionParams?: ModeratedSessionParams
   ) {
-    if (session.moderated) {
-      tty.sendFileTransferRequest(location, false, file);
-      return;
-    }
     const url = await getScpUrl({
       location,
       clusterId: currentDoc.clusterId,
@@ -117,6 +148,19 @@ const useFileTransfer = (
       return;
     }
     return getHttpFileTransferHandlers().upload(url, file, abortController);
+  }
+
+  async function handleUpload(
+    location: string,
+    file: File,
+    abortController: AbortController
+  ) {
+    if (session.moderated) {
+      tty.sendFileUploadRequest(location, file);
+      return;
+    }
+
+    return upload(location, file, abortController);
   }
 
   function handleFileTransferDenied(request: FileTransferRequest) {
@@ -185,12 +229,10 @@ const useFileTransfer = (
   return {
     fileTransferRequests,
     getMfaResponseAttempt,
-    upload,
-    download,
+    handleUpload,
+    handleDownload,
   };
 };
-
-export default useFileTransfer;
 
 type ModeratedSessionParams = {
   fileRequestId: string;

@@ -81,21 +81,31 @@ class Tty extends EventEmitterWebAuthnSender {
     this.send(JSON.stringify(data));
   }
 
-  sendFileTransferRequest(location: string, download: boolean, file?: File) {
-    if (file) {
-      const locationAndName = location + file.name;
-      this._pendingUploads[locationAndName] = file;
-    }
-    const message = JSON.stringify({
-      event: EventType.FILE_TRANSFER_REQUEST,
-      download,
-      location,
-      filename: file?.name,
-      size: file?.size.toString(),
-    });
+  _sendFileTransferRequest(message: string) {
     const encoded = this._proto.encodeFileTransferRequest(message);
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
+  }
+
+  sendFileDownloadRequest(location: string) {
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST,
+      download: true,
+      location,
+    });
+    this._sendFileTransferRequest(message);
+  }
+
+  sendFileUploadRequest(location: string, file: File) {
+    const locationAndName = location + file.name;
+    this._pendingUploads[locationAndName] = file;
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST,
+      download: false,
+      location,
+      filename: file.name,
+    });
+    this._sendFileTransferRequest(message);
   }
 
   approveFileTransferRequest(requestId: string, approved: boolean) {

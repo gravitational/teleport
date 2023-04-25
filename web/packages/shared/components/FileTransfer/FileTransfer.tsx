@@ -17,12 +17,12 @@
 import React from 'react';
 
 import { useFileTransferContext } from './FileTransferContextProvider';
-import { FilesStore } from './useFilesStore';
 import {
   FileTransferDialogDirection,
   FileTransferListeners,
   FileTransferStateless,
 } from './FileTransferStateless';
+import { FileTransferContainer } from './FileTransferContainer';
 
 interface FileTransferProps {
   backgroundColor?: string;
@@ -37,6 +37,8 @@ interface FileTransferProps {
   beforeClose?(): Promise<boolean> | boolean;
 
   afterClose?(): void;
+
+  FileTransferRequestsComponent?: JSX.Element;
 }
 
 /**
@@ -56,7 +58,7 @@ export interface TransferHandlers {
 }
 
 export function FileTransfer(props: FileTransferProps) {
-  const { openedDialog, closeDialog, filesStore } = useFileTransferContext();
+  const { openedDialog, closeDialog } = useFileTransferContext();
 
   async function handleCloseDialog(
     isAnyTransferInProgress: boolean
@@ -76,19 +78,19 @@ export function FileTransfer(props: FileTransferProps) {
     }
   }
 
-  if (!openedDialog) {
-    return null;
-  }
-
   return (
-    <FileTransferDialog
-      filesStore={filesStore}
-      errorText={props.errorText}
-      openedDialog={openedDialog}
-      backgroundColor={props.backgroundColor}
-      transferHandlers={props.transferHandlers}
-      onCloseDialog={handleCloseDialog}
-    />
+    <FileTransferContainer>
+      {props.FileTransferRequestsComponent}
+      {openedDialog && (
+        <FileTransferDialog
+          errorText={props.errorText}
+          openedDialog={openedDialog}
+          backgroundColor={props.backgroundColor}
+          transferHandlers={props.transferHandlers}
+          onCloseDialog={handleCloseDialog}
+        />
+      )}
+    </FileTransferContainer>
   );
 }
 
@@ -99,10 +101,9 @@ export function FileTransferDialog(
   > & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
-    filesStore: FilesStore;
   }
 ) {
-  const filesStore = props.filesStore;
+  const { filesStore } = useFileTransferContext();
 
   function handleAddDownload(sourcePath: string): void {
     filesStore.start({

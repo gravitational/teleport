@@ -20,7 +20,6 @@ import { Box, Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { FileTransferContextProvider } from 'shared/components/FileTransfer';
 
 import AjaxPoller from 'teleport/components/AjaxPoller';
 
@@ -128,11 +127,7 @@ function MemoizedDocument(props: { doc: stores.Document; visible: boolean }) {
   return React.useMemo(() => {
     switch (doc.kind) {
       case 'terminal':
-        return (
-          <FileTransferContextProvider>
-            <DocumentSsh doc={doc} visible={visible} />
-          </FileTransferContextProvider>
-        );
+        return <DocumentSsh doc={doc} visible={visible} />;
       case 'nodes':
         return <DocumentNodes doc={doc} visible={visible} />;
       default:

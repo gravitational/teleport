@@ -21,8 +21,8 @@ import { Indicator, Box } from 'design';
 import {
   FileTransferActionBar,
   FileTransfer,
-  FileTransferContainer,
   FileTransferRequests,
+  FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 
 import * as stores from 'teleport/Console/stores';
@@ -35,14 +35,26 @@ import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import useFileTransfer from './useFileTransfer';
+import { useFileTransfer } from './useFileTransfer';
 
-export default function DocumentSsh({ doc, visible }: PropTypes) {
+export default function DocumentSshWrapper(props: PropTypes) {
+  return (
+    <FileTransferContextProvider>
+      <DocumentSsh {...props} />
+    </FileTransferContextProvider>
+  );
+}
+
+export function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const { getMfaResponseAttempt, upload, download, fileTransferRequests } =
-    useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
+  const {
+    getMfaResponseAttempt,
+    handleDownload,
+    handleUpload,
+    fileTransferRequests,
+  } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -75,31 +87,29 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         />
       )}
       {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-      <FileTransferContainer>
-        {fileTransferRequests.length > 0 && (
+      <FileTransfer
+        FileTransferRequestsComponent={
           <FileTransferRequests
             onDeny={handleFileTransferDecision}
             onApprove={handleFileTransferDecision}
             requests={fileTransferRequests}
           />
-        )}
-        <FileTransfer
-          beforeClose={() =>
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          errorText={
-            getMfaResponseAttempt.status === 'failed'
-              ? getMfaResponseAttempt.statusText
-              : null
-          }
-          afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.levels.surface}
-          transferHandlers={{
-            getDownloader: download,
-            getUploader: upload,
-          }}
-        />
-      </FileTransferContainer>
+        }
+        beforeClose={() =>
+          window.confirm('Are you sure you want to cancel file transfers?')
+        }
+        errorText={
+          getMfaResponseAttempt.status === 'failed'
+            ? getMfaResponseAttempt.statusText
+            : null
+        }
+        afterClose={handleCloseFileTransfer}
+        backgroundColor={colors.levels.surface}
+        transferHandlers={{
+          getDownloader: handleDownload,
+          getUploader: handleUpload,
+        }}
+      />
     </Document>
   );
 }

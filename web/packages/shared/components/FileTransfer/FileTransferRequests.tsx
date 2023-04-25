@@ -18,19 +18,54 @@ import React from 'react';
 import styled from 'styled-components';
 import { ButtonBorder, Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
+import { FileTransferRequest } from 'teleport/Console/DocumentSsh/useFileTransfer';
 
-const getOwnPendingText = (request: FileTransferRequest) => {
-  if (request.download) {
-    return `Pending download: ${request.location}`;
-  }
-  return `Pending upload: ${request.filename} to ${request.location}`;
+type FileTransferRequestsProps = {
+  requests: FileTransferRequest[];
+  onApprove: (requestId: string, approved: boolean) => void;
+  onDeny: (requestId: string, approved: boolean) => void;
 };
 
-const getPendingText = (request: FileTransferRequest) => {
-  if (request.download) {
-    return `${request.requester} wants to download ${request.location}`;
+export const FileTransferRequests = ({
+  requests,
+  onApprove,
+  onDeny,
+}: FileTransferRequestsProps) => {
+  if (requests.length > 0) {
+    return (
+      <Container show={requests.length > 0}>
+        <Flex justifyContent="space-between" alignItems="baseline">
+          <Text fontSize={3} bold>
+            File Transfer Requests
+          </Text>
+        </Flex>
+        {requests.map(request =>
+          request.isOwnRequest ? (
+            <OwnForm
+              key={request.requestID}
+              request={request}
+              onCancel={onDeny}
+            />
+          ) : (
+            <ResponseForm
+              key={request.requestID}
+              request={request}
+              onApprove={onApprove}
+              onDeny={onDeny}
+            />
+          )
+        )}
+      </Container>
+    );
   }
-  return `${request.requester} wants to upload ${request.filename} to ${request.location}`;
+
+  // don't show dialog if no requests exist
+  return null;
+};
+
+type OwnFormProps = {
+  request: FileTransferRequest;
+  onCancel: (requestId: string, approved: boolean) => void;
 };
 
 const OwnForm = ({ request, onCancel }: OwnFormProps) => {
@@ -51,6 +86,19 @@ const OwnForm = ({ request, onCancel }: OwnFormProps) => {
       </Flex>
     </Box>
   );
+};
+
+const getOwnPendingText = (request: FileTransferRequest) => {
+  if (request.download) {
+    return `Pending download: ${request.location}`;
+  }
+  return `Pending upload: ${request.filename} to ${request.location}`;
+};
+
+type RequestFormProps = {
+  request: FileTransferRequest;
+  onApprove: (requestId: string, approved: boolean) => void;
+  onDeny: (requestId: string, approved: boolean) => void;
 };
 
 const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
@@ -78,62 +126,11 @@ const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
   );
 };
 
-type RequestFormProps = {
-  request: FileTransferRequest;
-  onApprove: (requestId: string, approved: boolean) => void;
-  onDeny: (requestId: string, approved: boolean) => void;
-};
-
-type OwnFormProps = {
-  request: FileTransferRequest;
-  onCancel: (string, bool) => void;
-};
-
-export const FileTransferRequests = (props: FileTransferRequestsProps) => {
-  const { requests } = props;
-
-  return (
-    <Container>
-      <Flex justifyContent="space-between" alignItems="baseline">
-        <Text fontSize={3} bold>
-          File Transfer Requests
-        </Text>
-      </Flex>
-      {requests.map(request =>
-        request.isOwnRequest ? (
-          <OwnForm
-            key={request.requestID}
-            request={request}
-            onCancel={props.onDeny}
-          />
-        ) : (
-          <ResponseForm
-            key={request.requestID}
-            request={request}
-            onApprove={props.onApprove}
-            onDeny={props.onDeny}
-          />
-        )
-      )}
-    </Container>
-  );
-};
-
-export type FileTransferRequest = {
-  sid: string;
-  requestID: string;
-  requester: string;
-  approvers: string[];
-  location: string;
-  filename?: string;
-  download: boolean;
-  isOwnRequest?: boolean;
-};
-
-type FileTransferRequestsProps = {
-  requests: FileTransferRequest[];
-  onApprove: (string, boolean) => void;
-  onDeny: (string, boolean) => void;
+const getPendingText = (request: FileTransferRequest) => {
+  if (request.download) {
+    return `${request.requester} wants to download ${request.location}`;
+  }
+  return `${request.requester} wants to upload ${request.filename} to ${request.location}`;
 };
 
 const Container = styled.div`
