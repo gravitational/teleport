@@ -164,12 +164,12 @@ export function SelectResource(props: SelectResourceProps) {
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="#a8afb2">
+                        <Text fontSize="12px" color="text.secondary">
                           {pretitle}
                         </Text>
                       )}
                       {r.unguidedLink ? (
-                        <Text bold color="white">
+                        <Text bold color="text.primary">
                           {title}
                         </Text>
                       ) : (
@@ -218,11 +218,13 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         ml={1}
         width="18px"
         height="18px"
-        bg="#2d3762"
         borderRadius="4px"
         textAlign="center"
+        css={`
+          background: ${props => props.theme.colors.error.main};
+        `}
       >
-        <Icons.Close fontSize="15px" />
+        <Icons.Close fontSize="18px" />
       </Box>
       <Text>Clear search</Text>
     </Flex>
@@ -314,12 +316,12 @@ const ResourceCard = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   transition: all 0.3s;
 
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: ${props => props.theme.colors.text.primary};
   cursor: pointer;
   height: 48px;
 
@@ -330,13 +332,14 @@ const ResourceCard = styled.div`
   }
 
   :hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: ${props => props.theme.colors.spotBackground[1]};
   }
 `;
 
 const BadgeGuided = styled.div`
   position: absolute;
-  background: rgb(81, 48, 201);
+  background: ${props => props.theme.colors.brand};
+  color: ${props => props.theme.colors.text.primaryInverse};
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -348,11 +351,11 @@ const BadgeGuided = styled.div`
 const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
   &:hover,
   &:focus,
   &:active {
-    background: ${props => props.theme.colors.levels.surfaceSecondary};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
@@ -368,9 +371,4 @@ const StyledInput = styled.input`
   margin-right: ${props => props.theme.space[3]}px;
   margin-bottom: ${props => props.theme.space[2]}px;
   padding: ${props => props.theme.space[3]}px;
-  opacity: 0.8;
-  &:placeholder {
-    color: white;
-    opacity: 0.6;
-  }
 `;

@@ -53,6 +53,19 @@ export const LocalWithOptional = () => (
   <FormLogin {...props} auth2faType="optional" />
 );
 
+export const LocalProcessing = () => (
+  <FormLogin
+    {...props}
+    auth2faType="optional"
+    attempt={{
+      isProcessing: true,
+      isFailed: false,
+      isSuccess: false,
+      message: '',
+    }}
+  />
+);
+
 export const LocalWithOnAndPwdless = () => (
   <FormLogin {...props} auth2faType="on" isPasswordlessEnabled={true} />
 );

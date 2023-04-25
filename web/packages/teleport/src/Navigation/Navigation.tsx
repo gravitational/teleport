@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { matchPath, useHistory, useLocation } from 'react-router';
 
@@ -31,16 +31,19 @@ import { useFeatures } from 'teleport/FeaturesContext';
 
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
 
-import logo from './logo.png';
+import logoLight from './logoLight.svg';
+import logoDark from './logoDark.svg';
 
 import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
 
 const NavigationLogo = styled.div`
-  background: url(${logo}) no-repeat;
+  background: url(${props =>
+      props.themeOption === 'light' ? logoLight : logoDark})
+    no-repeat;
   background-size: contain;
-  width: 181px;
+  width: 180px;
   height: 32px;
   margin-top: 20px;
   margin-left: 32px;
@@ -54,6 +57,8 @@ const NavigationContainer = styled.div`
   position: relative;
   display: flex;
   flex-direction: column;
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12);
 `;
 
 const CategoriesContainer = styled.div`
@@ -99,6 +104,7 @@ export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
   const location = useLocation();
+  const theme = useTheme();
 
   const [view, setView] = useState(
     getCategoryForRoute(features, history.location) ||
@@ -170,7 +176,7 @@ export function Navigation() {
 
   return (
     <NavigationContainer>
-      <NavigationLogo />
+      <NavigationLogo themeOption={theme.name} />
 
       <NavigationSwitcher
         onChange={handleCategoryChange}

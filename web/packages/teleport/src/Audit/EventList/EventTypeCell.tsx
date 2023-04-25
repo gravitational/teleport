@@ -152,6 +152,9 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.CASSANDRA_PREPARE_EVENT]: Icons.Database,
   [eventCodes.CASSANDRA_REGISTER_EVENT]: Icons.Database,
   [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: Icons.Database,
+  [eventCodes.OPENSEARCH_REQUEST]: Icons.Database,
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
@@ -265,9 +268,9 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
-  background: ${props.theme.colors.dark};
-  border: 2px solid ${props.theme.colors.brand.accent};
-  color: ${props.theme.colors.text.primary};
+  background: ${props.theme.colors.levels.deep};
+  border: 2px solid ${props.theme.colors.brand};
+  color: ${props.theme.colors.text.secondary};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -281,8 +284,8 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:hover,
   &:active,
   &:focus {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-    color: ${props.theme.colors.light};
+    background: ${props.theme.colors.levels.sunken};
+    color: ${props.theme.colors.text.primary};
   }
 
   &:active {

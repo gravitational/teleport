@@ -93,6 +93,9 @@ export const eventCodes = {
   CASSANDRA_EXECUTE_EVENT: 'TCA03I',
   CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
+  ELASTICSEARCH_REQUEST_FAILURE: 'TES00E',
+  OPENSEARCH_REQUEST: 'TOS00I',
+  OPENSEARCH_REQUEST_FAILURE: 'TOS00E',
   DYNAMODB_REQUEST: 'TDY01I',
   DYNAMODB_REQUEST_FAILURE: 'TDY01E',
   DESKTOP_SESSION_STARTED: 'TDP00I',
@@ -881,6 +884,42 @@ export type RawEvents = {
   >;
   [eventCodes.ELASTICSEARCH_REQUEST]: RawEvent<
     typeof eventCodes.ELASTICSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
     {
       name: string;
       db_service: string;

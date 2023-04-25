@@ -18,26 +18,23 @@ main() {
   # this for us (and which is what we use for the non-gogo protogen).
   rm -fr gogogen
   trap 'rm -fr gogogen' EXIT # don't leave files behind
-  buf generate --template=buf-gogo.gen.yaml
+  buf generate --template=buf-gogo.gen.yaml \
+    --path=api/proto/teleport/legacy/ \
+    --path=api/proto/teleport/attestation/ \
+    --path=api/proto/teleport/usageevents/ \
+    --path=proto/teleport/lib/web/envelope.proto
   cp -r gogogen/github.com/gravitational/teleport/. .
   # error out if there's anything outside of github.com/gravitational/teleport
   rm -fr gogogen/github.com/gravitational/teleport
   rmdir gogogen/github.com/gravitational gogogen/github.com gogogen
 
   # Generate protoc-gen-go protos (preferred).
-  # Add your protos to the list if you can.
   buf generate --template=buf-go.gen.yaml \
-    --path=api/proto/teleport/devicetrust/ \
-    --path=api/proto/teleport/integration/ \
-    --path=api/proto/teleport/kube/ \
-    --path=api/proto/teleport/loginrule/ \
-    --path=api/proto/teleport/okta/ \
-    --path=api/proto/teleport/plugins/ \
-    --path=api/proto/teleport/samlidp/ \
-    --path=api/proto/teleport/transport/ \
-    --path=api/proto/teleport/trust/ \
-    --path=proto/teleport/lib/multiplexer/ \
-    --path=proto/teleport/lib/teleterm/
+    --exclude-path=api/proto/teleport/legacy/ \
+    --exclude-path=api/proto/teleport/attestation/ \
+    --exclude-path=api/proto/teleport/usageevents/ \
+    --exclude-path=proto/teleport/lib/web/envelope.proto \
+    --exclude-path=proto/prehog/
 
   # Generate connect-go protos.
   buf generate --template=buf-connect-go.gen.yaml \

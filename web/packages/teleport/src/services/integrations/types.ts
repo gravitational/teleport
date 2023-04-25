@@ -40,7 +40,12 @@ export type Integration<
   details?: string;
   statusCode: IntegrationStatusCode;
 };
-export type IntegrationKind = 'aws-oidc';
+// IntegrationKind string values should be in sync
+// with the backend value for defining the integration
+// resource's subKind field.
+export enum IntegrationKind {
+  AwsOidc = 'aws-oidc',
+}
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
@@ -86,3 +91,70 @@ export function getStatusCodeDescription(
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 export type PluginKind = 'slack';
+
+export type IntegrationCreateRequest = {
+  name: string;
+  subKind: IntegrationKind;
+  awsoidc?: IntegrationSpecAwsOidc;
+};
+
+export type IntegrationListResponse = {
+  items: Integration[];
+  nextKey?: string;
+};
+
+// awsRegionMap maps the AWS regions to it's region name
+// as defined in (omitted gov cloud regions):
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+export const awsRegionMap = {
+  'us-east-2': 'US East (Ohio)',
+  'us-east-1': 'US East (N. Virginia)',
+  'us-west-1': 'US West (N. California)',
+  'us-west-2': 'US West (Oregon)',
+  'af-south-1': 'Africa (Cape Town)',
+  'ap-east-1': 'Asia Pacific (Hong Kong)',
+  'ap-south-2': 'Asia Pacific (Hyderabad)',
+  'ap-southeast-3': 'Asia Pacific (Jakarta)',
+  'ap-southeast-4': 'Asia Pacific (Melbourne)',
+  'ap-south-1': 'Asia Pacific (Mumbai)',
+  'ap-northeast-3': 'Asia Pacific (Osaka)',
+  'ap-northeast-2': 'Asia Pacific (Seoul)',
+  'ap-southeast-1': 'Asia Pacific (Singapore)',
+  'ap-southeast-2': 'Asia Pacific (Sydney)',
+  'ap-northeast-1': 'Asia Pacific (Tokyo)',
+  'ca-central-1': 'Canada (Central)',
+  'eu-central-1': 'Europe (Frankfurt)',
+  'eu-west-1': 'Europe (Ireland)',
+  'eu-west-2': 'Europe (London)',
+  'eu-south-1': 'Europe (Milan)',
+  'eu-west-3': 'Europe (Paris)',
+  'eu-south-2': 'Europe (Spain)',
+  'eu-north-1': 'Europe (Stockholm)',
+  'eu-central-2': 'Europe (Zurich)',
+  'me-south-1': 'Middle East (Bahrain)',
+  'me-central-1': 'Middle East (UAE)',
+  'sa-east-1': 'South America (São Paulo)',
+};
+
+export type Regions = keyof typeof awsRegionMap;
+export type IntegrationExecuteRequest = {
+  region: Regions;
+  // nextToken is the start key for the next page
+  nextToken?: string;
+};
+
+export type AwsDatabase = {
+  // engine of the database. Eg, sqlserver-ex
+  engine: string;
+  // name is the the Database's name.
+  name: string;
+  // endpoint contains the URI for connecting to this Database
+  endpoint: string;
+};
+
+export type ListAwsDatabaseResponse = {
+  databases: AwsDatabase[];
+  // nextToken is the start key for the next page.
+  // Empty value means last page.
+  nextToken?: string;
+};

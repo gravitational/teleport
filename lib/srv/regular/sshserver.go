@@ -1644,7 +1644,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
-	case constants.FileTransferRequest:
+	case constants.InitiateFileTransfer:
 		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
 	case constants.FileTransferDecision:
 		return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
@@ -2046,6 +2046,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:

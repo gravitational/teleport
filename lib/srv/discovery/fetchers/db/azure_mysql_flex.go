@@ -31,8 +31,7 @@ func newAzureMySQLFlexServerFetcher(config azureFetcherConfig) (common.Fetcher, 
 }
 
 // azureMySQLFlexServerFetcher implements azureFetcherPlugin for Azure MySQL Flexible server.
-type azureMySQLFlexServerFetcher struct {
-}
+type azureMySQLFlexServerFetcher struct{}
 
 // GetListClient returns a server-listing client for Azure MySQL Flexible server.
 func (f *azureMySQLFlexServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.MySQLFlexServersClient, error) {

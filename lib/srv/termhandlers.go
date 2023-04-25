@@ -147,16 +147,11 @@ func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Ch
 
 	if params.Approved {
 		_, err := session.approveFileTransferRequest(params, scx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		_, err := session.denyFileTransferRequest(params, scx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		return trace.Wrap(err)
 	}
-	return nil
+
+	_, err = session.denyFileTransferRequest(params, scx)
+	return trace.Wrap(err)
 }
 
 // HandleFileTransferRequest handles requests of type "file-transfer-request" which will

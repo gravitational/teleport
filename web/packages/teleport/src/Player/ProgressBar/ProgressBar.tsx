@@ -138,6 +138,10 @@ const ActionButton = styled.button`
   transition: all 0.3s;
   width: 24px;
 
+  .icon {
+    color: ${colors.light};
+  }
+
   &:hover {
     opacity: 1;
 
