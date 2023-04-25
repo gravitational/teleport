@@ -803,10 +803,8 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
-	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error
 
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
@@ -1273,11 +1271,9 @@ func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
 }
 
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (w *OktaWrapper) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	return w.NoCache.UpdateOktaAssignmentActionStatuses(ctx, name, status)
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

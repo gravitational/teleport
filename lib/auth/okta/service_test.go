@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
@@ -126,6 +127,16 @@ func TestOktaAssignments(t *testing.T) {
 	require.Empty(t, cmp.Diff(newOktaAssignment(t, "1"), updateResp))
 
 	a, err := svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(a1, a,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	_, err = svc.UpdateOktaAssignmentStatus(ctx, &oktapb.UpdateOktaAssignmentStatusRequest{Name: a1.GetName(),
+		Status: types.OktaAssignmentSpecV1_PROCESSING})
+	require.NoError(t, err)
+
+	require.NoError(t, a1.SetStatus(constants.OktaAssignmentStatusProcessing))
+	a, err = svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
@@ -275,20 +286,19 @@ func newOktaAssignment(t *testing.T, name string) *types.OktaAssignmentV1 {
 			User: "test-user@test.user",
 			Actions: []*types.OktaAssignmentActionV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
 					Target: &types.OktaAssignmentActionTargetV1{
 						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
 						Id:   "123456",
 					},
 				},
 				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
 					Target: &types.OktaAssignmentActionTargetV1{
 						Type: types.OktaAssignmentActionTargetV1_GROUP,
 						Id:   "234567",
 					},
 				},
 			},
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)
