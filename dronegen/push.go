@@ -164,7 +164,7 @@ func pushPipeline(b buildType) pipeline {
 func sendErrorToSlackStep() step {
 	return step{
 		Name:  "Send Slack notification",
-		Image: "plugins/slack",
+		Image: "plugins/slack:1.4.1",
 		Settings: map[string]value{
 			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
 			"template": {raw: `*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
