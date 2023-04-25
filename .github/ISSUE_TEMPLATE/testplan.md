@@ -423,6 +423,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
+- [ ] SAML IdP guide instructions work
+    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
