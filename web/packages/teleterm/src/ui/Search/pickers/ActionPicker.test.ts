@@ -35,17 +35,17 @@ describe('getActionPickerStatus', () => {
       new Error('whoops')
     );
 
-    const status = getActionPickerStatus(
-      'foo',
-      [],
-      [],
-      [makeSuccessAttempt([])],
-      makeSuccessAttempt({
+    const status = getActionPickerStatus({
+      inputValue: 'foo',
+      filters: [],
+      allClusters: [],
+      actionAttempts: [makeSuccessAttempt([])],
+      resourceSearchAttempt: makeSuccessAttempt({
         errors: [retryableError, nonRetryableError],
         results: [],
         search: 'foo',
-      })
-    );
+      }),
+    });
 
     expect(status.status).toBe('finished');
 
@@ -64,17 +64,17 @@ describe('getActionPickerStatus', () => {
       new Error('ssh: cert has expired')
     );
 
-    const status = getActionPickerStatus(
-      'foo',
-      [],
-      [offlineCluster],
-      [makeSuccessAttempt([])],
-      makeSuccessAttempt({
+    const status = getActionPickerStatus({
+      inputValue: 'foo',
+      filters: [],
+      allClusters: [offlineCluster],
+      actionAttempts: [makeSuccessAttempt([])],
+      resourceSearchAttempt: makeSuccessAttempt({
         errors: [retryableError],
         results: [],
         search: 'foo',
-      })
-    );
+      }),
+    });
 
     expect(status.status).toBe('finished');
     const { clustersWithExpiredCerts } = status.status === 'finished' && status;
@@ -102,17 +102,17 @@ describe('getActionPickerStatus', () => {
         new Error('ssh: cert has expired')
       ),
     ];
-    const status = getActionPickerStatus(
-      'foo',
-      [],
-      [],
-      [makeSuccessAttempt([])],
-      makeSuccessAttempt({
+    const status = getActionPickerStatus({
+      inputValue: 'foo',
+      filters: [],
+      allClusters: [],
+      actionAttempts: [makeSuccessAttempt([])],
+      resourceSearchAttempt: makeSuccessAttempt({
         errors: retryableErrors,
         results: [],
         search: 'foo',
-      })
-    );
+      }),
+    });
 
     expect(status.status).toBe('finished');
     const { clustersWithExpiredCerts } = status.status === 'finished' && status;

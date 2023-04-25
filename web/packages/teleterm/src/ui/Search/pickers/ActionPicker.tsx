@@ -157,13 +157,13 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   const actionPickerStatus = useMemo(
     () =>
-      getActionPickerStatus(
+      getActionPickerStatus({
         inputValue,
         filters,
-        clustersService.getClusters(),
         actionAttempts,
-        resourceSearchAttempt
-      ),
+        resourceSearchAttempt,
+        allClusters: clustersService.getClusters(),
+      }),
     [
       inputValue,
       filters,
@@ -294,13 +294,19 @@ type ActionPickerStatus =
       clustersWithExpiredCerts: Set<uri.ClusterUri>;
     };
 
-export function getActionPickerStatus(
-  inputValue: string,
-  filters: SearchFilter[],
-  allClusters: tsh.Cluster[],
-  actionAttempts: Attempt<SearchAction[]>[],
-  resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>
-): ActionPickerStatus {
+export function getActionPickerStatus({
+  inputValue,
+  filters,
+  allClusters,
+  actionAttempts,
+  resourceSearchAttempt,
+}: {
+  inputValue: string;
+  filters: SearchFilter[];
+  allClusters: tsh.Cluster[];
+  actionAttempts: Attempt<SearchAction[]>[];
+  resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
+}): ActionPickerStatus {
   if (!inputValue) {
     const hasSelectedAllFilters = filters.length === 2;
 
