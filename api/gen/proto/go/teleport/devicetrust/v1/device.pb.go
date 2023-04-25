@@ -43,14 +43,13 @@ const (
 	// Bare public key which has only verified with proof of ownership.
 	// Used on macOS.
 	DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED DeviceAttestationType = 0
-	// Credential was verified through a TPM EK->AK->App key chain on enrollment.
+	// Credential was verified through a TPM EK->AK chain on enrollment.
 	DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB DeviceAttestationType = 1
-	// Credential was verified through a TPM EKCert->AK->App key chain on
-	// enrollment, but no allow-listed CAs were configured to validate this EKCert
-	// against.
+	// Credential was verified through a TPM EKCert->AK chain on enrollment,
+	// but no allow-listed CAs were configured to validate this EKCert against.
 	DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT DeviceAttestationType = 2
-	// Credential was verified through a TPM EKCert->AK->App key chain on
-	// enrollment, and the EKCert was signed by a configured allow-listed CA.
+	// Credential was verified through a TPM EKCert->AK chain on enrollment, and
+	// the EKCert was signed by a configured allow-listed CA.
 	DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED DeviceAttestationType = 3
 )
 
@@ -330,8 +329,8 @@ type DeviceCredential struct {
 	// Unique identifier of the credential, defined client-side.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Device public key marshaled as a PKIX, ASN.1 DER.
-	// If the device is a TPM device, stores the attestation key to use for
-	// platform attestation.
+	// If the device is a TPM device, stores the public attestation key to use for
+	// verifying platform attestation.
 	PublicKeyDer []byte `protobuf:"bytes,2,opt,name=public_key_der,json=publicKeyDer,proto3" json:"public_key_der,omitempty"`
 	// The degree to which the device credential is attested.
 	DeviceAttestationType DeviceAttestationType `protobuf:"varint,3,opt,name=device_attestation_type,json=deviceAttestationType,proto3,enum=teleport.devicetrust.v1.DeviceAttestationType" json:"device_attestation_type,omitempty"`
