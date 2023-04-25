@@ -58,10 +58,12 @@ scp_if_ssh = True
 ssh_args = -F ./ssh.cfg
 ```
 
-You can create an inventory file `hosts` manually or use a script below to generate it from your environment:
+You can create an inventory file `hosts` manually or use a script below to generate it from your environment. Set your
+cluster name (e.g. `teleport.example.com` or in the form `mytenant.teleport.sh` for Teleport Enterprise Cloud)
+and this script will generate the host names to match the `openssh` configuration:
 
 ```code
-$ tsh ls --format=json | jq -r '.[].spec.hostname' > hosts
+$ tsh ls --format=json | jq '.[].spec.hostname + ".<Var name="teleport.example.com" />"' > hosts
 ```
 
 ## Step 3/3. Run a playbook
