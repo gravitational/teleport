@@ -158,32 +158,20 @@ const (
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 
-	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
-	OktaAssignmentActionStatusPending = "pending"
+	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	OktaAssignmentStatusPending = "pending"
 
-	// OktaAssignmentActionStatusProcessing is represents an Okta action which is currently being acted on.
-	OktaAssignmentActionStatusProcessing = "processing"
+	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	OktaAssignmentStatusProcessing = "processing"
 
-	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
-	OktaAssignmentActionStatusSuccessful = "successful"
+	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	OktaAssignmentStatusSuccessful = "successful"
 
-	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
-	OktaAssignmentActionStatusFailed = "failed"
+	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	OktaAssignmentStatusFailed = "failed"
 
-	// OktaAssignmentActionStatusCleanupPending is represents an Okta action which needs to be cleaned up.
-	OktaAssignmentActionStatusCleanupPending = "cleanup_pending"
-
-	// OktaAssignmentActionStatusCleanupProcessing is represents an Okta action which is currently being cleaned up.
-	OktaAssignmentActionStatusCleanupProcessing = "cleanup_processing"
-
-	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
-	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
-
-	// OktaAssignmentActionStatusCleanupFailed is represents an Okta action which was not cleaned up successfully. It will not be retried.
-	OktaAssignmentActionStatusCleanupFailed = "cleanup_failed"
-
-	// OktaAssignmentActionStatusPending is represents a unknown status for an Okta action.
-	OktaAssignmentActionStatusUnknown = "unknown"
+	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	OktaAssignmentStatusUnknown = "unknown"
 
 	// OktaAssignmentActionTargetApplication is an application target of an Okta assignment action.
 	OktaAssignmentActionTargetApplication = "application"

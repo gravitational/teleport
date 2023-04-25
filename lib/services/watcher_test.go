@@ -1126,7 +1126,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		types.Events
 	}
 
-	oktaService, err := local.NewOktaService(bk)
+	oktaService, err := local.NewOktaService(bk, clock)
 	require.NoError(t, err)
 	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
 		RWCfg: services.ResourceWatcherConfig{
@@ -1258,13 +1258,13 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 			User: "test-user@test.user",
 			Actions: []*types.OktaAssignmentActionV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
 					Target: &types.OktaAssignmentActionTargetV1{
 						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
 						Id:   "123456",
 					},
 				},
 			},
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)

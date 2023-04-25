@@ -185,6 +185,16 @@ type OktaAssignment interface {
 	GetActions() []OktaAssignmentAction
 	// GetCleanupTime will return the optional time that the assignment should be cleaned up.
 	GetCleanupTime() *time.Time
+	// SetCleanupTime will set the cleanup time.
+	SetCleanupTime(time.Time)
+	// GetStatus gets the status of the assignment.
+	GetStatus() string
+	// SetStatus sets the status of the eassignment. Only allows valid transitions.
+	SetStatus(status string) error
+	// SetLastTransition sets the last transition time.
+	SetLastTransition(time.Time)
+	// GetLastTransition returns the time that the action last transitioned.
+	GetLastTransition() time.Time
 	// Copy returns a copy of this Okta assignment resource.
 	Copy() OktaAssignment
 }
@@ -227,6 +237,89 @@ func (o *OktaAssignmentV1) GetActions() []OktaAssignmentAction {
 // GetCleanupTime will return the optional time that the assignment should be cleaned up.
 func (o *OktaAssignmentV1) GetCleanupTime() *time.Time {
 	return o.Spec.CleanupTime
+}
+
+// SetCleanupTime will set the cleanup time.
+func (o *OktaAssignmentV1) SetCleanupTime(cleanupTime time.Time) {
+	utcTime := cleanupTime.UTC()
+	o.Spec.CleanupTime = &utcTime
+}
+
+// GetStatus gets the status of the assignment.
+func (o *OktaAssignmentV1) GetStatus() string {
+	switch o.Spec.Status {
+	case OktaAssignmentSpecV1_PENDING:
+		return constants.OktaAssignmentStatusPending
+	case OktaAssignmentSpecV1_PROCESSING:
+		return constants.OktaAssignmentStatusProcessing
+	case OktaAssignmentSpecV1_SUCCESSFUL:
+		return constants.OktaAssignmentStatusSuccessful
+	case OktaAssignmentSpecV1_FAILED:
+		return constants.OktaAssignmentStatusFailed
+	default:
+		return constants.OktaAssignmentStatusUnknown
+	}
+}
+
+// SetStatus sets the status of the eassignment. Only allows valid transitions.
+//
+// Valid transitions are:
+// * PENDING -> (PROCESSING)
+// * PROCESSING -> (SUCCESSFUL, FAILED, PROCESSING)
+// * SUCCESSFUL -> (PROCESSING)
+// * FAILED -> (PROCESSING)
+func (o *OktaAssignmentV1) SetStatus(status string) error {
+	invalidTransition := false
+	switch o.Spec.Status {
+	case OktaAssignmentSpecV1_PENDING:
+		switch status {
+		case constants.OktaAssignmentStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentSpecV1_PROCESSING:
+		switch status {
+		case constants.OktaAssignmentStatusProcessing:
+		case constants.OktaAssignmentStatusSuccessful:
+		case constants.OktaAssignmentStatusFailed:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentSpecV1_SUCCESSFUL:
+		switch status {
+		case constants.OktaAssignmentStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentSpecV1_FAILED:
+		switch status {
+		case constants.OktaAssignmentStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentSpecV1_UNKNOWN:
+		// All transitions are allowed from UNKNOWN.
+	default:
+		invalidTransition = true
+	}
+
+	if invalidTransition {
+		return trace.BadParameter("invalid transition: %s -> %s", o.GetStatus(), status)
+	}
+
+	o.Spec.Status = OktaAssignmentStatusToProto(status)
+
+	return nil
+}
+
+// SetLastTransition sets the last transition time.
+func (o *OktaAssignmentV1) SetLastTransition(time time.Time) {
+	o.Spec.LastTransition = time.UTC()
+}
+
+// GetLastTransition returns the optional time that the action last transitioned.
+func (o *OktaAssignmentV1) GetLastTransition() time.Time {
+	return o.Spec.LastTransition
 }
 
 // Copy returns a copy of this Okta assignment resource.
@@ -273,156 +366,15 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		o.Spec.CleanupTime = &utcTime
 	}
 
-	for _, action := range o.Spec.Actions {
-		action.LastTransition = action.LastTransition.UTC()
-	}
-
 	return nil
 }
 
 // OktaAssignmentAction is an individual action to apply to an Okta assignment.
 type OktaAssignmentAction interface {
-	// GetStatus returns the current status of the action.
-	GetStatus() string
-	// SetStatus sets the status of the action. Only allows valid transitions.
-	//
-	// Valid transitions are:
-	// * PENDING -> (PROCESSING, CLEANUP_PENDING)
-	// * PROCESSING -> (SUCCESSFUL, FAILED, CLEANUP_PENDING)
-	// * SUCCESSFUL -> (CLEANUP_PENDING, CLEANUP_PROCESSING)
-	// * FAILED -> (PENDING, CLEANUP_PENDING, CLEANUP_PROCESSING)
-	// * CLEANUP_PENDING -> CLEANUP_PROCESSING
-	// * CLEANUP_PROCESSING -> (CLEANUP_FAILED, CLEANED_UP)
-	SetStatus(string) error
 	// GetTargetType returns the target type of the action.
 	GetTargetType() string
 	// GetID returns the ID of the action target.
 	GetID() string
-	// SetLastTransition sets the last transition time.
-	SetLastTransition(time time.Time)
-	// GetLastTransition returns the optional time that the action last transitioned.
-	GetLastTransition() time.Time
-}
-
-// GetStatus returns the current status of the action.
-func (o *OktaAssignmentActionV1) GetStatus() string {
-	switch o.Status {
-	case OktaAssignmentActionV1_PENDING:
-		return constants.OktaAssignmentActionStatusPending
-	case OktaAssignmentActionV1_PROCESSING:
-		return constants.OktaAssignmentActionStatusProcessing
-	case OktaAssignmentActionV1_SUCCESSFUL:
-		return constants.OktaAssignmentActionStatusSuccessful
-	case OktaAssignmentActionV1_FAILED:
-		return constants.OktaAssignmentActionStatusFailed
-	case OktaAssignmentActionV1_CLEANUP_PENDING:
-		return constants.OktaAssignmentActionStatusCleanupPending
-	case OktaAssignmentActionV1_CLEANUP_PROCESSING:
-		return constants.OktaAssignmentActionStatusCleanupProcessing
-	case OktaAssignmentActionV1_CLEANED_UP:
-		return constants.OktaAssignmentActionStatusCleanedUp
-	case OktaAssignmentActionV1_CLEANUP_FAILED:
-		return constants.OktaAssignmentActionStatusCleanupFailed
-	default:
-		return constants.OktaAssignmentActionStatusUnknown
-	}
-}
-
-// SetStatus sets the status of the action. Only allows valid transitions.
-//
-// Valid transitions are:
-// * PENDING -> (PROCESSING, CLEANUP_PENDING)
-// * PROCESSING -> (SUCCESSFUL, FAILED, CLEANUP_PENDING)
-// * SUCCESSFUL -> (CLEANUP_PENDING, CLEANUP_PROCESSING)
-// * FAILED -> (PROCESSING, CLEANUP_PENDING, CLEANUP_PROCESSING)
-// * CLEANUP_PENDING -> CLEANUP_PROCESSING
-// * CLEANUP_PROCESSING -> (CLEANUP_FAILED, CLEANED_UP)
-func (o *OktaAssignmentActionV1) SetStatus(status string) error {
-	invalidTransition := false
-	switch o.Status {
-	case OktaAssignmentActionV1_PENDING:
-		switch status {
-		case constants.OktaAssignmentActionStatusProcessing:
-		case constants.OktaAssignmentActionStatusCleanupPending:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_PROCESSING:
-		switch status {
-		case constants.OktaAssignmentActionStatusSuccessful:
-		case constants.OktaAssignmentActionStatusFailed:
-		case constants.OktaAssignmentActionStatusCleanupPending:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_SUCCESSFUL:
-		switch status {
-		case constants.OktaAssignmentActionStatusCleanupPending:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_FAILED:
-		switch status {
-		case constants.OktaAssignmentActionStatusPending:
-		case constants.OktaAssignmentActionStatusCleanupPending:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_CLEANUP_PENDING:
-		switch status {
-		case constants.OktaAssignmentActionStatusCleanupProcessing:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_CLEANUP_PROCESSING:
-		switch status {
-		case constants.OktaAssignmentActionStatusCleanedUp:
-		case constants.OktaAssignmentActionStatusCleanupFailed:
-		default:
-			invalidTransition = true
-		}
-	case OktaAssignmentActionV1_CLEANED_UP:
-		invalidTransition = true
-	case OktaAssignmentActionV1_CLEANUP_FAILED:
-		invalidTransition = true
-	case OktaAssignmentActionV1_UNKNOWN:
-		// All transitions are allowed from UNKNOWN.
-	default:
-		invalidTransition = true
-	}
-
-	if invalidTransition {
-		return trace.BadParameter("invalid transition: %s -> %s", o.GetStatus(), status)
-	}
-
-	o.Status = OktaAssignmentActionStatusToProto(status)
-
-	return nil
-}
-
-// OktaAssignmentActionStatusToProto will convert the internal notion of an Okta status into the Okta status
-// message understood by protobuf.
-func OktaAssignmentActionStatusToProto(status string) OktaAssignmentActionV1_OktaAssignmentActionStatus {
-	switch status {
-	case constants.OktaAssignmentActionStatusPending:
-		return OktaAssignmentActionV1_PENDING
-	case constants.OktaAssignmentActionStatusProcessing:
-		return OktaAssignmentActionV1_PROCESSING
-	case constants.OktaAssignmentActionStatusSuccessful:
-		return OktaAssignmentActionV1_SUCCESSFUL
-	case constants.OktaAssignmentActionStatusFailed:
-		return OktaAssignmentActionV1_FAILED
-	case constants.OktaAssignmentActionStatusCleanupPending:
-		return OktaAssignmentActionV1_CLEANUP_PENDING
-	case constants.OktaAssignmentActionStatusCleanupProcessing:
-		return OktaAssignmentActionV1_CLEANUP_PROCESSING
-	case constants.OktaAssignmentActionStatusCleanedUp:
-		return OktaAssignmentActionV1_CLEANED_UP
-	case constants.OktaAssignmentActionStatusCleanupFailed:
-		return OktaAssignmentActionV1_CLEANUP_FAILED
-	default:
-		return OktaAssignmentActionV1_UNKNOWN
-	}
 }
 
 // GetTargetType returns the target type of the action.
@@ -440,16 +392,6 @@ func (o *OktaAssignmentActionV1) GetTargetType() string {
 // GetID returns the ID of the action target.
 func (o *OktaAssignmentActionV1) GetID() string {
 	return o.Target.Id
-}
-
-// SetLastTransition sets the last transition time.
-func (o *OktaAssignmentActionV1) SetLastTransition(time time.Time) {
-	o.LastTransition = time.UTC()
-}
-
-// GetLastTransition returns the optional time that the action last transitioned.
-func (o *OktaAssignmentActionV1) GetLastTransition() time.Time {
-	return o.LastTransition
 }
 
 // OktaAssignments is a list of OktaAssignment resources.
@@ -481,3 +423,37 @@ func (o OktaAssignments) Less(i, j int) bool { return o[i].GetName() < o[j].GetN
 
 // Swap swaps two Okta assignments.
 func (o OktaAssignments) Swap(i, j int) { o[i], o[j] = o[j], o[i] }
+
+// OktaAssignmentStatusToProto will convert the internal notion of an Okta status into the Okta status
+// message understood by protobuf.
+func OktaAssignmentStatusToProto(status string) OktaAssignmentSpecV1_OktaAssignmentStatus {
+	switch status {
+	case constants.OktaAssignmentStatusPending:
+		return OktaAssignmentSpecV1_PENDING
+	case constants.OktaAssignmentStatusProcessing:
+		return OktaAssignmentSpecV1_PROCESSING
+	case constants.OktaAssignmentStatusSuccessful:
+		return OktaAssignmentSpecV1_SUCCESSFUL
+	case constants.OktaAssignmentStatusFailed:
+		return OktaAssignmentSpecV1_FAILED
+	default:
+		return OktaAssignmentSpecV1_UNKNOWN
+	}
+}
+
+// OktaAssignmentStatusProtoToString will convert the Okta status known to protobuf into the internal notion
+// of an Okta status.
+func OktaAssignmentStatusProtoToString(status OktaAssignmentSpecV1_OktaAssignmentStatus) string {
+	switch status {
+	case OktaAssignmentSpecV1_PENDING:
+		return constants.OktaAssignmentStatusPending
+	case OktaAssignmentSpecV1_PROCESSING:
+		return constants.OktaAssignmentStatusProcessing
+	case OktaAssignmentSpecV1_SUCCESSFUL:
+		return constants.OktaAssignmentStatusSuccessful
+	case OktaAssignmentSpecV1_FAILED:
+		return constants.OktaAssignmentStatusFailed
+	default:
+		return constants.OktaAssignmentStatusUnknown
+	}
+}

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -38,12 +39,13 @@ const (
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
 	log           logrus.FieldLogger
+	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(backend backend.Backend) (*OktaService, error) {
+func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
 		Backend:       backend,
 		PageLimit:     oktaImportRuleMaxPageSize,
@@ -70,6 +72,7 @@ func NewOktaService(backend backend.Backend) (*OktaService, error) {
 
 	return &OktaService{
 		log:           logrus.WithFields(logrus.Fields{trace.Component: "okta:local-service"}),
+		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
 	}, nil
@@ -122,64 +125,24 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	var previousAssignment types.OktaAssignment
-	err := o.assignmentSvc.UpdateAndSwapResource(ctx, assignment.GetName(), func(currentAssignment types.OktaAssignment) error {
-		previousAssignment = currentAssignment.Copy()
-		currentActions := currentAssignment.GetActions()
+	return assignment, o.assignmentSvc.UpdateResource(ctx, assignment)
+}
 
-		if len(currentActions) != len(assignment.GetActions()) {
-			return trace.BadParameter("Update to Okta assignment %s failed because the previous version has a different number of actions", assignment.GetName())
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
+func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error {
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(currentAssignment types.OktaAssignment) error {
+		if err := currentAssignment.SetStatus(status); err != nil {
+			return trace.Wrap(err)
 		}
-
-		// Make sure that the status transitions of the updated assignment are valid.
-		for i, action := range assignment.GetActions() {
-			currentAction := currentActions[i]
-
-			// Ensure that the previous actions are equal
-			if !actionsMatch(currentAction, action) {
-				return trace.BadParameter("action mismatch when updating Okta assignment %s", assignment.GetName())
-			}
-
-			// Don't check the status transition if the statuses are equal and the last transitions are equal.
-			if currentAction.GetStatus() == action.GetStatus() &&
-				currentAction.GetLastTransition().Equal(action.GetLastTransition()) {
-				continue
-			}
-
-			if err := currentAction.SetStatus(action.GetStatus()); err != nil {
-				return trace.Wrap(err)
-			}
-			currentAction.SetLastTransition(action.GetLastTransition())
-		}
-
-		currentAssignment.SetMetadata(assignment.GetMetadata())
+		currentAssignment.SetLastTransition(o.clock.Now())
 
 		return nil
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return previousAssignment, nil
-}
-
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (o *OktaService) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	var previousAssignment types.OktaAssignment
-	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(assignment types.OktaAssignment) error {
-		previousAssignment = assignment.Copy()
-		for _, action := range assignment.GetActions() {
-			if err := action.SetStatus(status); err != nil {
-				o.log.Warnf("Unable to transition status from %s -> %s", action.GetStatus(), status)
-			}
-		}
-
-		return nil
-	})
-	return previousAssignment, trace.Wrap(err)
-
+	return nil
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.
