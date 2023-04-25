@@ -154,9 +154,3 @@ func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) err
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 	return o.assignmentSvc.DeleteAllResources(ctx)
 }
-
-// actionsMatch returns true if two actions match minus the status and last transition.
-func actionsMatch(a1, a2 types.OktaAssignmentAction) bool {
-	return a1.GetTargetType() == a2.GetTargetType() &&
-		a1.GetID() == a2.GetID()
-}

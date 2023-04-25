@@ -124,7 +124,7 @@ func TestOktaAssignments(t *testing.T) {
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
 	updateResp, err := svc.UpdateOktaAssignment(ctx, &oktapb.UpdateOktaAssignmentRequest{Assignment: a1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(newOktaAssignment(t, "1"), updateResp))
+	require.Empty(t, cmp.Diff(a1, updateResp))
 
 	a, err := svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)
@@ -138,6 +138,7 @@ func TestOktaAssignments(t *testing.T) {
 	require.NoError(t, a1.SetStatus(constants.OktaAssignmentStatusProcessing))
 	a, err = svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)
+	a1.SetLastTransition(a.GetLastTransition())
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
