@@ -1545,7 +1545,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, proxyClient *ProxyC
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, mfaNotRequiredError) {
+	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -1591,8 +1591,6 @@ func (m MFARequiredUnknownErr) Is(err error) bool {
 	}
 }
 
-var mfaNotRequiredError = trace.AccessDenied("mfa is not required to access resource")
-
 // connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
 // if it is required, then the mfa ceremony is attempted. The target host is dialed once the ceremony
 // completes and new certificates are retrieved.
@@ -1610,7 +1608,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, proxyClient 
 	defer span.End()
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
 	// per-session mfa may be required, check and perform the mfa ceremony if needed
