@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -36,6 +38,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -499,4 +503,73 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), "printed only first")
 	})
+}
+
+// TestConsumerWriteToS3 is writing parquet files per date works.
+// It receives events from different dates and make sure that multiple
+// files are created and compare it against file in testdata.
+// Testdata files should be verified with "parquet tools" cli after changing.
+func TestConsumerWriteToS3(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	tmp := t.TempDir()
+	localWriter := func(ctx context.Context, date string) (source.ParquetFile, error) {
+		err := os.MkdirAll(filepath.Join(tmp, date), 0o777)
+		if err != nil {
+			return nil, err
+		}
+		localW, err := local.NewLocalFileWriter(filepath.Join(tmp, date, "test.parquet"))
+		return localW, err
+	}
+
+	april1st2023AfternoonStr := "2023-04-01T16:20:50.52Z"
+	april1st2023Afternoon, err := time.Parse(time.RFC3339, april1st2023AfternoonStr)
+	require.NoError(t, err)
+
+	makeAppCreateEventWithTime := func(t time.Time, name string) apievents.AuditEvent {
+		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
+	}
+
+	events := []eventAndAckID{
+		{receiptHandle: "r1", event: makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")},
+		{receiptHandle: "r2", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")},
+		// r3 date is next date, so it should be written as separate file.
+		{receiptHandle: "r3", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")},
+	}
+
+	eventsC := make(chan eventAndAckID, 100)
+	go func() {
+		for _, e := range events {
+			eventsC <- e
+		}
+		close(eventsC)
+	}()
+
+	c := &consumer{}
+	gotHandlesToDelete, err := c.writeToS3(ctx, eventsC, localWriter)
+	require.NoError(t, err)
+	// Make sure that all events are marked to delete.
+	require.Equal(t, []string{"r1", "r2", "r3"}, gotHandlesToDelete)
+
+	// vefiry that both files for 2023-04-01 and 2023-04-02 were written and
+	// if they are equal to test data.
+	type wantGot struct {
+		wantFilepath string
+		gotFile      string
+	}
+	toCheck := []wantGot{
+		{wantFilepath: filepath.Join("testdata/events_2023-04-01.parquet"), gotFile: filepath.Join(tmp, "2023-04-01", "test.parquet")},
+		{wantFilepath: filepath.Join("testdata/events_2023-04-02.parquet"), gotFile: filepath.Join(tmp, "2023-04-02", "test.parquet")},
+	}
+
+	for _, v := range toCheck {
+		t.Run("Checking "+filepath.Base(v.wantFilepath), func(t *testing.T) {
+			got, err := os.ReadFile(v.gotFile)
+			require.NoError(t, err)
+			want, err := os.ReadFile(v.wantFilepath)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(got, want))
+		})
+	}
 }
