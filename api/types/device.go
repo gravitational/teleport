@@ -126,7 +126,6 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			PublicKeyDer:          res.Spec.Credential.PublicKeyDer,
 			DeviceAttestationType: attestationType,
 			TpmSerial:             res.Spec.Credential.TpmSerial,
-			TpmAttestationKeyDer:  res.Spec.Credential.TpmAttestationKeyDer,
 		}
 	}
 
@@ -181,8 +180,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			DeviceAttestationType: ResourceDeviceAttestationTypeToString(
 				dev.Credential.DeviceAttestationType,
 			),
-			TpmSerial:            dev.Credential.TpmSerial,
-			TpmAttestationKeyDer: dev.Credential.TpmAttestationKeyDer,
+			TpmSerial: dev.Credential.TpmSerial,
 		}
 	}
 
