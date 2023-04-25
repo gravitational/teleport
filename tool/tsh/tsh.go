@@ -3555,8 +3555,7 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
 		// Display <1m if less then 1 minute left while valid instead of 0s
-		oneMinuteAhead := time.Now().UTC().Add(1 * time.Minute)
-		if p.ValidUntil.Before(oneMinuteAhead) {
+		if duration < time.Minute {
 			humanDuration = "valid for <1m"
 		} else {
 			humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
