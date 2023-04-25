@@ -369,6 +369,6 @@ func (s *Session) DenyFileTransferRequest(ctx context.Context, requestID string)
 // RequestFileTransfer sends a "file-transfer-request@goteleport.com" ssh request that will create a new file transfer request
 // and notify the parties in an ssh session
 func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferRequestReq) error {
-	_, err := s.SendRequest(ctx, constants.FileTransferRequest, true, ssh.Marshal(req))
+	_, err := s.SendRequest(ctx, constants.InitiateFileTransfer, true, ssh.Marshal(req))
 	return trace.Wrap(err)
 }
