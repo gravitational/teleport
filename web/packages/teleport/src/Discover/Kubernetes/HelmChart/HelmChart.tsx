@@ -453,8 +453,7 @@ const InstallHelmChart = ({
 
 const StyledBox = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid #2f3659;
 `;

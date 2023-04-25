@@ -18,20 +18,30 @@ import React from 'react';
 import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
 
+import { StyledSelect } from 'shared/components/Select/Select';
+
 const styles = theme => ({
   multiValue: (base, state) => {
-    return state.data.isFixed ? { ...base, backgroundColor: 'gray' } : base;
+    return state.data.isFixed
+      ? {
+          ...base,
+          backgroundColor: `${theme.colors.lightGrey['600']} !important`,
+        }
+      : base;
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
-      return { ...base, color: theme.colors.text.primary, paddingRight: 6 };
+      return {
+        ...base,
+        paddingRight: 6,
+      };
     }
 
     if (state.isDisabled) {
       return { ...base, paddingRight: 6 };
     }
 
-    return { ...base, color: theme.colors.text.primaryInverse };
+    return { ...base };
   },
   multiValueRemove: (base, state) => {
     return state.data.isFixed || state.isDisabled
@@ -39,11 +49,7 @@ const styles = theme => ({
       : {
           ...base,
           cursor: 'pointer',
-          color: theme.colors.text.primaryInverse,
         };
-  },
-  menuList: base => {
-    return { ...base, color: theme.colors.text.primaryInverse };
   },
 });
 
@@ -77,18 +83,21 @@ export const SelectCreatable = ({
 }: SelectCreatableProps) => {
   const theme = useTheme();
   return (
-    <ReactSelectCreatable
-      className="react-select"
-      components={{
-        DropdownIndicator: null,
-      }}
-      styles={styles(theme)}
-      {...rest}
-      isMulti={isMulti}
-      isClearable={isClearable}
-      isDisabled={isDisabled}
-      autoFocus={autoFocus}
-    />
+    <StyledSelect>
+      <ReactSelectCreatable
+        className="react-select-container"
+        classNamePrefix="react-select"
+        components={{
+          DropdownIndicator: null,
+        }}
+        styles={styles(theme)}
+        {...rest}
+        isMulti={isMulti}
+        isClearable={isClearable}
+        isDisabled={isDisabled}
+        autoFocus={autoFocus}
+      />
+    </StyledSelect>
   );
 };
 
