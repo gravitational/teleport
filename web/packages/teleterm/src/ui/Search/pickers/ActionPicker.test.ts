@@ -37,7 +37,7 @@ describe('getActionPickerStatus', () => {
 
     const status = getActionPickerStatus({
       inputValue: 'foo',
-      filters: [],
+      filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [],
       actionAttempts: [makeSuccessAttempt([])],
       resourceSearchAttempt: makeSuccessAttempt({
@@ -66,7 +66,7 @@ describe('getActionPickerStatus', () => {
 
     const status = getActionPickerStatus({
       inputValue: 'foo',
-      filters: [],
+      filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [offlineCluster],
       actionAttempts: [makeSuccessAttempt([])],
       resourceSearchAttempt: makeSuccessAttempt({
@@ -104,7 +104,7 @@ describe('getActionPickerStatus', () => {
     ];
     const status = getActionPickerStatus({
       inputValue: 'foo',
-      filters: [],
+      filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [],
       actionAttempts: [makeSuccessAttempt([])],
       resourceSearchAttempt: makeSuccessAttempt({
