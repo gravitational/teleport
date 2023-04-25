@@ -38,7 +38,6 @@ export interface SearchContext {
   isOpen: boolean;
   open(fromElement?: Element): void;
   close(): void;
-  closeAndResetInput(): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
@@ -81,11 +80,6 @@ export const SearchContextProvider: FC = props => {
       previouslyActive.current.focus();
     }
   }, []);
-
-  const closeAndResetInput = useCallback(() => {
-    close();
-    setInputValue('');
-  }, [close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
@@ -197,7 +191,6 @@ export const SearchContextProvider: FC = props => {
         isOpen,
         open,
         close,
-        closeAndResetInput,
         pauseUserInteraction,
         addWindowEventListener,
       }}

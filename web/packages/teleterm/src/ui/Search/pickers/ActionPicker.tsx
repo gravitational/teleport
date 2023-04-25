@@ -69,7 +69,6 @@ export function ActionPicker(props: { input: ReactElement }) {
     close,
     inputValue,
     resetInput,
-    closeAndResetInput,
     filters,
     removeFilter,
     addWindowEventListener,
@@ -112,17 +111,16 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        if (action.preventAutoClose === true) {
-          resetInput();
-        } else {
-          closeAndResetInput();
+        resetInput();
+        if (!action.preventAutoClose) {
+          close();
         }
       }
       if (action.type === 'parametrized-action') {
         changeActivePicker(getParameterPicker(action));
       }
     },
-    [changeActivePicker, closeAndResetInput, resetInput]
+    [changeActivePicker, close, resetInput]
   );
 
   const filterButtons = filters.map(s => {

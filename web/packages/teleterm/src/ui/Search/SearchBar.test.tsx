@@ -323,7 +323,6 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
   isOpen: true,
   open: () => {},
   close: () => {},
-  closeAndResetInput: () => {},
   resetInput: () => {},
   changeActivePicker: () => {},
   onInputValueChange: () => {},
