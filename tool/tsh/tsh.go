@@ -3712,10 +3712,16 @@ func onShow(cf *CLIConf) error {
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	var prefix string
-	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
+	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		// Display <1m if less then 1 minute left while valid instead of 0s
+		oneMinuteAhead := time.Now().UTC().Add(1 * time.Minute)
+		if p.ValidUntil.Before(oneMinuteAhead) {
+			humanDuration = "valid for <1m"
+		} else {
+			humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		}
 	}
 
 	proxyURL := p.getProxyURLLine(isActive, env)
