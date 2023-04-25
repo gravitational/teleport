@@ -62,7 +62,7 @@ export function EnrollRdsDatabase() {
     nextStep,
   } = useCreateDatabase();
 
-  const { agentMeta, resourceSpec } = useDiscover();
+  const { agentMeta, resourceSpec, emitErrorEvent } = useDiscover();
   const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
     useAttempt('');
 
@@ -80,6 +80,11 @@ export function EnrollRdsDatabase() {
 
   function fetchNextPage() {
     fetchDatabases({ ...tableData });
+  }
+
+  function refreshDatabaseList() {
+    // When refreshing, start the table back at page 1.
+    fetchDatabases({ ...tableData, startKey: '', items: [] });
   }
 
   function fetchDatabases(data: TableData) {
@@ -110,6 +115,7 @@ export function EnrollRdsDatabase() {
       .catch((err: Error) => {
         setFetchDbAttempt({ status: 'failed', statusText: err.message });
         setTableData(data); // fallback to previous data
+        emitErrorEvent(`failed to fetch aws rds list: ${err.message}`);
       });
   }
 
@@ -128,9 +134,6 @@ export function EnrollRdsDatabase() {
   }
 
   function handleOnProceed() {
-    // Append `teleport_` to the RDS db name to
-    // lower the chance of duplicate db name.
-
     registerDatabase(
       {
         name: selectedDb.name,
@@ -157,9 +160,10 @@ export function EnrollRdsDatabase() {
       )}
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
+        onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
-        disableBtn={
+        disableFetch={
           fetchDbAttempt.status === 'processing' || tableData.items.length > 0
         }
       />
@@ -177,7 +181,7 @@ export function EnrollRdsDatabase() {
       {registerAttempt.status !== '' && (
         <CreateDatabaseDialog
           pollTimeout={pollTimeout}
-          attempt={fetchDbAttempt}
+          attempt={registerAttempt}
           next={nextStep}
           close={clearRegisterAttempt}
           retry={handleOnProceed}
