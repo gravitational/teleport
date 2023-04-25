@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio } from './utils/colorManipulator';
-import { lightBlue, blueGrey, yellow } from './palette';
+import { lightBlue, blueGrey, yellow, grey } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
@@ -121,6 +121,10 @@ const colors = {
 
   grey: {
     ...blueGrey,
+  },
+
+  lightgrey: {
+    ...grey,
   },
 
   error: {

@@ -16,7 +16,14 @@ limitations under the License.
 
 import { fonts } from 'design/theme/fonts';
 import { getContrastRatio } from 'design/theme/utils/colorManipulator';
-import { lightBlue, teal, pink, blueGrey, yellow } from 'design/theme/palette';
+import {
+  lightBlue,
+  teal,
+  pink,
+  blueGrey,
+  yellow,
+  grey,
+} from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
 import { sharedStyles } from 'design/theme/sharedStyles';
 
@@ -116,6 +123,10 @@ const colors = {
 
   grey: {
     ...blueGrey,
+  },
+
+  lightGrey: {
+    ...grey,
   },
 
   error: {
