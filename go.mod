@@ -105,7 +105,7 @@ require (
 	github.com/mdlayher/netlink v1.7.1
 	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
+	github.com/moby/term v0.0.0-20221205130635-1aeaba878587
 	github.com/okta/okta-sdk-golang/v2 v2.17.0
 	github.com/opensearch-project/opensearch-go/v2 v2.2.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
@@ -160,16 +160,16 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/api v0.26.3
+	k8s.io/api v0.27.1
 	k8s.io/apiextensions-apiserver v0.26.3
-	k8s.io/apimachinery v0.26.3
-	k8s.io/apiserver v0.26.3
+	k8s.io/apimachinery v0.27.1
+	k8s.io/apiserver v0.27.1
 	k8s.io/cli-runtime v0.26.3
-	k8s.io/client-go v0.26.3
-	k8s.io/component-base v0.26.3
+	k8s.io/client-go v0.27.1
+	k8s.io/component-base v0.27.1
 	k8s.io/klog/v2 v2.90.1
 	k8s.io/kubectl v0.26.3
-	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
+	k8s.io/utils v0.0.0-20230209194617-a36077c30491
 	sigs.k8s.io/controller-runtime v0.14.6
 	sigs.k8s.io/controller-tools v0.11.4
 	sigs.k8s.io/yaml v1.3.0
@@ -223,7 +223,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chai2010/gettext-go v1.0.2 // indirect
-	github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534 // indirect
+	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
 	github.com/coreos/pkg v0.0.0-20220810130054-c7d1c02cb6cf // indirect
 	github.com/crewjam/httperr v0.2.0 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect
@@ -366,7 +366,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	k8s.io/component-helpers v0.26.3 // indirect
-	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
+	k8s.io/kube-openapi v0.0.0-20230308215209-15aac26d736a // indirect
 	k8s.io/metrics v0.26.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kustomize/api v0.12.1 // indirect
