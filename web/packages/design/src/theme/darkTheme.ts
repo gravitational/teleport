@@ -119,7 +119,7 @@ const colors = {
   dark: '#000000',
   light: '#FFFFFF',
 
-  grey: {
+  blueGrey: {
     ...blueGrey,
   },
 

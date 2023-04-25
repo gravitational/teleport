@@ -106,7 +106,7 @@ const StyledCloseButton = styled.button`
   background: transparent;
   border-radius: 2px;
   border: none;
-  color: ${props => props.theme.colors.grey[900]};
+  color: ${props => props.theme.colors.blueGrey[900]};
   cursor: pointer;
   height: 24px;
   width: 24px;
@@ -121,7 +121,7 @@ const StyledCloseButton = styled.button`
   right: 0px;
 
   &:hover {
-    background: ${props => props.theme.colors.grey[200]};
+    background: ${props => props.theme.colors.blueGrey[200]};
   }
 `;
 

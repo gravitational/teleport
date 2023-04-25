@@ -91,7 +91,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
     background: ${props => props.theme.colors.levels.surface};
 
     &:before {
-      background: ${props => props.theme.colors.grey[700]};
+      background: ${props => props.theme.colors.blueGrey[700]};
     }
   }
 `;

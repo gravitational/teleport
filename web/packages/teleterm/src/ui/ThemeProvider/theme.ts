@@ -121,7 +121,7 @@ const colors = {
     },
   },
 
-  grey: {
+  blueGrey: {
     ...blueGrey,
   },
 

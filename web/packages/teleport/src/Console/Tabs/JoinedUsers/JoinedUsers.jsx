@@ -103,7 +103,7 @@ const StyledUsers = styled.div`
   justify-content: center;
   margin-right: 3px;
   background-color: ${props =>
-    props.active ? props.theme.colors.brand : props.theme.colors.grey[900]};
+    props.active ? props.theme.colors.brand : props.theme.colors.blueGrey[900]};
 `;
 
 const StyledAvatar = styled.div`
@@ -121,8 +121,8 @@ const StyledAvatar = styled.div`
 `;
 
 const UserItem = styled.div`
-  border-bottom: 1px solid ${props => props.theme.colors.grey[50]};
-  color: ${props => props.theme.colors.grey[600]};
+  border-bottom: 1px solid ${props => props.theme.colors.blueGrey[50]};
+  color: ${props => props.theme.colors.blueGrey[600]};
   font-size: 12px;
   align-items: center;
   display: flex;

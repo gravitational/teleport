@@ -168,7 +168,7 @@ const StatusLight = styled(Box)`
     if (status === Status.Warning) {
       return theme.colors.warning;
     }
-    return theme.colors.grey[300]; // Unknown
+    return theme.colors.blueGrey[300]; // Unknown
   }};
 `;
 
