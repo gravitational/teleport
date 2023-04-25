@@ -28,6 +28,10 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
+func init() {
+	ini.PrettyFormat = false // Pretty format breaks mysql.
+}
+
 // OptionFile represents MySQL option file.
 //
 // https://dev.mysql.com/doc/refman/8.0/en/option-files.html
@@ -100,7 +104,6 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("ssl-ca", strings.ReplaceAll(profile.CACertPath, `\`, `\\`))
 	section.NewKey("ssl-cert", strings.ReplaceAll(profile.CertPath, `\`, `\\`))
 	section.NewKey("ssl-key", strings.ReplaceAll(profile.KeyPath, `\`, `\\`))
-	ini.PrettyFormat = false
 	return o.iniFile.SaveTo(o.path)
 }
 

@@ -14,7 +14,7 @@ MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
 MACOS_STDOUT_LOG="/var/log/teleport-stdout.log"
 SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=443
-TELEPORT_ARCHIVE_PATH="teleport"
+TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
@@ -863,10 +863,10 @@ install_from_repo() {
             ($ID == "debian" && $VERSION_ID == "9" )
         ]]; then
             apt install apt-transport-https gnupg -y
-            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc | apt-key add -
+            curl -fsSL https://apt.releases.teleport.dev/gpg | apt-key add -
             echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
-            curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc \
+            curl -fsSL https://apt.releases.teleport.dev/gpg \
                 -o /usr/share/keyrings/teleport-archive-keyring.asc
             echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list

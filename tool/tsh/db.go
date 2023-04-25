@@ -1171,7 +1171,10 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
-		if tc.TLSRoutingEnabled {
+		// When TLS routing is enabled and MySQL is listening on the web port,
+		// a local proxy is required to connect. With a separate port, MySQL
+		// does not require a local proxy even if TLS routing is enabled.
+		if tc.TLSRoutingEnabled && tc.DoesDatabaseUseWebProxyHostPort(*route) {
 			out.addLocalProxy(fmt.Sprintf("%v and %v",
 				formatDBProtocolReason(route.Protocol),
 				formatTLSRoutingReason(tc.SiteName)))

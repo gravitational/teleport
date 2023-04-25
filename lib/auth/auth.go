@@ -274,10 +274,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
-
-		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -296,11 +295,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
 	}
+	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -369,11 +368,10 @@ type Services struct {
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	services.Integrations
+	services.Okta
 	usagereporter.UsageReporter
 	types.Events
 	events.IAuditLog
-
-	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -390,7 +388,7 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
-	return r.okta
+	return r
 }
 
 var (
@@ -460,6 +458,11 @@ var (
 		registeredAgents, migrations,
 	}
 )
+
+// LoginHook is a function that will be called on a successful login. This will likely be used
+// for enterprise services that need to add in feature specific operations after a user has been
+// successfully authenticated. An example would be creating objects based on the user.
+type LoginHook func(context.Context, types.User) error
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
@@ -571,6 +574,10 @@ type Server struct {
 	// headlessAuthenticationWatcher is a headless authentication watcher,
 	// used to catch and propagate headless authentication request changes.
 	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
+
+	loginHooksMu sync.RWMutex
+	// loginHooks are a list of hooks that will be called on login.
+	loginHooks []LoginHook
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -610,6 +617,41 @@ func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
 		return loginrule.NullEvaluator{}
 	}
 	return a.loginRuleEvaluator
+}
+
+// RegisterLoginHook will register a login hook with the auth server.
+func (a *Server) RegisterLoginHook(hook LoginHook) {
+	a.loginHooksMu.Lock()
+	defer a.loginHooksMu.Unlock()
+
+	a.loginHooks = append(a.loginHooks, hook)
+}
+
+// CallLoginHooks will call the registered login hooks.
+func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
+	// Make a copy of the login hooks to operate on.
+	a.loginHooksMu.RLock()
+	loginHooks := make([]LoginHook, len(a.loginHooks))
+	copy(loginHooks, a.loginHooks)
+	a.loginHooksMu.RUnlock()
+
+	if len(loginHooks) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for _, hook := range loginHooks {
+		errs = append(errs, hook(ctx, user))
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// ResetLoginHooks will clear out the login hooks.
+func (a *Server) ResetLoginHooks() {
+	a.loginHooksMu.Lock()
+	a.loginHooks = nil
+	a.loginHooksMu.Unlock()
 }
 
 // CloseContext returns the close context
@@ -4803,13 +4845,19 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	// wait for the headless authentication to be updated with valid login details
-	// by the login process. If the headless authentication is already updated,
-	// Wait will return it immediately.
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 	defer cancel()
 
-	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	headlessAuthn, err := a.headlessAuthenticationWatcher.WaitForUpdate(waitCtx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)

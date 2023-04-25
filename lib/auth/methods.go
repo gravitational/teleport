@@ -112,17 +112,17 @@ type SessionCreds struct {
 
 // AuthenticateUser authenticates user based on the request type.
 // Returns the username of the authenticated user.
-func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (string, error) {
-	user := req.Username
+func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserRequest) (types.User, error) {
+	username := req.Username
 
-	mfaDev, actualUser, err := s.authenticateUser(ctx, req)
+	mfaDev, actualUsername, err := s.authenticateUser(ctx, req)
 	// err is handled below.
 	switch {
-	case user != "" && actualUser != "" && user != actualUser:
-		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", user, actualUser, user)
-	case user == "" && actualUser != "":
-		log.Debugf("User %q authenticated via passwordless", actualUser)
-		user = actualUser
+	case username != "" && actualUsername != "" && username != actualUsername:
+		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
+	case username == "" && actualUsername != "":
+		log.Debugf("User %q authenticated via passwordless", actualUsername)
+		username = actualUsername
 	}
 
 	event := &apievents.UserLogin{
@@ -131,7 +131,7 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			Code: events.UserLocalLoginFailureCode,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: user,
+			User: username,
 		},
 		Method: events.LoginMethodLocal,
 	}
@@ -147,6 +147,8 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 			event.UserAgent = req.ClientMetadata.UserAgent
 		}
 	}
+
+	var user types.User
 	if err != nil {
 		event.Code = events.UserLocalLoginFailureCode
 		event.Status.Success = false
@@ -154,6 +156,19 @@ func (s *Server) AuthenticateUser(ctx context.Context, req AuthenticateUserReque
 	} else {
 		event.Code = events.UserLocalLoginCode
 		event.Status.Success = true
+
+		var err error
+		user, err = s.GetUser(username, false /* withSecrets */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// After we're sure that the user has been logged in successfully, we should call
+		// the registered login hooks. Login hooks can be registered by other processes to
+		// execute arbitrary operations after a successful login.
+		if err := s.CallLoginHooks(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit login event.")
@@ -361,10 +376,16 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		return nil, trace.Wrap(err)
 	}
 
+	sub, err := s.headlessAuthenticationWatcher.Subscribe(ctx, req.HeadlessAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	// Wait for a headless authenticated stub to be inserted by an authenticated
 	// call to GetHeadlessAuthentication. We do this to avoid immediately inserting
 	// backend items from an unauthenticated endpoint.
-	headlessAuthnStub, err := s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthnStub, err := s.headlessAuthenticationWatcher.WaitForUpdate(ctx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		// Only headless authentication stub can be inserted without the standard validation.
 		if services.ValidateHeadlessAuthentication(ha) == nil {
 			return false, trace.AlreadyExists("headless auth request already exists")
@@ -381,7 +402,7 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	}
 
 	// Wait for the request to be approved/denied.
-	headlessAuthn, err = s.headlessAuthenticationWatcher.Wait(ctx, req.HeadlessAuthenticationID, func(ha *types.HeadlessAuthentication) (bool, error) {
+	headlessAuthn, err = s.headlessAuthenticationWatcher.WaitForUpdate(ctx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		switch ha.State {
 		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
 			if ha.MfaDevice == nil {
@@ -436,13 +457,7 @@ func (s *Server) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRe
 		return session, nil
 	}
 
-	actualUser, err := s.AuthenticateUser(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	username = actualUser
-
-	user, err := s.GetUser(username, false /* withSecrets */)
+	user, err := s.AuthenticateUser(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -560,18 +575,13 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 		return nil, trace.Wrap(err)
 	}
 
-	actualUser, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	username = actualUser
-
 	// It's safe to extract the roles and traits directly from services.User as
 	// this endpoint is only used for local accounts.
-	user, err := s.GetUser(username, false /* withSecrets */)
+	user, err := s.AuthenticateUser(ctx, req.AuthenticateUserRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	accessInfo := services.AccessInfoFromUser(user)
 	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), s)
 	if err != nil {
@@ -634,7 +644,7 @@ func (s *Server) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHReq
 	}
 	UserLoginCount.Inc()
 	return &SSHLoginResponse{
-		Username:    username,
+		Username:    user.GetName(),
 		Cert:        certs.SSH,
 		TLSCert:     certs.TLS,
 		HostSigners: AuthoritiesToTrustedCerts(hostCertAuthorities),
