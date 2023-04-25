@@ -211,6 +211,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 			types.NewRule(types.KindLock, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
+			types.NewRule(types.KindAssistant, RW()),
 		},
 	}
 }
