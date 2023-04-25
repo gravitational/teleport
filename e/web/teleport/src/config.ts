@@ -53,6 +53,7 @@ const cfg = {
     invoicesPath: '/v1/enterprise/cloud/invoices',
     cardPath: '/v1/enterprise/cloud/card',
     accountPath: '/v1/enterprise/cloud/account',
+    setupIntentPath: '/v1/enterprise/cloud/setupintent',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',

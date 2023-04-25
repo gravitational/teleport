@@ -6,6 +6,8 @@ export type Account = cloud.Account.AsObject;
 
 export type BillingInformation = cloud.GetBillingInformationResponse.AsObject;
 
+export type SetupIntent = cloud.CreateSetupIntentResponse.AsObject;
+
 export type Status = 'PENDING' | 'PAID';
 
 export type Invoice = cloud.Invoice.AsObject;

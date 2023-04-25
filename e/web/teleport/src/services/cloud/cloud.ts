@@ -3,13 +3,14 @@ import api from 'teleport/services/api';
 import cfg from 'e-teleport/config';
 
 import {
-  UpdateAccountRequest,
-  Invoice,
-  BillingInformation,
-  BillingCycle,
   AddCardRequest,
-  UpdateCardRequest,
+  BillingCycle,
+  BillingInformation,
+  Invoice,
   RemoveCardRequest,
+  SetupIntent,
+  UpdateAccountRequest,
+  UpdateCardRequest,
 } from './types';
 
 class CloudService {
@@ -40,6 +41,10 @@ class CloudService {
   fetchBillingCycles(): Promise<BillingCycle[]> {
     return api.get(cfg.api.cyclesPath).then(makeBillingCycles);
   }
+
+  createSetupIntent(): Promise<SetupIntent> {
+    return api.post(cfg.api.setupIntentPath).then(makeSetupIntentResponse);
+  }
 }
 
 export default CloudService;
@@ -55,7 +60,12 @@ function makeBillingCycles(json: any) {
 
 function makeBillingInformation(json: any) {
   json.cardsList = json.cardsList || [];
-  json.bankAccountsList = json.bankAccountsList || [];
 
   return json as BillingInformation;
+}
+
+function makeSetupIntentResponse(json: any) {
+  json.clientSecret = json.clientSecret || '';
+
+  return json as SetupIntent;
 }

@@ -118,7 +118,7 @@ func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccou
 	return res, nil
 }
 
-// AddCreditCard adds a new credit card
+// AddCard adds a new credit card
 func (ac *cloudWithRoles) AddCard(ctx context.Context, req *v1.AddCardRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbCreate)
 	if err != nil {
@@ -155,6 +155,13 @@ func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.Emp
 	}
 
 	return ac.plugin.cloudClient.GetBillingInformation(ctx, req)
+}
+
+// CreateSetupIntent creates a Stripe setup intent and returns the client secret. A Stripe SetupIntent guides the
+// process of setting up and saving a customer's payment credentials for future payments. https://stripe.com/docs/api/setup_intents
+func (ac *cloudWithRoles) CreateSetupIntent(ctx context.Context, req *v1.EmptyRequest) (*v1.CreateSetupIntentResponse, error) {
+	// todo (michellescripts) should we require an action check
+	return ac.plugin.cloudClient.CreateSetupIntent(ctx, req)
 }
 
 // SubmitUsageReports submits usage report for processing

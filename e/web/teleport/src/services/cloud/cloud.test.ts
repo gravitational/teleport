@@ -1,11 +1,11 @@
 import api from 'teleport/services/api';
 
 import CloudSvc from './cloud';
-import { Invoice, BillingInformation, BillingCycle } from './types';
+import { BillingCycle, BillingInformation, Invoice } from './types';
 
 test('fetch billing information', async () => {
   const cloud = new CloudSvc();
-  const billingInfo = getBillingInfo();
+  const billingInfo = getDefaultBillingInfo();
   jest.spyOn(api, 'get').mockResolvedValue(billingInfo);
 
   // Test normal response.
@@ -13,11 +13,9 @@ test('fetch billing information', async () => {
   expect(response).toEqual(billingInfo);
 
   // Test with null arrays
-  billingInfo.bankAccountsList = null;
   billingInfo.cardsList = null;
 
   response = await cloud.fetchBillingInformation();
-  expect(response.bankAccountsList).toEqual([]);
   expect(response.cardsList).toEqual([]);
 });
 
@@ -76,57 +74,36 @@ const getBillingCycleList = () =>
     },
   ] as BillingCycle[];
 
-const getBillingInfo = () =>
-  ({
-    account: {
-      balance: -33871,
-      contactEmail: 'wewko@zudhej.sy',
-      contactName: 'Lucile Mann',
-      companyName: 'MyCompany',
-      companyAddressCity: 'Lesreur',
-      companyAddressCountry: 'MD',
-      companyAddressLine1: '380 Puvgi Manor',
-      companyAddressLine2: 'test',
-      companyAddressPostalCode: '323',
-      companyAddressState: 'MD',
+const getDefaultBillingInfo = (): BillingInformation => ({
+  defaultPaymentMethodId: '41c23fa8-5914-5283-90f7-2146bec2c39f',
+  cardsList: [
+    {
+      id: 'abc',
+      last4: '4242',
+      addressLine1: '1234 W',
+      addressLine2: '5678 N',
+      city: 'Seattle',
+      country: 'US',
+      state: 'WA',
+      name: 'Bob',
+      zip: '11111',
+      brand: 'visa',
+      expirationMonth: 4,
+      expirationYear: 2029,
+      createdAt: 1615484534,
     },
-    defaultPaymentMethodId: '41c23fa8-5914-5283-90f7-2146bec2c39f',
-    cardsList: [
-      {
-        id: 'abc',
-        last4: '4242',
-        addressLine1: '1234 W',
-        addressLine2: '5678 N',
-        city: 'Seattle',
-        country: 'US',
-        state: 'WA',
-        name: 'Bob',
-        zip: '11111',
-        brand: 'visa',
-        expirationMonth: 4,
-        expirationYear: 2029,
-        createdAt: 1615484534,
-      },
-    ],
-    bankAccountsList: [
-      {
-        id: '5ff3fd22-72e8-5ce3-8c05-fe29d5b4fdef',
-        accountHolderName: 'Alice',
-        accountHolderType: 'test',
-        bankName: 'becu',
-        country: 'test',
-        currency: 'test',
-        customer: 'test',
-        fingerprint: 'test',
-        last4: '1234',
-        metadata: 'test',
-        routingNumber: 'test',
-        status: 'test',
-      },
-    ],
-    stripePublicKey: 'test',
-    productName: 'Teleport Pro',
-  } as BillingInformation);
+  ],
+  stripePublicKey: 'test',
+  productName: 'Teleport Pro',
+  trial: false,
+  selfEnrolled: false,
+  upsellAlert: false,
+  usageBasedBilling: false,
+  stripeTrial: false,
+  stripeTrialEnd: 0,
+  stripeMissingPaymentMethod: false,
+  stripeCustomerId: '6e5357a5-e7e9-4770-9235-aab26936b5b0',
+});
 
 const invoices: Invoice[] = [
   {

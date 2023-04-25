@@ -17,6 +17,8 @@ type MockedClient struct {
 	MockListInvoices func() (*v1.ListInvoicesResponse, error)
 	// GetBillingInformation returns customer billing information
 	MockGetBillingInformation func() (*v1.GetBillingInformationResponse, error)
+	// CreateSetupIntent creates an intent in stripe and returns the client secret
+	MockCreateSetupIntent func() (*v1.CreateSetupIntentResponse, error)
 	// AddCard adds a new credit card to customer account
 	MockAddCard func(in *v1.AddCardRequest) (*v1.EmptyResponse, error)
 	// RemoveCardRequest removes a credit card from tenant account
@@ -64,6 +66,14 @@ func (m *MockedClient) GetBillingInformation(ctx context.Context, in *v1.EmptyRe
 	}
 
 	return nil, trace.NotImplemented("GetBillingInformation is not implemented")
+}
+
+func (m *MockedClient) CreateSetupIntent(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.CreateSetupIntentResponse, error) {
+	if m.MockCreateSetupIntent != nil {
+		return m.MockCreateSetupIntent()
+	}
+
+	return nil, trace.NotImplemented("CreateSetupIntent is not implemented")
 }
 
 func (m *MockedClient) AddCard(ctx context.Context, in *v1.AddCardRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {

@@ -94,3 +94,12 @@ func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Requ
 
 	return res, nil
 }
+
+func (p *Plugin) createSetupIntentHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	res, err := client.CreateSetupIntent(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
