@@ -162,7 +162,10 @@ function LockedFeatureInternalJoinMenu({
 }: LockedFeatureInternalJoinMenuProps) {
   return (
     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-      <div></div> {/* this div makes the menu properly positioned */}
+      {/* this div makes the menu properly positioned.
+          TODO(mcbattirola): fix this hack
+      */}
+      <div></div>
       <LockedJoinMenuContainer>
         <ButtonLockedFeature>
           Join Active Sessions with Teleport Enterprise
