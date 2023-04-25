@@ -331,6 +331,9 @@ type CLIConf struct {
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
 
+	// mockHeadlessLogin used in tests to override Headless login handler in teleport client.
+	mockHeadlessLogin client.SSHLoginFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -3342,6 +3345,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
+		if !cf.ExplicitUsername {
+			return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
+		}
 	}
 
 	if err := tryLockMemory(cf); err != nil {
@@ -3492,6 +3498,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// pass along mock sso login if provided (only used in tests)
 	c.MockSSOLogin = cf.mockSSOLogin
+	c.MockHeadlessLogin = cf.mockHeadlessLogin
 
 	// Set tsh home directory
 	c.HomePath = cf.HomePath
