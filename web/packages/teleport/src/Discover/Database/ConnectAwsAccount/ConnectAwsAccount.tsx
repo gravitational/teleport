@@ -18,14 +18,13 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Box,
-  ButtonLink,
+  ButtonText,
   Text,
   ButtonPrimary,
   Indicator,
   Alert,
   Flex,
 } from 'design';
-import theme from 'design/theme';
 import FieldSelect from 'shared/components/FieldSelect';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Option } from 'shared/components/Select';
@@ -43,12 +42,23 @@ import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, HeaderSubtitle, HeaderWithBackBtn } from '../../Shared';
 
-import { DbMeta, useDiscover } from '../../useDiscover';
+import {
+  DbMeta,
+  DiscoverUrlLocationState,
+  useDiscover,
+} from '../../useDiscover';
 
 export function ConnectAwsAccount() {
   const { storeUser } = useTeleport();
-  const { prevStep, nextStep, agentMeta, updateAgentMeta, eventState } =
-    useDiscover();
+  const {
+    prevStep,
+    nextStep,
+    agentMeta,
+    updateAgentMeta,
+    eventState,
+    resourceSpec,
+    currentStep,
+  } = useDiscover();
 
   const integrationAccess = storeUser.getIntegrationsAccess();
   const databaseAccess = storeUser.getDatabaseAccess();
@@ -141,14 +151,24 @@ export function ConnectAwsAccount() {
       integrationName: selectedAwsIntegration.value,
     });
 
-    // TODO(lisa): Need to add a new event to emit for this screen.
     nextStep();
   }
 
   const hasAwsIntegrations = awsIntegrations.length > 0;
+
+  // When a user clicks to create a new AWS integration, we
+  // define location state to preserve all the states required
+  // to resume from this step when the user comes back to discover route
+  // after successfully finishing enrolling integration.
   const locationState = {
     pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
-    state: { discoverEventId: eventState?.id },
+    state: {
+      discover: {
+        eventState,
+        resourceSpec,
+        currentStep,
+      },
+    } as DiscoverUrlLocationState,
   };
   return (
     <Box maxWidth="700px">
@@ -175,14 +195,9 @@ export function ConnectAwsAccount() {
                       options={awsIntegrations}
                     />
                   </Box>
-                  <ButtonLink
-                    as={Link}
-                    to={locationState}
-                    pl={0}
-                    css={{ color: theme.colors.link }}
-                  >
+                  <ButtonText as={Link} to={locationState} pl={0}>
                     Or click here to set up a different AWS account
-                  </ButtonLink>
+                  </ButtonText>
                 </>
               ) : (
                 <ButtonPrimary

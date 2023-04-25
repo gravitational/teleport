@@ -1241,7 +1241,89 @@ exports[`render with all access 1`] = `
           <div
             class="c15"
           >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c14"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
             RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c14"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
           </div>
         </div>
       </div>
@@ -2874,6 +2956,48 @@ exports[`render with no access 1`] = `
           <div
             class="c15"
           >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
             RDS MySQL/MariaDB
           </div>
         </div>
@@ -2885,6 +3009,48 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4628,6 +4794,48 @@ exports[`render with partial access 1`] = `
           <div
             class="c15"
           >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
             RDS MySQL/MariaDB
           </div>
         </div>
@@ -4639,6 +4847,48 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.secondary"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
