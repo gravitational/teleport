@@ -196,7 +196,6 @@ function LockedFeatureInternalJoinMenu({
 
 const LockedJoinMenuContainer = styled(Flex)(
   () => `
-    background-color: ${/*theme.colors.levels.surface TODO*/ ''};
     display: flex;
     flex-direction: column;
     align-items: flex-start;
