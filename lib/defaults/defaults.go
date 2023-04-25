@@ -362,15 +362,14 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
-// Default rate limits for unauthenticated passwordless endpoints.
+// Default rate limits for unauthenticated endpoints.
 const (
-	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
-	LimiterPasswordlessPeriod = 1 * time.Minute
-	// LimiterPasswordlessAverage is the default average for passwordless
-	// limiters.
-	LimiterPasswordlessAverage = 10
-	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
-	LimiterPasswordlessBurst = 20
+	// LimiterPeriod is the default period for unauthenticated limiters.
+	LimiterPeriod = 1 * time.Minute
+	// LimiterAverage is the default average for unauthenticated limiters.
+	LimiterAverage = 20
+	// LimiterBurst is the default burst for unauthenticated limiters.
+	LimiterBurst = 40
 )
 
 const (

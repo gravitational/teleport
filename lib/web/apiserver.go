@@ -337,9 +337,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	h.limiter, err = limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
 			{
-				Period:  defaults.LimiterPasswordlessPeriod,
-				Average: defaults.LimiterPasswordlessAverage,
-				Burst:   defaults.LimiterPasswordlessBurst,
+				Period:  defaults.LimiterPeriod,
+				Average: defaults.LimiterAverage,
+				Burst:   defaults.LimiterBurst,
 			},
 		},
 		MaxConnections:   defaults.LimiterMaxConnections,
@@ -373,7 +373,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
 
-		h.Handle("GET", "/web/config.js", httplib.MakeHandler(h.getWebConfig))
+		h.Handle("GET", "/web/config.js", h.WithUnauthenticatedLimiter(h.getWebConfig))
 	}
 
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -509,9 +509,9 @@ func (h *Handler) bindMinimalEndpoints() {
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", httplib.MakeHandler(h.find))
+	h.GET("/webapi/find", h.WithUnauthenticatedLimiter(h.find))
 	// Issue host credentials.
-	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
+	h.POST("/webapi/host/credentials", h.WithUnauthenticatedLimiter(h.hostCredentials))
 }
 
 // bindDefaultEndpoints binds the default endpoints for the web API.
@@ -522,23 +522,23 @@ func (h *Handler) bindDefaultEndpoints() {
 	// endpoint returns the default authentication method and configuration that
 	// the server supports. the /webapi/ping/:connector endpoint can be used to
 	// query the authentication configuration for a specific connector.
-	h.GET("/webapi/ping", httplib.MakeHandler(h.ping))
-	h.GET("/webapi/ping/:connector", httplib.MakeHandler(h.pingWithConnector))
+	h.GET("/webapi/ping", h.WithUnauthenticatedLimiter(h.ping))
+	h.GET("/webapi/ping/:connector", h.WithUnauthenticatedLimiter(h.pingWithConnector))
 
 	// Unauthenticated access to JWT public keys.
-	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
+	h.GET("/.well-known/jwks.json", h.WithUnauthenticatedLimiter(h.jwks))
 
 	// Unauthenticated access to the message of the day
-	h.GET("/webapi/motd", httplib.MakeHandler(h.motd))
+	h.GET("/webapi/motd", h.WithLimiter(h.motd))
 
 	// Unauthenticated access to retrieving the script used to install
 	// Teleport
-	h.GET("/webapi/scripts/installer/:name", httplib.MakeHandler(h.installer))
+	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
 
 	// desktop access configuration scripts
-	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADDSHandle))
-	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", httplib.MakeHandler(h.desktopAccessScriptInstallADCSHandle))
-	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", httplib.MakeHandler(h.desktopAccessScriptConfigureHandle))
+	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
+	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
+	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
 
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
@@ -557,7 +557,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// We have an overlap route here, please see godoc of handleGetUserOrResetToken
 	// h.GET("/webapi/users/:username", h.WithAuth(h.getUserHandle))
-	// h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	// h.GET("/webapi/users/password/token/:token", h.WithLimiter(h.getResetPasswordTokenHandle))
 	h.GET("/webapi/users/*wildcard", h.handleGetUserOrResetToken)
 
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changeUserAuthentication))
@@ -566,7 +566,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/users/privilege/token", h.WithAuth(h.createPrivilegeTokenHandle))
 
 	// Issues SSH temp certificates based on 2FA access creds
-	h.POST("/webapi/ssh/certs", h.WithLimiter(h.createSSHCert))
+	h.POST("/webapi/ssh/certs", h.WithUnauthenticatedLimiter(h.createSSHCert))
 
 	// list available sites
 	h.GET("/webapi/sites", h.WithAuth(h.getClusters))
@@ -623,9 +623,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/token", h.WithAuth(h.createTokenHandle))
 
 	// join scripts
-	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(h.getNodeJoinScriptHandle))
-	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(h.getAppJoinScriptHandle))
-	h.GET("/scripts/:token/install-database.sh", httplib.MakeHandler(h.getDatabaseJoinScriptHandle))
+	h.GET("/scripts/:token/install-node.sh", h.WithLimiter(h.getNodeJoinScriptHandle))
+	h.GET("/scripts/:token/install-app.sh", h.WithLimiter(h.getAppJoinScriptHandle))
+	h.GET("/scripts/:token/install-database.sh", h.WithLimiter(h.getDatabaseJoinScriptHandle))
 	// web context
 	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
 	h.GET("/webapi/sites/:site/resources/check", h.WithClusterAuth(h.checkAccessToRegisteredResource))
@@ -652,12 +652,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
 	h.POST("/webapi/mfa/login/begin", h.WithLimiter(h.mfaLoginBegin))
-	h.POST("/webapi/mfa/login/finish", httplib.MakeHandler(h.mfaLoginFinish))
-	h.POST("/webapi/mfa/login/finishsession", httplib.MakeHandler(h.mfaLoginFinishSession))
-	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", httplib.MakeHandler(h.deleteMFADeviceWithTokenHandle))
-	h.GET("/webapi/mfa/token/:token/devices", httplib.MakeHandler(h.getMFADevicesWithTokenHandle))
-	h.POST("/webapi/mfa/token/:token/authenticatechallenge", httplib.MakeHandler(h.createAuthenticateChallengeWithTokenHandle))
-	h.POST("/webapi/mfa/token/:token/registerchallenge", httplib.MakeHandler(h.createRegisterChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/login/finish", h.WithLimiter(h.mfaLoginFinish))
+	h.POST("/webapi/mfa/login/finishsession", h.WithLimiter(h.mfaLoginFinishSession))
+	h.DELETE("/webapi/mfa/token/:token/devices/:devicename", h.WithLimiter(h.deleteMFADeviceWithTokenHandle))
+	h.GET("/webapi/mfa/token/:token/devices", h.WithLimiter(h.getMFADevicesWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/authenticatechallenge", h.WithLimiter(h.createAuthenticateChallengeWithTokenHandle))
+	h.POST("/webapi/mfa/token/:token/registerchallenge", h.WithLimiter(h.createRegisterChallengeWithTokenHandle))
 
 	// MFA private endpoints.
 	h.GET("/webapi/mfa/devices", h.WithAuth(h.getMFADevicesHandle))
@@ -666,7 +666,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.POST("/webapi/mfa/authenticatechallenge/password", h.WithAuth(h.createAuthenticateChallengeWithPassword))
 
 	// trusted clusters
-	h.POST("/webapi/trustedclusters/validate", httplib.MakeHandler(h.validateTrustedCluster))
+	h.POST("/webapi/trustedclusters/validate", h.WithUnauthenticatedLimiter(h.validateTrustedCluster))
 
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
@@ -719,10 +719,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
 
 	// Connection upgrades.
-	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
+	h.GET("/webapi/connectionupgrade", h.WithLimiter(h.connectionUpgrade))
 
 	// create user events.
-	h.POST("/webapi/precapture", h.WithLimiter(h.createPreUserEventHandle))
+	h.POST("/webapi/precapture", h.WithUnauthenticatedLimiter(h.createPreUserEventHandle))
 	// create authenticated user events.
 	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 
@@ -3647,7 +3647,25 @@ func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 	return httplib.WithCSRFProtection(f)
 }
 
+// WithUnauthenticatedLimiter adds a conditional IP-based rate limiting that will limit only unauthenticated requests.
+// This is a good default to use as both Cluster and User auth are checked here, but `WithLimiter` can be used if
+// you're certain that no authenticated requests will be made.
+func (h *Handler) WithUnauthenticatedLimiter(fn httplib.HandlerFunc) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		if _, _, err := h.authenticateRequestWithCluster(w, r, p); err != nil {
+			// retry with user auth
+			if _, err = h.AuthenticateRequest(w, r, true /* check token */); err != nil {
+				// no auth passed, limit request
+				return h.WithLimiterHandlerFunc(fn)(w, r, p)
+			}
+		}
+		// auth passed, call directly
+		return fn(w, r, p)
+	})
+}
+
 // WithLimiter adds IP-based rate limiting to fn.
+// Limits are applied to all requests, authenticated or not.
 func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		return h.WithLimiterHandlerFunc(fn)(w, r, p)
@@ -3658,20 +3676,26 @@ func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		remote, _, err := net.SplitHostPort(r.RemoteAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		err = h.limiter.RegisterRequest(remote, nil /* customRate */)
-		// MaxRateError doesn't play well with errors.Is, hence the cast.
-		if _, ok := err.(*ratelimit.MaxRateError); ok {
-			return nil, trace.LimitExceeded(err.Error())
-		}
+		err := h.rateLimitRequest(r)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return fn(w, r, p)
 	}
+}
+
+func (h *Handler) rateLimitRequest(r *http.Request) error {
+	remote, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.limiter.RegisterRequest(remote, nil /* customRate */)
+	// MaxRateError doesn't play well with errors.Is, hence the type assertion.
+	if _, ok := err.(*ratelimit.MaxRateError); ok {
+		return trace.LimitExceeded(err.Error())
+	}
+	return trace.Wrap(err)
 }
 
 // AuthenticateRequest authenticates request using combination of a session cookie
@@ -3910,6 +3934,11 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 // GET /webapi/sites/:site/auth/export?type=<auth type>
 // GET /webapi/auth/export?type=<auth type>
 func (h *Handler) authExportPublic(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	err := h.rateLimitRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
+		return
+	}
 	authorities, err := client.ExportAuthorities(
 		r.Context(),
 		h.GetProxyClient(),
