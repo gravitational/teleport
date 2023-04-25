@@ -107,7 +107,7 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupPending, invalid: true},
+		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},

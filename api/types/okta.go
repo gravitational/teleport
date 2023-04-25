@@ -336,7 +336,8 @@ func (o *OktaAssignmentActionV1) GetStatus() string {
 // * SUCCESSFUL -> (CLEANUP_PENDING, CLEANUP_PROCESSING)
 // * FAILED -> (PROCESSING, CLEANUP_PENDING, CLEANUP_PROCESSING)
 // * CLEANUP_PENDING -> CLEANUP_PROCESSING
-// * CLEANUP_PROCESSING -> (CLEANUP_FAILED, CLEANED_UP)
+// * CLEANUP_PROCESSING -> (CLEANED_UP, CLEANUP_FAILED)
+// * CLEANUP_FAILED -> (CLEANUP_PENDING)
 func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 	invalidTransition := false
 	switch o.Status {
@@ -384,7 +385,11 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 	case OktaAssignmentActionV1_CLEANED_UP:
 		invalidTransition = true
 	case OktaAssignmentActionV1_CLEANUP_FAILED:
-		invalidTransition = true
+		switch status {
+		case constants.OktaAssignmentActionStatusCleanupPending:
+		default:
+			invalidTransition = true
+		}
 	case OktaAssignmentActionV1_UNKNOWN:
 		// All transitions are allowed from UNKNOWN.
 	default:
