@@ -328,7 +328,7 @@ func retryWithIndividualEngineFilters(log logrus.FieldLogger, engines []string, 
 	if !common.IsUnrecognizedAWSEngineNameError(err) {
 		return trace.Wrap(err)
 	}
-	log.WithError(err).Warn("Teleport supports an engine which is unrecognized in this AWS region. Querying engines individually.")
+	log.WithError(trace.Unwrap(err)).Debug("Teleport supports an engine which is unrecognized in this AWS region. Querying engine names individually.")
 	for _, engine := range engines {
 		err := fn(rdsEngineFilter([]string{engine}))
 		if err == nil {
