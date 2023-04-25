@@ -90,14 +90,7 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] Login via platform authenticator
       - [ ] Touch ID
       - [ ] Windows Hello
-    - [ ] Login via WebAuthn using an U2F device
-
-    U2F devices must be registered in a previous version of Teleport.
-
-    Using Teleport v9, set `auth_service.authentication.second_factor = u2f`,
-    restart the server and then register an U2F device (`tsh mfa add`). Upgrade
-    the installation to the current Teleport version (one major at a time) and try to
-    log in using the U2F device as your second factor - it should work.
+    - [ ] Login via WebAuthn using an U2F/CTAP1 device
 
   - [ ] Login OIDC
   - [ ] Login SAML
@@ -839,7 +832,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
+  - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
 
@@ -853,9 +846,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
@@ -883,9 +877,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
@@ -997,7 +992,6 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
-  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1006,6 +1000,13 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+- [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
+  - [ ] Agent can join through Proxy and maintain reverse tunnel
+  - [ ] `tsh login` and `tctl`
+  - [ ] SSH Access: `tsh ssh` and `tsh config`
+  - [ ] Database Access: `tsh proxy db` and `tsh db connect`
+  - [ ] Application Access: `tsh proxy app` and `tsh aws`
+  - [ ] Kubernetes Access: `tsh proxy kube`
 
 ## Desktop Access
 
@@ -1227,6 +1228,42 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New EC2 instances with matching AWS tags are discovered and added to the teleport cluster
     - [ ] Large numbers of EC2 instances (51+) are all successfully added to the cluster
   - [ ] Nodes that have been discovered do not have the install script run on the node multiple times
+
+## IP Pinning
+
+Add a role with `pin_source_ip: true` (requires Enterprise) to test IP pinning.
+Testing will require changing your IP (that Teleport Proxy sees).
+Docs: [IP Pinning](https://goteleport.com/docs/access-controls/guides/ip-pinning/?scope=enterprise)
+
+- Verify that it works for SSH Access
+  - [ ] You can access tunnel node with `tsh ssh` on root cluster
+  - [ ] You can access direct access node with `tsh ssh` on root cluster
+  - [ ] You can access tunnel node from Web UI on root cluster
+  - [ ] You can access direct access node from Web UI on root cluster
+  - [ ] You can access tunnel node with `tsh ssh` on leaf cluster
+  - [ ] You can access direct access node with `tsh ssh` on leaf cluster
+  - [ ] You can access tunnel node from Web UI on leaf cluster
+  - [ ] You can access direct access node from Web UI on leaf cluster
+  - [ ] You can download files from nodes in Web UI (small arrows at top left corner)
+  - [ ] If you change your IP you no longer can access nodes.
+- Verify that it works for Kube Access
+  - [ ] You can access Kubernetes cluster through standalone Kube service on root cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on root cluster
+  - [ ] You can access Kubernetes cluster through standalone Kube service on leaf cluster
+  - [ ] You can access Kubernetes cluster through agent inside Kubernetes on leaf cluster
+  - [ ] If you change your IP you no longer can access Kube clusters.
+- Verify that it works for DB Access
+  - [ ] You can access DB servers on root cluster
+  - [ ] You can access DB servers on leaf cluster
+  - [ ] If you change your IP you no longer can access DB servers.
+- Verify that it works for App Access
+  - [ ] You can access App service on root cluster
+  - [ ] You can access App service on leaf cluster
+  - [ ] If you change your IP you no longer can access App services.
+- Verify that it works for Desktop Access
+  - [ ] You can access Desktop service on root cluster
+  - [ ] You can access Desktop service on leaf cluster
+  - [ ] If you change your IP you no longer can access Desktop services.
 
 ## Documentation
 

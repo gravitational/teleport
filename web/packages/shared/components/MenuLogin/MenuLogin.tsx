@@ -146,7 +146,7 @@ function getLoginItemListContent(
         <Indicator
           css={({ theme }) => `
             align-self: center;
-            color: ${theme.colors.brand.secondaryAccent}
+            color: ${theme.colors.brand}
           `}
         />
       );
@@ -185,13 +185,11 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.grey[400]};
+  color: ${theme.colors.text.secondary};
+  background: transparent;
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.subtle};
+  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
-  &:hover {
-    color: ${theme.colors.link};
-  }
 
   :last-child {
     border-bottom: none;
@@ -202,22 +200,21 @@ const StyledMenuItem = styled(MenuItem)(
 
 const Input = styled.input(
   ({ theme }) => `
-  background: ${theme.colors.subtle};
-  border: 1px solid ${theme.colors.subtle};
+  background: transparent;
+  border: 1px solid ${theme.colors.text.placeholder};
   border-radius: 4px;
   box-sizing: border-box;
-  color: ${theme.colors.grey[900]};
+  color: ${theme.colors.text.primary};
   height: 32px;
   outline: none;
 
-  &:focus {
-    background: ${theme.colors.light};
-    border 1px solid ${theme.colors.link};
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .24);
+  &:focus, &:hover {
+    border 1px solid ${theme.colors.text.secondary};
+    outline: none;
   }
 
   ::placeholder {
-    color: ${theme.colors.grey[100]};
+    color: ${theme.colors.text.placeholder};
   }
 `,
   space

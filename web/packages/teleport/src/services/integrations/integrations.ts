@@ -22,6 +22,10 @@ import {
   IntegrationCreateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
+  AwsOidcListDatabasesRequest,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
+  RdsEngineIdentifier,
 } from './types';
 
 export const integrationService = {
@@ -50,6 +54,57 @@ export const integrationService = {
   deleteIntegration(name: string): Promise<void> {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
+
+  fetchAwsRdsDatabases(
+    integrationName,
+    rdsEngineIdentifier: RdsEngineIdentifier,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest;
+    switch (rdsEngineIdentifier) {
+      case 'mysql':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb'],
+        };
+        break;
+      case 'postgres':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['postgres'],
+        };
+        break;
+      case 'aurora-mysql':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora', 'aurora-mysql'],
+        };
+        break;
+      case 'aurora-postgres':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-postgresql'],
+        };
+        break;
+    }
+
+    return api
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
+      .then(json => {
+        const dbs = json?.databases ?? [];
+        return {
+          databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
+  },
 };
 
 export function makeIntegrations(json: any): Integration[] {
@@ -73,5 +128,20 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+}
+
+export function makeAwsDatabase(json: any): AwsRdsDatabase {
+  json = json ?? {};
+  const { aws, name, uri, status, labels, protocol } = json;
+
+  return {
+    engine: protocol,
+    name,
+    uri,
+    status,
+    labels: labels ?? [],
+    resourceId: aws?.rds?.resource_id,
+    accountId: aws?.account_id,
   };
 }

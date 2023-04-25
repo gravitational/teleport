@@ -177,6 +177,8 @@ func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 type OktaAssignment interface {
 	ResourceWithLabels
 
+	// SetMetadata will set the metadata for the Okta assignment.
+	SetMetadata(metadata Metadata)
 	// GetUser will return the user that the Okta assignment actions applies to.
 	GetUser() string
 	// GetActions will return the list of actions that will be performed as part of this assignment.
@@ -199,6 +201,11 @@ func NewOktaAssignment(metadata Metadata, spec OktaAssignmentSpecV1) (OktaAssign
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+// SetMetadata will set the metadata for the Okta assignment.
+func (o *OktaAssignmentV1) SetMetadata(metadata Metadata) {
+	o.Metadata = metadata
 }
 
 // GetUser returns the user that the actions will be applied to.
@@ -283,7 +290,7 @@ type OktaAssignmentAction interface {
 	// * PENDING -> (PROCESSING, CLEANUP_PENDING)
 	// * PROCESSING -> (SUCCESSFUL, FAILED, CLEANUP_PENDING)
 	// * SUCCESSFUL -> (CLEANUP_PENDING, CLEANUP_PROCESSING)
-	// * FAILED -> (PROCESSING, CLEANUP_PENDING, CLEANUP_PROCESSING)
+	// * FAILED -> (PENDING, CLEANUP_PENDING, CLEANUP_PROCESSING)
 	// * CLEANUP_PENDING -> CLEANUP_PROCESSING
 	// * CLEANUP_PROCESSING -> (CLEANUP_FAILED, CLEANED_UP)
 	SetStatus(string) error
@@ -356,7 +363,7 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 		}
 	case OktaAssignmentActionV1_FAILED:
 		switch status {
-		case constants.OktaAssignmentActionStatusProcessing:
+		case constants.OktaAssignmentActionStatusPending:
 		case constants.OktaAssignmentActionStatusCleanupPending:
 		default:
 			invalidTransition = true
@@ -377,6 +384,10 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 	case OktaAssignmentActionV1_CLEANED_UP:
 		invalidTransition = true
 	case OktaAssignmentActionV1_CLEANUP_FAILED:
+		invalidTransition = true
+	case OktaAssignmentActionV1_UNKNOWN:
+		// All transitions are allowed from UNKNOWN.
+	default:
 		invalidTransition = true
 	}
 

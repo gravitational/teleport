@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -358,8 +359,9 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		return trace.Wrap(err)
 	}
 	servicesWatch := types.Watch{
-		Name:  auth.User.GetName(),
-		Kinds: watch.Kinds,
+		Name:                auth.User.GetName(),
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
 	if clusterName, err := auth.GetClusterName(); err == nil {
@@ -2612,14 +2614,19 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
-	// Generate the cert.
-	certs, err := actx.generateUserCerts(
-		ctx, req,
+	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
-	)
+	}
+
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		opts = append(opts, certRequestPinIP(true)) // We always want to pin single use certs to client's IP, regardless of roles)
+	}
+
+	// Generate the cert.
+	certs, err := actx.generateUserCerts(ctx, req, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5077,6 +5084,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		Clock:      cfg.AuthServer.clock,
+		CAGetter:   cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

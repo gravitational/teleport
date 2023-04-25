@@ -20,14 +20,29 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// CAGetter describes the required methods to sign a JWT to be used for AWS OIDC Integration.
+type CAGetter interface {
+	// GetDomainName returns local auth domain of the current auth server
+	GetDomainName() (string, error)
+
+	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
+	// controls if signing keys are loaded
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
+
+	// GetKeyStore returns the KeyStore used by the auth server
+	GetKeyStore() *keystore.Manager
+}
 
 // ServiceConfig holds configuration options for
 // the Integration gRPC service.
@@ -35,7 +50,9 @@ type ServiceConfig struct {
 	Authorizer authz.Authorizer
 	Cache      services.IntegrationsGetter
 	Backend    services.Integrations
+	CAGetter   CAGetter
 	Logger     *logrus.Entry
+	Clock      clockwork.Clock
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -54,8 +71,16 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("authorizer is required")
 	}
 
+	if s.CAGetter == nil {
+		return trace.BadParameter("ca getter is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = logrus.WithField(trace.Component, "integrations.service")
+	}
+
+	if s.Clock == nil {
+		s.Clock = clockwork.NewRealClock()
 	}
 
 	return nil
@@ -67,7 +92,9 @@ type Service struct {
 	authorizer authz.Authorizer
 	cache      services.IntegrationsGetter
 	backend    services.Integrations
+	caGetter   CAGetter
 	logger     *logrus.Entry
+	clock      clockwork.Clock
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -81,6 +108,8 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		authorizer: cfg.Authorizer,
 		cache:      cfg.Cache,
 		backend:    cfg.Backend,
+		caGetter:   cfg.CAGetter,
+		clock:      cfg.Clock,
 	}, nil
 }
 

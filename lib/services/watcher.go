@@ -521,7 +521,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1198,7 +1198,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

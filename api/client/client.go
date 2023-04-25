@@ -338,6 +338,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
 		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
 		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		WithPROXYHeaderGetter(params.cfg.PROXYHeaderGetter),
 	)
 
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -562,6 +563,9 @@ type Config struct {
 	// will perform necessary tests to decide if connection upgrade is
 	// required.
 	ALPNConnUpgradeRequired bool
+	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
+	// auth server from the Proxy's web server, when we create user's client for the web session.
+	PROXYHeaderGetter PROXYHeaderGetter
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -3493,6 +3497,18 @@ func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
 func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 	_, err := c.integrationsClient().DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
 	return trail.FromGRPC(err)
+}
+
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
 }
 
 // PluginsClient returns an unadorned Plugins client, using the underlying

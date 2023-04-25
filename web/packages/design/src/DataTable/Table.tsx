@@ -19,7 +19,7 @@ import React from 'react';
 import { Text, Indicator, Box } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel } from './StyledTable';
+import { StyledTable, StyledPanel, StyledTableWrapper } from './StyledTable';
 import { TableProps } from './types';
 import { SortHeaderCell, TextCell } from './Cells';
 import { ClientSidePager, ServerSidePager } from './Pager';
@@ -127,49 +127,55 @@ export function Table<T>({
 
   if (serversideProps) {
     return (
-      <ServersideTable
-        style={style}
-        className={className}
-        data={state.data}
-        renderHeaders={renderHeaders}
-        renderBody={renderBody}
-        nextPage={fetching.onFetchNext}
-        prevPage={fetching.onFetchPrev}
-        pagination={state.pagination}
-        serversideProps={serversideProps}
-      />
+      <StyledTableWrapper borderRadius={3}>
+        <ServersideTable
+          style={style}
+          className={className}
+          data={state.data}
+          renderHeaders={renderHeaders}
+          renderBody={renderBody}
+          nextPage={fetching.onFetchNext}
+          prevPage={fetching.onFetchPrev}
+          pagination={state.pagination}
+          serversideProps={serversideProps}
+        />
+      </StyledTableWrapper>
     );
   }
 
   if (state.pagination) {
     return (
-      <PagedTable
-        style={style}
-        className={className}
-        data={state.data}
-        renderHeaders={renderHeaders}
-        renderBody={renderBody}
-        nextPage={nextPage}
-        prevPage={prevPage}
-        pagination={state.pagination}
-        searchValue={state.searchValue}
-        setSearchValue={setSearchValue}
-        fetching={fetching}
-      />
+      <StyledTableWrapper borderRadius={3}>
+        <PagedTable
+          style={style}
+          className={className}
+          data={state.data}
+          renderHeaders={renderHeaders}
+          renderBody={renderBody}
+          nextPage={nextPage}
+          prevPage={prevPage}
+          pagination={state.pagination}
+          searchValue={state.searchValue}
+          setSearchValue={setSearchValue}
+          fetching={fetching}
+        />
+      </StyledTableWrapper>
     );
   }
 
   if (isSearchable) {
     return (
-      <SearchableBasicTable
-        style={style}
-        className={className}
-        data={state.data}
-        renderHeaders={renderHeaders}
-        renderBody={renderBody}
-        searchValue={state.searchValue}
-        setSearchValue={setSearchValue}
-      />
+      <StyledTableWrapper borderRadius={3}>
+        <SearchableBasicTable
+          style={style}
+          className={className}
+          data={state.data}
+          renderHeaders={renderHeaders}
+          renderBody={renderBody}
+          searchValue={state.searchValue}
+          setSearchValue={setSearchValue}
+        />
+      </StyledTableWrapper>
     );
   }
 
@@ -311,7 +317,7 @@ function ServersideTable<T>({
         {renderHeaders()}
         {renderBody(data)}
       </StyledTable>
-      <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+      <StyledPanel>
         <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
       </StyledPanel>
     </>

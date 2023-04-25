@@ -61,7 +61,6 @@ import (
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
-	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -80,7 +79,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
-	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -3440,6 +3438,8 @@ func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, exp
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
+	t.Parallel()
+
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
@@ -3475,7 +3475,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 			},
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
-				URI:      "test-uri",
+				URI:      "test-uri:1234",
 			},
 		},
 	})
@@ -3517,12 +3517,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname: "test-uri",
+		URI:      "test-uri:1234",
 	}, {
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{},
 		Protocol: "test-protocol",
 		Hostname: "test-uri",
+		URI:      "test-uri:1234",
 	}})
 
 	// Test with a role that defines database names and users.
@@ -3557,6 +3559,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
+		URI:           "test-uri:1234",
 	}, {
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
@@ -3565,6 +3568,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
+		URI:           "test-uri:1234",
 	}})
 }
 
@@ -6483,6 +6487,7 @@ func TestCreateDatabase(t *testing.T) {
 				Hostname:      "someuri",
 				DatabaseUsers: []string{"user1"},
 				DatabaseNames: []string{"name1"},
+				URI:           "someuri:3306",
 			})
 		}
 	}
@@ -6644,6 +6649,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "self-hosted",
 				Hostname: "someuri",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "someuri:3306",
 			},
 		},
 		{
@@ -6657,6 +6663,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "self-hosted",
 				Hostname: "something-else",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "something-else:3306",
 			},
 		},
 		{
@@ -6678,6 +6685,17 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
+				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
+				AWS: &ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-west-2",
+						AccountID: "123123123123",
+						RDS: types.RDS{
+							ResourceID: "db-1234",
+							InstanceID: "llama",
+						},
+					},
+				},
 			},
 		},
 		{
@@ -6695,6 +6713,17 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				URI:      "llama.cgi8.us-west-2.rds.amazonaws.com:3306",
+				AWS: &ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-west-2",
+						AccountID: "123123123123",
+						RDS: types.RDS{
+							ResourceID: "db-1234",
+							InstanceID: "llama",
+						},
+					},
+				},
 			},
 		},
 		{
@@ -6716,6 +6745,17 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				URI:      "alpaca.cgi8.us-east-1.rds.amazonaws.com:3306",
+				AWS: &ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-east-1",
+						AccountID: "000000000000",
+						RDS: types.RDS{
+							ResourceID: "db-0000",
+							InstanceID: "alpaca",
+						},
+					},
+				},
 			},
 		},
 	} {
@@ -7265,6 +7305,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
+	handler.handler.cfg.PublicProxyAddr = url.String()
 
 	return &testProxy{
 		clock:   clock,
@@ -7943,6 +7984,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			},
 			ConnTLSConfig: tlsConfig,
 			Clock:         clockwork.NewRealClock(),
+			ClusterFeatures: func() authproto.Features {
+				return authproto.Features{
+					Kubernetes: true,
+				}
+			},
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   client,
@@ -8110,7 +8156,7 @@ func TestForwardingTraces(t *testing.T) {
 	cases := []struct {
 		name      string
 		req       func(t *testing.T) *http.Request
-		assertion func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int)
+		assertion func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int)
 	}{
 		{
 			name: "no data",
@@ -8186,7 +8232,7 @@ func TestForwardingTraces(t *testing.T) {
 
 				return r
 			},
-			assertion: func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int) {
+			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, code)
 				require.Len(t, spans, 1)
@@ -8196,7 +8242,7 @@ func TestForwardingTraces(t *testing.T) {
 
 				// compare the spans, but ignore the ids since we know that the rawSpan
 				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
-				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&otlp.Span{}, "span_id", "trace_id")))
+				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&tracepb.Span{}, "span_id", "trace_id")))
 
 				// compare the ids separately
 				sid1 := spans[0].ScopeSpans[0].Spans[0].SpanId
@@ -8256,7 +8302,7 @@ func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte,
 type mockTraceClient struct {
 	uploadError    error
 	uploadReceived chan struct{}
-	spans          []*otlp.ResourceSpans
+	spans          []*tracepb.ResourceSpans
 }
 
 func (m *mockTraceClient) Start(ctx context.Context) error {
@@ -8267,7 +8313,7 @@ func (m *mockTraceClient) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) error {
 	m.spans = append(m.spans, protoSpans...)
 	m.uploadReceived <- struct{}{}
 	return m.uploadError
@@ -8332,12 +8378,12 @@ func TestLogout(t *testing.T) {
 func TestGetIsDashboard(t *testing.T) {
 	tt := []struct {
 		name     string
-		features clientproto.Features
+		features authproto.Features
 		expected bool
 	}{
 		{
 			name: "not cloud nor recovery codes is not dashboard",
-			features: clientproto.Features{
+			features: authproto.Features{
 				Cloud:         false,
 				RecoveryCodes: false,
 			},
@@ -8345,7 +8391,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "not cloud, with recovery codes is dashboard",
-			features: clientproto.Features{
+			features: authproto.Features{
 				Cloud:         false,
 				RecoveryCodes: true,
 			},
@@ -8353,7 +8399,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "cloud, with recovery codes is not dashboard",
-			features: clientproto.Features{
+			features: authproto.Features{
 				Cloud:         true,
 				RecoveryCodes: true,
 			},
@@ -8361,7 +8407,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "cloud, without recovery codes is not dashboard",
-			features: clientproto.Features{
+			features: authproto.Features{
 				Cloud:         true,
 				RecoveryCodes: false,
 			},

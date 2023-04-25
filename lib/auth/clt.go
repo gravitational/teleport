@@ -104,6 +104,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
 					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
@@ -798,6 +799,9 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
