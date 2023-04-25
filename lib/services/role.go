@@ -83,6 +83,10 @@ var DefaultCertAuthorityRules = []types.Rule{
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
 
+// ErrSessionMFANotRequired indicates that per session mfa will not grant
+// access to a resource.
+var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
