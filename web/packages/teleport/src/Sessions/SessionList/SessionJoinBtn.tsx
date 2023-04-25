@@ -73,7 +73,7 @@ export const SessionJoinBtn = ({
 function JoinMenu({ children }: { children: React.ReactNode }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
-  const handleClickListItem = event => {
+  const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
@@ -100,7 +100,7 @@ type LockedFeatureJoinMenu = {
 function LockedFeatureJoinMenu({ modes }: LockedFeatureJoinMenu) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
-  const handleClickListItem = event => {
+  const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
