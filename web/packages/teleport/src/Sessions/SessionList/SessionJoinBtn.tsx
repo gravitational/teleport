@@ -197,15 +197,13 @@ function LockedFeatureInternalJoinMenu({
   );
 }
 
-const LockedJoinMenuContainer = styled(Flex)(
-  () => `
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 16px 12px;
-    gap: 12px;
-  `
-);
+const LockedJoinMenuContainer = styled(Flex)`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 16px 12px;
+  gap: 12px;
+`;
 
 type LockedJoinItemProps = {
   name: string;

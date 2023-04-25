@@ -38,21 +38,17 @@ export function ButtonLockedFeature({ children, ...rest }) {
   );
 }
 
-const StyledButton = styled(ButtonPrimary)(
-  () => `
+const StyledButton = styled(ButtonPrimary)`
   text-transform: none;
   width: 100%;
   padding-top: 12px;
   padding-bottom: 12px;
   font-size: 12px;
-  `
-);
+`;
 
-const UnlockIcon = styled(Unlock)(
-  () => `
+const UnlockIcon = styled(Unlock)`
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 4px;
-  `
-);
+`;
