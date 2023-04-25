@@ -259,7 +259,7 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 }
 
 func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestParams, error) {
-	var r tracingssh.FileTransferRequestReq
+	var r tracingssh.FileTransferReq
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.Wrap(err)
 	}
