@@ -366,6 +366,8 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		o.Spec.CleanupTime = &utcTime
 	}
 
+	o.Spec.LastTransition = o.Spec.LastTransition.UTC()
+
 	return nil
 }
 
