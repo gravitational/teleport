@@ -1397,7 +1397,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 			ForceEC2Permissions: true,
 		},
 		Policies: &policiesMock{
-			upsertArn: "polcies-arn",
+			upsertArn: "policies-arn",
 		},
 	}
 	configurator, err := NewAWSConfigurator(config)
@@ -1429,7 +1429,7 @@ func TestAWSConfigurator(t *testing.T) {
 			ForceRDSPermissions: true,
 		},
 		Policies: &policiesMock{
-			upsertArn: "polcies-arn",
+			upsertArn: "policies-arn",
 		},
 	}
 
