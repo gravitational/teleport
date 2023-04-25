@@ -289,7 +289,8 @@ func (s *Service) UpdateOktaAssignmentStatus(ctx context.Context, req *oktapb.Up
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()))
+	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()),
+		req.TimeHasPassed.AsDuration())
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 

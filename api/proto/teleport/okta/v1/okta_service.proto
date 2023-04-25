@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.okta.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
@@ -139,6 +140,9 @@ message UpdateOktaAssignmentStatusRequest {
   string name = 1;
   // status is the status to update the assignment to.
   types.OktaAssignmentSpecV1.OktaAssignmentStatus status = 2;
+  // timeHasPassed is the amount of time that must have passed since the last transition
+  // in order to set the new transition.
+  google.protobuf.Duration time_has_passed = 3;
 }
 
 // DeleteOktaAssignmentRequest is the request for deleting an Okta assignment.

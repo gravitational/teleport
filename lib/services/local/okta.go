@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -128,9 +129,16 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 	return assignment, o.assignmentSvc.UpdateResource(ctx, assignment)
 }
 
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error {
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
 	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(currentAssignment types.OktaAssignment) error {
+		// Only update the status if the given duration has passed.
+		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
+		if sinceLastTransition < timeHasPassed {
+			return trace.BadParameter("only %s has passed since last transition", sinceLastTransition)
+		}
+
 		if err := currentAssignment.SetStatus(status); err != nil {
 			return trace.Wrap(err)
 		}

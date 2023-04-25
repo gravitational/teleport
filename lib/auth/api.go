@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -803,8 +804,9 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
@@ -1271,9 +1273,10 @@ func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
 }
 
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error {
-	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status)
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.
