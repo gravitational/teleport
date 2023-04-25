@@ -25,7 +25,7 @@ const styles = theme => ({
     return state.data.isFixed
       ? {
           ...base,
-          backgroundColor: `${theme.colors.lightGrey['600']} !important`,
+          backgroundColor: `${theme.colors.grey['600']} !important`,
         }
       : base;
   },

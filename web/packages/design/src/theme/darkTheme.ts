@@ -123,7 +123,7 @@ const colors = {
     ...blueGrey,
   },
 
-  lightgrey: {
+  grey: {
     ...grey,
   },
 
