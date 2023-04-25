@@ -90,14 +90,15 @@ export const SearchContextProvider: FC = props => {
       // Even if the search bar is already open, we want to focus on the input anyway. The search
       // input might lose focus due to user interaction while the search bar stays open. Focusing
       // here again makes it possible to use the shortcut to grant the focus to the input again.
+      //
+      // Also note that SearchBar renders two distinct input elements, one when the search bar is
+      // closed and another when its open. During the initial call to this function,
+      // inputRef.current is equal to the element from when the search bar was closed.
       inputRef.current?.focus();
       return;
     }
 
-    // In case `open` was called without `fromElement` (e.g. when using the keyboard shortcut), we
-    // must read `document.activeElement` before we focus the input.
     previouslyActive.current = fromElement || document.activeElement;
-    inputRef.current?.focus();
     setIsOpen(true);
   }
 

@@ -128,7 +128,11 @@ function SearchBar() {
       )}
       {isOpen && (
         <activePicker.picker
-          // autofocusing cannot be done in `open` function as it would focus the input from closed state
+          // When the search bar transitions from closed to open state, `inputRef.current` within
+          // the `open` function refers to the input element from when the search bar was closed.
+          //
+          // Thus, calling `focus()` on it would have no effect. Instead, we add `autoFocus` on the
+          // input when the search bar is open.
           input={<Input {...defaultInputProps} autoFocus={true} />}
         />
       )}
