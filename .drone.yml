@@ -117,7 +117,7 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -236,7 +236,7 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -359,7 +359,7 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -478,7 +478,7 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -568,7 +568,7 @@ steps:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -1170,7 +1170,7 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -1260,7 +1260,7 @@ steps:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -4362,7 +4362,7 @@ steps:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
     template: |
       *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
@@ -19877,6 +19877,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: f3d44278ef5121c328d2f497154552cc3dfe4b56564a35fc53b05ee154eeb2c5
+hmac: 7a7f286d176c68e1f0c7b00d061cf4b2a627355554d7cf8a0f46d22f3ce153cb
 
 ...
