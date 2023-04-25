@@ -38,7 +38,6 @@ import {
   SearchResultServer,
   SearchResultCluster,
   SearchResultResourceType,
-  SearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -159,17 +158,17 @@ export function ActionPicker(props: { input: ReactElement }) {
     () =>
       getActionPickerStatus({
         inputValue,
-        filters,
+        filterActionsAttempt,
         actionAttempts,
         resourceSearchAttempt,
         allClusters: clustersService.getClusters(),
       }),
     [
       inputValue,
-      filters,
-      clustersService,
+      filterActionsAttempt,
       actionAttempts,
       resourceSearchAttempt,
+      clustersService,
     ]
   );
   const showErrorsInModal = useCallback(
@@ -252,7 +251,7 @@ const ExtraTopComponents = (props: {
 
   switch (status.status) {
     case 'no-input': {
-      return status.hasSelectedAllFilters && <TypeToSearchItem />;
+      return status.hasNoRemainingFilterActions && <TypeToSearchItem />;
     }
     case 'processing': {
       return null;
@@ -285,7 +284,7 @@ const ExtraTopComponents = (props: {
 };
 
 type ActionPickerStatus =
-  | { status: 'no-input'; hasSelectedAllFilters: boolean }
+  | { status: 'no-input'; hasNoRemainingFilterActions: boolean }
   | { status: 'processing' }
   | {
       status: 'finished';
@@ -296,23 +295,32 @@ type ActionPickerStatus =
 
 export function getActionPickerStatus({
   inputValue,
-  filters,
+  filterActionsAttempt,
   allClusters,
   actionAttempts,
   resourceSearchAttempt,
 }: {
   inputValue: string;
-  filters: SearchFilter[];
+  filterActionsAttempt: Attempt<SearchAction[]>;
   allClusters: tsh.Cluster[];
   actionAttempts: Attempt<SearchAction[]>[];
   resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
 }): ActionPickerStatus {
   if (!inputValue) {
-    const hasSelectedAllFilters = filters.length === 2;
+    // The number of available filters the user can select changes dynamically based on how many
+    // clusters are in the state. That's why instead of inspecting the filters array from
+    // SearchContext, we inspect the actual filter actions attempt to see if any further filter
+    // suggestions will be shown to the user.
+    //
+    // We also know that this attempt is always successful as filters are calculated in a sync way.
+    // They're converted into an attempt only to conform to the interface of ResultList.
+    const hasNoRemainingFilterActions =
+      filterActionsAttempt.status === 'success' &&
+      filterActionsAttempt.data.length === 0;
 
     return {
       status: 'no-input',
-      hasSelectedAllFilters,
+      hasNoRemainingFilterActions,
     };
   }
 
