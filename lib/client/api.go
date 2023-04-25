@@ -1393,7 +1393,7 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 // WithRootClusterClient provides a functional interface for making calls
 // against the root cluster's auth server.
-func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error, optionsFunc ...optionFunc) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/WithRootClusterClient",
@@ -1401,11 +1401,20 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	var options teleportClientOptions
+	for _, opt := range optionsFunc {
+		opt(&options)
 	}
-	defer proxyClient.Close()
+
+	var proxyClient = options.proxyClient
+	if proxyClient == nil {
+		var err error
+		proxyClient, err = tc.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+	}
 
 	clt, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
@@ -3302,7 +3311,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 // successful, as skipping the ceremony is valid for various reasons (Teleport
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
-func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) error {
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, options ...optionFunc) error {
 	pingResp, err := tc.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3317,7 +3326,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 		// Augment the SSH certificate.
 		// The TLS certificate is already part of the connection.
 		SshAuthorizedKey: key.Cert,
-	})
+	}, options...)
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
 		log.Debug("Device Trust: Skipping device authentication, device key not found")
@@ -3353,15 +3362,27 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates, optionsFunc ...optionFunc) (*devicepb.UserCertificates, error) {
+	var options teleportClientOptions
+	for _, opt := range optionsFunc {
+		opt(&options)
 	}
+
+	proxyClient := options.proxyClient
+	if options.proxyClient == nil {
+		var err error
+		proxyClient, err = tc.ConnectToProxy(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+	}
+
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
@@ -3736,29 +3757,61 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 	return response, trace.Wrap(err)
 }
 
+type teleportClientOptions struct {
+	proxyClient *ProxyClient
+}
+
+type optionFunc func(options *teleportClientOptions)
+
+// WithProxyClient allows to inject a ProxyClient client and leverage the ProxyClient caching mechanism.
+// Note that injected client by this function not always takes precedence over and most of the logic is unaligned and
+// doesn't have support for injection of custom proxy client yet. Also note that in some cases ProxyClient needs
+// to be created via JumpHosts support so please use this function wisely after checking the inner functions flow.
+func WithProxyClient(pc *ProxyClient) optionFunc {
+	return func(options *teleportClientOptions) {
+		options.proxyClient = pc
+	}
+}
+
 // ActivateKey saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
 func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ActivateKey",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
+	if err := tc.AddKeyToLocalAgent(key); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := tc.UpdateTrustedCAWithWithNoJumpHostFallback(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
 
+// AddKeyToLocalAgent is a helper function that add the key to the localAgent
+// If localAgent is uninitialized the flow is skipped and function returns without any error.
+func (tc *TeleportClient) AddKeyToLocalAgent(key *Key) error {
 	if tc.localAgent == nil {
 		// skip activation if no local agent is present
 		return nil
 	}
-
 	// save the cert to the local storage (~/.tsh usually):
 	if err := tc.localAgent.AddKey(key); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
 
+// UpdateTrustedCAWithWithNoJumpHostFallback tries to upgrade trusted CA.
+// If the normal upgrade call failed the function will retry the call
+// with altered TeleportProxy client without JumpHosts.
+func (tc *TeleportClient) UpdateTrustedCAWithWithNoJumpHostFallback(ctx context.Context, key *Key, optionsFunc ...optionFunc) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/UpdateTrustedCAWithWithNoJumpHostFallback",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
 	// Connect to the Auth Server of the root cluster and fetch the known hosts.
 	rootClusterName := key.TrustedCerts[0].ClusterName
-	if err := tc.UpdateTrustedCA(ctx, rootClusterName); err != nil {
+	if err := tc.UpdateTrustedCA(ctx, rootClusterName, optionsFunc...); err != nil {
 		if len(tc.JumpHosts) == 0 {
 			return trace.Wrap(err)
 		}
@@ -3772,7 +3825,25 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 			return trace.NewAggregate(errViaJumphost, err)
 		}
 	}
+	return nil
+}
 
+// ActivateKeyAndUpgradeTrustedCA saves the target session cert into the local
+// keystore (and into the ssh-agent) for future use.
+func (tc *TeleportClient) ActivateKeyAndUpgradeTrustedCA(ctx context.Context, key *Key, options ...optionFunc) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ActivateKeyAndUpgradeTrustedCA",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if err := tc.AddKey(key); err != nil {
+		log.Debug("Add key failed: ", err)
+	}
+	if err := tc.UpdateTrustedCAWithWithNoJumpHostFallback(ctx, key, options...); err == nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
@@ -3872,7 +3943,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 
 // GetTrustedCA returns a list of host certificate authorities
 // trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
+func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string, optionsFunc ...optionFunc) ([]types.CertAuthority, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/GetTrustedCA",
@@ -3881,15 +3952,24 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	)
 	defer span.End()
 
+	var options teleportClientOptions
+	for _, opt := range optionsFunc {
+		opt(&options)
+	}
+
 	// Connect to the proxy.
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	proxyClient := options.proxyClient
+	if proxyClient == nil {
+		var err error
+		proxyClient, err = tc.ConnectToProxy(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer proxyClient.Close()
 	}
-	defer proxyClient.Close()
 
 	// Get a client to the Auth Server.
 	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
@@ -3903,7 +3983,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
 // and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
-func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string) error {
+func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string, optionsFunc ...optionFunc) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/UpdateTrustedCA",
@@ -3916,7 +3996,7 @@ func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName strin
 		return trace.BadParameter("TeleportClient.UpdateTrustedCA called on a client without localAgent")
 	}
 	// Get the list of host certificates that this cluster knows about.
-	hostCerts, err := tc.GetTrustedCA(ctx, clusterName)
+	hostCerts, err := tc.GetTrustedCA(ctx, clusterName, optionsFunc...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

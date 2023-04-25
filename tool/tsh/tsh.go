@@ -1750,7 +1750,15 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	if err := tc.ActivateKey(cf.Context, key); err != nil {
+	proxyClient, err := activeKeyAndInitProxyClient(cf.Context, tc, key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+	err = tc.UpdateTrustedCAWithWithNoJumpHostFallback(
+		cf.Context, key, client.WithProxyClient(proxyClient),
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1793,7 +1801,7 @@ func onLogin(cf *CLIConf) error {
 	// Attempt device login. This activates a fresh key if successful.
 	// We do not save the resulting in the identity file above on purpose, as this
 	// certificate is bound to the present device.
-	if err := tc.AttemptDeviceLogin(cf.Context, key); err != nil {
+	if err := tc.AttemptDeviceLogin(cf.Context, key, client.WithProxyClient(proxyClient)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1833,7 +1841,7 @@ func onLogin(cf *CLIConf) error {
 				}
 			}
 			return nil
-		})
+		}, client.WithProxyClient(proxyClient))
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
@@ -1866,7 +1874,7 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	if err := onStatus(cf); err != nil {
+	if err := onStatus(cf, withTeleportClient(tc), withProxyClient(proxyClient)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1878,7 +1886,7 @@ func onLogin(cf *CLIConf) error {
 		alertSeverityMax = types.AlertSeverity_HIGH
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, proxyClient, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -3868,9 +3876,33 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	fmt.Printf("\n")
 }
 
+type cliCommandOptions struct {
+	teleportClient *client.TeleportClient
+	proxyClient    *client.ProxyClient
+}
+
+type cliCommandOptFun func(options *cliCommandOptions)
+
+func withTeleportClient(tc *client.TeleportClient) cliCommandOptFun {
+	return func(options *cliCommandOptions) {
+		options.teleportClient = tc
+	}
+}
+
+func withProxyClient(pc *client.ProxyClient) cliCommandOptFun {
+	return func(options *cliCommandOptions) {
+		options.proxyClient = pc
+	}
+}
+
 // onStatus command shows which proxy the user is logged into and metadata
 // about the certificate.
-func onStatus(cf *CLIConf) error {
+func onStatus(cf *CLIConf, optionsFunc ...cliCommandOptFun) error {
+	var options cliCommandOptions
+	for _, opt := range optionsFunc {
+		opt(&options)
+	}
+
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
 	//
@@ -3907,16 +3939,28 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	tc, err := makeClient(cf, true)
-	if err != nil {
-		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
-		return nil
+	var tc *client.TeleportClient
+	if options.teleportClient == nil {
+		var err error
+		tc, err = makeClient(cf, true)
+		if err != nil {
+			log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
+			return nil
+		}
+	} else {
+		tc = options.teleportClient
+	}
+	var clusterClient common.ClusterAlertGetter
+	if options.proxyClient != nil {
+		clusterClient = options.proxyClient
+	} else {
+		clusterClient = tc
 	}
 
 	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
 		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
 	} else {
-		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
+		if err := common.ShowClusterAlerts(cf.Context, clusterClient, os.Stderr, nil,
 			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 			log.WithError(err).Warn("Failed to display cluster alerts.")
 		}
@@ -4555,6 +4599,17 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	if cf.Proxy == "" {
 		cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
 	}
+}
+
+func activeKeyAndInitProxyClient(ctx context.Context, tc *client.TeleportClient, key *client.Key) (*client.ProxyClient, error) {
+	if err := tc.AddKeyToLocalAgent(key); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxyClient, nil
 }
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
