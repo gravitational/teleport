@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -68,8 +69,9 @@ type OktaAssignments interface {
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string) error
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.
