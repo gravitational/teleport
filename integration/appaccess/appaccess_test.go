@@ -39,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -257,8 +258,13 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			App: true,
+		},
+	})
 	evilUser, _ := p.CreateUser(t)
-
 	rootWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
 		Username:    p.user.GetName(),
 		PublicAddr:  p.rootAppPublicAddr,
@@ -278,16 +284,17 @@ func testClientCert(p *Pack, t *testing.T) {
 		inTLSConfig   *tls.Config
 		outStatusCode int
 		outMessage    string
+		wantErr       bool
 	}{
 		{
 			desc:          "root cluster, valid TLS config, success",
-			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, ""),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid TLS config, success",
-			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), p.leafAppPublicAddr, p.leafAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), p.leafAppPublicAddr, p.leafAppClusterName, ""),
 			outStatusCode: http.StatusOK,
 			outMessage:    p.leafMessage,
 		},
@@ -298,15 +305,27 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 		{
 			desc:          "root cluster, invalid session owner",
-			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName, ""),
 			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
 		},
 		{
 			desc:          "leaf cluster, invalid session owner",
-			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName, ""),
 			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
+		},
+		{
+			desc:          "root cluster, valid TLS config with pinned IP, success",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "127.0.0.1"),
+			outStatusCode: http.StatusOK,
+			outMessage:    p.rootMessage,
+		},
+		{
+			desc:          "root cluster, valid TLS config with wrong pinned IP",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "127.0.0.2"),
+			outStatusCode: http.StatusForbidden,
+			wantErr:       true,
 		},
 	}
 	for _, tt := range tests {
@@ -314,9 +333,13 @@ func testClientCert(p *Pack, t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
-			require.NoError(t, err)
-			require.Equal(t, tt.outStatusCode, status)
-			require.Contains(t, body, tt.outMessage)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.outStatusCode, status)
+				require.Contains(t, body, tt.outMessage)
+			}
 		})
 	}
 }
@@ -576,7 +599,7 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 	require.Equal(t, http.StatusOK, status)
 
 	// Generates TLS config for making app requests.
-	reqTLS := p.makeTLSConfig(t, sessID, p.username, p.rootAppPublicAddr, p.rootAppClusterName)
+	reqTLS := p.makeTLSConfig(t, sessID, p.username, p.rootAppPublicAddr, p.rootAppClusterName, "")
 	require.NotNil(t, reqTLS)
 
 	// Issue a request to the application to guarantee everything is working correctly.
@@ -636,25 +659,25 @@ func TestTCP(t *testing.T) {
 		{
 			description: "TCP app in root cluster",
 			address: pack.startLocalProxy(t,
-				pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPPublicAddr, pack.rootAppClusterName)),
+				pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPPublicAddr, pack.rootAppClusterName, "")),
 			outMessage: pack.rootTCPMessage,
 		},
 		{
 			description: "TCP app in leaf cluster",
 			address: pack.startLocalProxy(t,
-				pack.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), pack.leafTCPPublicAddr, pack.leafAppClusterName)),
+				pack.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), pack.leafTCPPublicAddr, pack.leafAppClusterName, "")),
 			outMessage: pack.leafTCPMessage,
 		},
 		{
 			description: "TCP app in root cluster, invalid session owner",
 			address: pack.startLocalProxy(t,
-				pack.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), pack.rootTCPPublicAddr, pack.rootAppClusterName)),
+				pack.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), pack.rootTCPPublicAddr, pack.rootAppClusterName, "")),
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
 		},
 		{
 			description: "TCP app in leaf cluster, invalid session owner",
 			address: pack.startLocalProxy(t,
-				pack.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), pack.leafTCPPublicAddr, pack.leafAppClusterName)),
+				pack.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), pack.leafTCPPublicAddr, pack.leafAppClusterName, "")),
 			wantReadErr: io.EOF, // access denied errors should close the tcp conn
 		},
 	}
@@ -699,7 +722,7 @@ func TestTCPLock(t *testing.T) {
 		ClusterName: pack.rootAppClusterName,
 	})
 	require.NoError(t, err)
-	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName, "")
 
 	address := pack.startLocalProxy(t, tlsConfig)
 
@@ -777,7 +800,7 @@ func TestTCPCertExpiration(t *testing.T) {
 		ClusterName: pack.rootAppClusterName,
 	})
 	require.NoError(t, err)
-	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName)
+	tlsConfig := pack.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), pack.rootTCPTwoWayPublicAddr, pack.rootAppClusterName, "")
 
 	address := pack.startLocalProxy(t, tlsConfig)
 

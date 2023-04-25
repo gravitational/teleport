@@ -686,13 +686,11 @@ func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*P
 // SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
 func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
-	if errors.Is(err, ErrBadIP) {
+	if err == nil {
 		log.WithFields(log.Fields{
 			"src_addr":     fmt.Sprintf("%v", source),
 			"dst_addr":     fmt.Sprintf("%v", destination),
-			"cluster_name": p.clusterName}).Warn("Got bad IP while trying to sign PROXY header")
-		return nil, nil
+			"cluster_name": p.clusterName}).Trace("Successfully generated signed PROXY header")
 	}
-
-	return header, err
+	return header, trace.Wrap(err)
 }

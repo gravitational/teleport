@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.19
+go 1.20
 
 require (
 	cloud.google.com/go/container v1.16.0
@@ -16,15 +16,15 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.2.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.2.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.1.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/Microsoft/go-winio v0.6.0
+	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
-	github.com/alicebob/miniredis/v2 v2.30.1
+	github.com/alicebob/miniredis/v2 v2.30.2
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.244
@@ -33,10 +33,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.20
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.2
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.62
-	github.com/aws/aws-sdk-go-v2/service/athena v1.25.0
+	github.com/aws/aws-sdk-go-v2/service/athena v1.25.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.93.2
-	github.com/aws/aws-sdk-go-v2/service/rds v1.42.3
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.31.3
+	github.com/aws/aws-sdk-go-v2/service/rds v1.43.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.8
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.9
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
@@ -51,7 +51,7 @@ require (
 	github.com/elastic/go-elasticsearch/v8 v8.7.0
 	github.com/flynn/hid v0.0.0-20190502022136-f1b9b6cc019a
 	github.com/flynn/u2f v0.0.0-20180613185708-15554eb68e5d
-	github.com/fsouza/fake-gcs-server v1.44.1
+	github.com/fsouza/fake-gcs-server v1.44.2
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
@@ -111,7 +111,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.5 // replaced
 	github.com/pquerna/otp v1.4.0
-	github.com/prometheus/client_golang v1.14.0
+	github.com/prometheus/client_golang v1.15.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.42.0
 	github.com/russellhaering/gosaml2 v0.9.1
@@ -168,7 +168,7 @@ require (
 	k8s.io/kubectl v0.26.3
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/controller-runtime v0.14.6
-	sigs.k8s.io/controller-tools v0.11.3
+	sigs.k8s.io/controller-tools v0.11.4
 	sigs.k8s.io/yaml v1.3.0
 	software.sslmate.com/src/go-pkcs12 v0.2.0
 )
@@ -326,7 +326,7 @@ require (
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
-	github.com/prometheus/procfs v0.8.0 // indirect
+	github.com/prometheus/procfs v0.9.0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
