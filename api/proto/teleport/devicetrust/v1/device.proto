@@ -93,7 +93,8 @@ message DeviceCredential {
   // Unique identifier of the credential, defined client-side.
   string id = 1;
   // Device public key marshaled as a PKIX, ASN.1 DER.
-  // For TPMs, this is the public application key.
+  // If the device is a TPM device, stores the attestation key to use for
+  // platform attestation.
   bytes public_key_der = 2;
   // The degree to which the device credential is attested.
   DeviceAttestationType device_attestation_type = 3;
@@ -103,9 +104,6 @@ message DeviceCredential {
   // used to retrieve information about a specific unit from the manufacturer
   // at a later date.
   string tpm_serial = 4;
-  // If the device is a TPM device, stores the public AK in PKIX, ASN.1 DER
-  // form.
-  bytes tpm_attestation_key_der = 5;
 }
 
 // AttestationType indicates the degree to which the device credential has

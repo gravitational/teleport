@@ -119,7 +119,6 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			PublicKeyDer:          []byte("insert public key here"),
 			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED,
 			TpmSerial:             "1234-5678",
-			TpmAttestationKeyDer:  []byte("insert public key here"),
 		},
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
