@@ -332,7 +332,7 @@ export function getActionPickerStatus({
   const clustersWithExpiredCerts = new Set(
     allClusters.filter(c => !c.connected).map(c => c.uri)
   );
-  let nonRetryableResourceSearchErrors = [];
+  const nonRetryableResourceSearchErrors = [];
 
   if (resourceSearchAttempt.status === 'success') {
     resourceSearchAttempt.data.errors.forEach(err => {
