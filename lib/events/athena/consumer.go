@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -27,8 +28,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"github.com/xitongsys/parquet-go-source/s3v2"
+	"github.com/xitongsys/parquet-go/parquet"
+	"github.com/xitongsys/parquet-go/source"
+	"github.com/xitongsys/parquet-go/writer"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
@@ -60,6 +66,10 @@ type consumer struct {
 	storeLocationBucket string
 	batchMaxItems       int
 	batchMaxInterval    time.Duration
+
+	// perDateFileParquetWriter returns file writer per date.
+	// Added in config to allow testing.
+	perDateFileParquetWriter func(ctx context.Context, date string) (source.ParquetFile, error)
 
 	collectConfig sqsCollectConfig
 }
@@ -100,6 +110,16 @@ func newConsumer(cfg Config) (*consumer, error) {
 		batchMaxItems:       cfg.BatchMaxItems,
 		batchMaxInterval:    cfg.BatchMaxInterval,
 		collectConfig:       collectCfg,
+		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
+			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
+
+			// TODO(tobiaszheller): verify later acl, kms customer, object lock etc.
+			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return fw, nil
+		},
 	}, nil
 }
 
@@ -188,11 +208,11 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 	go func() {
 		msgsCollector.fromSQS(readSQSCtx)
 	}()
-	var err error
-	size, err = c.writeToS3(ctx, msgsCollector.getEventsChan())
+	toDelete, err := c.writeToS3(ctx, msgsCollector.getEventsChan(), c.perDateFileParquetWriter)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
+	size = len(toDelete)
 	return size >= c.batchMaxItems, nil
 	// TODO(tobiaszheller): delete messages from queue in next PR.
 }
@@ -513,20 +533,107 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 	return buf.Bytes(), nil
 }
 
-// writeToS3 is not doing anything then just receiving from channel and printing
-// for now. It will be changed in next PRs to actually write to S3 via parquet writer.
-func (c *consumer) writeToS3(ctx context.Context, eventsChan <-chan eventAndAckID) (int, error) {
-	var size int
+// writeToS3 reades events from eventsCh and writes them via parquet writer
+// to s3 bucket. It returns receiptHandles of elements to delete from queue.
+// If error is returned, it means that messages won't be deleted from SQS,
+// and events will be retried or go to dead-letter queue.
+func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (source.ParquetFile, error)) ([]string, error) {
+	toDelete := make([]string, 0, c.batchMaxItems)
+	// TODO(tobiaszheller): later write in goroutine, so far it's not bottleneck.
+	perDateWriter := map[string]*parquetWriter{}
+eventLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			return size, trace.Wrap(ctx.Err())
-		case eventAndAckID, ok := <-eventsChan:
+			return nil, trace.Wrap(ctx.Err())
+		case eventAndAckID, ok := <-eventsCh:
 			if !ok {
-				return size, nil
+				break eventLoop
 			}
-			size++
-			c.logger.Debugf("Received event: %s %s", eventAndAckID.event.GetID(), eventAndAckID.event.GetType())
+			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
+			if err != nil {
+				// TODO(tobiaszheller): come back and add some metrics here.
+				c.logger.WithError(err).Error("Could not convert event to parquet format")
+				continue
+			}
+			date := pqtEvent.GetDate()
+			pw := perDateWriter[date]
+			if pw == nil {
+				fw, err := newPerDateFileWriterFn(ctx, date)
+				if err != nil {
+					// While using s3 file writer, error is not used
+					// when creating file writer.
+					return nil, trace.Wrap(err)
+				}
+				pw, err = newParquetWriter(ctx, fw)
+				if err != nil {
+					// Error here means that probably something is wrong with
+					// parquet schema. Returning from fn with error make sense.
+					return nil, trace.Wrap(err)
+				}
+				perDateWriter[date] = pw
+			}
+			if err := pw.Write(ctx, *pqtEvent); err != nil {
+				// pw.Write returns error only on flushing operation which
+				// does not happen on every write.
+				// So there is no easy way to say, which event caused trouble and
+				// skip it.
+				// It may happen that one wrong entry will cause whole batch
+				// to write failure. Although it should not happen often because
+				// we are validating message before. If it happen though, whole
+				// batch will go to dead letter.
+				// TODO(tobiaszheller): check how other parquet libs are handling it.
+				// or maybe use Flush explicitly. Need to check performance.
+				return nil, trace.Wrap(err)
+			}
+
+			// Elements are just added to slice here. Acknowledge happens only if whole
+			// writeToS3 method succeed.
+			toDelete = append(toDelete, eventAndAckID.receiptHandle)
 		}
 	}
+
+	for _, pw := range perDateWriter {
+		if err := pw.Close(); err != nil {
+			// Typically there will be data just for one date.
+			// If we are not able to close parquet file, it make sense to retrun
+			// error and retry whole batch again from SQS.
+
+			// TODO(tobiaszheller): verify if broken files are removed from s3.
+			return nil, trace.Wrap(err)
+		}
+	}
+	return toDelete, nil
+}
+
+func newParquetWriter(ctx context.Context, fw source.ParquetFile) (*parquetWriter, error) {
+	// numberOfWorkersMarshalingParquet defines number how many goroutines
+	// will do marshaling of objects. I have followed example from xitongsys/parquet-go, where they use 4.
+	const numberOfWorkersMarshalingParquet = 4
+	pw, err := writer.NewParquetWriter(fw, new(eventParquet), numberOfWorkersMarshalingParquet)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pw.CompressionType = parquet.CompressionCodec_SNAPPY
+
+	return &parquetWriter{
+		closer: fw,
+		writer: pw,
+	}, nil
+}
+
+type parquetWriter struct {
+	closer io.Closer
+	writer *writer.ParquetWriter
+}
+
+func (pw *parquetWriter) Write(ctx context.Context, in eventParquet) error {
+	return trace.Wrap(pw.writer.Write(in))
+}
+
+func (pw *parquetWriter) Close() error {
+	if err := pw.writer.WriteStop(); err != nil {
+		return trace.NewAggregate(err, pw.closer.Close())
+	}
+	return trace.Wrap(pw.closer.Close())
 }
