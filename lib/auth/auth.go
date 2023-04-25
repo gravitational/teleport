@@ -593,6 +593,19 @@ type Server struct {
 	loginHooksMu sync.RWMutex
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
+
+	// firstStart indicates if the auth service is starting for the first time.
+	firstStart bool
+}
+
+// Sets firstStart based on auth.isFirstStart() function which returns true
+// if CA is not found.
+func (a *Server) SetFirstStart(firstStart bool) {
+	a.firstStart = firstStart
+}
+
+func (a *Server) IsFirstStart() bool {
+	return a.firstStart
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML

@@ -261,6 +261,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 		if firstStart {
+			asrv.SetFirstStart(firstStart)
 			log.Infof("Applying %v bootstrap resources (first initialization)", len(cfg.BootstrapResources))
 			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
