@@ -34,7 +34,6 @@ import desktopService from './services/desktops';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
-import { ctaService } from './services/cta/cta';
 
 class TeleportContext implements types.Context {
   // stores
@@ -56,13 +55,20 @@ class TeleportContext implements types.Context {
   databaseService = new DatabaseService();
   desktopService = desktopService;
   mfaService = new MfaService();
+
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-  ctaService = ctaService;
-
   automaticUpgradesEnabled = false;
-
   agentService = agentService;
+
+  // No CTA is currently shown
+  ctas = {
+    authConnectors: false,
+    activeSessions: false,
+    accessRequests: false,
+    premiumSupport: false,
+    trustedDevices: false,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch

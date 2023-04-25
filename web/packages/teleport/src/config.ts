@@ -38,6 +38,7 @@ const cfg = {
   isEnterprise: false,
   isCloud: false,
   isDashboard: false,
+  isUsageBasedBilling: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
 
