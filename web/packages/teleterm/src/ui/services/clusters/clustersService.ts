@@ -87,7 +87,8 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
     this.setState(draft => {
       draft.clusters.forEach(cluster => {
-        const isRootOrLeafThatBelongsToRoot = routing.ensureRootClusterUri(cluster.uri) === clusterUri;
+        const isRootOrLeafThatBelongsToRoot =
+          routing.ensureRootClusterUri(cluster.uri) === clusterUri;
         if (isRootOrLeafThatBelongsToRoot) {
           cluster.connected = false;
         }
@@ -322,11 +323,12 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
   async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
     this.setState(draft => {
       draft.clusters.forEach(cluster => {
-        const isRootOrLeafThatBelongsToRoot = routing.ensureRootClusterUri(cluster.uri) === clusterUri;
+        const isRootOrLeafThatBelongsToRoot =
+          routing.ensureRootClusterUri(cluster.uri) === clusterUri;
         if (isRootOrLeafThatBelongsToRoot) {
           draft.clusters.delete(cluster.uri);
         }
-      })
+      });
     });
     await this.removeClusterKubeConfigs(clusterUri);
   }
