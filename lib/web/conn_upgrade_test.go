@@ -24,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -119,60 +118,65 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	})
 }
 
-func TestConnWithXForwardedAddr(t *testing.T) {
+func TestForwardedAddrPort(t *testing.T) {
 	t.Parallel()
 
-	mockConn, _ := net.Pipe()
-	mockIPv4Addr := net.TCPAddrFromAddrPort(netip.AddrPortFrom(netip.MustParseAddr("1.2.3.4"), 12345))
-	mockInputConn := newConnWithRemoteAddr(mockConn, mockIPv4Addr)
-
+	inputObserveredAddr := "1.2.3.4:12345"
 	tests := []struct {
 		name               string
 		inputForwardedAddr string
 		wantRemoteAddr     string
+		checkIsValid       require.BoolAssertionFunc
 	}{
 		{
 			name:               "empty X-Forwarded-For",
 			inputForwardedAddr: "",
-			wantRemoteAddr:     "1.2.3.4:12345",
+			wantRemoteAddr:     "invalid AddrPort",
+			checkIsValid:       require.False,
 		},
 		{
 			name:               "invalid X-Forwarded-For",
 			inputForwardedAddr: "not-an-ip",
-			wantRemoteAddr:     "1.2.3.4:12345",
+			wantRemoteAddr:     "invalid AddrPort",
+			checkIsValid:       require.False,
 		},
 		{
 			name:               "ipv4",
 			inputForwardedAddr: "3.4.5.6",
 			wantRemoteAddr:     "3.4.5.6:12345",
+			checkIsValid:       require.True,
 		},
 		{
 			name:               "ipv4 with port",
 			inputForwardedAddr: "3.4.5.6:22222",
 			wantRemoteAddr:     "3.4.5.6:22222",
+			checkIsValid:       require.True,
 		},
 		{
 			name:               "ipv6",
 			inputForwardedAddr: "2001:db8::21f:5bff:febf:ce22:8a2e",
 			wantRemoteAddr:     "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:12345",
+			checkIsValid:       require.True,
 		},
 		{
 			name:               "ipv6 with port",
 			inputForwardedAddr: "[2001:db8::21f:5bff:febf:ce22:8a2e]:22222",
 			wantRemoteAddr:     "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:22222",
+			checkIsValid:       require.True,
 		},
 		{
 			name:               "multiple",
 			inputForwardedAddr: "3.4.5.6, 7.8.9.10, 11.12.13.14",
 			wantRemoteAddr:     "3.4.5.6:12345",
+			checkIsValid:       require.True,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn := connWithXForwardedAddr(mockInputConn, test.inputForwardedAddr)
-			require.NotNil(t, conn)
-			require.Equal(t, test.wantRemoteAddr, conn.RemoteAddr().String())
+			actualAddrPort := forwardedAddrPort(inputObserveredAddr, test.inputForwardedAddr)
+			require.Equal(t, test.wantRemoteAddr, actualAddrPort.String())
+			test.checkIsValid(t, actualAddrPort.IsValid())
 		})
 	}
 }

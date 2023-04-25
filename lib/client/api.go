@@ -3264,6 +3264,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	// Perform the ALPN test once at login.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.preLoginUpdateProxyHeaders()
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -3285,6 +3286,18 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	return key, nil
+}
+
+func (tc *TeleportClient) preLoginUpdateProxyHeaders() {
+	// When Proxy is behind a L7 load balancer, let the Proxy server use the
+	// client IP from "X-Forwarded-For" header that is injected by the load
+	// balancer.
+	if tc.TLSRoutingConnUpgradeRequired {
+		if tc.ExtraProxyHeaders == nil {
+			tc.ExtraProxyHeaders = make(map[string]string)
+		}
+		tc.ExtraProxyHeaders[constants.UseXForwardedForHeader] = types.True
+	}
 }
 
 // AttemptDeviceLogin attempts device authentication for the current device.

@@ -772,6 +772,18 @@ func Test_clientMetaFromReq(t *testing.T) {
 		UserAgent:  ua,
 		RemoteAddr: "192.0.2.1:1234",
 	}, got)
+
+	t.Run(constants.UseXForwardedForHeader, func(t *testing.T) {
+		r := r.Clone(context.Background())
+		r.Header.Set(constants.UseXForwardedForHeader, types.True)
+		r.Header.Set(constants.XForwardedForHeader, "1.2.3.4")
+
+		got := clientMetaFromReq(r)
+		require.Equal(t, &auth.ForwardedClientMetadata{
+			UserAgent:  ua,
+			RemoteAddr: "1.2.3.4:1234",
+		}, got)
+	})
 }
 
 func TestWebSessionsCRUD(t *testing.T) {

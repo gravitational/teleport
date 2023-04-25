@@ -1428,7 +1428,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
-	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	remoteAddr, _, err := net.SplitHostPort(clientRemoteAddrFromReq(r))
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse request remote address.")
 		return client.LoginFailedRedirectURL
@@ -1465,7 +1465,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
-	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	remoteAddr, _, err := net.SplitHostPort(clientRemoteAddrFromReq(r))
 	if err != nil {
 		logger.WithError(err).Error("Failed to parse request remote address.")
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
@@ -1860,12 +1860,27 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	return res, nil
 }
 
-func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
+func clientRemoteAddrFromReq(r *http.Request) string {
 	// multiplexer handles extracting real client IP using PROXY protocol where
-	// available, so we can omit checking X-Forwarded-For.
+	// available, so usually we can omit checking X-Forwarded-For.
+	//
+	// In cases Proxy is behind a L7 load balancer, client will set a specific
+	// header to let the Proxy server know to use X-Forwarded-For.
+	if r.Header.Get(constants.UseXForwardedForHeader) != types.True {
+		return r.RemoteAddr
+	}
+
+	forwarded := forwardedAddrPort(r.RemoteAddr, r.Header.Get(constants.XForwardedForHeader))
+	if !forwarded.IsValid() {
+		return r.RemoteAddr
+	}
+	return forwarded.String()
+}
+
+func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 	return &auth.ForwardedClientMetadata{
 		UserAgent:  r.UserAgent(),
-		RemoteAddr: r.RemoteAddr,
+		RemoteAddr: clientRemoteAddrFromReq(r),
 	}
 }
 
@@ -1979,7 +1994,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		}}
 	}
 
-	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	remoteAddr, _, err := net.SplitHostPort(clientRemoteAddrFromReq(r))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2570,7 +2585,7 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, clientRemoteAddrFromReq(r))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3658,7 +3673,7 @@ func (h *Handler) WithLimiter(fn httplib.HandlerFunc) httprouter.Handle {
 // should be used when you need to nest this inside another HandlerFunc.
 func (h *Handler) WithLimiterHandlerFunc(fn httplib.HandlerFunc) httplib.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		remote, _, err := net.SplitHostPort(r.RemoteAddr)
+		remote, _, err := net.SplitHostPort(clientRemoteAddrFromReq(r))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

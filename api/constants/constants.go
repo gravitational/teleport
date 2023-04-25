@@ -426,3 +426,14 @@ const (
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
 )
+
+const (
+	// XForwardedForHeader is a de-facto standard header for identifying the
+	// originating IP address of a client connecting to a web server through a
+	// proxy server.
+	XForwardedForHeader = "X-Forwarded-For"
+	// UseXForwardedForHeader is a login request header that specifies that the
+	// Proxy server should use the client IP from the value of
+	// `X-Forwarded-For` header.
+	UseXForwardedForHeader = "X-Teleport-Use-X-Forwarded-For"
+)

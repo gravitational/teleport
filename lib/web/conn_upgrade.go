@@ -77,20 +77,22 @@ func (h *Handler) connectionUpgrade(w http.ResponseWriter, r *http.Request, p ht
 	}
 
 	// Update remote addr.
-	conn = connWithXForwardedAddr(conn, r.Header.Get("X-Forwarded-For"))
+	conn = connWithXForwardedAddr(conn, r)
+
 	if err := upgradeHandler(r.Context(), conn); err != nil && !utils.IsOKNetworkError(err) {
 		h.log.WithError(err).Errorf("Failed to handle %v upgrade request.", upgradeType)
 	}
 	return nil, nil
 }
 
-// connWithXForwardedAddr overwrites conn.RemoteAddr if X-Forwarded-For is specificed.
+// forwardedAddrPort retusn a netip.AddrPort from provided value of
+// X-Forwarded-For.
 //
 // AWS ALB reference:
 // https://docs.aws.amazon.com/elasticloadbalancing/latest/application/x-forwarded-headers.html
-func connWithXForwardedAddr(conn net.Conn, forwardedAddr string) net.Conn {
+func forwardedAddrPort(observeredAddr, forwardedAddr string) netip.AddrPort {
 	if forwardedAddr == "" {
-		return conn
+		return netip.AddrPort{}
 	}
 
 	// In case multiple IPs are appended to X-Forwarded-For, use the first one.
@@ -98,19 +100,31 @@ func connWithXForwardedAddr(conn net.Conn, forwardedAddr string) net.Conn {
 
 	// If forwardedAddr has a port.
 	if ipAddrPort, err := netip.ParseAddrPort(forwardedAddr); err == nil {
-		return newConnWithRemoteAddr(conn, net.TCPAddrFromAddrPort(ipAddrPort))
+		return ipAddrPort
 	}
 
 	// If forwardedAddr does not have a port.
 	ipAddr, err := netip.ParseAddr(forwardedAddr)
 	if err != nil {
 		logrus.WithError(err).Warnf("Invalid value for X-Forwarded-For: %v.", forwardedAddr)
+		return netip.AddrPort{}
+	}
+	return netip.AddrPortFrom(ipAddr, uint16(getPortFromAddr(observeredAddr)))
+}
+
+func getPortFromAddr(addr string) (port int) {
+	if parsed, err := utils.ParseAddr(addr); err == nil {
+		port = parsed.Port(port)
+	}
+	return
+}
+
+func connWithXForwardedAddr(conn net.Conn, r *http.Request) net.Conn {
+	forwarded := forwardedAddrPort(r.RemoteAddr, r.Header.Get(constants.XForwardedForHeader))
+	if !forwarded.IsValid() {
 		return conn
 	}
-
-	orgRemoteAddr := utils.FromAddr(conn.RemoteAddr())
-	port := uint16(orgRemoteAddr.Port(0))
-	return newConnWithRemoteAddr(conn, net.TCPAddrFromAddrPort(netip.AddrPortFrom(ipAddr, port)))
+	return newConnWithRemoteAddr(conn, net.TCPAddrFromAddrPort(forwarded))
 }
 
 func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
