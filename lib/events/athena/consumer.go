@@ -72,10 +72,17 @@ type consumer struct {
 	perDateFileParquetWriter func(ctx context.Context, date string) (source.ParquetFile, error)
 
 	collectConfig sqsCollectConfig
+
+	sqsDeleter sqsDeleter
+	queueURL   string
 }
 
 type sqsReceiver interface {
 	ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
+}
+
+type sqsDeleter interface {
+	DeleteMessageBatch(ctx context.Context, params *sqs.DeleteMessageBatchInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error)
 }
 
 type s3downloader interface {
@@ -84,10 +91,10 @@ type s3downloader interface {
 
 func newConsumer(cfg Config) (*consumer, error) {
 	s3client := s3.NewFromConfig(*cfg.AWSConfig)
-	sqsReceiver := sqs.NewFromConfig(*cfg.AWSConfig)
+	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
 
 	collectCfg := sqsCollectConfig{
-		sqsReceiver: sqsReceiver,
+		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(tobiaszheller): use s3 manager from teleport observability.
 		payloadDownloader: manager.NewDownloader(s3client),
@@ -110,6 +117,8 @@ func newConsumer(cfg Config) (*consumer, error) {
 		batchMaxItems:       cfg.BatchMaxItems,
 		batchMaxInterval:    cfg.BatchMaxInterval,
 		collectConfig:       collectCfg,
+		sqsDeleter:          sqsClient,
+		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
 
@@ -213,8 +222,7 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 		return false, trace.Wrap(err)
 	}
 	size = len(toDelete)
-	return size >= c.batchMaxItems, nil
-	// TODO(tobiaszheller): delete messages from queue in next PR.
+	return size >= c.batchMaxItems, trace.Wrap(c.deleteMessagesFromQueue(ctx, toDelete))
 }
 
 type sqsCollectConfig struct {
@@ -636,4 +644,69 @@ func (pw *parquetWriter) Close() error {
 		return trace.NewAggregate(err, pw.closer.Close())
 	}
 	return trace.Wrap(pw.closer.Close())
+}
+
+func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string) error {
+	if len(handles) == 0 {
+		return nil
+	}
+
+	const (
+		// maxDeleteBatchSize defines maximum number of handles passed to deleteMessage endpoint, limited by AWS.
+		maxDeleteBatchSize = 10
+		// noOfWorkers defines number of workers which concurrently process delete batch request.
+		noOfWorkers = 5
+	)
+
+	errorsCh := make(chan error, len(handles))
+	workerCh := make(chan []string, noOfWorkers)
+
+	var wg sync.WaitGroup
+
+	// Start the worker goroutines
+	for i := 0; i < noOfWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for handles := range workerCh {
+				entries := make([]sqsTypes.DeleteMessageBatchRequestEntry, 0, len(handles))
+				for _, h := range handles {
+					entries = append(entries, sqsTypes.DeleteMessageBatchRequestEntry{
+						Id:            aws.String(uuid.NewString()),
+						ReceiptHandle: aws.String(h),
+					})
+				}
+				resp, err := c.sqsDeleter.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
+					QueueUrl: aws.String(c.queueURL),
+					Entries:  entries,
+				})
+				if err != nil {
+					errorsCh <- trace.Wrap(err, "error on calling DeleteMessageBatch")
+					continue
+				}
+				for _, entry := range resp.Failed {
+					// TODO(tobiaszheller): come back at some point and check if there are errors that we should filter.
+					// Deleting the same handle twice does not result in error.
+					errorsCh <- trace.Errorf("failed to delete message with ID %s, sender fault %v: %s", aws.ToString(entry.Id), entry.SenderFault, aws.ToString(entry.Message))
+				}
+			}
+		}()
+	}
+
+	// Batch the receipt handles and send them to the worker pool.
+	for i := 0; i < len(handles); i += maxDeleteBatchSize {
+		end := i + maxDeleteBatchSize
+		if end > len(handles) {
+			end = len(handles)
+		}
+		workerCh <- handles[i:end]
+	}
+	close(workerCh)
+
+	wg.Wait()
+	// We can close errorsCh when all goroutine has finished, now we will
+	// be able to collect results.
+	close(errorsCh)
+
+	return trace.Wrap(trace.NewAggregateFromChannel(errorsCh, ctx))
 }
