@@ -1644,7 +1644,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
-	case constants.FileTransferRequest:
+	case constants.InitiateFileTransfer:
 		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
 	case constants.FileTransferDecision:
 		return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
