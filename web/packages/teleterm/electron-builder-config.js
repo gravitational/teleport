@@ -67,6 +67,7 @@ module.exports = {
     ].filter(Boolean),
   },
   dmg: {
+    artifactName: '${productName}-${version}-${arch}.${ext}',
     contents: [
       {
         x: 130,

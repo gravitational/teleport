@@ -246,6 +246,14 @@ endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
 
+# Map ARCH into the architecture flag for electron-builder. Ensure
+# ELECTRON_BUILDER_ARCH is not exported so we do not generate
+# an error on unsupported architectures when not running this target.
+ELECTRON_BUILDER_ARCH_amd64 = x64
+ELECTRON_BUILDER_ARCH_arm64 = arm64
+ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(error Unsupported architecture: $(ARCH)))
+unexport ELECTRON_BUILDER_ARCH
+
 #
 # 'make all' builds all 4 executables and places them in the current directory.
 #
@@ -540,13 +548,13 @@ release-windows: release-windows-unsigned
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
-#
+
 .PHONY: release-connect
 release-connect:
 	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION)
+	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
