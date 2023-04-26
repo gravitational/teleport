@@ -16,6 +16,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer tpm.Close()
 
 	eks, err := tpm.EKs()
 	if err != nil {
