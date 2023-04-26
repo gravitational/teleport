@@ -1740,6 +1740,15 @@ message DeviceTrust {
   // Mode is always "off" for OSS.
   // Defaults to "optional" for Enterprise.
   string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
+
+  // Enable device auto-enroll.
+  // Auto-enroll lets any user issue a device enrollment token for a known
+  // device that is not already enrolled.
+  // `tsh` takes advantage of auto-enroll to automatically enroll devices on
+  // user login, when appropriate.
+  // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
+  // Mode="off".
+  bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -2544,8 +2553,15 @@ message RoleConditions {
     (gogoproto.customtype) = "Labels"
   ];
 
+  // GroupLabels is a map of labels used as part of the RBAC system.
+  wrappers.LabelValues GroupLabels = 27 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "group_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
   // DesktopGroups is a list of groups for created desktop users to be added to
-  repeated string DesktopGroups = 27 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
+  repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.

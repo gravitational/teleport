@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // CertGenerator generates certificates from a certificate request.
@@ -40,15 +39,12 @@ type CertGenerator interface {
 // SignerFromSSHCertificate returns a function that attempts to
 // create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
 // that is signed with the OpenSSH CA and can be used to authenticate to agentless nodes.
-func SignerFromSSHCertificate(certificate *ssh.Certificate, generator CertGenerator) func(context.Context) (ssh.Signer, error) {
+func SignerFromSSHCertificate(certificate *ssh.Certificate, teleportUser, clusterName string, generator CertGenerator) func(context.Context) (ssh.Signer, error) {
 	return func(ctx context.Context) (ssh.Signer, error) {
 		validBefore := time.Unix(int64(certificate.ValidBefore), 0)
 		ttl := time.Until(validBefore)
 
-		clusterName := certificate.Permissions.Extensions[utils.CertExtensionAuthority]
-		user := certificate.Permissions.Extensions[utils.CertTeleportUser]
-
-		signer, err := createAuthSigner(ctx, user, clusterName, ttl, generator)
+		signer, err := createAuthSigner(ctx, teleportUser, clusterName, ttl, generator)
 		return signer, trace.Wrap(err)
 	}
 }

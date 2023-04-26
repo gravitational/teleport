@@ -346,7 +346,7 @@
         {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
-          "forScopes": ["enterprise", "oss", "cloud"],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Set Up Login Rules",
@@ -362,6 +362,11 @@
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Kubernetes Operator",
+              "slug": "/access-controls/login-rules/kubernetes/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -987,6 +992,10 @@
             {
                "title": "SQL Server (Preview)",
                "slug": "/database-access/guides/sql-server-ad/"
+            },
+            {
+               "title": "SQL Server with PKINIT (Preview)",
+               "slug": "/database-access/guides/sql-server-ad-pkinit/"
             },
             {
                "title": "Self-Hosted Cassandra & ScyllaDB",

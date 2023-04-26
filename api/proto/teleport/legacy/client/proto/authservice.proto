@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -329,6 +330,9 @@ message UserCertsRequest {
   // This login is used when performing RBAC checks to determine if MFA is required
   // to access the resource.
   string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -1603,6 +1607,8 @@ message ChangeUserAuthenticationRequest {
   MFARegisterResponse NewMFARegisterResponse = 3 [(gogoproto.jsontag) = "new_mfa_register_response,omitempty"];
   // NewDeviceName is the name of a new mfa or passwordless device.
   string NewDeviceName = 4 [(gogoproto.jsontag) = "new_device_name,omitempty"];
+  // LoginIP is an IP that will be embedded in the new client's certificate for web session if successful.
+  string LoginIP = 5 [(gogoproto.jsontag) = "login_ip,omitempty"];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.

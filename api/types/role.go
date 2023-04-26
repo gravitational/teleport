@@ -222,6 +222,11 @@ type Role interface {
 	GetDatabaseServiceLabels(RoleConditionType) Labels
 	// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
 	SetDatabaseServiceLabels(RoleConditionType, Labels)
+
+	// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+	GetGroupLabels(RoleConditionType) Labels
+	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+	SetGroupLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V6 role.
@@ -790,6 +795,23 @@ func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 {
 		r.Version = V6
+	}
+}
+
+// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) GetGroupLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.GroupLabels
+	}
+	return r.Spec.Deny.GroupLabels
+}
+
+// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.GroupLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.GroupLabels = labels.Clone()
 	}
 }
 

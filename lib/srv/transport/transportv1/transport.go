@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -267,8 +268,12 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "failed constructing ssh streamer")
 	}
 
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
 	signer := s.cfg.SignerFn(authzContext)
-	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, s.cfg.LocalAddr, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target host")
 	}
@@ -301,6 +306,38 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// copy data to/from the host/user
 	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
+}
+
+// getDestinationAddress is used to get client destination for connection coming from gRPC. We don't have a way to get
+// real connection dst address, but we rely on listener address to be that. Returned IP version always have to match
+// IP version of src address. If IP versions don't match or if listener is unspecified address we return loopback.
+func getDestinationAddress(clientSrc, listenerAddr net.Addr) (net.Addr, error) {
+	la, err := netip.ParseAddrPort(listenerAddr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := netip.ParseAddrPort(clientSrc.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If listener address is specified and matches IP version of source address, we just return it
+	if !la.Addr().IsUnspecified() && la.Addr().Is4() == ca.Addr().Is4() {
+		return listenerAddr, nil
+	}
+
+	// Otherwise we return loopback with matching IP version of source address
+	if ca.Addr().Is4() {
+		return &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: int(la.Port()),
+		}, nil
+	}
+
+	return &net.TCPAddr{
+		IP:   net.IPv6loopback,
+		Port: int(la.Port()),
+	}, nil
 }
 
 // sshStream implements the [streamutils.Source] interface

@@ -334,6 +334,7 @@ func TestRoleParse(t *testing.T) {
 						"allow": {
 							"node_labels": {"a": "b", "c-d": "e"},
 							"app_labels": {"a": "b", "c-d": "e"},
+							"group_labels": {"a": "b", "c-d": "e"},
 							"kubernetes_labels": {"a": "b", "c-d": "e"},
 							"db_labels": {"a": "b", "c-d": "e"},
 							"db_names": ["postgres"],
@@ -389,6 +390,7 @@ func TestRoleParse(t *testing.T) {
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						AppLabels:        types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						GroupLabels:      types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						KubernetesLabels: types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						DatabaseLabels:   types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						DatabaseNames:    []string{"postgres"},
@@ -442,6 +444,7 @@ func TestRoleParse(t *testing.T) {
 							"allow": {
 							  "node_labels": {"a": "b"},
 							  "app_labels": {"a": "b"},
+							  "group_labels": {"a": "b"},
 							  "kubernetes_labels": {"c": "d"},
 							  "db_labels": {"e": "f"},
 							  "namespaces": ["default"],
@@ -495,6 +498,7 @@ func TestRoleParse(t *testing.T) {
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
 						AppLabels:        types.Labels{"a": []string{"b"}},
+						GroupLabels:      types.Labels{"a": []string{"b"}},
 						KubernetesLabels: types.Labels{"c": []string{"d"}},
 						DatabaseLabels:   types.Labels{"e": []string{"f"}},
 						Namespaces:       []string{"default"},
@@ -2200,6 +2204,8 @@ func TestApplyTraits(t *testing.T) {
 		outKubeUsers            []string
 		inAppLabels             types.Labels
 		outAppLabels            types.Labels
+		inGroupLabels           types.Labels
+		outGroupLabels          types.Labels
 		inDBLabels              types.Labels
 		outDBLabels             types.Labels
 		inWindowsDesktopLabels  types.Labels
@@ -2682,6 +2688,16 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
+			comment: "values are expanded in group labels",
+			inTraits: map[string][]string{
+				"foo": {"bar", "baz"},
+			},
+			allow: rule{
+				inGroupLabels:  types.Labels{`key`: []string{`{{external.foo}}`}},
+				outGroupLabels: types.Labels{`key`: []string{"bar", "baz"}},
+			},
+		},
+		{
 			comment: "values are expanded in database labels",
 			inTraits: map[string][]string{
 				"foo": {"bar", "baz"},
@@ -2782,6 +2798,7 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.allow.inKubeGroups,
 						KubeUsers:            tt.allow.inKubeUsers,
 						AppLabels:            tt.allow.inAppLabels,
+						GroupLabels:          tt.allow.inGroupLabels,
 						AWSRoleARNs:          tt.allow.inRoleARNs,
 						AzureIdentities:      tt.allow.inAzureIdentities,
 						GCPServiceAccounts:   tt.allow.inGCPServiceAccounts,
@@ -2801,6 +2818,7 @@ func TestApplyTraits(t *testing.T) {
 						KubeGroups:           tt.deny.inKubeGroups,
 						KubeUsers:            tt.deny.inKubeUsers,
 						AppLabels:            tt.deny.inAppLabels,
+						GroupLabels:          tt.deny.inGroupLabels,
 						AWSRoleARNs:          tt.deny.inRoleARNs,
 						AzureIdentities:      tt.deny.inAzureIdentities,
 						GCPServiceAccounts:   tt.deny.inGCPServiceAccounts,
@@ -2831,6 +2849,7 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outKubeGroups, outRole.GetKubeGroups(rule.condition))
 				require.Equal(t, rule.spec.outKubeUsers, outRole.GetKubeUsers(rule.condition))
 				require.Equal(t, rule.spec.outAppLabels, outRole.GetAppLabels(rule.condition))
+				require.Equal(t, rule.spec.outGroupLabels, outRole.GetGroupLabels(rule.condition))
 				require.Equal(t, rule.spec.outRoleARNs, outRole.GetAWSRoleARNs(rule.condition))
 				require.Equal(t, rule.spec.outAzureIdentities, outRole.GetAzureIdentities(rule.condition))
 				require.Equal(t, rule.spec.outGCPServiceAccounts, outRole.GetGCPServiceAccounts(rule.condition))
@@ -5169,6 +5188,100 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
 				err := test.roleSet.checkAccess(check.desktop, AccessState{}, NewWindowsLoginMatcher(check.login))
+				if check.hasAccess {
+					require.NoError(t, err, msg)
+				} else {
+					require.Error(t, err, msg)
+					require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckAccessToUserGroups(t *testing.T) {
+	userGroupNoLabels := &types.UserGroupV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     types.KindUserGroup,
+			Metadata: types.Metadata{Name: "no-labels"},
+		},
+	}
+	userGroupLabels := &types.UserGroupV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind: types.KindUserGroup,
+			Metadata: types.Metadata{
+				Name: "labels",
+				Labels: map[string]string{
+					"a": "b",
+				},
+			},
+		},
+	}
+
+	type check struct {
+		userGroup *types.UserGroupV1
+		hasAccess bool
+	}
+
+	for _, test := range []struct {
+		name    string
+		roleSet RoleSet
+		checks  []check
+	}{
+		{
+			name:    "no roles, no access",
+			roleSet: RoleSet{},
+			checks: []check{
+				{userGroup: userGroupNoLabels, hasAccess: false},
+				{userGroup: userGroupLabels, hasAccess: false},
+			},
+		},
+		{
+			name: "no matching labels, no access",
+			roleSet: RoleSet{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Allow.GroupLabels = types.Labels{"a": []string{"c"}}
+				}),
+			},
+			checks: []check{
+				{userGroup: userGroupNoLabels, hasAccess: false},
+				{userGroup: userGroupLabels, hasAccess: false},
+			},
+		},
+		{
+			name: "deny labels, no access",
+			roleSet: RoleSet{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Allow.GroupLabels = types.Labels{"a": []string{"b"}}
+					r.Spec.Deny.GroupLabels = types.Labels{"a": []string{"b"}}
+				}),
+			},
+			checks: []check{
+				{userGroup: userGroupNoLabels, hasAccess: false},
+				{userGroup: userGroupLabels, hasAccess: false},
+			},
+		},
+		{
+			name: "wild card, access",
+			roleSet: RoleSet{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Allow.GroupLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+				}),
+			},
+			checks: []check{
+				{userGroup: userGroupNoLabels, hasAccess: true},
+				{userGroup: userGroupLabels, hasAccess: true},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for i, check := range test.checks {
+				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
+					i, check.userGroup.GetName(), check.hasAccess)
+				err := test.roleSet.checkAccess(check.userGroup, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {

@@ -147,6 +147,7 @@ func RoleForUser(u types.User) types.Role {
 			Namespaces:            []string{defaults.Namespace},
 			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GroupLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -167,6 +168,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
+				types.NewRule(types.KindUserGroup, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -391,6 +393,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		inLabels = r.GetAppLabels(condition)
 		if inLabels != nil {
 			r.SetAppLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
+		// apply templates to group labels
+		inLabels = r.GetGroupLabels(condition)
+		if inLabels != nil {
+			r.SetGroupLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
 		// apply templates to database labels
@@ -2427,6 +2435,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
+	case types.KindUserGroup:
+		getRoleLabels = types.Role.GetGroupLabels
 	case types.KindNode:
 		getRoleLabels = types.Role.GetNodeLabels
 		additionalDeniedMessage = "Confirm SSH login."
