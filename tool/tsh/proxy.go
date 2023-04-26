@@ -188,12 +188,18 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
+	signers, err := tc.LocalAgent().Signers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(signers) == 0 {
+		return trace.BadParameter("no SSH auth methods loaded, are you logged in?")
+	}
+
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
-		User: tc.HostLogin,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
-		},
+		User:            tc.HostLogin,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
