@@ -1,15 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded approved role based request state 1`] = `
-.c1 {
-  box-sizing: border-box;
-  max-width: 860px;
-  min-width: 515px;
-  margin-right: 32px;
-  width: 100%;
-  flex: 1 1 auto;
-}
-
 .c9 {
   box-sizing: border-box;
 }
@@ -87,7 +78,7 @@ exports[`loaded approved role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -100,7 +91,6 @@ exports[`loaded approved role based request state 1`] = `
 .c13:hover,
 .c13:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c13:active {
@@ -159,7 +149,7 @@ exports[`loaded approved role based request state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 26px;
 }
 
@@ -246,7 +236,7 @@ exports[`loaded approved role based request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 {
@@ -391,6 +381,16 @@ exports[`loaded approved role based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+}
+
 .c2 {
   box-sizing: border-box;
   padding: 16px;
@@ -529,7 +529,7 @@ exports[`loaded approved role based request state 1`] = `
           >
             <span
               class="c18 icon icon-chevron-down-circle "
-              color="text.placeholder"
+              color="text.muted"
               font-size="8"
             />
           </div>
@@ -726,7 +726,7 @@ exports[`loaded approved role based request state 1`] = `
       >
         <div
           class="c36"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Thresholds: 
           Default
@@ -738,15 +738,6 @@ exports[`loaded approved role based request state 1`] = `
 `;
 
 exports[`loaded denied role based request state 1`] = `
-.c1 {
-  box-sizing: border-box;
-  max-width: 860px;
-  min-width: 515px;
-  margin-right: 32px;
-  width: 100%;
-  flex: 1 1 auto;
-}
-
 .c9 {
   box-sizing: border-box;
 }
@@ -824,7 +815,7 @@ exports[`loaded denied role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -837,7 +828,6 @@ exports[`loaded denied role based request state 1`] = `
 .c13:hover,
 .c13:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c13:active {
@@ -854,7 +844,7 @@ exports[`loaded denied role based request state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 26px;
 }
 
@@ -941,7 +931,7 @@ exports[`loaded denied role based request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 {
@@ -1086,6 +1076,16 @@ exports[`loaded denied role based request state 1`] = `
   border-left: 2px solid rgba(255,255,255,0.07);
 }
 
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+}
+
 .c2 {
   box-sizing: border-box;
   padding: 16px;
@@ -1218,7 +1218,7 @@ exports[`loaded denied role based request state 1`] = `
           >
             <span
               class="c18 icon icon-chevron-down-circle "
-              color="text.placeholder"
+              color="text.muted"
               font-size="8"
             />
           </div>
@@ -1381,7 +1381,7 @@ exports[`loaded denied role based request state 1`] = `
       >
         <div
           class="c35"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Thresholds: 
           Default
@@ -1393,15 +1393,6 @@ exports[`loaded denied role based request state 1`] = `
 `;
 
 exports[`loaded pending role based request state 1`] = `
-.c1 {
-  box-sizing: border-box;
-  max-width: 860px;
-  min-width: 515px;
-  margin-right: 32px;
-  width: 100%;
-  flex: 1 1 auto;
-}
-
 .c9 {
   box-sizing: border-box;
 }
@@ -1496,7 +1487,7 @@ exports[`loaded pending role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -1509,7 +1500,6 @@ exports[`loaded pending role based request state 1`] = `
 .c13:hover,
 .c13:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c13:active {
@@ -1567,7 +1557,7 @@ exports[`loaded pending role based request state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 26px;
 }
 
@@ -1656,7 +1646,7 @@ exports[`loaded pending role based request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 {
@@ -1799,20 +1789,20 @@ exports[`loaded pending role based request state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c30 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c30 .react-select__control:hover,
 .c30 .react-select__control:focus,
 .c30 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1833,7 +1823,7 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c30 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1847,7 +1837,7 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c30 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c30 .react-select__multi-value {
@@ -1893,7 +1883,7 @@ exports[`loaded pending role based request state 1`] = `
 }
 
 .c30 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c30 .react-select__clear-indicator:hover,
@@ -1927,20 +1917,20 @@ exports[`loaded pending role based request state 1`] = `
 
 .c30 .react-select--is-disabled,
 .c30 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c30 .react-select--is-disabled .react-select__single-value,
 .c30 .react-select__control--is-disabled .react-select__single-value,
 .c30 .react-select--is-disabled .react-select__placeholder,
 .c30 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c30 .react-select--is-disabled .react-select__indicator,
 .c30 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c32 {
@@ -1952,19 +1942,19 @@ exports[`loaded pending role based request state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c32::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c32:hover,
 .c32:focus,
 .c32:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c15 {
@@ -1974,6 +1964,16 @@ exports[`loaded pending role based request state 1`] = `
   top: 0;
   left: 55px;
   border-left: 2px solid rgba(255,255,255,0.07);
+}
+
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
 }
 
 .c2 {
@@ -2102,7 +2102,7 @@ exports[`loaded pending role based request state 1`] = `
           >
             <span
               class="c18 icon icon-chevron-down-circle "
-              color="text.placeholder"
+              color="text.muted"
               font-size="8"
             />
           </div>
@@ -2241,7 +2241,7 @@ exports[`loaded pending role based request state 1`] = `
               </label>
               <textarea
                 class="c32"
-                color="text.primary"
+                color="text.main"
                 height="150px"
                 placeholder="Optional message..."
                 width="100%"
@@ -2312,7 +2312,7 @@ exports[`loaded pending role based request state 1`] = `
       >
         <div
           class="c41"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Thresholds: 
           Default, Poplar, Admin
@@ -2324,15 +2324,6 @@ exports[`loaded pending role based request state 1`] = `
 `;
 
 exports[`loaded pending search based request state 1`] = `
-.c1 {
-  box-sizing: border-box;
-  max-width: 860px;
-  min-width: 515px;
-  margin-right: 32px;
-  width: 100%;
-  flex: 1 1 auto;
-}
-
 .c9 {
   box-sizing: border-box;
 }
@@ -2427,7 +2418,7 @@ exports[`loaded pending search based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -2440,7 +2431,6 @@ exports[`loaded pending search based request state 1`] = `
 .c13:hover,
 .c13:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c13:active {
@@ -2498,7 +2488,7 @@ exports[`loaded pending search based request state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 26px;
 }
 
@@ -2587,7 +2577,7 @@ exports[`loaded pending search based request state 1`] = `
   font-size: 12px;
   line-height: 16px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 {
@@ -2803,20 +2793,20 @@ exports[`loaded pending search based request state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c34 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c34 .react-select__control:hover,
 .c34 .react-select__control:focus,
 .c34 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2837,7 +2827,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c34 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2851,7 +2841,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c34 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c34 .react-select__multi-value {
@@ -2897,7 +2887,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c34 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c34 .react-select__clear-indicator:hover,
@@ -2931,20 +2921,20 @@ exports[`loaded pending search based request state 1`] = `
 
 .c34 .react-select--is-disabled,
 .c34 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c34 .react-select--is-disabled .react-select__single-value,
 .c34 .react-select__control--is-disabled .react-select__single-value,
 .c34 .react-select--is-disabled .react-select__placeholder,
 .c34 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c34 .react-select--is-disabled .react-select__indicator,
 .c34 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c36 {
@@ -2956,19 +2946,19 @@ exports[`loaded pending search based request state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c36::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c36:hover,
 .c36:focus,
 .c36:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c15 {
@@ -2986,6 +2976,16 @@ exports[`loaded pending search based request state 1`] = `
 
 .c28 > tbody > tr > td {
   vertical-align: middle;
+}
+
+.c1 {
+  box-sizing: border-box;
+  max-width: 860px;
+  min-width: 515px;
+  margin-right: 32px;
+  width: 100%;
+  flex: 1 1 auto;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
 }
 
 .c2 {
@@ -3124,7 +3124,7 @@ exports[`loaded pending search based request state 1`] = `
           >
             <span
               class="c18 c19 icon icon-chevron-down-circle "
-              color="text.placeholder"
+              color="text.muted"
               font-size="8"
             />
           </div>
@@ -3347,7 +3347,7 @@ exports[`loaded pending search based request state 1`] = `
               </label>
               <textarea
                 class="c36"
-                color="text.primary"
+                color="text.main"
                 height="150px"
                 placeholder="Optional message..."
                 width="100%"
@@ -3418,7 +3418,7 @@ exports[`loaded pending search based request state 1`] = `
       >
         <div
           class="c45"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Thresholds: 
           Default, Poplar, Admin

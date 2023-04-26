@@ -31,15 +31,11 @@ export const License = ({
       <Text mt={3}>
         You will need to add your license file to authorize your deployment and
         update it anytime your contract updates. See{' '}
-        <Link href={GETTING_STARTED_LINK} target="_blank" color="text.primary">
+        <Link href={GETTING_STARTED_LINK} target="_blank" color="text.main">
           Getting Started with Teleport Enterprise
         </Link>{' '}
         and our{' '}
-        <Link
-          href={LICENSE_FILE_GUIDE_LINK}
-          target="_blank"
-          color="text.primary"
-        >
+        <Link href={LICENSE_FILE_GUIDE_LINK} target="_blank" color="text.main">
           Enterprise License File Guide
         </Link>{' '}
         for more details on how this file is used.
@@ -64,7 +60,7 @@ export const License = ({
             : 'Download License Key'}
         </ButtonPrimary>
         {expiry && (
-          <Text color="text.secondary">
+          <Text color="text.slightlyMuted">
             Valid until {format(expiry, 'MM/dd/yyyy')}
           </Text>
         )}

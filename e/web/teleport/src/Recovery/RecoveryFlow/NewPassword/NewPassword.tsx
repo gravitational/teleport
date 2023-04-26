@@ -36,15 +36,10 @@ export function NewPassword({ setNewPassword, attempt }: State) {
       <Validation>
         {({ validator }) => (
           <>
-            <Text
-              typography="h3"
-              pt={5}
-              textAlign="center"
-              color="text.primary"
-            >
+            <Text typography="h3" pt={5} textAlign="center" color="text.main">
               Create a New Password
             </Text>
-            <Text textAlign="center" color="text.secondary">
+            <Text textAlign="center" color="text.slightlyMuted">
               Step 2 of 3
             </Text>
             <Box p={5}>

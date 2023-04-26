@@ -239,7 +239,7 @@ exports[`render recovery codes 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c1 {
@@ -343,7 +343,7 @@ exports[`render recovery codes 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           New Backup & Recovery Codes
         </div>
@@ -425,7 +425,7 @@ tele-testword-testword-testword-testword-testword-testword-testword
         </div>
         <div
           class="c20"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Use them in the event of losing your password or two-factor device.
         </div>
@@ -440,7 +440,7 @@ tele-testword-testword-testword-testword-testword-testword-testword
         </div>
         <div
           class="c20"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
         </div>
@@ -455,7 +455,7 @@ tele-testword-testword-testword-testword-testword-testword-testword
         </div>
         <div
           class="c20"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Your old recovery codes are no longer valid, please replace them with these new ones.
         </div>

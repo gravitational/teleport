@@ -95,7 +95,7 @@ exports[`render correct form to add TOTP device 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -112,12 +112,12 @@ exports[`render correct form to add TOTP device 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -134,7 +134,7 @@ exports[`render correct form to add TOTP device 1`] = `
 .c15:hover,
 .c15:focus,
 .c15:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c15::-ms-clear {
@@ -142,7 +142,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c15::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c15:read-only {
@@ -150,8 +150,8 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c11 {
@@ -210,20 +210,20 @@ exports[`render correct form to add TOTP device 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -244,7 +244,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -258,7 +258,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -304,7 +304,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -338,20 +338,20 @@ exports[`render correct form to add TOTP device 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 {
@@ -373,13 +373,13 @@ exports[`render correct form to add TOTP device 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Enroll New Two-Factor Device
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 2 of 4
   </div>
@@ -404,7 +404,7 @@ exports[`render correct form to add TOTP device 1`] = `
          
         <div
           class="c7"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           We recommend
            
@@ -628,7 +628,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -641,7 +641,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 
 .c13 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -658,7 +658,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 .c13:hover,
 .c13:focus,
 .c13:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c13::-ms-clear {
@@ -666,7 +666,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c13::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c13:read-only {
@@ -674,8 +674,8 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c13:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c9 {
@@ -726,20 +726,20 @@ exports[`render correct form to add Webauthn device 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c10 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c10 .react-select__control:hover,
 .c10 .react-select__control:focus,
 .c10 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -760,7 +760,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c10 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -774,7 +774,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c10 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c10 .react-select__multi-value {
@@ -820,7 +820,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c10 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 .react-select__clear-indicator:hover,
@@ -854,20 +854,20 @@ exports[`render correct form to add Webauthn device 1`] = `
 
 .c10 .react-select--is-disabled,
 .c10 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c10 .react-select--is-disabled .react-select__single-value,
 .c10 .react-select__control--is-disabled .react-select__single-value,
 .c10 .react-select--is-disabled .react-select__placeholder,
 .c10 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c10 .react-select--is-disabled .react-select__indicator,
 .c10 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 {
@@ -889,13 +889,13 @@ exports[`render correct form to add Webauthn device 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Enroll New Two-Factor Device
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 2 of 4
   </div>
@@ -1106,7 +1106,7 @@ exports[`render correct form to add with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -1119,7 +1119,7 @@ exports[`render correct form to add with multi option 1`] = `
 
 .c13 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1136,7 +1136,7 @@ exports[`render correct form to add with multi option 1`] = `
 .c13:hover,
 .c13:focus,
 .c13:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c13::-ms-clear {
@@ -1144,7 +1144,7 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c13::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c13:read-only {
@@ -1152,8 +1152,8 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c13:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c9 {
@@ -1204,20 +1204,20 @@ exports[`render correct form to add with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c10 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c10 .react-select__control:hover,
 .c10 .react-select__control:focus,
 .c10 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1238,7 +1238,7 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c10 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1252,7 +1252,7 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c10 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c10 .react-select__multi-value {
@@ -1298,7 +1298,7 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c10 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c10 .react-select__clear-indicator:hover,
@@ -1332,20 +1332,20 @@ exports[`render correct form to add with multi option 1`] = `
 
 .c10 .react-select--is-disabled,
 .c10 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c10 .react-select--is-disabled .react-select__single-value,
 .c10 .react-select__control--is-disabled .react-select__single-value,
 .c10 .react-select--is-disabled .react-select__placeholder,
 .c10 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c10 .react-select--is-disabled .react-select__indicator,
 .c10 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 {
@@ -1367,13 +1367,13 @@ exports[`render correct form to add with multi option 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Enroll New Two-Factor Device
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 2 of 4
   </div>
@@ -1606,7 +1606,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -1619,7 +1619,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 
 .c14 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1636,7 +1636,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 .c14:hover,
 .c14:focus,
 .c14:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c14::-ms-clear {
@@ -1644,7 +1644,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c14::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c14:read-only {
@@ -1652,8 +1652,8 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c14:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c10 {
@@ -1704,20 +1704,20 @@ exports[`render failed state for form to add with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c11 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__control:hover,
 .c11 .react-select__control:focus,
 .c11 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1738,7 +1738,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c11 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1752,7 +1752,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c11 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__multi-value {
@@ -1798,7 +1798,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c11 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c11 .react-select__clear-indicator:hover,
@@ -1832,20 +1832,20 @@ exports[`render failed state for form to add with multi option 1`] = `
 
 .c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
 .c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c5 {
@@ -1867,13 +1867,13 @@ exports[`render failed state for form to add with multi option 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Enroll New Two-Factor Device
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 2 of 4
   </div>

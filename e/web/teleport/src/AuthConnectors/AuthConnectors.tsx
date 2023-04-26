@@ -70,12 +70,7 @@ export function AuthConnectors(props: State) {
               onDelete={resources.remove}
             />
           )}
-          <Box
-            ml="4"
-            width="240px"
-            color="text.primary"
-            style={{ flexShrink: 0 }}
-          >
+          <Box ml="4" width="240px" color="text.main" style={{ flexShrink: 0 }}>
             <Text typography="h6" mb={3}>
               AUTHENTICATION CONNECTORS
             </Text>
@@ -89,7 +84,7 @@ export function AuthConnectors(props: State) {
               Please{' '}
               <Text
                 as="a"
-                color="text.primary"
+                color="text.main"
                 href="https://goteleport.com/docs/enterprise/sso/"
                 target="_blank"
               >

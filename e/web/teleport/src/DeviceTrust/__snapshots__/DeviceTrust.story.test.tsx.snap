@@ -182,7 +182,7 @@ exports[`empty state 1`] = `
                
               <a
                 class="c12"
-                color="text.primary"
+                color="text.main"
                 href="https://goteleport.com/docs/access-controls/guides/device-trust/"
                 rel="noreferrer"
                 target="_blank"
@@ -604,7 +604,7 @@ exports[`loaded 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -662,7 +662,7 @@ exports[`loaded 1`] = `
             >
               <div
                 class="c14"
-                color="text.primary"
+                color="text.main"
                 style="white-space: nowrap; text-transform: uppercase;"
               >
                 Showing 
@@ -789,7 +789,7 @@ exports[`loaded 1`] = `
     </div>
     <div
       class="c21"
-      color="text.primary"
+      color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
@@ -810,7 +810,7 @@ exports[`loaded 1`] = `
          
         <a
           class="c25"
-          color="text.primary"
+          color="text.main"
           href="https://goteleport.com/docs/access-controls/guides/device-trust/"
           rel="noreferrer"
           target="_blank"

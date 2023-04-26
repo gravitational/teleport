@@ -62,7 +62,7 @@ exports[`render failed 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -208,20 +208,20 @@ exports[`render failed 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c9 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c9 .react-select__control:hover,
 .c9 .react-select__control:focus,
 .c9 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -242,7 +242,7 @@ exports[`render failed 1`] = `
 }
 
 .c9 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -256,7 +256,7 @@ exports[`render failed 1`] = `
 }
 
 .c9 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c9 .react-select__multi-value {
@@ -302,7 +302,7 @@ exports[`render failed 1`] = `
 }
 
 .c9 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c9 .react-select__clear-indicator:hover,
@@ -336,20 +336,20 @@ exports[`render failed 1`] = `
 
 .c9 .react-select--is-disabled,
 .c9 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c9 .react-select--is-disabled .react-select__single-value,
 .c9 .react-select__control--is-disabled .react-select__single-value,
 .c9 .react-select--is-disabled .react-select__placeholder,
 .c9 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c9 .react-select--is-disabled .react-select__indicator,
 .c9 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -373,7 +373,7 @@ exports[`render failed 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Select a maintenance start window
         </div>
@@ -545,7 +545,7 @@ exports[`render loaded 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -670,20 +670,20 @@ exports[`render loaded 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c8 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8 .react-select__control:hover,
 .c8 .react-select__control:focus,
 .c8 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -704,7 +704,7 @@ exports[`render loaded 1`] = `
 }
 
 .c8 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -718,7 +718,7 @@ exports[`render loaded 1`] = `
 }
 
 .c8 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8 .react-select__multi-value {
@@ -764,7 +764,7 @@ exports[`render loaded 1`] = `
 }
 
 .c8 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c8 .react-select__clear-indicator:hover,
@@ -798,20 +798,20 @@ exports[`render loaded 1`] = `
 
 .c8 .react-select--is-disabled,
 .c8 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c8 .react-select--is-disabled .react-select__single-value,
 .c8 .react-select__control--is-disabled .react-select__single-value,
 .c8 .react-select--is-disabled .react-select__placeholder,
 .c8 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c8 .react-select--is-disabled .react-select__indicator,
 .c8 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -835,7 +835,7 @@ exports[`render loaded 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Select a maintenance start window
         </div>
@@ -1001,7 +1001,7 @@ exports[`render processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -1126,20 +1126,20 @@ exports[`render processing 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c8 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8 .react-select__control:hover,
 .c8 .react-select__control:focus,
 .c8 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1160,7 +1160,7 @@ exports[`render processing 1`] = `
 }
 
 .c8 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1174,7 +1174,7 @@ exports[`render processing 1`] = `
 }
 
 .c8 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8 .react-select__multi-value {
@@ -1220,7 +1220,7 @@ exports[`render processing 1`] = `
 }
 
 .c8 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c8 .react-select__clear-indicator:hover,
@@ -1254,20 +1254,20 @@ exports[`render processing 1`] = `
 
 .c8 .react-select--is-disabled,
 .c8 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c8 .react-select--is-disabled .react-select__single-value,
 .c8 .react-select__control--is-disabled .react-select__single-value,
 .c8 .react-select--is-disabled .react-select__placeholder,
 .c8 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c8 .react-select--is-disabled .react-select__indicator,
 .c8 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -1291,7 +1291,7 @@ exports[`render processing 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Select a maintenance start window
         </div>

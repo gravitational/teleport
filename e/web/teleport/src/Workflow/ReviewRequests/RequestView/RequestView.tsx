@@ -88,6 +88,9 @@ export function RequestView({
           minWidth="515px"
           maxWidth="860px"
           flex="1 1 auto"
+          css={`
+            box-shadow: ${props => props.theme.boxShadow[0]};
+          `}
         >
           {/* First half of this box contains status, roles, expiry, and delete btn */}
           <Flex
@@ -197,7 +200,7 @@ export function RequestView({
         <Box flex="0 1 260px" minWidth="120px">
           <Reviewers reviewers={request.reviewers} />
           <Box mt={3} ml={1}>
-            <Text typography="body2" color="text.secondary">
+            <Text typography="body2" color="text.slightlyMuted">
               Thresholds: {request.thresholdNames.join(', ')}
             </Text>
           </Box>
@@ -258,7 +261,7 @@ function Timestamp({
   createdDuration: string;
 }) {
   let iconBgColor = 'levels.elevated';
-  let $icon = <ChevronCircleDown fontSize={8} color="text.placeholder" />;
+  let $icon = <ChevronCircleDown fontSize={8} color="text.muted" />;
   let verb = `submitted`;
 
   if (state === 'APPROVED') {

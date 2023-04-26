@@ -25,10 +25,6 @@ export default function ConnectorListItem({
 
   return (
     <Flex
-      style={{
-        position: 'relative',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.24)',
-      }}
       width="240px"
       height="240px"
       borderRadius="3"
@@ -41,6 +37,10 @@ export default function ConnectorListItem({
       pb="5"
       mb={4}
       mr={5}
+      css={`
+        position: relative;
+        box-shadow: ${props => props.theme.boxShadow[1]};
+      `}
     >
       <Flex width="100%" justifyContent="center">
         <MenuIcon buttonIconProps={menuActionProps}>
@@ -60,7 +60,7 @@ export default function ConnectorListItem({
         <Text style={{ width: '100%' }} typography="body2" bold caps mb="1">
           {name}
         </Text>
-        <Text style={{ width: '100%' }} typography="body2" color="text.primary">
+        <Text style={{ width: '100%' }} typography="body2" color="text.main">
           {desc}
         </Text>
       </Flex>

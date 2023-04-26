@@ -60,7 +60,7 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
                     backgroundColor: theme.colors.brand,
                     color: theme.colors.text.primaryInverse,
                   }
-                : { color: theme.colors.text.primary }
+                : { color: theme.colors.text.main }
             }
           >
             <StyledIconContainer
@@ -68,7 +68,7 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
                 .icon {
                   color: ${isSelected
                     ? theme.colors.text.primaryInverse
-                    : theme.colors.text.primary};
+                    : theme.colors.text.main};
                 }
               `}
             >

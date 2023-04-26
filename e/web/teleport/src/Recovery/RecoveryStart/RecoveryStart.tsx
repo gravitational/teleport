@@ -58,19 +58,14 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
       <Validation>
         {({ validator }) => (
           <>
-            <Text
-              typography="h3"
-              pt={5}
-              textAlign="center"
-              color="text.primary"
-            >
+            <Text typography="h3" pt={5} textAlign="center" color="text.main">
               {title}
             </Text>
             <Box p={5}>
               {attempt.status === 'failed' && (
                 <Danger width="100%">{attempt.statusText}</Danger>
               )}
-              <Text color="text.secondary" mb={3}>
+              <Text color="text.slightlyMuted" mb={3}>
                 Please enter the username for your account and one of your
                 recovery codes. We'll send you an email with a link to the
                 recovery process for your account.

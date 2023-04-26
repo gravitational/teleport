@@ -31,10 +31,10 @@ export function Devices({
 
   return (
     <Card bg="levels.surface" mx="auto" width="604px">
-      <Text typography="h3" pt={5} textAlign="center" color="text.primary">
+      <Text typography="h3" pt={5} textAlign="center" color="text.main">
         Device Successfully Enrolled
       </Text>
-      <Text textAlign="center" color="text.secondary">
+      <Text textAlign="center" color="text.slightlyMuted">
         Step 3 of 4
       </Text>
       <Box p={5}>
@@ -42,7 +42,7 @@ export function Devices({
           typography="body2"
           mb={3}
           textAlign="center"
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           Take a look at your enrolled devices below and remove any that you
           don't need anymore.

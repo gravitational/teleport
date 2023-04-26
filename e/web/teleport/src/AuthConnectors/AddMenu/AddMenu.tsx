@@ -96,7 +96,7 @@ const menuListCss = ({ theme }) => `
 
   ${MenuItem} {
     background-color: ${theme.colors.brand};
-    color: ${theme.colors.text.primary};
+    color: ${theme.colors.text.main};
     &:hover,&:focus {
       background-color: ${theme.colors.brand};
     }

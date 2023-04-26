@@ -1,4 +1,5 @@
 import React from 'react';
+import { Box } from 'design';
 import * as Icons from 'design/Icon';
 import { AuthProviderType } from 'shared/services';
 
@@ -12,7 +13,7 @@ export default function getSsoIcon(kind: AuthProviderType) {
         <Icons.Github
           style={{ textAlign: 'center' }}
           fontSize="50px"
-          color="text.primary"
+          color="text.main"
           {...props}
         />
       ),
@@ -22,7 +23,11 @@ export default function getSsoIcon(kind: AuthProviderType) {
 
   if (kind === 'saml') {
     return {
-      SsoIcon: props => <SamlIcon height={50} width={100} {...props} />,
+      SsoIcon: props => (
+        <Box {...props} height="48px">
+          <SamlIcon height={48} width={100} />
+        </Box>
+      ),
       desc,
     };
   }
@@ -33,7 +38,7 @@ export default function getSsoIcon(kind: AuthProviderType) {
       <Icons.OpenID
         style={{ textAlign: 'center' }}
         fontSize="50px"
-        color="text.primary"
+        color="text.main"
         {...props}
       />
     ),

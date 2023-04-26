@@ -5,7 +5,7 @@ export default function InvalidLink() {
   return (
     <Card
       width="540px"
-      color="text.primary"
+      color="text.main"
       p={6}
       bg="levels.elevated"
       mt={6}
@@ -15,7 +15,7 @@ export default function InvalidLink() {
         typography="h1"
         textAlign="center"
         fontSize={8}
-        color="text.primary"
+        color="text.main"
         mb={3}
       >
         Invalid Recovery Link

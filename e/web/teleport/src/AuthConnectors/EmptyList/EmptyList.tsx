@@ -10,7 +10,7 @@ import getSsoIcon from '../getSsoIcon';
 export default function EmptyList({ onCreate }: Props) {
   return (
     <Card
-      color="text.primary"
+      color="text.main"
       bg="levels.surface"
       p="5"
       textAlign="center"

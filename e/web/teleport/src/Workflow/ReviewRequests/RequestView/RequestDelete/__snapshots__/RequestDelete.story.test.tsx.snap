@@ -112,7 +112,7 @@ exports[`approved role escalation 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -312,7 +312,7 @@ exports[`approved role escalation 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete Request?
         </div>
@@ -495,7 +495,7 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -666,7 +666,7 @@ exports[`failed state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete Request?
         </div>
@@ -803,7 +803,7 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -974,7 +974,7 @@ exports[`loaded state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete Request?
         </div>
@@ -1105,7 +1105,7 @@ exports[`processing state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -1276,7 +1276,7 @@ exports[`processing state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete Request?
         </div>

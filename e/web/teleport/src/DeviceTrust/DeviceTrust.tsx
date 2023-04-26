@@ -53,7 +53,7 @@ export const DeviceTrust = (props: State) => {
               <Box
                 ml="auto"
                 width="240px"
-                color="text.primary"
+                color="text.main"
                 style={{ flexShrink: 0 }}
               >
                 <Text typography="h6" mb={3} caps>
@@ -67,7 +67,7 @@ export const DeviceTrust = (props: State) => {
                 <Text typography="subtitle1">
                   Please{' '}
                   <Link
-                    color="text.primary"
+                    color="text.main"
                     href="https://goteleport.com/docs/access-controls/guides/device-trust/"
                     target="_blank"
                   >

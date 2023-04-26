@@ -56,7 +56,7 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -68,7 +68,6 @@ exports[`failed state 1`] = `
 .c19:hover,
 .c19:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c19:active {
@@ -482,19 +481,19 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c22::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c22:hover,
 .c22:focus,
 .c22:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
@@ -520,7 +519,7 @@ exports[`failed state 1`] = `
         >
           <div
             class="c7"
-            color="text.primary"
+            color="text.main"
           >
             4
              
@@ -793,7 +792,7 @@ exports[`failed state 1`] = `
         </label>
         <textarea
           class="c22"
-          color="text.primary"
+          color="text.main"
           height="80px"
           placeholder="Describe your request... (optional)"
           width="100%"
@@ -850,7 +849,7 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -862,7 +861,6 @@ exports[`loaded state 1`] = `
 .c18:hover,
 .c18:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c18:active {
@@ -1276,19 +1274,19 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c21::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c21:hover,
 .c21:focus,
 .c21:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
@@ -1314,7 +1312,7 @@ exports[`loaded state 1`] = `
         >
           <div
             class="c7"
-            color="text.primary"
+            color="text.main"
           >
             4
              
@@ -1581,7 +1579,7 @@ exports[`loaded state 1`] = `
         </label>
         <textarea
           class="c21"
-          color="text.primary"
+          color="text.main"
           height="80px"
           placeholder="Describe your request..."
           width="100%"
@@ -1683,7 +1681,7 @@ exports[`success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: none;
   text-transform: none;
   min-height: 32px;
@@ -1720,7 +1718,7 @@ exports[`success state 1`] = `
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c8 {
@@ -1806,13 +1804,13 @@ exports[`success state 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Resources Requested Successfully
           </div>
           <div
             class="c6"
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             You've successfully requested 
             4

@@ -72,7 +72,7 @@ exports[`render device list 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -83,7 +83,6 @@ exports[`render device list 1`] = `
 .c11:hover,
 .c11:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c11:active {
@@ -128,7 +127,7 @@ exports[`render device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -140,7 +139,7 @@ exports[`render device list 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -248,13 +247,13 @@ exports[`render device list 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Device Successfully Enrolled
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 3 of 4
   </div>
@@ -263,7 +262,7 @@ exports[`render device list 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Take a look at your enrolled devices below and remove any that you don't need anymore.
     </div>
@@ -507,7 +506,7 @@ exports[`render device removal dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -649,7 +648,7 @@ exports[`render device removal dialog 1`] = `
            
           <span
             class="c7"
-            color="text.primary"
+            color="text.main"
           >
             yubikey
           </span>
@@ -779,7 +778,7 @@ exports[`render failed state for device list 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -791,7 +790,7 @@ exports[`render failed state for device list 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -801,13 +800,13 @@ exports[`render failed state for device list 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Device Successfully Enrolled
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 3 of 4
   </div>
@@ -816,7 +815,7 @@ exports[`render failed state for device list 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Take a look at your enrolled devices below and remove any that you don't need anymore.
     </div>

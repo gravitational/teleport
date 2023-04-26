@@ -62,7 +62,7 @@ export const TeleportReleases = ({
         </Text>
         <Text mt={3} mb={5}>
           You will also need the binaries below for{' '}
-          <Link href={GETTING_STARTED_LINK} color="text.primary" about="_blank">
+          <Link href={GETTING_STARTED_LINK} color="text.main" about="_blank">
             Getting Started with Teleport Enterprise
           </Link>
           {':'}

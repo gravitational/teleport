@@ -29,12 +29,12 @@ export default function ChangeResourceDialog({
         <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
           Remove selected resources?
         </Text>
-        <ButtonIcon onClick={onClose} color="text.secondary">
+        <ButtonIcon onClick={onClose} color="text.slightlyMuted">
           <Close fontSize={5} />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <Text color="text.secondary" typography="body1">
+        <Text color="text.slightlyMuted" typography="body1">
           {updateSelectedResourceWarning}
         </Text>
       </DialogContent>

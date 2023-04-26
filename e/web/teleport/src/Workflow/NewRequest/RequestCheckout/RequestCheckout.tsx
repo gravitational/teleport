@@ -188,10 +188,10 @@ export function RequestCheckout({
         {createAttempt.status === 'success' ? (
           <Box>
             <Box mt={2} mb={7} textAlign="center">
-              <Text typography="h4" color="text.primary" bold>
+              <Text typography="h4" color="text.main" bold>
                 Resources Requested Successfully
               </Text>
-              <Text typography="subtitle1" color="text.secondary">
+              <Text typography="subtitle1" color="text.slightlyMuted">
                 You've successfully requested {numRequestedResources}{' '}
                 {pluralize(numRequestedResources, 'resource')}
               </Text>
@@ -209,7 +209,7 @@ export function RequestCheckout({
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text typography="h4" color="text.primary" bold>
+              <Text typography="h4" color="text.main" bold>
                 {data.length} {pluralize(data.length, 'Resource')} Selected
               </Text>
             </Box>
@@ -463,9 +463,9 @@ function TextBox({
         width="100%"
         borderRadius={2}
         p={2}
-        color="text.primary"
+        color="text.main"
         border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.main' : 'text.placeholder'}
+        borderColor={hasError ? 'error.main' : 'text.muted'}
         placeholder={placeholder}
         value={reason}
         onChange={e => updateReason(e.target.value)}
@@ -473,12 +473,12 @@ function TextBox({
           outline: none;
           background: transparent;
           ::placeholder {
-            color: ${({ theme }) => theme.colors.text.placeholder};
+            color: ${({ theme }) => theme.colors.text.muted};
           }
           &:hover,
           &:focus,
           &:active {
-            border: 1px solid ${props => props.theme.colors.text.secondary};
+            border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
           }
         `}
       />

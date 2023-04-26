@@ -92,19 +92,14 @@ export function VerifyUser({
       <Validation>
         {({ validator }) => (
           <>
-            <Text
-              typography="h3"
-              pt={5}
-              textAlign="center"
-              color="text.primary"
-            >
+            <Text typography="h3" pt={5} textAlign="center" color="text.main">
               {title}
             </Text>
-            <Text textAlign="center" color="text.secondary">
+            <Text textAlign="center" color="text.slightlyMuted">
               Step 1 of {isRecoverPassword ? 3 : 4}
             </Text>
             <Box p={5}>
-              <Text mb={3} textAlign="center" color="text.secondary">
+              <Text mb={3} textAlign="center" color="text.slightlyMuted">
                 {instructions}
               </Text>
               {attempt.status === 'failed' && (

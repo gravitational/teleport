@@ -69,9 +69,9 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
                 p={2}
                 borderRadius={2}
                 placeholder="Optional message..."
-                color="text.primary"
+                color="text.main"
                 border="1px solid"
-                borderColor="text.placeholder"
+                borderColor="text.muted"
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 autoFocus
@@ -79,13 +79,13 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
                   outline: none;
                   background: transparent;
                   ::placeholder {
-                    color: ${({ theme }) => theme.colors.text.placeholder};
+                    color: ${({ theme }) => theme.colors.text.muted};
                   }
                   &:hover,
                   &:focus,
                   &:active {
                     border: 1px solid
-                      ${props => props.theme.colors.text.secondary};
+                      ${props => props.theme.colors.text.slightlyMuted};
                   }
                 `}
               />

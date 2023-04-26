@@ -80,15 +80,10 @@ export function NewMfaDevice({
       <Validation>
         {({ validator }) => (
           <>
-            <Text
-              typography="h3"
-              pt={5}
-              textAlign="center"
-              color="text.primary"
-            >
+            <Text typography="h3" pt={5} textAlign="center" color="text.main">
               Enroll New Two-Factor Device
             </Text>
-            <Text textAlign="center" color="text.secondary">
+            <Text textAlign="center" color="text.slightlyMuted">
               Step 2 of 4
             </Text>
             <Box p={5}>
@@ -118,7 +113,7 @@ export function NewMfaDevice({
                   <Text fontSize={1} textAlign="center" mt={2}>
                     Scan the QR Code with any authenticator app and enter the
                     generated code.{' '}
-                    <Text color="text.secondary">
+                    <Text color="text.slightlyMuted">
                       We recommend{' '}
                       <Link href="https://authy.com/download/" target="_blank">
                         Authy

@@ -132,20 +132,20 @@ exports[`failed state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c7 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7 .react-select__control:hover,
 .c7 .react-select__control:focus,
 .c7 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -166,7 +166,7 @@ exports[`failed state 1`] = `
 }
 
 .c7 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -180,7 +180,7 @@ exports[`failed state 1`] = `
 }
 
 .c7 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7 .react-select__multi-value {
@@ -226,7 +226,7 @@ exports[`failed state 1`] = `
 }
 
 .c7 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c7 .react-select__clear-indicator:hover,
@@ -260,20 +260,20 @@ exports[`failed state 1`] = `
 
 .c7 .react-select--is-disabled,
 .c7 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c7 .react-select--is-disabled .react-select__single-value,
 .c7 .react-select__control--is-disabled .react-select__single-value,
 .c7 .react-select--is-disabled .react-select__placeholder,
 .c7 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c7 .react-select--is-disabled .react-select__indicator,
 .c7 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c9 {
@@ -285,19 +285,19 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c9:hover,
 .c9:focus,
 .c9:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
@@ -400,7 +400,7 @@ exports[`failed state 1`] = `
         </label>
         <textarea
           class="c9"
-          color="text.primary"
+          color="text.main"
           height="150px"
           placeholder="Optional message..."
           width="100%"
@@ -528,20 +528,20 @@ exports[`loaded state 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c6 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__control:hover,
 .c6 .react-select__control:focus,
 .c6 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -562,7 +562,7 @@ exports[`loaded state 1`] = `
 }
 
 .c6 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -576,7 +576,7 @@ exports[`loaded state 1`] = `
 }
 
 .c6 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__multi-value {
@@ -622,7 +622,7 @@ exports[`loaded state 1`] = `
 }
 
 .c6 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c6 .react-select__clear-indicator:hover,
@@ -656,20 +656,20 @@ exports[`loaded state 1`] = `
 
 .c6 .react-select--is-disabled,
 .c6 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__single-value,
 .c6 .react-select__control--is-disabled .react-select__single-value,
 .c6 .react-select--is-disabled .react-select__placeholder,
 .c6 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c8 {
@@ -681,19 +681,19 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.54);
   outline: none;
   background: transparent;
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 <div>
@@ -790,7 +790,7 @@ exports[`loaded state 1`] = `
         </label>
         <textarea
           class="c8"
-          color="text.primary"
+          color="text.main"
           height="150px"
           placeholder="Optional message..."
           width="100%"

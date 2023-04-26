@@ -25,7 +25,7 @@ export const EmptyList = () => {
           Furthermore, users using a trusted device leave audit trails that
           include the device's information. Please{' '}
           <Link
-            color="text.primary"
+            color="text.main"
             href="https://goteleport.com/docs/access-controls/guides/device-trust/"
             target="_blank"
           >

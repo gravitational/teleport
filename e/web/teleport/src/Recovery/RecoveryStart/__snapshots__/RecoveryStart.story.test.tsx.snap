@@ -82,12 +82,12 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c6 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -104,7 +104,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 .c6:hover,
 .c6:focus,
 .c6:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c6::-ms-clear {
@@ -112,7 +112,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 }
 
 .c6::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6:read-only {
@@ -120,8 +120,8 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 }
 
 .c6:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c5 {
@@ -140,7 +140,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Two-Factor Device Recovery
   </div>
@@ -149,7 +149,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
   >
     <div
       class="c3"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
     </div>
@@ -283,12 +283,12 @@ exports[`render correct form for clicking forgot password 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c6 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -305,7 +305,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 .c6:hover,
 .c6:focus,
 .c6:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c6::-ms-clear {
@@ -313,7 +313,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 }
 
 .c6::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6:read-only {
@@ -321,8 +321,8 @@ exports[`render correct form for clicking forgot password 1`] = `
 }
 
 .c6:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c5 {
@@ -341,7 +341,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
@@ -350,7 +350,7 @@ exports[`render correct form for clicking forgot password 1`] = `
   >
     <div
       class="c3"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Please enter the username for your account and one of your recovery codes. We'll send you an email with a link to the recovery process for your account.
     </div>

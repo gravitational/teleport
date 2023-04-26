@@ -110,7 +110,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -119,13 +119,13 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -142,7 +142,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c8::-ms-clear {
@@ -150,7 +150,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8:read-only {
@@ -158,8 +158,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c7 {
@@ -204,20 +204,20 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -238,7 +238,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -252,7 +252,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -298,7 +298,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -332,20 +332,20 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -354,13 +354,13 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -370,7 +370,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your two-factor device.
     </div>
@@ -582,7 +582,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -591,13 +591,13 @@ exports[`render failed state form for authenticating with password 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -614,7 +614,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c8::-ms-clear {
@@ -622,7 +622,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8:read-only {
@@ -630,8 +630,8 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c7 {
@@ -650,13 +650,13 @@ exports[`render failed state form for authenticating with password 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Two-Factor Device Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     4
@@ -666,7 +666,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your password.
     </div>
@@ -841,7 +841,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -850,13 +850,13 @@ exports[`render failed state form for authenticating with totp 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -873,7 +873,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c8::-ms-clear {
@@ -881,7 +881,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8:read-only {
@@ -889,8 +889,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c7 {
@@ -935,20 +935,20 @@ exports[`render failed state form for authenticating with totp 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -969,7 +969,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -983,7 +983,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -1029,7 +1029,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -1063,20 +1063,20 @@ exports[`render failed state form for authenticating with totp 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -1085,13 +1085,13 @@ exports[`render failed state form for authenticating with totp 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -1101,7 +1101,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your authenticator app.
     </div>
@@ -1340,7 +1340,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -1349,13 +1349,13 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1372,7 +1372,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c8::-ms-clear {
@@ -1380,7 +1380,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c8:read-only {
@@ -1388,8 +1388,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c7 {
@@ -1434,20 +1434,20 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1468,7 +1468,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1482,7 +1482,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -1528,7 +1528,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -1562,20 +1562,20 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -1584,13 +1584,13 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -1600,7 +1600,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your hardware key.
     </div>
@@ -1798,7 +1798,7 @@ exports[`render form for authenticating with multi option 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -1807,13 +1807,13 @@ exports[`render form for authenticating with multi option 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1830,7 +1830,7 @@ exports[`render form for authenticating with multi option 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -1838,7 +1838,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7:read-only {
@@ -1846,8 +1846,8 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -1892,20 +1892,20 @@ exports[`render form for authenticating with multi option 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c11 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__control:hover,
 .c11 .react-select__control:focus,
 .c11 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1926,7 +1926,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c11 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1940,7 +1940,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c11 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__multi-value {
@@ -1986,7 +1986,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c11 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c11 .react-select__clear-indicator:hover,
@@ -2020,20 +2020,20 @@ exports[`render form for authenticating with multi option 1`] = `
 
 .c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
 .c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -2042,13 +2042,13 @@ exports[`render form for authenticating with multi option 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -2058,7 +2058,7 @@ exports[`render form for authenticating with multi option 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your two-factor device.
     </div>
@@ -2241,7 +2241,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -2250,13 +2250,13 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2273,7 +2273,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -2281,7 +2281,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7:read-only {
@@ -2289,8 +2289,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -2309,13 +2309,13 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Two-Factor Device Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     4
@@ -2325,7 +2325,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your password.
     </div>
@@ -2471,7 +2471,7 @@ exports[`render form for authenticating with totp 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -2480,13 +2480,13 @@ exports[`render form for authenticating with totp 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2503,7 +2503,7 @@ exports[`render form for authenticating with totp 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -2511,7 +2511,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7:read-only {
@@ -2519,8 +2519,8 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -2565,20 +2565,20 @@ exports[`render form for authenticating with totp 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c11 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__control:hover,
 .c11 .react-select__control:focus,
 .c11 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2599,7 +2599,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c11 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2613,7 +2613,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c11 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__multi-value {
@@ -2659,7 +2659,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c11 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c11 .react-select__clear-indicator:hover,
@@ -2693,20 +2693,20 @@ exports[`render form for authenticating with totp 1`] = `
 
 .c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
 .c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -2715,13 +2715,13 @@ exports[`render form for authenticating with totp 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -2731,7 +2731,7 @@ exports[`render form for authenticating with totp 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your authenticator app.
     </div>
@@ -2941,7 +2941,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -2950,13 +2950,13 @@ exports[`render form for authenticating with webauthn 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2973,7 +2973,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -2981,7 +2981,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c7:read-only {
@@ -2989,8 +2989,8 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -3035,20 +3035,20 @@ exports[`render form for authenticating with webauthn 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c11 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__control:hover,
 .c11 .react-select__control:focus,
 .c11 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -3069,7 +3069,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c11 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -3083,7 +3083,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c11 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c11 .react-select__multi-value {
@@ -3129,7 +3129,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c11 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c11 .react-select__clear-indicator:hover,
@@ -3163,20 +3163,20 @@ exports[`render form for authenticating with webauthn 1`] = `
 
 .c11 .react-select--is-disabled,
 .c11 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__single-value,
 .c11 .react-select__control--is-disabled .react-select__single-value,
 .c11 .react-select--is-disabled .react-select__placeholder,
 .c11 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c11 .react-select--is-disabled .react-select__indicator,
 .c11 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <form
@@ -3185,13 +3185,13 @@ exports[`render form for authenticating with webauthn 1`] = `
 >
   <div
     class="c1"
-    color="text.primary"
+    color="text.main"
   >
     Password Recovery
   </div>
   <div
     class="c2"
-    color="text.secondary"
+    color="text.slightlyMuted"
   >
     Step 1 of 
     3
@@ -3201,7 +3201,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   >
     <div
       class="c4"
-      color="text.secondary"
+      color="text.slightlyMuted"
     >
       Verify your identity using your hardware key.
     </div>
