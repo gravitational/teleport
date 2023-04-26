@@ -1103,8 +1103,6 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 		s.handleVersionRequest(r)
 	case teleport.TerminalSizeRequest:
 		s.termHandlers.HandleTerminalSize(r)
-	case teleport.NetconfigRequest:
-		s.handleNetConfigRequest(ctx, r)
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -1902,30 +1900,6 @@ func (s *Server) handleVersionRequest(req *ssh.Request) {
 	err := req.Reply(true, []byte(teleport.Version))
 	if err != nil {
 		s.Logger.Debugf("Failed to reply to version request: %v.", err)
-	}
-}
-
-// handleNetConfigRequest replies to a ssh.Request with the cluster  networking config.
-func (s *Server) handleNetConfigRequest(ctx context.Context, req *ssh.Request) {
-	if !req.WantReply {
-		return
-	}
-
-	// On error, reply with true to indicate that the server is able to handle the request
-	// but a server side error occurred, this lets the agent differentiate between a server
-	// that does not support the request and a transient error.
-	netconfig, err := s.authService.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		req.Reply(true, []byte(fmt.Sprintf("failed to get cluster networking config: %v", err)))
-	}
-	payload, err := json.Marshal(netconfig)
-	if err != nil {
-		req.Reply(true, []byte(fmt.Sprintf("failed to marshal cluster networking config: %v", err)))
-	}
-
-	err = req.Reply(true, payload)
-	if err != nil {
-		log.Debugf("Failed to reply to netconfig request: %v", trace.DebugReport(err))
 	}
 }
 

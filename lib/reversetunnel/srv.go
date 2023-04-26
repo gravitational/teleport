@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -350,6 +351,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
 		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
+		sshutils.SetRequestHandler(srv),
 	)
 	if err != nil {
 		return nil, err
@@ -540,6 +542,55 @@ func (s *server) Shutdown(ctx context.Context) error {
 	s.cancel()
 
 	return trace.Wrap(err)
+}
+
+// HandleRequest processes global out-of-band requests. Global out-of-band
+// requests are processed in order (this way the originator knows which
+// request we are responding to). If Teleport does not support the request
+// type or an error occurs while processing that request Teleport will reply
+// req.Reply(false, nil).
+//
+// For more details: https://tools.ietf.org/html/rfc4254.html#page-4
+func (s *server) HandleRequest(ctx context.Context, r *ssh.Request) {
+	switch r.Type {
+	case teleport.NetconfigRequest:
+		s.handleNetConfigRequest(ctx, r)
+	default:
+		if r.WantReply {
+			if err := r.Reply(false, nil); err != nil {
+				s.log.Warnf("Failed to reply to %q request: %v", r.Type, err)
+			}
+		}
+		s.log.Debugf("Discarding %q global request: %+v", r.Type, r)
+	}
+}
+
+// handleNetConfigRequest replies to a ssh.Request with the cluster  networking config.
+func (s *server) handleNetConfigRequest(ctx context.Context, req *ssh.Request) {
+	if !req.WantReply {
+		return
+	}
+
+	s.log.Debugf("david: handling netconfig request")
+	// On error, reply with true to indicate that the server is able to handle the request
+	// but a server side error occurred, this lets the agent differentiate between a server
+	// that does not support the request and a transient error.
+	netconfig, err := s.localAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		s.log.Debugf("david: failed to get netconfig")
+		req.Reply(true, []byte(fmt.Sprintf("failed to get cluster networking config: %v", err)))
+	}
+	payload, err := json.Marshal(netconfig)
+	if err != nil {
+		s.log.Debugf("david: failed to marshal netconfig")
+		req.Reply(true, []byte(fmt.Sprintf("failed to marshal cluster networking config: %v", err)))
+	}
+
+	err = req.Reply(true, payload)
+	if err != nil {
+		s.log.Debugf("david: failed to send netconfig")
+		log.Debugf("Failed to reply to netconfig request: %v", trace.DebugReport(err))
+	}
 }
 
 func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
