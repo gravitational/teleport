@@ -58,7 +58,9 @@ function SearchBar() {
     isOpen,
     open,
     close,
+    closeWithoutRestoringFocus,
     addWindowEventListener,
+    makeEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
@@ -75,6 +77,7 @@ function SearchBar() {
         close();
       }
     };
+
     if (isOpen) {
       const { cleanup } = addWindowEventListener('click', onClickOutside, {
         capture: true,
@@ -83,9 +86,35 @@ function SearchBar() {
     }
   }, [close, isOpen, addWindowEventListener]);
 
-  function handleOnFocus(e: React.FocusEvent) {
-    open(e.relatedTarget);
-  }
+  // closeIfAnotherElementReceivedFocus handles a scenario where the focus shifts from the search
+  // input to another element on page. It does nothing if there's no other element that receives
+  // focus, i.e. the user clicks on an unfocusable element (for example, the empty space between the
+  // search bar and the profile selector).
+  //
+  // If that element is present though, onBlur takes precedence over onClickOutside. For example,
+  // clicking on a button outside of the search bar will trigger onBlur and will not trigger
+  // onClickOutside.
+  const closeIfAnotherElementReceivedFocus = makeEventListener(
+    (event: FocusEvent) => {
+      const elementReceivingFocus = event.relatedTarget;
+
+      if (!(elementReceivingFocus instanceof Node)) {
+        // event.relatedTarget might be undefined if the user clicked on an element that is not
+        // focusable. The element might or might not be inside the search bar, however we have no way
+        // of knowing that. Instead of closing the search bar, we defer this responsibility to the
+        // onClickOutside handler and return early.
+        //
+        return;
+      }
+
+      const isElementReceivingFocusOutsideOfSearchBar =
+        !containerRef.current.contains(elementReceivingFocus);
+
+      if (isElementReceivingFocusOutsideOfSearchBar) {
+        closeWithoutRestoringFocus(); // without restoring focus
+      }
+    }
+  );
 
   const defaultInputProps = {
     ref: inputRef,
@@ -95,6 +124,10 @@ function SearchBar() {
     onChange: e => {
       onInputValueChange(e.target.value);
     },
+    onFocus: (e: React.FocusEvent) => {
+      open(e.relatedTarget);
+    },
+    onBlur: closeIfAnotherElementReceivedFocus,
     spellCheck: false,
   };
 
@@ -118,7 +151,6 @@ function SearchBar() {
       `}
       justifyContent="center"
       ref={containerRef}
-      onFocus={handleOnFocus}
     >
       {!isOpen && (
         <>

@@ -38,11 +38,15 @@ export interface SearchContext {
   isOpen: boolean;
   open(fromElement?: Element): void;
   close(): void;
+  closeWithoutRestoringFocus(): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
   addWindowEventListener: AddWindowEventListener;
+  makeEventListener: <EventListener>(
+    eventListener: EventListener
+  ) => EventListener | undefined;
 }
 
 export type AddWindowEventListener = (
@@ -54,7 +58,7 @@ export type AddWindowEventListener = (
 const SearchContext = createContext<SearchContext>(null);
 
 export const SearchContextProvider: FC = props => {
-  const previouslyActive = useRef<Element>();
+  const previouslyActive = useRef<HTMLElement>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -76,16 +80,21 @@ export const SearchContextProvider: FC = props => {
   const close = useCallback(() => {
     setIsOpen(false);
     setActivePicker(actionPicker);
-    if (previouslyActive.current instanceof HTMLElement) {
+    if (previouslyActive.current) {
       previouslyActive.current.focus();
     }
   }, []);
+
+  const closeWithoutRestoringFocus = useCallback(() => {
+    previouslyActive.current = undefined;
+    close();
+  }, [close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
   }, []);
 
-  function open(fromElement?: Element): void {
+  function open(fromElement?: HTMLElement): void {
     if (isOpen) {
       // Even if the search bar is already open, we want to focus on the input anyway. The search
       // input might lose focus due to user interaction while the search bar stays open. Focusing
@@ -98,7 +107,8 @@ export const SearchContextProvider: FC = props => {
       return;
     }
 
-    previouslyActive.current = fromElement || document.activeElement;
+    previouslyActive.current =
+      fromElement || (document.activeElement as HTMLElement);
     setIsOpen(true);
   }
 
@@ -158,6 +168,22 @@ export const SearchContextProvider: FC = props => {
     [isUserInteractionPaused]
   );
 
+  /**
+   * makeEventListener is similar to addWindowEventListener but meant for situations where you want
+   * to add a listener to an element directly. By wrapping the listener in makeEventListener, you
+   * make sure that the listener will be removed when the interaction with the search bar is paused.
+   */
+  const makeEventListener = useCallback(
+    eventListener => {
+      if (isUserInteractionPaused) {
+        return;
+      }
+
+      return eventListener;
+    },
+    [isUserInteractionPaused]
+  );
+
   function setFilter(filter: SearchFilter) {
     // UI prevents adding more than one filter of the same type
     setFilters(prevState => [...prevState, filter]);
@@ -192,8 +218,10 @@ export const SearchContextProvider: FC = props => {
         isOpen,
         open,
         close,
+        closeWithoutRestoringFocus,
         pauseUserInteraction,
         addWindowEventListener,
+        makeEventListener,
       }}
       children={props.children}
     />

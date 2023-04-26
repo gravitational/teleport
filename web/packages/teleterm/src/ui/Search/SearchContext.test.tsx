@@ -179,3 +179,49 @@ describe('open', () => {
     expect(otherInput).toHaveFocus();
   });
 });
+
+describe('close', () => {
+  it('restores focus on the previously active element', () => {
+    const previouslyActive = {
+      focus: jest.fn(),
+    } as unknown as HTMLInputElement;
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => (
+        <SearchContextProvider>{children}</SearchContextProvider>
+      ),
+    });
+
+    act(() => {
+      result.current.open(previouslyActive);
+    });
+
+    act(() => {
+      result.current.close();
+    });
+
+    expect(previouslyActive.focus).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('closeWithoutRestoringFocus', () => {
+  it('does not restore focus on the previously active element', () => {
+    const previouslyActive = {
+      focus: jest.fn(),
+    } as unknown as HTMLInputElement;
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => (
+        <SearchContextProvider>{children}</SearchContextProvider>
+      ),
+    });
+
+    act(() => {
+      result.current.open(previouslyActive);
+    });
+
+    act(() => {
+      result.current.closeWithoutRestoringFocus();
+    });
+
+    expect(previouslyActive.focus).not.toHaveBeenCalled();
+  });
+});
