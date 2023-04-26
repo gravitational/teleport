@@ -27,7 +27,8 @@ export const PickerContainer = styled.div`
   background: ${props => props.theme.colors.levels.elevated};
   box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: ${props => props.theme.radii[2]}px;
-  // border in the same color as the background to prevent layout shifting
+  // we have to use a border of the same width as in SearchBar when it is closed to keep
+  // the layout from shifting when switching between open and closed state
   border: 1px solid ${props => props.theme.colors.levels.elevated};
   text-shadow: none;
   // Prevents inner items from covering the border on rounded corners.
