@@ -675,12 +675,8 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
-	var completionID, directoryID uint32
-	err := binary.Read(in, binary.BigEndian, &completionID)
-	if err != nil {
-		return SharedDirectoryAnnounce{}, trace.Wrap(err)
-	}
-	err = binary.Read(in, binary.BigEndian, &directoryID)
+	var directoryID uint32
+	err := binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
