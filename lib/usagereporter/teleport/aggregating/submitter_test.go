@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
@@ -64,13 +65,13 @@ func TestSubmitOnce(t *testing.T) {
 	}
 	require.NoError(t, scfg.CheckAndSetDefaults())
 
-	r0 := newReport(clk.Now())
-	require.NoError(t, svc.upsertUserActivityReport(ctx, r0, reportTTL))
+	reportFresh := newReport(time.Now().UTC())
+	require.NoError(t, svc.upsertUserActivityReport(ctx, reportFresh, reportTTL))
 
 	// successful submit, no alerts, no leftover reports
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
-	require.True(t, proto.Equal(r0, submitted[0]))
+	require.True(t, proto.Equal(reportFresh, submitted[0]))
 	reports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, reports)
@@ -82,18 +83,40 @@ func TestSubmitOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, alerts)
 
-	require.NoError(t, svc.upsertUserActivityReport(ctx, r0, reportTTL))
-
-	// failed submit past the grace time, we get the alert and the report is still there
-	clk.Advance(alertGraceDuration)
+	require.NoError(t, svc.upsertUserActivityReport(ctx, reportFresh, reportTTL))
+	// failed submit, report stays but it's not old enough, so no alert
 	scfg.Submitter = submitErr
+	clk.Advance(submitLockDuration)
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
-	require.True(t, proto.Equal(r0, submitted[0]))
+	require.True(t, proto.Equal(reportFresh, submitted[0]))
 	reports, err = svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, reports, 1)
-	require.True(t, proto.Equal(r0, reports[0]))
+	require.True(t, proto.Equal(reportFresh, reports[0]))
+	submitted = nil
+
+	alerts, err = scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		AlertID: alertName,
+	})
+	require.NoError(t, err)
+	require.Empty(t, alerts)
+
+	// overdue report
+	require.NoError(t, svc.deleteUserActivityReport(ctx, reportFresh))
+	reportOld := newReport(time.Now().UTC().Add(-2 * alertGraceDuration))
+	require.NoError(t, svc.upsertUserActivityReport(ctx, reportOld, reportTTL))
+
+	// failed submit, report stays and it's old enough for an alert
+	scfg.Submitter = submitErr
+	clk.Advance(submitLockDuration)
+	submitOnce(ctx, scfg)
+	require.Len(t, submitted, 1)
+	require.True(t, proto.Equal(reportOld, submitted[0]))
+	reports, err = svc.listUserActivityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	require.True(t, proto.Equal(reportOld, reports[0]))
 	submitted = nil
 
 	alerts, err = scfg.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{

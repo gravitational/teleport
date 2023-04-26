@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -93,6 +92,8 @@ type ProxyServerConfig struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -402,6 +403,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		Limiter:         s.cfg.Limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
+		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 
@@ -504,11 +506,6 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 	}
 	identity := authContext.Identity.GetIdentity()
 
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}
@@ -578,18 +575,9 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
-	}
-
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

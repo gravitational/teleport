@@ -99,9 +99,13 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout, client.WithTLSConfig(httpTLS))
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
+				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
+					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
+				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil
@@ -711,6 +715,7 @@ type ClientI interface {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
+	services.Integrations
 	types.Events
 
 	types.WebSessionsGetter
@@ -795,6 +800,9 @@ type ClientI interface {
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
+
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
 
@@ -845,4 +853,7 @@ type ClientI interface {
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
+
+	// GetResources returns a paginated list of resources.
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }

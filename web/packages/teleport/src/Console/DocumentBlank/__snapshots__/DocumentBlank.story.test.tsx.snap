@@ -20,34 +20,32 @@ exports[`render DocumentBlank 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c4:active {
-  opacity: 0.56;
-}
-
 .c4:hover,
 .c4:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c4:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c3 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-bottom: 40px;
   margin-top: 72px;
   color: #01172C;

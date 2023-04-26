@@ -58,8 +58,12 @@ export function ManageDevices({
 }: State) {
   return (
     <>
-      <FeatureBox style={{ width: '904px', padding: 0, overflow: 'hidden' }}>
-        <FeatureHeader alignItems="center" justifyContent="space-between">
+      <FeatureBox style={{ width: '904px', padding: 0 }}>
+        <FeatureHeader
+          alignItems="center"
+          justifyContent="space-between"
+          border="none"
+        >
           <FeatureHeaderTitle>Two-Factor Devices</FeatureHeaderTitle>
           <ButtonPrimary
             onClick={onAddDevice}

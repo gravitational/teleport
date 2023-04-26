@@ -66,6 +66,7 @@ func TestDatabaseAccess(t *testing.T) {
 		WithRootConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
+			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -460,6 +461,9 @@ func (p *DatabasePack) testMySQLRootCluster(t *testing.T) {
 	require.Equal(t, mysql.TestQueryResponse, result)
 	require.Equal(t, wantRootQueryCount, p.Root.mysql.QueryCount())
 	require.Equal(t, wantLeafQueryCount, p.Leaf.mysql.QueryCount())
+
+	// Check if default Proxy MYSQL Engine Version was overridden the proxy settings.
+	require.Equal(t, "8.0.1", client.GetServerVersion())
 
 	// Disconnect.
 	err = client.Close()

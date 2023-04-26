@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -208,8 +208,8 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
 			}
 
-			scx.SetEnv(string(scp.ModeratedSessionID), sess.ID())
-			scx.SetEnv(string(scp.FileTransferRequestID), tt.reqID)
+			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
+			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())

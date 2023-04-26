@@ -30,8 +30,7 @@ import {
 
 import { useAppContext } from '../appContextProvider';
 
-const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
-  'openCommandBar';
+const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
@@ -56,15 +55,16 @@ function SearchBar() {
     inputValue,
     onInputValueChange,
     inputRef,
-    opened,
+    isOpen,
     open,
     close,
+    addWindowEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
   useKeyboardShortcuts({
-    [OPEN_COMMAND_BAR_SHORTCUT_ACTION]: () => {
+    [OPEN_SEARCH_BAR_SHORTCUT_ACTION]: () => {
       open();
     },
   });
@@ -75,11 +75,13 @@ function SearchBar() {
         close();
       }
     };
-    if (opened) {
-      window.addEventListener('click', onClickOutside);
-      return () => window.removeEventListener('click', onClickOutside);
+    if (isOpen) {
+      const { cleanup } = addWindowEventListener('click', onClickOutside, {
+        capture: true,
+      });
+      return cleanup;
     }
-  }, [close, opened]);
+  }, [close, isOpen, addWindowEventListener]);
 
   function handleOnFocus(e: React.FocusEvent) {
     open(e.relatedTarget);
@@ -118,15 +120,13 @@ function SearchBar() {
       ref={containerRef}
       onFocus={handleOnFocus}
     >
-      {!opened && (
+      {!isOpen && (
         <>
           <Input {...defaultInputProps} />
-          <Shortcut>
-            {getAccelerator(OPEN_COMMAND_BAR_SHORTCUT_ACTION)}
-          </Shortcut>
+          <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
-      {opened && (
+      {isOpen && (
         <activePicker.picker
           // autofocusing cannot be done in `open` function as it would focus the input from closed state
           input={<Input {...defaultInputProps} autoFocus={true} />}

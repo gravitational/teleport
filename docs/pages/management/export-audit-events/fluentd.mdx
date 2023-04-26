@@ -72,36 +72,7 @@ key from the same certificate authority for the Teleport Event Handler to use.
 
 ## Step 3/6. Create a user and role for reading audit events
 
-The `configure` command generates a file called `teleport-event-handler-role.yaml`
-that defines a `teleport-event-handler` role and a user with read-only access to
-the `event` API:
-
-```yaml
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
----
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event']
-        verbs: ['list','read']
-version: v5
-```
-
-Use `tctl` to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-user 'teleport-event-handler' has been created
-role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 ## Step 4/6. Create teleport-event-handler credentials
 

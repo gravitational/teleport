@@ -142,7 +142,7 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
@@ -1282,7 +1282,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
@@ -2585,6 +2585,65 @@ $ tctl alerts create \
     --severity=low \
     --ttl=4h \
     "The system is under maintenance, functionality may be limited."
+```
+
+### tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+#### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | An optional reason for suppressing this alert |
+
+#### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+### tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
 ```
 
 ### tctl devices add

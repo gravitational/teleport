@@ -50,7 +50,7 @@ func TestIntegrationUnmarshal(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	storedBlob := []byte(`{"kind":"integration","sub_kind":"aws-oidc","version":"v1","metadata":{"name":"some-integration"},"spec":{"subkind_spec":{"aws_oidc":{"role_arn":"arn:aws:iam::123456789012:role/DevTeams"}}}}`)
+	storedBlob := []byte(`{"kind":"integration","sub_kind":"aws-oidc","version":"v1","metadata":{"name":"some-integration"},"spec":{"aws_oidc":{"role_arn":"arn:aws:iam::123456789012:role/DevTeams"}}}`)
 
 	ig2, err := UnmarshalIntegration(storedBlob)
 	require.NoError(t, err)
