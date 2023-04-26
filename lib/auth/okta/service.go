@@ -63,7 +63,7 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	var err error
 	var oktaSvc *local.OktaService
 	if c.OktaImportRules == nil || c.OktaAssignments == nil {
-		oktaSvc, err = local.NewOktaService(c.Backend)
+		oktaSvc, err = local.NewOktaService(c.Backend, c.Backend.Clock())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -281,6 +281,17 @@ func (s *Service) UpdateOktaAssignment(ctx context.Context, req *oktapb.UpdateOk
 		return nil, trace.BadParameter("expected returned import rule of OktaAssignmentV1, got %T", returnedAssignmentV1)
 	}
 	return returnedAssignmentV1, trace.Wrap(err)
+}
+
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
+func (s *Service) UpdateOktaAssignmentStatus(ctx context.Context, req *oktapb.UpdateOktaAssignmentStatusRequest) (*emptypb.Empty, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindOktaAssignment, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()),
+		req.TimeHasPassed.AsDuration())
+	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

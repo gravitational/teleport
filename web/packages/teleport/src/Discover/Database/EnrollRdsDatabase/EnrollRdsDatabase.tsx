@@ -23,19 +23,24 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
+  RdsEngineIdentifier,
   Regions,
   integrationService,
 } from 'teleport/services/integrations';
+import { DatabaseEngine } from 'teleport/Discover/SelectResource';
 
 import { ActionButtons, Header } from '../../Shared';
 
+import { useCreateDatabase } from '../CreateDatabase/useCreateDatabase';
+import { CreateDatabaseDialog } from '../CreateDatabase/CreateDatabaseDialog';
+
 import { AwsRegionSelector } from './AwsRegionSelector';
-import { DatabaseList } from './DatabaseList';
+import { DatabaseList } from './RdsDatabaseList';
 
 type TableData = {
-  items: ListAwsDatabaseResponse['databases'];
+  items: ListAwsRdsDatabaseResponse['databases'];
   fetchStatus: FetchStatus;
   startKey?: string;
   currRegion?: Regions;
@@ -47,18 +52,26 @@ const emptyTableData: TableData = {
   startKey: '',
 };
 
-// TODO(lisa): need to add a new event for this, or can
-// we re-use "create database event"?
 export function EnrollRdsDatabase() {
-  const { nextStep, agentMeta } = useDiscover();
-  const { attempt, setAttempt } = useAttempt('');
+  const {
+    createdDb,
+    pollTimeout,
+    registerDatabase,
+    attempt: registerAttempt,
+    clearAttempt: clearRegisterAttempt,
+    nextStep,
+  } = useCreateDatabase();
+
+  const { agentMeta, resourceSpec } = useDiscover();
+  const { attempt: fetchDbAttempt, setAttempt: setFetchDbAttempt } =
+    useAttempt('');
 
   const [tableData, setTableData] = useState<TableData>({
     items: [],
     startKey: '',
     fetchStatus: 'disabled',
   });
-  const [selectedDb, setSelectedDb] = useState<AwsDatabase>();
+  const [selectedDb, setSelectedDb] = useState<AwsRdsDatabase>();
 
   function fetchDatabasesWithNewRegion(region: Regions) {
     // Clear table when fetching with new region.
@@ -70,19 +83,22 @@ export function EnrollRdsDatabase() {
   }
 
   function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).awsIntegrationName;
+    const integrationName = (agentMeta as DbMeta).integrationName;
 
     setTableData({ ...data, fetchStatus: 'loading' });
-    setAttempt({ status: 'processing' });
+    setFetchDbAttempt({ status: 'processing' });
 
-    // TODO(lisa): re-visit after backend implementation is final
     integrationService
-      .fetchAwsDatabases(integrationName, {
-        region: data.currRegion,
-        nextToken: data.startKey,
-      })
+      .fetchAwsRdsDatabases(
+        integrationName,
+        getRdsEngineIdentifier(resourceSpec.dbMeta?.engine),
+        {
+          region: data.currRegion,
+          nextToken: data.startKey,
+        }
+      )
       .then(resp => {
-        setAttempt({ status: 'success' });
+        setFetchDbAttempt({ status: 'success' });
         setTableData({
           currRegion: data.currRegion,
           startKey: resp.nextToken,
@@ -92,20 +108,16 @@ export function EnrollRdsDatabase() {
         });
       })
       .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
+        setFetchDbAttempt({ status: 'failed', statusText: err.message });
         setTableData(data); // fallback to previous data
       });
   }
 
-  function handleOnProceed() {
-    // TODO(lisa):
-    // Update agent meta with the selected RDS database.
-    nextStep();
-  }
-
   function clear() {
-    if (attempt.status === 'failed') {
-      setAttempt({ status: '' });
+    clearRegisterAttempt();
+
+    if (fetchDbAttempt.status === 'failed') {
+      setFetchDbAttempt({ status: '' });
     }
     if (tableData.items.length > 0) {
       setTableData(emptyTableData);
@@ -115,18 +127,40 @@ export function EnrollRdsDatabase() {
     }
   }
 
+  function handleOnProceed() {
+    // Append `teleport_` to the RDS db name to
+    // lower the chance of duplicate db name.
+
+    registerDatabase(
+      {
+        name: selectedDb.name,
+        protocol: selectedDb.engine,
+        uri: selectedDb.uri,
+        labels: selectedDb.labels,
+        awsRds: {
+          accountId: selectedDb.accountId,
+          resourceId: selectedDb.resourceId,
+        },
+      },
+      // Corner case where if registering db fails a user can:
+      //   1) change region, which will list new databases or
+      //   2) select a different database before re-trying.
+      selectedDb.name !== createdDb?.name
+    );
+  }
+
   return (
     <Box maxWidth="800px">
       <Header>Enroll a RDS Database</Header>
-      {attempt.status === 'failed' && (
-        <Danger mt={3}>{attempt.statusText}</Danger>
+      {fetchDbAttempt.status === 'failed' && (
+        <Danger mt={3}>{fetchDbAttempt.statusText}</Danger>
       )}
       <AwsRegionSelector
         onFetch={fetchDatabasesWithNewRegion}
         clear={clear}
-        disableSelector={attempt.status === 'processing'}
+        disableSelector={fetchDbAttempt.status === 'processing'}
         disableBtn={
-          attempt.status === 'processing' || tableData.items.length > 0
+          fetchDbAttempt.status === 'processing' || tableData.items.length > 0
         }
       />
       <DatabaseList
@@ -138,8 +172,31 @@ export function EnrollRdsDatabase() {
       />
       <ActionButtons
         onProceed={handleOnProceed}
-        disableProceed={attempt.status === 'processing' || !selectedDb}
+        disableProceed={fetchDbAttempt.status === 'processing' || !selectedDb}
       />
+      {registerAttempt.status !== '' && (
+        <CreateDatabaseDialog
+          pollTimeout={pollTimeout}
+          attempt={fetchDbAttempt}
+          next={nextStep}
+          close={clearRegisterAttempt}
+          retry={handleOnProceed}
+          dbName={selectedDb.name}
+        />
+      )}
     </Box>
   );
+}
+
+function getRdsEngineIdentifier(engine: DatabaseEngine): RdsEngineIdentifier {
+  switch (engine) {
+    case DatabaseEngine.MySql:
+      return 'mysql';
+    case DatabaseEngine.Postgres:
+      return 'postgres';
+    case DatabaseEngine.AuroraMysql:
+      return 'aurora-mysql';
+    case DatabaseEngine.AuroraPostgres:
+      return 'aurora-postgres';
+  }
 }

@@ -368,6 +368,9 @@ type Config struct {
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
 
+	// MockHeadlessLogin is used in tests for mocking the Headless login response.
+	MockHeadlessLogin SSHLoginFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -1652,6 +1655,14 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		),
 	)
 	defer span.End()
+
+	// There is no need to attempt a mfa ceremony if the user is attempting
+	// to connect to a resource via `tsh ssh --headless`. The entire point
+	// of headless authentication is to allow connections to originate from a
+	// machine without access to a WebAuthn device.
+	if tc.AuthConnector == constants.HeadlessConnector {
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
@@ -3305,7 +3316,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 		return trace.Wrap(err)
 	}
 
-	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrustDisabled {
+	if !tc.dtAttemptLoginIgnorePing && (pingResp.Auth.DeviceTrustDisabled || pingResp.Auth.DeviceTrust.Disabled) {
 		log.Debug("Device Trust: skipping device authentication, device trust disabled")
 		return nil
 	}
@@ -3673,6 +3684,10 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 }
 
 func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	if tc.MockHeadlessLogin != nil {
+		return tc.MockHeadlessLogin(ctx, priv)
+	}
+
 	headlessAuthenticationID := services.NewHeadlessAuthenticationID(priv.MarshalSSHPublicKey())
 
 	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", headlessAuthenticationID)
