@@ -751,6 +751,7 @@ func TestAuthenticate(t *testing.T) {
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
 					ActiveRequests:    tt.activeRequests,
+					Expires:           certExpiration,
 				}),
 			}
 			authorizer := mockAuthorizer{ctx: &authCtx}
@@ -769,7 +770,6 @@ func TestAuthenticate(t *testing.T) {
 								CommonName:   username,
 								Organization: []string{"example"},
 							},
-							NotAfter: certExpiration,
 						},
 					},
 				},

@@ -948,6 +948,10 @@ func (s *remoteSite) dialAndForward(params DialParams, sconn *sshutils.ChConn) (
 		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
 	}
+	// Ensure the hostname is set correctly if we have details of the target
+	if params.TargetServer != nil {
+		serverConfig.TargetHostname = params.TargetServer.GetHostname()
+	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

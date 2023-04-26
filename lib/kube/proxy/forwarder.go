@@ -88,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -548,31 +547,20 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
 	}
-	peers := req.TLS.PeerCertificates
-	if len(peers) > 1 {
-		// when turning intermediaries on, don't forget to verify
-		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
-		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
-	}
-	if len(peers) == 0 {
-		return nil, trace.AccessDenied("access denied: only mutual TLS authentication is supported")
-	}
-	clientCert := peers[0]
-	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
 	kubeResource := getPodResourceFromRequest(req.RequestURI)
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, clientIdentity, kubeResource)
+	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
 		if trace.IsAccessDenied(err) {
 			if kubeResource != nil {
 				return nil, trace.AccessDenied(
 					kubeResourceDeniedAccessMsg(
-						clientIdentity.Username,
+						// return the unmapped username to the client, otherwise for leaf
+						// clusters the client will see the "remote-username".
+						userContext.UnmappedIdentity.GetIdentity().Username,
 						req.Method,
 						kubeResource,
 					),
@@ -754,7 +742,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	}
 }
 
-func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req *http.Request, isRemoteUser bool, kubeResource *types.KubernetesResource) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
 		"kube.Forwarder/setupContext",
@@ -955,8 +943,8 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req
 		recordingConfig:       recordingConfig,
 		kubeClusterName:       kubeCluster,
 		kubeResource:          kubeResource,
-		certExpires:           clientIdentity.Expires,
-		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, clientIdentity),
+		certExpires:           identity.Expires,
+		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, &identity),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -1142,11 +1130,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		),
 	)
 	defer span.End()
-
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote

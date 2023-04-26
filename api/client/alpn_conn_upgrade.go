@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
@@ -162,35 +163,17 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
-	conn, err := d.dialer.DialContext(ctx, network, addr)
+	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// matching the behavior of tls.Dial
-	cfg := d.tlsConfig
-	if cfg == nil {
-		cfg = &tls.Config{}
-	}
-	if cfg.ServerName == "" {
-		colonPos := strings.LastIndex(addr, ":")
-		if colonPos == -1 {
-			colonPos = len(addr)
-		}
-		hostname := addr[:colonPos]
-
-		cfg = cfg.Clone()
-		cfg.ServerName = hostname
-	}
-
-	tlsConn := tls.Client(conn, cfg)
 	upgradeURL := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err = upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}

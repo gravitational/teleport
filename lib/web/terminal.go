@@ -96,7 +96,6 @@ type AuthProvider interface {
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
-	GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -660,7 +659,11 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 		return nil, trace.Wrap(err)
 	}
 
-	signer := agentless.SignerFromSSHCertificate(cert, t.authProvider)
+	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
 
 	type clientRes struct {
 		clt *client.NodeClient
