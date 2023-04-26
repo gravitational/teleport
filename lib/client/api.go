@@ -1406,15 +1406,11 @@ func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt
 		opt(&options)
 	}
 
-	var proxyClient = options.proxyClient
-	if proxyClient == nil {
-		var err error
-		proxyClient, err = tc.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
+	proxyClient, err := options.createOrGetProxyClient(ctx, tc)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
 
 	clt, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
@@ -3368,15 +3364,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 		opt(&options)
 	}
 
-	proxyClient := options.proxyClient
-	if options.proxyClient == nil {
-		var err error
-		proxyClient, err = tc.ConnectToProxy(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer proxyClient.Close()
+	proxyClient, err := options.createOrGetProxyClient(ctx, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	proxyClient.Close()
 
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
@@ -3757,8 +3749,41 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 	return response, trace.Wrap(err)
 }
 
+type proxyClient interface {
+	// ConnectToCluster connects to the auth server of the given cluster via proxy.
+	// It returns connected and authenticated auth server client
+	ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error)
+	// GetClusterAlerts loads matching cluster alerts.
+	GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+	// ConnectToRootCluster connects to the auth server of the root cluster
+	// via proxy. It returns connected and authenticated auth server client
+	ConnectToRootCluster(ctx context.Context) (auth.ClientI, error)
+	// Close closes the proxy and auth clients
+	Close() error
+}
+
+type nopCloseProxyClient struct {
+	proxyClient
+}
+
+// Close is a no-op
+func (p *nopCloseProxyClient) Close() error {
+	return nil
+}
+
 type teleportClientOptions struct {
-	proxyClient *ProxyClient
+	proxyClient proxyClient
+}
+
+func (t *teleportClientOptions) createOrGetProxyClient(ctx context.Context, tc *TeleportClient) (proxyClient, error) {
+	if t.proxyClient != nil {
+		return t.proxyClient, nil
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxyClient, nil
 }
 
 type optionFunc func(options *teleportClientOptions)
@@ -3769,7 +3794,7 @@ type optionFunc func(options *teleportClientOptions)
 // to be created via JumpHosts support so please use this function wisely after checking the inner functions flow.
 func WithProxyClient(pc *ProxyClient) optionFunc {
 	return func(options *teleportClientOptions) {
-		options.proxyClient = pc
+		options.proxyClient = &nopCloseProxyClient{proxyClient: pc}
 	}
 }
 
@@ -3961,14 +3986,10 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string, 
 	if !tc.Config.ProxySpecified() {
 		return nil, trace.BadParameter("proxy server is not specified")
 	}
-	proxyClient := options.proxyClient
-	if proxyClient == nil {
-		var err error
-		proxyClient, err = tc.ConnectToProxy(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer proxyClient.Close()
+
+	proxyClient, err := options.createOrGetProxyClient(ctx, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Get a client to the Auth Server.
@@ -4840,4 +4861,14 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 
 	err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	return trace.Wrap(err)
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (tc *TeleportClient) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	return tc.PrivateKeyPolicy
+}
+
+// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
+func (proxy *ProxyClient) GetPrivateKeyPolicy() keys.PrivateKeyPolicy {
+	return proxy.teleportClient.PrivateKeyPolicy
 }

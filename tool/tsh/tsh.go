@@ -1874,7 +1874,7 @@ func onLogin(cf *CLIConf) error {
 	cf.Proxy = webProxyHost
 
 	// Print status to show information of the logged in user.
-	if err := onStatus(cf, withTeleportClient(tc), withProxyClient(proxyClient)); err != nil {
+	if err := onStatus(cf, withClusterAlertsGetter(proxyClient)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3876,22 +3876,20 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	fmt.Printf("\n")
 }
 
+type clusterAlertsGetter interface {
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+}
+
 type cliCommandOptions struct {
-	teleportClient *client.TeleportClient
-	proxyClient    *client.ProxyClient
+	clusterAlertsHandler clusterAlertsGetter
 }
 
 type cliCommandOptFun func(options *cliCommandOptions)
 
-func withTeleportClient(tc *client.TeleportClient) cliCommandOptFun {
+func withClusterAlertsGetter(alertsGetter clusterAlertsGetter) cliCommandOptFun {
 	return func(options *cliCommandOptions) {
-		options.teleportClient = tc
-	}
-}
-
-func withProxyClient(pc *client.ProxyClient) cliCommandOptFun {
-	return func(options *cliCommandOptions) {
-		options.proxyClient = pc
+		options.clusterAlertsHandler = alertsGetter
 	}
 }
 
@@ -3939,28 +3937,21 @@ func onStatus(cf *CLIConf, optionsFunc ...cliCommandOptFun) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	var tc *client.TeleportClient
-	if options.teleportClient == nil {
+	clusterAlerts := options.clusterAlertsHandler
+	if clusterAlerts == nil {
 		var err error
-		tc, err = makeClient(cf, true)
+		tc, err := makeClient(cf, true)
 		if err != nil {
 			log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
 			return nil
 		}
-	} else {
-		tc = options.teleportClient
-	}
-	var clusterClient common.ClusterAlertGetter
-	if options.proxyClient != nil {
-		clusterClient = options.proxyClient
-	} else {
-		clusterClient = tc
+		clusterAlerts = tc
 	}
 
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
+	if clusterAlerts.GetPrivateKeyPolicy() == keys.PrivateKeyPolicyHardwareKeyTouch {
 		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
 	} else {
-		if err := common.ShowClusterAlerts(cf.Context, clusterClient, os.Stderr, nil,
+		if err := common.ShowClusterAlerts(cf.Context, clusterAlerts, os.Stderr, nil,
 			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
 			log.WithError(err).Warn("Failed to display cluster alerts.")
 		}
