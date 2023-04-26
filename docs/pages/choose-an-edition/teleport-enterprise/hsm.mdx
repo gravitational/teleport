@@ -99,7 +99,7 @@ On the EC2 instance where you will run your Teleport Auth Server:
    yubihsm> put authkey 0 0 "Teleport Auth Key" 1 generate-asymmetric-key:sign-pkcs:delete-asymmetric-key sign-pkcs:sign-pss:decrypt-pkcs:decrypt-oaep hunter22
    Stored Authentication key 0x85cf
 
-   # Make sure you can open a session with the new Authenication Key and password
+   # Make sure you can open a session with the new authentication key and password
    yubihsm> session open 0x85cf hunter22
    Created session 1
 
@@ -204,7 +204,7 @@ route any traffic to the auth server where the HSM is currently being added.
 
 When adding a new HSM to an existing Teleport cluster, or adding a new
 HSM-connected Auth server to an HA Teleport cluster, you will need to rotate all
-Certificate Authoritities in order for new certificates to by issued and
+Certificate Authorities in order for new certificates to by issued and
 trusted.
 
 `tctl status` will print a warning if CA rotation is required:
