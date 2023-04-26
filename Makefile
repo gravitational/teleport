@@ -109,6 +109,13 @@ endif
 endif
 endif
 
+# Set C_ARCH for building libfido2 and dependencies. ARCH is the Go
+# architecture which uses different names for architectures than C
+# uses. Export it for the build.assets/build-fido2-macos.sh script.
+C_ARCH_amd64 = x86_64
+C_ARCH = $(or $(C_ARCH_$(ARCH)),$(ARCH))
+export C_ARCH
+
 # Enable libfido2 for testing?
 # Eagerly enable if we detect the package, we want to test as much as possible.
 ifeq ("$(shell pkg-config libfido2 2>/dev/null; echo $$?)", "0")
@@ -327,6 +334,15 @@ else
 .PHONY: rdpclient
 rdpclient:
 endif
+
+# Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
+.PHONY: build-fido2
+build-fido2:
+	./build.assets/build-fido2-macos.sh build
+
+.PHONY: print-fido2-pkg-path
+print-fido2-pkg-path:
+	@./build.assets/build-fido2-macos.sh pkg_config_path
 
 #
 # make full - Builds Teleport binaries with the built-in web assets and
