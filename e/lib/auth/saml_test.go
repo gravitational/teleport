@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -559,10 +560,28 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 	}, defaults.SAMLAuthRequestTTL)
 	require.NoError(t, err)
 
+	var loginHookCounter atomic.Int32
+	var loginHook auth.LoginHook = func(context.Context, types.User) error {
+		loginHookCounter.Add(1)
+		return nil
+	}
+
 	// check ValidateSAMLResponse
 	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
 	require.NoError(t, err)
 	require.NotNil(t, response)
+	require.Equal(t, 0, int(loginHookCounter.Load()))
+
+	// check ValidateSAMLResponse with login hooks
+	sas.auth.RegisterLoginHook(loginHook)
+	sas.auth.RegisterLoginHook(loginHook)
+
+	response, err = sas.ValidateSAMLResponse(context.Background(), base64.StdEncoding.EncodeToString([]byte(respOkta)), "")
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.Equal(t, 2, int(loginHookCounter.Load()))
+
+	sas.auth.ResetLoginHooks()
 
 	// check internal method, validate diagnostic outputs.
 	diagCtx := auth.NewSSODiagContext(types.KindSAML, a)

@@ -559,6 +559,10 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
+	if err := sas.auth.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &auth.SAMLAuthResponse{
 		Identity: types.ExternalIdentity{

@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -215,6 +216,13 @@ func TestUserInfoBadStatus(t *testing.T) {
 
 func TestSSODiagnostic(t *testing.T) {
 	t.Parallel()
+
+	var loginHookCounter atomic.Int32
+	var loginHook auth.LoginHook = func(context.Context, types.User) error {
+		loginHookCounter.Add(1)
+		return nil
+	}
+
 	tests := []struct {
 		name            string
 		claimsToRoles   []types.ClaimMapping
@@ -223,6 +231,7 @@ func TestSSODiagnostic(t *testing.T) {
 		expectRoles     []string
 		expectTraits    map[string][]string
 		wantValidateErr error
+		loginHooks      []auth.LoginHook
 	}{
 		{
 			name: "success",
@@ -245,6 +254,10 @@ func TestSSODiagnostic(t *testing.T) {
 				"email":  {"superuser@example.com"},
 				"groups": {"everyone", "idp-admin", "idp-dev"},
 				"sub":    {"00001234abcd"},
+			},
+			loginHooks: []auth.LoginHook{
+				loginHook,
+				loginHook,
 			},
 		},
 		{
@@ -301,6 +314,11 @@ func TestSSODiagnostic(t *testing.T) {
 			ctx := context.Background()
 			s := setUpSuite(t)
 
+			loginHookCounter.Store(0)
+			for _, hook := range tc.loginHooks {
+				s.a.RegisterLoginHook(hook)
+			}
+
 			installLoginRule(ctx, t, s.a, s.b, tc.traitsMap)
 
 			// Create configurable IdP to use in tests.
@@ -354,6 +372,8 @@ func TestSSODiagnostic(t *testing.T) {
 				require.ErrorIs(t, err, tc.wantValidateErr)
 				return
 			}
+
+			require.Equal(t, len(tc.loginHooks), int(loginHookCounter.Load()))
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
@@ -411,6 +431,8 @@ func TestSSODiagnostic(t *testing.T) {
 				},
 			}, diagCtx.Info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 			require.Empty(t, diff, "diagnostic info does not match expected")
+
+			require.Equal(t, len(tc.loginHooks)*2, int(loginHookCounter.Load()))
 		})
 	}
 }
@@ -899,7 +921,7 @@ func TestUsernameClaim(t *testing.T) {
 		expectedError    string
 	}{
 		{
-			desc: "username_claim specified with correct claim",
+			desc: "username_claim specified with correct claim (login hooks called)",
 			spec: types.OIDCConnectorSpecV3{
 				IssuerURL:     idp.s.URL,
 				ClientID:      "000",

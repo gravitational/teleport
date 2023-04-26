@@ -570,6 +570,10 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
+	if err := oas.auth.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	resp := &auth.OIDCAuthResponse{
 		Req: OIDCAuthRequestFromProto(req),
