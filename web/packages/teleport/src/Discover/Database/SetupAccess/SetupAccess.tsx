@@ -200,7 +200,10 @@ function DbEngineInstructions({
 }) {
   switch (dbLocation) {
     case DatabaseLocation.Aws:
-      if (dbEngine === DatabaseEngine.Postgres) {
+      if (
+        dbEngine === DatabaseEngine.Postgres ||
+        dbEngine === DatabaseEngine.AuroraPostgres
+      ) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -227,7 +230,10 @@ function DbEngineInstructions({
           </Box>
         );
       }
-      if (dbEngine === DatabaseEngine.MySql) {
+      if (
+        dbEngine === DatabaseEngine.MySql ||
+        dbEngine === DatabaseEngine.AuroraMysql
+      ) {
         return (
           <Box mb={3}>
             <Box mb={2}>
