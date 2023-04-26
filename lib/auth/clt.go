@@ -475,22 +475,27 @@ func (c *Client) OktaClient() services.Okta {
 	return c.oktaClient
 }
 
+// CreatePlugins creates a new plugin resource
 func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	return c.APIClient.CreatePlugin(ctx, plugin)
 }
 
+// DeleteAllPlugins deletes all plugin resources
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 	return c.APIClient.DeleteAllPlugins(ctx)
 }
 
+// DeletePlugin deletes a plugin resource
 func (c *Client) DeletePlugin(ctx context.Context, name string) error {
 	return c.APIClient.DeletePlugin(ctx, name)
 }
 
+// GetPlugin gets a plugin resource
 func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	return c.APIClient.GetPlugin(ctx, name, withSecrets)
 }
 
+// GetPlugins gets all plugin resources
 func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
 	plugins, err := c.APIClient.GetPlugins(ctx, withSecrets)
 	if err != nil {
@@ -503,6 +508,7 @@ func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plug
 	return retPlugins, nil
 }
 
+// ListPlugins returns a list of plugin resources
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
 	plugins, lastKey, err := c.APIClient.ListPlugins(ctx, limit, startKey, withSecrets)
 	if err != nil {
