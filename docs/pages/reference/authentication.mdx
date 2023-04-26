@@ -128,11 +128,11 @@ A lock is placed on a local user if, within a 30 minute window, a local user has
 - 5 failed login attempts or
 - 3 failed password resets
 
-The lock lasts 20 minutes. After the lock has expired the user may attempt to login again.
+The lock lasts 20 minutes. After the lock has expired the user may attempt to log in again.
 
 Overriding a lock is available to users with rights to maintain `user` resources,
-available in the builtin `editor` role. To turn off a lock, update the user entry
-to disable the lock, following these steps.
+available in the built-in `editor` role. To turn off a lock, update the user entry
+, following these steps.
 
 Retrieve the user entry so you can edit the status:
 
@@ -140,7 +140,8 @@ Retrieve the user entry so you can edit the status:
 $ tctl get users/jeff > jeff.yaml`
 ```
 
-Example user file:
+The file `user.yaml` should resembling the following:
+
 ```yaml
 kind: user
 metadata:
@@ -155,8 +156,8 @@ spec:
 version: v2
 ```
 
-Update the `is_locked` under `status` to `false` and save the file. Now
-update the user entry with the below command.
+Update the `is_locked` field under `status` to `false` and save the file. Now
+update the user entry with the command below:
 
 ```code
 $ tctl create -f jeff.yaml
