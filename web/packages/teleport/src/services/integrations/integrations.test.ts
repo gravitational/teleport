@@ -123,8 +123,8 @@ test('fetchAwsDatabases response', async () => {
         engine: 'mysql',
         name: 'rds-2',
         uri: 'endpoint-2',
-        status: 'Available',
         labels: [],
+        status: undefined,
         accountId: undefined,
         resourceId: undefined,
       },
@@ -132,8 +132,8 @@ test('fetchAwsDatabases response', async () => {
         engine: 'mysql',
         name: 'rds-3',
         uri: 'endpoint-3',
-        status: 'Available',
         labels: [],
+        status: undefined,
         accountId: undefined,
         resourceId: undefined,
       },
@@ -200,9 +200,9 @@ const mockAwsDbs = [
     protocol: 'postgres',
     name: 'rds-1',
     uri: 'endpoint-1',
-    status: 'Available',
     labels: [{ name: 'env', value: 'prod' }],
     aws: {
+      status: 'Available',
       account_id: 'account-id-1',
       rds: {
         resource_id: 'resource-id-1',
@@ -214,7 +214,6 @@ const mockAwsDbs = [
     protocol: 'mysql',
     name: 'rds-2',
     uri: 'endpoint-2',
-    status: 'Available',
     aws: {},
   },
   // Test without aws field.
@@ -222,6 +221,5 @@ const mockAwsDbs = [
     protocol: 'mysql',
     name: 'rds-3',
     uri: 'endpoint-3',
-    status: 'Available',
   },
 ];

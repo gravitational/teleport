@@ -17,6 +17,7 @@
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
+import type { ResourceIconName } from './icons';
 
 export enum DatabaseLocation {
   Aws,
@@ -52,7 +53,7 @@ export interface ResourceSpec {
   name: string;
   popular?: boolean;
   kind: ResourceKind;
-  Icon: React.ReactElement;
+  icon: ResourceIconName;
   // keywords are filter words that user may use to search for
   // this resource.
   keywords: string;

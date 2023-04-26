@@ -25,20 +25,32 @@ import { ButtonIcon, ButtonPrimary, Text } from 'design';
 
 import { Close } from 'design/Icon';
 
-import { Props, State, useClusterLogout } from './useClusterLogout';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
-export default function Container(props: Props) {
-  const state = useClusterLogout(props);
-  return <ClusterLogout {...state} />;
+import { useClusterLogout } from './useClusterLogout';
+
+interface ClusterLogoutProps {
+  clusterTitle: string;
+  clusterUri: RootClusterUri;
+  onClose(): void;
 }
 
 export function ClusterLogout({
-  status,
+  clusterUri,
   onClose,
-  statusText,
   clusterTitle,
-  removeCluster,
-}: State) {
+}: ClusterLogoutProps) {
+  const { removeCluster, status, statusText } = useClusterLogout({
+    clusterUri,
+  });
+
+  async function removeClusterAndClose(): Promise<void> {
+    const [, err] = await removeCluster();
+    if (!err) {
+      onClose();
+    }
+  }
+
   return (
     <DialogConfirmation
       open={true}
@@ -51,7 +63,7 @@ export function ClusterLogout({
       <form
         onSubmit={e => {
           e.preventDefault();
-          removeCluster();
+          removeClusterAndClose();
         }}
       >
         <DialogHeader justifyContent="space-between" mb={0}>

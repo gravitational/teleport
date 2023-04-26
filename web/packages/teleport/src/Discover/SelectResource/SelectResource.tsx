@@ -35,6 +35,8 @@ import {
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 
+import { icons } from './icons';
+
 import type { ResourceSpec } from './types';
 import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
 
@@ -160,7 +162,7 @@ export function SelectResource(props: SelectResourceProps) {
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      {r.Icon}
+                      {icons[r.icon]}
                     </Flex>
                     <Box>
                       {pretitle && (

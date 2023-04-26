@@ -192,7 +192,7 @@ export type AwsRdsDatabase = {
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
   // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
-  status: 'Available' | 'Failed' | 'Deleting';
+  status: 'available' | 'failed' | 'deleting';
 };
 
 export type ListAwsRdsDatabaseResponse = {
