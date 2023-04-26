@@ -214,7 +214,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
-		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Clock)
+		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Backend.Clock())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
