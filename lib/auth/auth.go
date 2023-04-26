@@ -1448,8 +1448,8 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
-	if req.Username == "" {
-		return nil, trace.BadParameter("username is empty")
+	if req.User == nil {
+		return nil, trace.BadParameter("user is empty")
 	}
 	if len(req.PublicKey) == 0 {
 		return nil, trace.BadParameter("public key is empty")
@@ -1464,29 +1464,27 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("cluster is empty")
 	}
 
-	user, err := a.GetUser(req.Username, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// add implicit roles to the set and build a checker
+	accessInfo := services.AccessInfoFromUser(req.User)
+	roles := make([]types.Role, len(req.Roles))
+	for i := range req.Roles {
+		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	roleSet := services.NewRoleSet(roles...)
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	certs, err := a.generateOpenSSHCert(certRequest{
-		user:          user,
-		publicKey:     req.PublicKey,
-		compatibility: constants.CertificateFormatStandard,
-		checker:       checker,
-		ttl:           time.Duration(req.TTL),
-		traits: map[string][]string{
-			constants.TraitLogins: {req.Username},
-		},
+		user:            req.User,
+		publicKey:       req.PublicKey,
+		compatibility:   constants.CertificateFormatStandard,
+		checker:         checker,
+		ttl:             time.Duration(req.TTL),
+		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})

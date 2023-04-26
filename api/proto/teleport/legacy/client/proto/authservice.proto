@@ -198,17 +198,20 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
-  // Username is the Teleport username.
-  string Username = 1 [(gogoproto.jsontag) = "username"];
+  // Username is the Teleport user the certificate will be generated for.
+  types.UserV2 User = 1 [(gogoproto.jsontag) = "user"];
+  // Roles are the roles of the Teleport user the certificate will be
+  // generated for.
+  repeated types.RoleV6 Roles = 2 [(gogoproto.jsontag) = "roles"];
   // PublicKey is the public key to sign.
-  bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
+  bytes PublicKey = 3 [(gogoproto.jsontag) = "public_key"];
   // TTL is the duration the certificate will be valid for.
-  int64 TTL = 3 [
+  int64 TTL = 4 [
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
   // Cluster is the Teleport cluster name.
-  string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  string Cluster = 5 [(gogoproto.jsontag) = "cluster"];
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.

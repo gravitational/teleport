@@ -3973,8 +3973,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.log.WithField(trace.Component, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
