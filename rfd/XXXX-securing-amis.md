@@ -74,7 +74,7 @@ We currently do not test our images against a benchmark.
 
 The two best-known standards for security hardening are 
  * CIS Benchmarks (Level 1 & 2), and
- * The US DoD Security Technical Implementation Guides (STIGs)
+ * The US DoD [Security Technical Implementation Guides](https://public.cyber.mil/stigs) (STIGs)
 
 Both of these standards are pretty comprehensive and have wide
 application, although private organizations tend to favor CIS
@@ -89,7 +89,7 @@ detection, remediation and validation. I don't believe that Teleport wants
 to maintain scripts to do that ourselves, so I have been focused on finding 
 tools to do it for us.
 
-Somewhat unsurprisingly, nearly all of the automated hardening tools I have 
+Somewhat unsurprisingly, nearly all of the automated AMI hardening tools I have 
 found are tied to the AWS EC2 Image Builder Tool. Both standards are represented, 
 but while the STIG-compliance components are free for use on any image, the 
 CIS tooling has several drawbacks:
@@ -103,6 +103,10 @@ CIS tooling has several drawbacks:
 The decision to go with STIG is based on being able to improve the situation
 for our customers *now*, while still being able to add CIS hardening tools as
 we develop that relationship in the future.
+
+#### **How do security benchmarks realate to AMIs?**
+
+Both the CIS Benchmarks and STIG e es
 
 #### **Hardened Base Image**
 
