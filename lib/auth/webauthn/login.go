@@ -272,6 +272,12 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *CredentialAss
 	if err := setCounterAndTimestamps(dev, credential); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	// Retroactively write the credential RPID, now that it cleared authn.
+	if webDev := dev.GetWebauthn(); webDev != nil && webDev.CredentialRpId == "" {
+		log.Debugf("WebAuthn: Recording RPID=%q in device %q/%q", rpID, user, dev.GetName())
+		webDev.CredentialRpId = rpID
+	}
+
 	if err := f.identity.UpsertMFADevice(ctx, user, dev); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
