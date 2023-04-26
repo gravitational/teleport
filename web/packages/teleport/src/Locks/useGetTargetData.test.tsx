@@ -20,33 +20,9 @@ import { useGetTargetData } from './useGetTargetData';
 
 import {
   mockedUseTeleportUtils,
-  USER_RESULT,
   ROLES_RESULT,
+  USER_RESULT,
 } from './testFixtures';
-
-const additionalTargets = {
-  access_request: {
-    fetch: () =>
-      new Promise(resolve =>
-        resolve([
-          {
-            name: 'apple',
-            description: 'tree',
-            date: '1/2/1234',
-          },
-        ])
-      ),
-    handler: (setter, requests) => {
-      const filteredData = requests.map(r => ({
-        name: r.name,
-        description: r.description,
-        theDate: r.date,
-      }));
-      setter(filteredData);
-    },
-    options: {},
-  },
-};
 
 jest.mock('teleport/useTeleport', () => ({
   __esModule: true,
@@ -80,6 +56,7 @@ describe('hook: useLocks', () => {
       expect(result.current).toStrictEqual([
         {
           name: 'watermelon',
+          targetValue: 'watermelon',
           addr: 'localhost.watermelon',
           labels: [
             {
@@ -102,6 +79,7 @@ describe('hook: useLocks', () => {
         },
         {
           name: 'banana',
+          targetValue: 'banana',
           addr: 'localhost.banana',
           labels: [
             {
@@ -133,6 +111,7 @@ describe('hook: useLocks', () => {
       expect(result.current).toStrictEqual([
         {
           name: 'node1.go.citadel',
+          targetValue: 'e14baac6-15c1-42c2-a7d9-99410d21cf4c',
           addr: '127.0.0.1:4022',
           labels: ['special:apple', 'user:orange'],
         },
@@ -160,9 +139,22 @@ describe('hook: useLocks', () => {
         useGetTargetData('access_request', 'cluster-id', additionalTargets)
       );
       await waitForNextUpdate();
-      expect(result.current).toStrictEqual([
-        { name: 'apple', description: 'tree', theDate: '1/2/1234' },
-      ]);
+      expect(result.current).toStrictEqual([accessRequestData]);
     });
   });
 });
+
+const accessRequestData = {
+  id: '942a14e8-6a16-40bb-a873-725cec0a3cca',
+  user: 'jane',
+  roles: 'access, editor',
+  created: new Date().toDateString(),
+  reason: 'testing',
+  targetValue: '942a14e8-6a16-40bb-a873-725cec0a3cca',
+};
+
+const additionalTargets = {
+  access_request: {
+    fetchData: async () => [accessRequestData],
+  },
+};

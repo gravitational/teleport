@@ -150,8 +150,8 @@ $ kubectl get teleportusers
 
 Check the user `myuser` has been created in Teleport and has been granted the role `myrole`:
 ```code
-$ PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
-$ kubectl exec -it "$PROXY_POD" -c teleport -- tctl users ls
+$ AUTH_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec -it "$AUTH_POD" -c teleport -- tctl users ls
 # User                          Roles
 # ----------------------------- -----------------------------
 # bot-teleport-operator-sidecar bot-teleport-operator-sidecar
@@ -231,7 +231,7 @@ Here `SuccessfullyReconciled` is `False` and the error is `role my-non-existing-
 If the status is not present or does not give sufficient information to solve the issue, check the operator logs:
 
 ```shell
-$ kubectl logs "$PROXY_POD" -c operator
+$ kubectl logs "$AUTH_POD" -c operator
 ```
 
 <Admonition type="note">

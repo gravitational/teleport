@@ -423,6 +423,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
+- [ ] SAML IdP guide instructions work
+    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -832,7 +834,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Test Applications screen in the web UI (tab is located on left side nav on dashboard):
   - [ ] Verify that all apps registered are shown
   - [ ] Verify that clicking on the app icon takes you to another tab
-  - [ ] Verify using the bash command produced from `Add Application` dialogue works (refresh app screen to see it registered)
+  - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
 

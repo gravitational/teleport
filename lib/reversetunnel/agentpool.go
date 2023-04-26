@@ -765,7 +765,7 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 		if err == nil {
 			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
 		} else {
-			logrus.WithError(err).Warnf("Faield to resolve addr.")
+			logrus.WithError(err).Warnf("Failed to resolve addr.")
 		}
 	}
 }
