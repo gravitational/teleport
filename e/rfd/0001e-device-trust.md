@@ -24,6 +24,10 @@ Teleport 12 (see
 [#514](https://github.com/gravitational/teleport.e/issues/514#issuecomment-1224609251)
 for current status).
 
+See also:
+* [RFD 0007e - Device Trust MDM integration](
+  https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md)
+
 ## Why
 
 Device trust bridges one of the gaps in order to provide a full BeyondCorp
