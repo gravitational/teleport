@@ -144,7 +144,6 @@ export const NonInteractiveItem = styled.div`
 
   padding: ${props => props.theme.space[2]}px;
   color: ${props => props.theme.colors.text.contrast};
-  background: inherit;
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`

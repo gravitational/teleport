@@ -103,7 +103,6 @@ function SearchBar() {
         flex-shrink: 1;
         min-width: calc(${props => props.theme.space[7]}px * 2);
         height: 100%;
-        background: inherit;
         border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
 
