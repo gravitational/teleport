@@ -52,7 +52,7 @@ export const SessionJoinBtn = ({
           css={`
             text-transform: capitalize;
             text-decoration: none;
-            color: ${props => props.theme.colors.text.secondary};
+            color: ${props => props.theme.colors.text.slightlyMuted};
           `}
         >
           {participantMode}
@@ -77,7 +77,7 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
       </ButtonBorder>
       <Menu
         anchorOrigin={{
@@ -96,7 +96,7 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
           px="2"
           fontSize="11px"
           css={`
-            color: ${props => props.theme.colors.text.primary};
+            color: ${props => props.theme.colors.text.main};
             background: ${props => props.theme.colors.spotBackground[2]};
           `}
         >

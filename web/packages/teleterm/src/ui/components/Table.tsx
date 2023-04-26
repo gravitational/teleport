@@ -40,7 +40,7 @@ function getTableTheme(theme) {
         lighter: theme.colors.levels.surface,
         main: theme.colors.levels.sunken,
       },
-      link: theme.colors.text.primary,
+      link: theme.colors.text.main,
     },
   };
 }

@@ -54,13 +54,13 @@ const colors = {
 
   text: {
     // The most important text.
-    primary: '#000000',
-    // Secondary text.
-    secondary: 'rgba(0,0,0,0.56)',
-    // Placeholder text for forms.
-    placeholder: 'rgba(0,0,0,0.24)',
-    // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0,0,0,0.18)',
+    main: '#000000',
+    // Slightly muted text.
+    slightlyMuted: 'rgba(0,0,0,0.72)',
+    // Muted text. Also used as placeholder text in forms.
+    muted: 'rgba(0,0,0,0.54)',
+    // Disabled text.
+    disabled: 'rgba(0,0,0,0.36)',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
     primaryInverse: '#FFFFFF',

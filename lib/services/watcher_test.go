@@ -193,8 +193,8 @@ func TestProxyWatcher(t *testing.T) {
 
 func newProxyServer(t *testing.T, name, addr string) types.Server {
 	s, err := types.NewServer(name, types.KindProxy, types.ServerSpecV2{
-		Addr:       addr,
-		PublicAddr: addr,
+		Addr:        addr,
+		PublicAddrs: []string{addr},
 	})
 	require.NoError(t, err)
 	return s
@@ -990,9 +990,8 @@ func TestNodeWatcher(t *testing.T) {
 
 func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
 	s, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
-		Addr:       addr,
-		PublicAddr: addr,
-		UseTunnel:  tunnel,
+		Addr:      addr,
+		UseTunnel: tunnel,
 	})
 	require.NoError(t, err)
 	return s
