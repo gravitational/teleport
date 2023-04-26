@@ -873,7 +873,7 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferRequestReq{
+			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
 				Filename: transferRequest.Filename,
