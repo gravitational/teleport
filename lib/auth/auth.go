@@ -214,7 +214,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
-		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Backend.Clock())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1340,9 +1340,20 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+// GenerateUserTestCertsRequest is a request to generate test certificates.
+type GenerateUserTestCertsRequest struct {
+	Key            []byte
+	Username       string
+	TTL            time.Duration
+	Compatibility  string
+	RouteToCluster string
+	PinnedIP       string
+	MFAVerified    string
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1357,14 +1368,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		ttl:            ttl,
-		compatibility:  compatibility,
-		publicKey:      key,
-		routeToCluster: routeToCluster,
+		ttl:            req.TTL,
+		compatibility:  req.Compatibility,
+		publicKey:      req.Key,
+		routeToCluster: req.RouteToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		loginIP:        pinnedIP,
-		pinIP:          pinnedIP != "",
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
+		mfaVerified:    req.MFAVerified,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -4316,23 +4328,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Node.Login == "" {
 			return nil, trace.BadParameter("empty Login field")
 		}
+
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
+		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{t.Node.Node},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var matches []types.Server
-		for _, n := range nodes {
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(n.GetAddr())
-			if err != nil {
-				addr = n.GetAddr()
-			}
-			// Match NodeName to UUID, hostname or self-reported server address.
-			if n.GetName() == t.Node.Node || n.GetHostname() == t.Node.Node || addr == t.Node.Node {
-				matches = append(matches, n)
-			}
-		}
+
 		if len(matches) == 0 {
 			// If t.Node.Node is not a known registered node, it may be an
 			// unregistered host running OpenSSH with a certificate created via
@@ -4348,7 +4354,21 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
-			err := checker.CheckAccess(
+			srv, ok := n.(types.Server)
+			if !ok {
+				continue
+			}
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(srv.GetAddr())
+			if err != nil {
+				addr = srv.GetAddr()
+			}
+			// Filter out any matches on labels before checking access
+			if n.GetName() != t.Node.Node && srv.GetHostname() != t.Node.Node && addr != t.Node.Node {
+				continue
+			}
+
+			err = checker.CheckAccess(
 				n,
 				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
