@@ -160,18 +160,20 @@ func run(rootLog logrus.FieldLogger) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	logger.Infof("Found %d EKs in TPM", len(eks))
+	for i, ek := range eks {
+		if ek.Certificate != nil {
+			logger.Printf("EK in position %d has cert:", i)
+			pem.Encode(os.Stdout, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: ek.Certificate.Raw,
+			})
+		} else {
+			logger.Printf("EK in position %d has no cert", i)
+		}
+	}
 	ek := eks[0]
 	logger.Printf("TPM EK: %+v type: %T", ek, ek.Public)
-
-	if ek.Certificate != nil {
-		logger.Printf("cert detected")
-		pem.Encode(os.Stdout, &pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: ek.Certificate.Raw,
-		})
-	} else {
-		logger.Printf("no cert, url %s", ek.CertificateURL)
-	}
 
 	akConfig := &attest.AKConfig{}
 	ak, err := tpm.NewAK(akConfig)
