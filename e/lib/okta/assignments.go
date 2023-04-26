@@ -19,6 +19,7 @@ package okta
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -40,12 +41,10 @@ type AssignmentReconcilerClient interface {
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 	// CreateOktaAssignment creates a new Okta assignment resource.
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
-	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 }

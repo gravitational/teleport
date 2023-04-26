@@ -102,7 +102,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	databaseServices := local.NewDatabaseServicesService(backend)
 	dynamicAccess := local.NewDynamicAccessService(backend)
 	identity := local.NewIdentityService(backend)
-	okta, err := local.NewOktaService(backend)
+	okta, err := local.NewOktaService(backend, clock)
 	require.NoError(t, err)
 	presence := local.NewPresenceService(backend)
 	userGroups, err := local.NewUserGroupService(backend)
@@ -312,13 +312,11 @@ func group(t *testing.T, name, origin string) types.UserGroup {
 	return userGroup
 }
 
-func action(status string, targetType types.OktaAssignmentActionTargetV1_OktaAssignmentActionTargetType, id string) *types.OktaAssignmentActionV1 {
-	action := &types.OktaAssignmentActionV1{Target: &types.OktaAssignmentActionTargetV1{Type: targetType, Id: id}}
-	action.SetStatus(status)
-	return action
+func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id string) *types.OktaAssignmentTargetV1 {
+	return &types.OktaAssignmentTargetV1{Type: targetType, Id: id}
 }
 
-func assignment(t *testing.T, accessRequestName, user string, cleanupTime *time.Time, actions ...*types.OktaAssignmentActionV1) types.OktaAssignment {
+func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.Time, status string, lastTransition time.Time, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequestName,
 		Labels: map[string]string{
@@ -326,12 +324,14 @@ func assignment(t *testing.T, accessRequestName, user string, cleanupTime *time.
 		},
 	},
 		types.OktaAssignmentSpecV1{
-			User:        user,
-			Actions:     actions,
-			CleanupTime: cleanupTime,
+			User:           user,
+			Targets:        targets,
+			CleanupTime:    cleanupTime,
+			LastTransition: lastTransition,
 		},
 	)
-
 	require.NoError(t, err)
+
+	require.NoError(t, assignment.SetStatus(status))
 	return assignment
 }

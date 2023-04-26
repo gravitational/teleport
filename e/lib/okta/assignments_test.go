@@ -56,22 +56,17 @@ func TestAssignmentReconciler(t *testing.T) {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
+					Type: types.OktaAssignmentTargetV1_GROUP,
+					Id:   "234567",
 				},
 			},
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)
@@ -90,7 +85,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	)
 
 	// Update should be recognized.
-	assignment.GetActions()[0].SetStatus(constants.OktaAssignmentActionStatusCleanupPending)
+	assignment.SetStatus(constants.OktaAssignmentStatusProcessing)
 	_, err = ap.UpdateOktaAssignment(ctx, assignment)
 	require.NoError(t, err)
 	waitForResult(t, onReconcileCh, struct{}{}, 1)

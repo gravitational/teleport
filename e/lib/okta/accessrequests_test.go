@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -35,10 +34,12 @@ import (
 
 func TestAccessRequestReconciler(t *testing.T) {
 	ctx := context.Background()
-	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	clock := clockwork.NewFakeClock()
+	ap := newTestAccessPoint(t, clock)
 	onReconcileCh := make(chan struct{}, 1)
 
 	reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
+		Clock:         clock,
 		ClusterName:   testClusterName,
 		Client:        ap,
 		OktaClient:    ap,
@@ -123,8 +124,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	foundAssignment := getOktaAssignment(t, ap, accessRequest.GetName())
 	expires := accessRequest.GetAccessExpiry()
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, &expires,
-		action(constants.OktaAssignmentActionStatusPending, types.OktaAssignmentActionTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -136,9 +137,10 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, err)
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
+	cleanupTimeNow := clock.Now()
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, &expires,
-		action(constants.OktaAssignmentActionStatusCleanupPending, types.OktaAssignmentActionTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -147,8 +149,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, &expires,
-		action(constants.OktaAssignmentActionStatusCleanupPending, types.OktaAssignmentActionTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(),
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1"))),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -166,8 +168,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
 	expires = accessRequest.GetAccessExpiry()
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, &expires,
-		action(constants.OktaAssignmentActionStatusPending, types.OktaAssignmentActionTargetV1_GROUP, userGroup.GetName())),
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, expires, constants.OktaAssignmentStatusPending, clock.Now(),
+		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -175,8 +177,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, &expires,
-		action(constants.OktaAssignmentActionStatusCleanupPending, types.OktaAssignmentActionTargetV1_GROUP, userGroup.GetName())),
+	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(),
+		target(types.OktaAssignmentTargetV1_GROUP, userGroup.GetName())),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 }
@@ -185,7 +187,8 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 	const accessRequestName = "access_request"
 	const user = "user"
 	hash := crypto.SHA256
-	expires := time.Now()
+	clock := clockwork.NewFakeClock()
+	expires := clock.Now()
 
 	tests := []struct {
 		name              string
@@ -207,11 +210,11 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 				group(t, "group1", types.OriginOkta),
 				group(t, "group2", types.OriginDynamic),
 			},
-			assignmentStatus: constants.OktaAssignmentActionStatusPending,
-			expected: assignment(t, accessRequestName, user, &expires,
-				action(constants.OktaAssignmentActionStatusPending, types.OktaAssignmentActionTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1")),
-				action(constants.OktaAssignmentActionStatusPending, types.OktaAssignmentActionTargetV1_APPLICATION, mustAppName(t, hash, "app2", "link1")),
-				action(constants.OktaAssignmentActionStatusPending, types.OktaAssignmentActionTargetV1_GROUP, "group1"),
+			assignmentStatus: constants.OktaAssignmentStatusPending,
+			expected: assignment(t, accessRequestName, user, expires, constants.OktaAssignmentStatusPending, clock.Now(),
+				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app1", "link1")),
+				target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, hash, "app2", "link1")),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			),
 			errAssertionFunc: require.NoError,
 		},
@@ -221,7 +224,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			appTargets: []types.AppServer{
 				application(t, hash, "app1", "link1", types.OriginOkta),
 			},
-			assignmentStatus: constants.OktaAssignmentActionStatusPending,
+			assignmentStatus: constants.OktaAssignmentStatusPending,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -232,7 +235,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			groupTargets: []types.UserGroup{
 				group(t, "group1", types.OriginOkta),
 			},
-			assignmentStatus: constants.OktaAssignmentActionStatusPending,
+			assignmentStatus: constants.OktaAssignmentStatusPending,
 			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -257,9 +260,10 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			ap := newTestAccessPoint(t, clockwork.NewRealClock())
+			ap := newTestAccessPoint(t, clock)
 
 			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
+				Clock:       clock,
 				ClusterName: testClusterName,
 				Client:      ap,
 				OktaClient:  ap,

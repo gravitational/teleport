@@ -320,7 +320,7 @@ func (a *AccessRequestReconciler) onCreate(ctx context.Context, resource types.R
 
 	// Only create an assignment if the access state is approved.
 	if newAccessRequest.GetState() == types.RequestState_APPROVED {
-		assignment, err := a.accessRequestToOktaAssignment(ctx, newAccessRequest, constants.OktaAssignmentActionStatusPending)
+		assignment, err := a.accessRequestToOktaAssignment(ctx, newAccessRequest, constants.OktaAssignmentStatusPending)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				a.log.Debugf("access request cannot be processed: %v", err)
@@ -352,8 +352,14 @@ func (a *AccessRequestReconciler) onUpdate(ctx context.Context, resource types.R
 
 	// Only update an Okta assignment if the request state is denied.
 	if updatedAccessRequest.GetState() == types.RequestState_DENIED {
-		if _, err := a.oktaClient.UpdateOktaAssignmentActionStatuses(ctx, updatedAccessRequest.GetName(),
-			constants.OktaAssignmentActionStatusCleanupPending); err != nil && !trace.IsNotFound(err) {
+		assignment, err := a.oktaClient.GetOktaAssignment(ctx, resource.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Set the cleanup time to now to trigger a cleanup.
+		assignment.SetCleanupTime(a.clock.Now())
+		if _, err := a.oktaClient.UpdateOktaAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "error marking assignment for cleanup")
 		}
 
@@ -368,8 +374,14 @@ func (a *AccessRequestReconciler) onUpdate(ctx context.Context, resource types.R
 // onUpdate will cleanup Okta assignments from access requests.
 func (a *AccessRequestReconciler) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
 	// No need to look at access request state, we should clean up the associated Okta assignments.
-	if _, err := a.oktaClient.UpdateOktaAssignmentActionStatuses(ctx, resource.GetName(),
-		constants.OktaAssignmentActionStatusCleanupPending); err != nil && !trace.IsNotFound(err) {
+	assignment, err := a.oktaClient.GetOktaAssignment(ctx, resource.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Set the cleanup time to now to trigger a cleanup.
+	assignment.SetCleanupTime(a.clock.Now())
+	if _, err := a.oktaClient.UpdateOktaAssignment(ctx, assignment); err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err, "error marking assignment for cleanup")
 	}
 
@@ -424,11 +436,11 @@ func (a *AccessRequestReconciler) matcher(ctx context.Context, resource types.Re
 
 // accessRequestToOktaAssignment will take an access request and convert it into an Okta assignment.
 func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Context, accessRequest types.AccessRequest, assignmentStatus string) (types.OktaAssignment, error) {
-	actions := []*types.OktaAssignmentActionV1{}
+	targets := []*types.OktaAssignmentTargetV1{}
 
 	// Look for the requested targets in the access request.
 	for _, resourceID := range accessRequest.GetRequestedResourceIDs() {
-		var targetType types.OktaAssignmentActionTargetV1_OktaAssignmentActionTargetType
+		var targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType
 		var id string
 
 		// Skip resources that don't belong to this cluster.
@@ -448,7 +460,7 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 			}
 
 			if userGroup.Origin() == types.OriginOkta {
-				targetType = types.OktaAssignmentActionTargetV1_GROUP
+				targetType = types.OktaAssignmentTargetV1_GROUP
 				id = userGroup.GetName()
 			}
 		case types.KindApp:
@@ -462,40 +474,47 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 			}
 
 			if appServer.Origin() == types.OriginOkta {
-				targetType = types.OktaAssignmentActionTargetV1_APPLICATION
+				targetType = types.OktaAssignmentTargetV1_APPLICATION
 				id = appServer.GetName()
 			}
 		}
 
-		// If an ID has been set, we'll add this action.
+		// If an ID has been set, we'll add this target.
 		if id != "" {
-			action := &types.OktaAssignmentActionV1{
-				Target: &types.OktaAssignmentActionTargetV1{
-					Type: targetType,
-					Id:   id,
-				},
+			target := &types.OktaAssignmentTargetV1{
+				Type: targetType,
+				Id:   id,
 			}
-			action.SetStatus(assignmentStatus)
-			actions = append(actions, action)
+			targets = append(targets, target)
 		}
 	}
 
-	if len(actions) == 0 {
+	if len(targets) == 0 {
 		return nil, trace.NotFound("no Okta targets found in access request")
 	}
 
 	cleanupTime := accessRequest.GetAccessExpiry()
 
-	return types.NewOktaAssignment(types.Metadata{
+	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequest.GetName(),
 		Labels: map[string]string{
 			assignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequest.GetName()),
 		},
 	}, types.OktaAssignmentSpecV1{
 		User:        accessRequest.GetUser(),
-		Actions:     actions,
-		CleanupTime: &cleanupTime,
+		Targets:     targets,
+		CleanupTime: cleanupTime,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := assignment.SetStatus(assignmentStatus); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assignment.SetLastTransition(a.clock.Now())
+
+	return assignment, nil
 }
 
 // getAppServer will get the app server corresponding to the given name.
