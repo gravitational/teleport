@@ -484,8 +484,8 @@ var (
 	// the IP the certificate is pinned to.
 	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
 
-	// CreateUserOID
-	CreateUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
+	// CreateWindowsUserOID
+	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 )
 
 // Device Trust OIDs.

@@ -50,14 +50,14 @@ type certRequest struct {
 
 func createUsersExtension(createUser bool, groups []string) (pkix.Extension, error) {
 	value, err := json.Marshal(struct {
-		CreateUser bool
-		Groups     []string
+		CreateUser bool     `json:"createUser"`
+		Groups     []string `json:"groups"`
 	}{createUser, groups})
 	if err != nil {
 		return pkix.Extension{}, trace.Wrap(err)
 	}
 	return pkix.Extension{
-		Id:    tlsca.CreateUserOID,
+		Id:    tlsca.CreateWindowsUserOID,
 		Value: value,
 	}, nil
 }
