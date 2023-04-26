@@ -109,6 +109,7 @@ type Server struct {
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
+	publicAddrs     []utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -703,6 +704,14 @@ func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
 	}
 }
 
+// SetPublicAddrs sets the server's public addresses
+func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
+	return func(s *Server) error {
+		s.publicAddrs = addrs
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -1009,7 +1018,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		addr = s.AdvertiseAddr()
 	}
 
-	return &types.ServerV2{
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1026,6 +1035,9 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
+	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+
+	return srv
 }
 
 func (s *Server) getServerInfo() *types.ServerV2 {
@@ -1042,7 +1054,6 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 	}
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-	server.SetPublicAddr(s.proxyPublicAddr.String())
 	server.SetPeerAddr(s.peerAddr)
 	return server
 }

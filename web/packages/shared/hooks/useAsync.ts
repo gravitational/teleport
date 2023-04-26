@@ -22,9 +22,19 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *
  * * The first element is the representation of the attempt to run that async function as data, the
  *   so called attempt object.
- * * The second element is a function which when called starts to execute the async function.
+ * * The second element is a function which when called starts to execute the async function (the
+ * `run` function).
  * * The third element is a function that lets you directly update the attempt object if needed.
  *
+ * `useAsync` automatically ignores stale promises either when the underlying component gets
+ * unmounted. If the `run` function gets executed again while the promise from the previous
+ * execution still hasn't finished, the return value of the previous promise will be ignored.
+ *
+ * The primary interface through which you should interact with the result of the callback is the
+ * attempt object. The `run` function has a return value as well which is useful if you need to
+ * chain its result with some other action inside an event handler or in `useEffect`. The return
+ * value of the `run` function corresponds to the return value of that specific invocation of the
+ * callback passed to `useAsync`. This means you need to manually handle the `CanceledError` case.
  *
  * @example
  * export function useUserProfile(userId) {
@@ -44,7 +54,7 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *     if (!fetchUserProfileAttempt.status) {
  *       fetchUserProfile()
  *     }
- *   }, [fetchUserProfileAttempt])
+ *   }, [fetchUserProfileAttempt, fetchUserProfile])
  *
  *    switch (fetchUserProfileAttempt.status) {
  *      case '':
@@ -55,6 +65,21 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *      case 'success':
  *       return <UserAvatar url={fetchUserProfileAttempt.data.avatarUrl} />;
  *    }
+ * }
+ *
+ * @example Consuming the `run` return value
+ * function UserProfile(props) {
+ *   const { fetchUserProfileAttempt, fetchUserProfile } = useUserProfile(props.id);
+ *
+ *   useEffect(async () => {
+ *     if (!fetchUserProfileAttempt.status) {
+ *       const [profile, err] = fetchUserProfile()
+ *
+ *       if (err && !(err instanceof CanceledError)) {
+ *         // Handle the error.
+ *       }
+ *     }
+ *   }, [fetchUserProfileAttempt, fetchUserProfile])
  * }
  *
  */
@@ -114,14 +139,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
     [setState, cb, isMounted]
   );
 
-  const setAttempt = useCallback(
-    (attempt: Attempt<AttemptData>) => {
-      setState(attempt);
-    },
-    [setState]
-  );
-
-  return [state, run, setAttempt] as const;
+  return [state, run, setState] as const;
 }
 
 function useIsMounted() {

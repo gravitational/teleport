@@ -58,7 +58,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c18 {
@@ -305,7 +305,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -346,7 +346,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -387,7 +387,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -428,7 +428,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -467,7 +467,7 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -506,14 +506,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c22"
-            color="text.primary"
+            color="text.main"
           >
             Redshift Serverless
           </div>
@@ -546,14 +546,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c22"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -586,14 +586,14 @@ exports[`render with URL loc state set to "server" 1`] = `
         >
           <div
             class="c17"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c22"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -679,7 +679,7 @@ exports[`render with all access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c19 {
@@ -865,7 +865,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Application
           </div>
@@ -935,7 +935,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Windows Desktop
@@ -976,7 +976,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -1017,7 +1017,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -1058,7 +1058,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -1099,7 +1099,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -1138,7 +1138,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -1179,7 +1179,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -1220,7 +1220,48 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c14"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -1229,6 +1270,47 @@ exports[`render with all access 1`] = `
             class="c15"
           >
             RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c14"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
           </div>
         </div>
       </div>
@@ -1261,7 +1343,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -1302,7 +1384,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -1341,14 +1423,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             DynamoDB
           </div>
@@ -1381,14 +1463,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             ElastiCache & MemoryDB
           </div>
@@ -1421,14 +1503,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -1461,14 +1543,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redshift PostgreSQL
           </div>
@@ -1501,14 +1583,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redshift Serverless
           </div>
@@ -1541,14 +1623,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cache for Redis
           </div>
@@ -1581,14 +1663,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             PostgreSQL
           </div>
@@ -1621,14 +1703,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MySQL
           </div>
@@ -1661,14 +1743,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -1701,14 +1783,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -1741,14 +1823,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL MySQL
           </div>
@@ -1781,14 +1863,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -1822,7 +1904,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB Atlas
           </div>
@@ -1855,14 +1937,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cassandra & ScyllaDB
           </div>
@@ -1895,14 +1977,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             CockroachDB
           </div>
@@ -1935,14 +2017,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Elasticsearch
           </div>
@@ -1975,14 +2057,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB
           </div>
@@ -2015,14 +2097,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redis
           </div>
@@ -2055,14 +2137,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redis Cluster
           </div>
@@ -2096,7 +2178,7 @@ exports[`render with all access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Snowflake (Preview)
           </div>
@@ -2129,14 +2211,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             RDS Proxy
           </div>
@@ -2169,14 +2251,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             High Availability
           </div>
@@ -2209,14 +2291,14 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Dynamic Registration
           </div>
@@ -2302,7 +2384,7 @@ exports[`render with no access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c19 {
@@ -2493,7 +2575,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Application
           </div>
@@ -2565,7 +2647,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Windows Desktop
@@ -2607,7 +2689,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -2649,7 +2731,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -2691,7 +2773,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -2733,7 +2815,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -2773,7 +2855,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -2815,7 +2897,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -2857,7 +2939,49 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -2866,6 +2990,48 @@ exports[`render with no access 1`] = `
             class="c15"
           >
             RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c8"
+      data-testid="1"
+    >
+      <div
+        class="c9"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
           </div>
         </div>
       </div>
@@ -2899,7 +3065,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -2941,7 +3107,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -2985,14 +3151,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             DynamoDB
           </div>
@@ -3030,14 +3196,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             ElastiCache & MemoryDB
           </div>
@@ -3075,14 +3241,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -3120,14 +3286,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Redshift PostgreSQL
           </div>
@@ -3165,14 +3331,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Redshift Serverless
           </div>
@@ -3210,14 +3376,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Cache for Redis
           </div>
@@ -3255,14 +3421,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             PostgreSQL
           </div>
@@ -3300,14 +3466,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             MySQL
           </div>
@@ -3345,14 +3511,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -3390,14 +3556,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -3435,14 +3601,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL MySQL
           </div>
@@ -3480,14 +3646,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -3526,7 +3692,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB Atlas
           </div>
@@ -3564,14 +3730,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Cassandra & ScyllaDB
           </div>
@@ -3609,14 +3775,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             CockroachDB
           </div>
@@ -3654,14 +3820,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Elasticsearch
           </div>
@@ -3699,14 +3865,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB
           </div>
@@ -3744,14 +3910,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Redis
           </div>
@@ -3789,14 +3955,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Redis Cluster
           </div>
@@ -3835,7 +4001,7 @@ exports[`render with no access 1`] = `
           
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Snowflake (Preview)
           </div>
@@ -3873,14 +4039,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             RDS Proxy
           </div>
@@ -3918,14 +4084,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             High Availability
           </div>
@@ -3963,14 +4129,14 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
           >
             Dynamic Registration
           </div>
@@ -4056,7 +4222,7 @@ exports[`render with partial access 1`] = `
   text-overflow: ellipsis;
   font-size: 12px;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c21 {
@@ -4276,7 +4442,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Application
           </div>
@@ -4346,7 +4512,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Windows Desktop
@@ -4387,7 +4553,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -4428,7 +4594,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -4469,7 +4635,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -4510,7 +4676,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -4549,7 +4715,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Server
@@ -4591,7 +4757,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4633,7 +4799,49 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4642,6 +4850,48 @@ exports[`render with partial access 1`] = `
             class="c15"
           >
             RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c19"
+      data-testid="1"
+    >
+      <div
+        class="c20"
+        data-testid="tooltip"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="text.slightlyMuted"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c15"
+          >
+            Aurora MySQL/MariaDB
           </div>
         </div>
       </div>
@@ -4675,7 +4925,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -4717,7 +4967,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
@@ -4761,14 +5011,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             DynamoDB
           </div>
@@ -4806,14 +5056,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             ElastiCache & MemoryDB
           </div>
@@ -4851,14 +5101,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Keyspaces (Apache Cassandra)
           </div>
@@ -4896,14 +5146,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redshift PostgreSQL
           </div>
@@ -4941,14 +5191,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redshift Serverless
           </div>
@@ -4986,14 +5236,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cache for Redis
           </div>
@@ -5031,14 +5281,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             PostgreSQL
           </div>
@@ -5076,14 +5326,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MySQL
           </div>
@@ -5121,14 +5371,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Azure
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -5166,14 +5416,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Microsoft
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             SQL Server (Preview)
           </div>
@@ -5211,14 +5461,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL MySQL
           </div>
@@ -5256,14 +5506,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Google Cloud Provider (GCP)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cloud SQL PostgreSQL
           </div>
@@ -5302,7 +5552,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB Atlas
           </div>
@@ -5340,14 +5590,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Cassandra & ScyllaDB
           </div>
@@ -5385,14 +5635,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             CockroachDB
           </div>
@@ -5430,14 +5680,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Elasticsearch
           </div>
@@ -5475,14 +5725,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             MongoDB
           </div>
@@ -5520,14 +5770,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redis
           </div>
@@ -5565,14 +5815,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Self-Hosted
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Redis Cluster
           </div>
@@ -5611,7 +5861,7 @@ exports[`render with partial access 1`] = `
           
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Snowflake (Preview)
           </div>
@@ -5649,14 +5899,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Amazon Web Services (AWS)
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             RDS Proxy
           </div>
@@ -5694,14 +5944,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             High Availability
           </div>
@@ -5739,14 +5989,14 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="text.slightlyMuted"
             font-size="12px"
           >
             Database
           </div>
           <div
             class="c13"
-            color="text.primary"
+            color="text.main"
           >
             Dynamic Registration
           </div>

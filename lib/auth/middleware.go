@@ -724,37 +724,6 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	return ctx, nil
 }
 
-// CheckIPPinning verifies IP pinning for the identity, using the client ip taken from context.
-// Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
-	if identity.PinnedIP == "" {
-		if pinSourceIP {
-			return trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
-		}
-		return nil
-	}
-
-	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if clientIP != identity.PinnedIP {
-		log.WithFields(logrus.Fields{
-			"client_ip": clientIP,
-			"pinned_ip": identity.PinnedIP,
-		}).Debug("Pinned IP and client IP mismatch")
-		return trace.AccessDenied("pinned IP doesn't match observed client IP")
-	}
-
-	return nil
-}
-
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
 // In addition, it returns the total length of all subjects added to the cert pool, allowing
 // the caller to validate that the pool doesn't exceed the maximum 2-byte length prefix before

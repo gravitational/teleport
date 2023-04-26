@@ -1407,7 +1407,8 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 		case teleport.ComponentAthena:
 			hasNonFileLog = true
 			cfg := athena.Config{
-				Region: auditConfig.Region(),
+				Region:  auditConfig.Region(),
+				Backend: backend,
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
@@ -1622,7 +1623,7 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, func(as *auth.Server) error {
+	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1640,7 +1641,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})
+	})...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2438,6 +2439,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetCAGetter(caGetter),
+			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3879,6 +3881,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetSessionController(sessionController),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
+		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -5190,15 +5193,26 @@ func (process *TeleportProcess) singleProcessMode(mode types.ProxyListenerMode) 
 	}
 
 	if !process.Config.Proxy.DisableTLS && !process.Config.Proxy.DisableALPNSNIListener && mode == types.ProxyListenerMode_Multiplex {
-		if len(process.Config.Proxy.PublicAddrs) != 0 {
-			return &process.Config.Proxy.PublicAddrs[0], true
-		}
+		var addr utils.NetAddr
+		switch {
+		// Use the public address if available.
+		case len(process.Config.Proxy.PublicAddrs) != 0:
+			addr = process.Config.Proxy.PublicAddrs[0]
+
 		// If WebAddress is unspecified "0.0.0.0" replace 0.0.0.0 with localhost since 0.0.0.0 is never a valid
 		// principal (auth server explicitly removes it when issuing host certs) and when WebPort is used
 		// in the single process mode to establish SSH reverse tunnel connection the host is validated against
 		// the valid principal list.
-		addr := process.Config.Proxy.WebAddr
-		addr.Addr = utils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
+		default:
+			addr = process.Config.Proxy.WebAddr
+			addr.Addr = utils.ReplaceUnspecifiedHost(&addr, defaults.HTTPListenPort)
+		}
+
+		// In case the address has "https" scheme for TLS Routing, make sure
+		// "tcp" is used when dialing reverse tunnel.
+		if addr.AddrNetwork == "https" {
+			addr.AddrNetwork = "tcp"
+		}
 		return &addr, true
 	}
 
