@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -208,6 +209,11 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -224,6 +230,7 @@ func (c *ClusterClient) prepareUserCertsRequest(params ReissueParams, key *Key) 
 		Format:                c.tc.CertificateFormat,
 		RequesterName:         params.RequesterName,
 		SSHLogin:              c.tc.HostLogin,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 
