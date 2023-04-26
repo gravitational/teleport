@@ -1527,7 +1527,7 @@ steps:
       path: /root/.aws
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
@@ -17183,6 +17183,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 9cf9403329bad50267de4c167b0c720881727576af10b4b2aa00c97f36150c0b
+hmac: ed15110fe1f093ccb45331b2a370a20b4f2ffbd52458c9227e1fa6386397d86d
 
 ...
