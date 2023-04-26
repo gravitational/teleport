@@ -50,7 +50,7 @@ const ExternalLink = styled.a`
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
 
   &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};

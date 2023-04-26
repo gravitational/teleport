@@ -53,7 +53,7 @@ const UserInfo = styled.div`
 `;
 
 const Username = styled(Text)`
-  color: ${props => props.theme.colors.text.primary}
+  color: ${props => props.theme.colors.text.main}
   font-size: 14px;
   font-weight: 400;
   padding-right: 40px;
@@ -116,7 +116,7 @@ const Dropdown = styled.div<OpenProps>`
 const DropdownItem = styled.div`
   line-height: 1;
   font-size: 14px;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   cursor: pointer;
   border-radius: 4px;
   margin-bottom: 5px;
@@ -138,7 +138,7 @@ const commonDropdownItemStyles = css`
   align-items: center;
   display: flex;
   padding: 10px 10px;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   transition: opacity 0.15s ease-in;
 

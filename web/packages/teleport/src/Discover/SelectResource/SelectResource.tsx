@@ -166,12 +166,12 @@ export function SelectResource(props: SelectResourceProps) {
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="text.secondary">
+                        <Text fontSize="12px" color="text.slightlyMuted">
                           {pretitle}
                         </Text>
                       )}
                       {r.unguidedLink ? (
-                        <Text bold color="text.primary">
+                        <Text bold color="text.main">
                           {title}
                         </Text>
                       ) : (
@@ -323,7 +323,7 @@ const ResourceCard = styled.div`
 
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   cursor: pointer;
   height: 48px;
 
@@ -368,7 +368,7 @@ const StyledInput = styled.input`
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   background: transparent;
   margin-right: ${props => props.theme.space[3]}px;
   margin-bottom: ${props => props.theme.space[2]}px;

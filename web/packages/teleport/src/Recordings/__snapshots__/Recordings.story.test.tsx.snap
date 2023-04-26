@@ -117,20 +117,20 @@ exports[`rendering of Session Recordings 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c4 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__control:hover,
 .c4 .react-select__control:focus,
 .c4 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -151,7 +151,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c4 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -165,7 +165,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c4 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__multi-value {
@@ -211,7 +211,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c4 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c4 .react-select__clear-indicator:hover,
@@ -245,20 +245,20 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c4 .react-select--is-disabled,
 .c4 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__single-value,
 .c4 .react-select__control--is-disabled .react-select__single-value,
 .c4 .react-select--is-disabled .react-select__placeholder,
 .c4 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c1 {
@@ -481,7 +481,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -591,7 +591,7 @@ exports[`rendering of Session Recordings 1`] = `
           >
             <div
               class="c14"
-              color="text.primary"
+              color="text.main"
               style="white-space: nowrap; text-transform: uppercase;"
             >
               Showing 
