@@ -181,10 +181,10 @@ type OktaAssignment interface {
 	SetMetadata(metadata Metadata)
 	// GetUser will return the user that the Okta assignment actions applies to.
 	GetUser() string
-	// GetActions will return the list of actions that will be performed as part of this assignment.
-	GetActions() []OktaAssignmentAction
+	// GetTargets will return the list of targets that will be assigned as part of this assignment.
+	GetTargets() []OktaAssignmentTarget
 	// GetCleanupTime will return the optional time that the assignment should be cleaned up.
-	GetCleanupTime() *time.Time
+	GetCleanupTime() time.Time
 	// SetCleanupTime will set the cleanup time.
 	SetCleanupTime(time.Time)
 	// GetStatus gets the status of the assignment.
@@ -195,6 +195,10 @@ type OktaAssignment interface {
 	SetLastTransition(time.Time)
 	// GetLastTransition returns the time that the action last transitioned.
 	GetLastTransition() time.Time
+	// IsFinalized returns the finalized state.
+	IsFinalized() bool
+	// SetFinalized sets the finalized state
+	SetFinalized(bool)
 	// Copy returns a copy of this Okta assignment resource.
 	Copy() OktaAssignment
 }
@@ -223,26 +227,25 @@ func (o *OktaAssignmentV1) GetUser() string {
 	return o.Spec.User
 }
 
-// GetActions returns the actions associated with the Okta assignment.
-func (o *OktaAssignmentV1) GetActions() []OktaAssignmentAction {
-	actions := make([]OktaAssignmentAction, len(o.Spec.Actions))
+// GetTargets returns the targets associated with the Okta assignment.
+func (o *OktaAssignmentV1) GetTargets() []OktaAssignmentTarget {
+	targets := make([]OktaAssignmentTarget, len(o.Spec.Targets))
 
-	for i, action := range o.Spec.Actions {
-		actions[i] = action
+	for i, target := range o.Spec.Targets {
+		targets[i] = target
 	}
 
-	return actions
+	return targets
 }
 
 // GetCleanupTime will return the optional time that the assignment should be cleaned up.
-func (o *OktaAssignmentV1) GetCleanupTime() *time.Time {
+func (o *OktaAssignmentV1) GetCleanupTime() time.Time {
 	return o.Spec.CleanupTime
 }
 
 // SetCleanupTime will set the cleanup time.
 func (o *OktaAssignmentV1) SetCleanupTime(cleanupTime time.Time) {
-	utcTime := cleanupTime.UTC()
-	o.Spec.CleanupTime = &utcTime
+	o.Spec.CleanupTime = cleanupTime.UTC()
 }
 
 // GetStatus gets the status of the assignment.
@@ -322,6 +325,16 @@ func (o *OktaAssignmentV1) GetLastTransition() time.Time {
 	return o.Spec.LastTransition
 }
 
+// IsFinalized returns the finalized state.
+func (o *OktaAssignmentV1) IsFinalized() bool {
+	return o.Spec.Finalized
+}
+
+// SetFinalized sets the finalized state
+func (o *OktaAssignmentV1) SetFinalized(finalized bool) {
+	o.Spec.Finalized = finalized
+}
+
 // Copy returns a copy of this Okta assignment resource.
 func (o *OktaAssignmentV1) Copy() OktaAssignment {
 	return proto.Clone(o).(*OktaAssignmentV1)
@@ -357,43 +370,40 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("user must not be empty")
 	}
 
-	if len(o.Spec.Actions) == 0 {
-		return trace.BadParameter("actions is empty")
+	if len(o.Spec.Targets) == 0 {
+		return trace.BadParameter("targets is empty")
 	}
 
-	if o.Spec.CleanupTime != nil {
-		utcTime := o.Spec.CleanupTime.UTC()
-		o.Spec.CleanupTime = &utcTime
-	}
-
+	// Make sure the times are UTC so that Copy() works properly.
+	o.Spec.CleanupTime = o.Spec.CleanupTime.UTC()
 	o.Spec.LastTransition = o.Spec.LastTransition.UTC()
 
 	return nil
 }
 
-// OktaAssignmentAction is an individual action to apply to an Okta assignment.
-type OktaAssignmentAction interface {
-	// GetTargetType returns the target type of the action.
+// OktaAssignmentTarget is an target for an Okta assignment.
+type OktaAssignmentTarget interface {
+	// GetTargetType returns the target type.
 	GetTargetType() string
-	// GetID returns the ID of the action target.
+	// GetID returns the ID of the target.
 	GetID() string
 }
 
-// GetTargetType returns the target type of the action.
-func (o *OktaAssignmentActionV1) GetTargetType() string {
-	switch o.Target.Type {
-	case OktaAssignmentActionTargetV1_APPLICATION:
-		return constants.OktaAssignmentActionTargetApplication
-	case OktaAssignmentActionTargetV1_GROUP:
-		return constants.OktaAssignmentActionTargetGroup
+// GetTargetType returns the target type.
+func (o *OktaAssignmentTargetV1) GetTargetType() string {
+	switch o.Type {
+	case OktaAssignmentTargetV1_APPLICATION:
+		return constants.OktaAssignmentTargetApplication
+	case OktaAssignmentTargetV1_GROUP:
+		return constants.OktaAssignmentTargetGroup
 	default:
-		return constants.OktaAssignmentActionTargetUnknown
+		return constants.OktaAssignmentTargetUnknown
 	}
 }
 
 // GetID returns the ID of the action target.
-func (o *OktaAssignmentActionV1) GetID() string {
-	return o.Target.Id
+func (o *OktaAssignmentTargetV1) GetID() string {
+	return o.Id
 }
 
 // OktaAssignments is a list of OktaAssignment resources.

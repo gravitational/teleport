@@ -1256,12 +1256,10 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 			},
 			Status: types.OktaAssignmentSpecV1_PENDING,

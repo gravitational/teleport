@@ -111,18 +111,14 @@ func TestOktaAssignmentUnmarshal(t *testing.T) {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 				{
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
+					Type: types.OktaAssignmentTargetV1_GROUP,
+					Id:   "234567",
 				},
 			},
 			Status: types.OktaAssignmentSpecV1_PENDING,
@@ -144,18 +140,14 @@ func TestOktaAssignmentMarshal(t *testing.T) {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 				{
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
+					Type: types.OktaAssignmentTargetV1_GROUP,
+					Id:   "234567",
 				},
 			},
 
@@ -195,13 +187,11 @@ metadata:
   name: test-assignment
 spec:
   user: test-user@test.user
-  actions:
-  - target:
-      type: 1
-      id: "123456"
-  - target:
-      type: 2
-      id: "234567"
+  targets:
+  - type: 1
+    id: "123456"
+  - type: 2
+    id: "234567"
   status: 1
 `
 )

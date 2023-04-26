@@ -5298,13 +5298,14 @@ message OktaAssignmentV1 {
 message OktaAssignmentSpecV1 {
   // User is the user that these actions will be applied to.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Actions is a list of Okta actions to take on a user.
-  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+  // Targets is a list of Okta targets to take on a user.
+  repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
   // CleanupTime is an optional field that notes when the assignment should be cleaned up.
   // If absent, the assignment will never be cleaned up.
   google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.jsontag) = "cleanup_time",
     (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true
+    (gogoproto.nullable) = false
   ];
 
   // Status is the status of the assignment.
@@ -5327,21 +5328,19 @@ message OktaAssignmentSpecV1 {
   // LastTransition is an optional field that notes when the last state transition
   // occurred for this action. If absent, this object has never transitioned.
   google.protobuf.Timestamp LastTransition = 5 [
+    (gogoproto.jsontag) = "last_transition",
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+
+  // Finalized is set when the assignment has been properly cleaned up.
+  bool Finalized = 6 [(gogoproto.jsontag) = "finalized"];
 }
 
-// OktaAssignmentActionV1 is a Okta assignment action.
-message OktaAssignmentActionV1 {
-  // Target is the target of the assignment action.
-  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
-}
-
-// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
-message OktaAssignmentActionTargetV1 {
-  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
-  enum OktaAssignmentActionTargetType {
+// OktaAssignmentTargetV1 is a target of an Okta assignment.
+message OktaAssignmentTargetV1 {
+  // OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
+  enum OktaAssignmentTargetType {
     // UNKNOWN indicates the target is unknown.
     UNKNOWN = 0;
     // APPLICATION indicates the target is an application.
@@ -5350,8 +5349,8 @@ message OktaAssignmentActionTargetV1 {
     GROUP = 2;
   }
 
-  // Type is the type of Okta resource this assignment action is targeting.
-  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // Type is the type of Okta resource this assignment is targeting.
+  OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
 }
