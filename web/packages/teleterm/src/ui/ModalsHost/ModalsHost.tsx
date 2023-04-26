@@ -22,7 +22,7 @@ import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
 import { Dialog } from 'teleterm/ui/services/modals';
 
-import ClusterLogout from '../ClusterLogout/ClusterLogout';
+import { ClusterLogout } from '../ClusterLogout';
 
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
