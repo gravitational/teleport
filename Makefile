@@ -1164,8 +1164,8 @@ pkg:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
-	# arch and runtime are currently ignored on OS X
-	# we pass them through for consistency - they will be dropped by the build script
+	# runtime is currently ignored on OS X
+	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
@@ -1173,7 +1173,7 @@ pkg:
 .PHONY: pkg-tsh
 pkg-tsh:
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
 
