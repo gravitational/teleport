@@ -777,7 +777,7 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaCache, err := local.NewOktaService(config.Backend)
+	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)

@@ -5298,56 +5298,49 @@ message OktaAssignmentV1 {
 message OktaAssignmentSpecV1 {
   // User is the user that these actions will be applied to.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Actions is a list of Okta actions to take on a user.
-  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+  // Targets is a list of Okta targets to take on a user.
+  repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
   // CleanupTime is an optional field that notes when the assignment should be cleaned up.
   // If absent, the assignment will never be cleaned up.
   google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.jsontag) = "cleanup_time",
     (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true
+    (gogoproto.nullable) = false
   ];
-}
 
-// OktaAssignmentActionV1 is a Okta assignment action.
-message OktaAssignmentActionV1 {
-  // OktaAssignmentStatus represents the status of an action in an Okta assignment.
-  enum OktaAssignmentActionStatus {
+  // Status is the status of the assignment.
+  OktaAssignmentStatus status = 4 [(gogoproto.jsontag) = "status"];
+
+  // OktaAssignmentStatus represents the status of an Okta assignment.
+  enum OktaAssignmentStatus {
     // UNKNOWN indicates the status is not set.
     UNKNOWN = 0;
     // PENDING indicates the action has not yet been applied.
     PENDING = 1;
-    // SUCCESSFUL indicates the action was applied successfully.
-    SUCCESSFUL = 2;
-    // FAILED indicates the action was not applied successfully. It will be retried.
-    FAILED = 3;
-    // CLEANED_UP indicates the action was cleaned up successfully.
-    CLEANED_UP = 4;
-    // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
-    CLEANUP_FAILED = 5;
     // PROCESSSING indicates that the assignment is being applied.
-    PROCESSING = 6;
-    // CLEANUP_PENDING indicates the action needs to be cleaned up.
-    CLEANUP_PENDING = 7;
-    // CLEANUP_PROCESSING indicates the action is being cleaned up.
-    CLEANUP_PROCESSING = 8;
+    PROCESSING = 2;
+    // SUCCESSFUL indicates the action was applied successfully.
+    SUCCESSFUL = 3;
+    // FAILED indicates the action was not applied successfully. It will be retried.
+    FAILED = 4;
   }
 
-  // Status is the status of the action.
-  OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
-  // Target is the target of the assignment action.
-  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
   // LastTransition is an optional field that notes when the last state transition
   // occurred for this action. If absent, this object has never transitioned.
-  google.protobuf.Timestamp LastTransition = 3 [
+  google.protobuf.Timestamp LastTransition = 5 [
+    (gogoproto.jsontag) = "last_transition",
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+
+  // Finalized is set when the assignment has been properly cleaned up.
+  bool Finalized = 6 [(gogoproto.jsontag) = "finalized"];
 }
 
-// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
-message OktaAssignmentActionTargetV1 {
-  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
-  enum OktaAssignmentActionTargetType {
+// OktaAssignmentTargetV1 is a target of an Okta assignment.
+message OktaAssignmentTargetV1 {
+  // OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
+  enum OktaAssignmentTargetType {
     // UNKNOWN indicates the target is unknown.
     UNKNOWN = 0;
     // APPLICATION indicates the target is an application.
@@ -5356,8 +5349,8 @@ message OktaAssignmentActionTargetV1 {
     GROUP = 2;
   }
 
-  // Type is the type of Okta resource this assignment action is targeting.
-  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // Type is the type of Okta resource this assignment is targeting.
+  OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
 }
