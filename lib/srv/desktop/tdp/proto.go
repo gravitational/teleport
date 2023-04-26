@@ -229,6 +229,12 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 		return PNG2Frame{}, trace.Wrap(err)
 	}
 
+	// prevent allocation of giant buffers.
+	// this also avoids panic for pngLength ~ 4294967295 due to overflow.
+	if pngLength > maxPNGFrameDataLength {
+		return PNG2Frame{}, trace.BadParameter("pngLength too big: %v", pngLength)
+	}
+
 	// Allocate buffer that will fit PNG2Frame message
 	// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#27---png-frame-2
 	// message type (1) + png length (4) + left, right, top, bottom (4 x 4) + data => 21 + data
@@ -1459,6 +1465,9 @@ const tdpMaxPathLength = 10240
 
 const maxClipboardDataLength = 1024 * 1024    // 1MB
 const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+
+// maxPNGFrameDataLength is maximum data length for PNG2Frame
+const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (
