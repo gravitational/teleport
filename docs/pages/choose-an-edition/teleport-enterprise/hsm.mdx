@@ -78,13 +78,13 @@ On the EC2 instance where you will run your Teleport Auth Server:
    DEBU[0000] preflight complete                            cert= config= key= pid=73502 seccomp=false serial= syslog=false timeout=0s version=3.0.3
    DEBU[0000] takeoff                                       TLS=false listen="localhost:12345" pid=73502
    ```
-3. Use `yubihsm-shell` to create a new Authentication Key to be used by
+3. Use `yubihsm-shell` to create a new authentication key to be used by
    Teleport with the necessary capabilities.
 
-   YubiHSM2 comes with a factory default Authentication Key at slot 1 with password
+   YubiHSM2 comes with a factory default authentication key at slot 1 with password
    `password`. You should replace and delete it as recommended by Yubico.
 
-   When creating the Authentication Key to be used by Teleport, the password
+   When creating the authentication key to be used by Teleport, the password
    must have at least 8 characters. The example `hunter22` is used here.
 
    ```text
@@ -103,11 +103,11 @@ On the EC2 instance where you will run your Teleport Auth Server:
    yubihsm> session open 0x85cf hunter22
    Created session 1
 
-   # Delete the factory default Authentication Key
+   # Delete the factory default authentication key
    yubihsm> delete 0 1 authentication-key
    ```
 
-   Take note of the slot number of the new Authentication Key.
+   Take note of the slot number of the new authentication key.
    In the above example this is the hex value `0x85cf`.
    This will need to be included in your Teleport configuration file in a later
    step.
@@ -175,7 +175,7 @@ auth_service:
       module_path: /usr/local/lib/pkcs11/yubihsm_pkcs11.dylib
       # slot_number should always be set to 0 for YubiHSM2
       slot_number: 0
-      # pin should be the (hex) slot number of your Authentication Key,
+      # pin should be the (hex) slot number of your authentication key,
       # concatenated with the password
       pin: "85cfhunter22"
       # pin_path can optionally be used to read the pin from a file
