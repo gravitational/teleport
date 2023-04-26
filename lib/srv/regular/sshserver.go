@@ -1912,7 +1912,7 @@ func (s *Server) handleNetConfigRequest(ctx context.Context, req *ssh.Request) {
 	}
 
 	// On error, reply with true to indicate that the server is able to handle the request
-	// but a server side error occured, this lets the agent differentiate between a server
+	// but a server side error occurred, this lets the agent differentiate between a server
 	// that does not support the request and a transient error.
 	netconfig, err := s.authService.GetClusterNetworkingConfig(ctx)
 	if err != nil {
