@@ -4823,7 +4823,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var usedKeys [][]byte
+	var activeKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
@@ -4832,17 +4832,23 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
 			for _, sshKeyPair := range keySet.SSH {
-				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
 			}
 			for _, tlsKeyPair := range keySet.TLS {
-				usedKeys = append(usedKeys, tlsKeyPair.Key)
+				activeKeys = append(activeKeys, tlsKeyPair.Key)
 			}
 			for _, jwtKeyPair := range keySet.JWT {
-				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+	}
+	return nil
 }
 
 // GetLicense return the license used the start the teleport enterprise auth server
