@@ -509,12 +509,14 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 // related to RPID mismatch.
 func TestCredentialRPID(t *testing.T) {
 	const origin = "https://example.com"
+	const originOther = "https://notexample.com"
 	const rpID = "example.com"
 	const user = "llama"
 
 	ctx := context.Background()
 	identity := newFakeIdentity(user)
 	webConfig := &types.Webauthn{RPID: rpID}
+	webOtherRP := &types.Webauthn{RPID: "notexample.com"}
 
 	dev1Key, err := mocku2f.Create()
 	require.NoError(t, err)
@@ -557,6 +559,16 @@ func TestCredentialRPID(t *testing.T) {
 		dev.GetWebauthn().CredentialRpId = ""
 	}
 
+	t.Run("login issues challenges for unknown credential RPID", func(t *testing.T) {
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP, // Wrong RPID!
+			Identity: identity,
+		}
+
+		_, err := webLogin.Begin(ctx, user)
+		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
+	})
+
 	t.Run("login writes credential RPID", func(t *testing.T) {
 		webLogin := &wanlib.LoginFlow{
 			Webauthn: webConfig,
@@ -572,6 +584,40 @@ func TestCredentialRPID(t *testing.T) {
 		mfaDev, err := webLogin.Finish(ctx, user, car)
 		require.NoError(t, err, "Finish failed")
 		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+	})
+
+	t.Run("login doesn't issue challenges for the wrong RPIDs", func(t *testing.T) {
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP, // Wrong RPID!
+			Identity: identity,
+		}
+
+		_, err := webLogin.Begin(ctx, user)
+		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
+	})
+
+	t.Run("login issues challenges if at least one device matches", func(t *testing.T) {
+		other1Key, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		// Register a device for the wrong/new RPID.
+		// Storage is now a mix of devices for both RPs.
+		_, err = register(webOtherRP, user, originOther, "other1" /* deviceName */, other1Key)
+		require.NoError(t, err, "Registration failed")
+
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP,
+			Identity: identity,
+		}
+		assertion, err := webLogin.Begin(ctx, user)
+		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
+
+		// Verify that we got the correct device.
+		assert.Len(t, assertion.Response.AllowedCredentials, 1, "AllowedCredentials")
+		assert.Equal(t,
+			other1Key.KeyHandle,
+			assertion.Response.AllowedCredentials[0].CredentialID,
+			"Expected key handle for device `other1`")
 	})
 }
 

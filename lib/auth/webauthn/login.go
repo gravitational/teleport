@@ -83,6 +83,31 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 			return nil, trace.Wrap(err)
 		}
 
+		// Filter devices with the wrong RPID and log an error.
+		foundInvalid := false
+		for i := 0; i < len(devices); i++ {
+			webDev := devices[i].GetWebauthn()
+			if webDev == nil || webDev.CredentialRpId == "" || webDev.CredentialRpId == f.Webauthn.RPID {
+				continue
+			}
+
+			log.Errorf(""+
+				"User device %q/%q has unexpected RPID=%q, excluding from allowed credentials. "+
+				"RPID changes are not supported by WebAuthn, this is likely to cause permanent authentication problems for your users. "+
+				"Consider reverting the change or reset your users so they may register their devices again.",
+				user,
+				devices[i].GetName(),
+				webDev.CredentialRpId)
+
+			// "Cut" device from slice.
+			l := len(devices)
+			devices[i] = devices[l-1]
+			devices = devices[:l-1]
+			i--
+
+			foundInvalid = true
+		}
+
 		// Sort non-resident keys first, which may cause clients to favor them for
 		// MFA in some scenarios (eg, tsh).
 		sort.Slice(devices, func(i, j int) bool {
@@ -98,6 +123,9 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
 		if len(u.credentials) == 0 {
+			if foundInvalid {
+				return nil, trace.Wrap(ErrInvalidCredentials)
+			}
 			return nil, trace.NotFound("found no credentials for user %q", user)
 		}
 	}
