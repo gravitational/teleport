@@ -2709,9 +2709,9 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 // DesktopGroups returns desktop groups matching a desktop or nil if a role disallows desktop user creation
 func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 	groups := make(map[string]struct{})
-	desktop := s.GetAllLabels()
+	labels := s.GetAllLabels()
 	for _, role := range set {
-		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), desktop)
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Allow), labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2730,7 +2730,7 @@ func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 		}
 	}
 	for _, role := range set {
-		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), desktop)
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Deny), labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
