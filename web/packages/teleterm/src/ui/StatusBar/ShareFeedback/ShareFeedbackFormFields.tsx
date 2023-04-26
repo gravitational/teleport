@@ -75,7 +75,6 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-            background: inherit;
             font-size: 14px;
         `}
         rule={requiredField('Suggestions are required')}

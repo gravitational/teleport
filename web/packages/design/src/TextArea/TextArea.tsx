@@ -38,7 +38,7 @@ export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   outline: none;
   width: 100%;
   color: ${props => props.theme.colors.text.primary};
-  background: ${props => props.theme.colors.levels.surface};
+  background: inherit;
 
   ::placeholder {
     color: ${props => props.theme.colors.text.placeholder};
