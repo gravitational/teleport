@@ -123,10 +123,7 @@ test('add cluster', async () => {
 });
 
 test('remove cluster', async () => {
-  const { removeCluster } = getClientMocks();
-  const service = createService({
-    removeCluster,
-  });
+  const service = createService({});
 
   service.setState(draftState => {
     draftState.clusters = new Map([
@@ -135,9 +132,8 @@ test('remove cluster', async () => {
     ]);
   });
 
-  await service.removeCluster(clusterUri);
+  await service.removeClusterAndResources(clusterUri);
 
-  expect(removeCluster).toHaveBeenCalledWith(clusterUri);
   expect(service.findCluster(clusterUri)).toBeUndefined();
   expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
 });
@@ -192,8 +188,9 @@ test('logout from cluster', async () => {
   await service.logout(clusterUri);
 
   expect(logout).toHaveBeenCalledWith(clusterUri);
-  expect(service.findCluster(clusterUri)).toBeUndefined();
-  expect(service.findCluster(leafClusterMock.uri)).toBeUndefined();
+  expect(removeCluster).toHaveBeenCalledWith(clusterUri);
+  expect(service.findCluster(clusterMock.uri).connected).toBe(false);
+  expect(service.findCluster(leafClusterMock.uri).connected).toBe(false);
 });
 
 test('create a gateway', async () => {
