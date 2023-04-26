@@ -62,13 +62,14 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   const {
     changeActivePicker,
-    lockOpen,
+    pauseUserInteraction,
     close,
     inputValue,
     resetInput,
     closeAndResetInput,
     filters,
     removeFilter,
+    addWindowEventListener,
   } = useSearchContext();
   const {
     filterActionsAttempt,
@@ -170,15 +171,16 @@ export function ActionPicker(props: { input: ReactElement }) {
     resourceSearchAttempt.data.errors.length > 0
   ) {
     const showErrorsInModal = () => {
-      lockOpen(
-        new Promise(resolve => {
-          modalsService.openRegularDialog({
-            kind: 'resource-search-errors',
-            errors: resourceSearchAttempt.data.errors,
-            getClusterName,
-            onCancel: () => resolve(undefined),
-          });
-        })
+      pauseUserInteraction(
+        () =>
+          new Promise(resolve => {
+            modalsService.openRegularDialog({
+              kind: 'resource-search-errors',
+              errors: resourceSearchAttempt.data.errors,
+              getClusterName,
+              onCancel: () => resolve(undefined),
+            });
+          })
       );
     };
 
@@ -204,6 +206,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         attempts={actionAttempts}
         onPick={onPick}
         onBack={close}
+        addWindowEventListener={addWindowEventListener}
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {
@@ -419,7 +422,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up a db connection for{' '}
+          Set up a db connection to{' '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
