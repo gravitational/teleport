@@ -2782,8 +2782,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyWebAddress:    tc.WebProxyAddr,
-		ProxySSHAddress:    cfg.proxyAddress,
+		ProxyAddress:       cfg.proxyAddress,
 		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
 		TLSConfig:          tlsConfig,
 		DialOpts:           tc.Config.DialOpts,
@@ -2822,7 +2821,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}, nil
 }
 
-// clientConfig wraps ssh.ClientConfig with additional
+// clientConfig wraps [ssh.ClientConfig] with additional
 // information about a cluster.
 type clientConfig struct {
 	*ssh.ClientConfig
@@ -2833,14 +2832,17 @@ type clientConfig struct {
 // generateClientConfig returns clientConfig that can be used to establish a
 // connection to a cluster.
 func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConfig, error) {
-	sshProxyAddr := tc.Config.SSHProxyAddr
+	proxyAddr := tc.Config.SSHProxyAddr
+	if tc.TLSRoutingEnabled {
+		proxyAddr = tc.Config.WebProxyAddr
+	}
 
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
-		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
 			// Wrap host key and auth callbacks using clusterGuesser.
@@ -2893,7 +2895,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			Auth:            authMethods,
 			Timeout:         apidefaults.DefaultIOTimeout,
 		},
-		proxyAddress: sshProxyAddr,
+		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
 	}, nil
 }
