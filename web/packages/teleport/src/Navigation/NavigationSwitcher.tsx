@@ -24,10 +24,10 @@ import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
 
 import { useHistory } from 'react-router';
 
+import { useTeleport } from 'teleport';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
 import icon from './teleport-icon.png';
-import { useTeleport } from 'teleport';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;

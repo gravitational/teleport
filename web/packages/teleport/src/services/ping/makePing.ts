@@ -22,6 +22,6 @@ export function makePing(json: any): PingResponse {
 
   return {
     automaticUpgrades: automatic_upgrades,
-    assistEnabled: auth.assist.enabled,
+    assistEnabled: auth?.assist?.enabled as boolean,
   };
 }
