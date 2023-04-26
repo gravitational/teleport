@@ -80,8 +80,14 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Run the following commands to create a directory on your Linux host
-called `demo-app` and add a simple HTML file to serve to clients:
+This guide assumes a web-based application for Teleport to provide (and restrict)
+access to. You can use any service that listens for HTTP requests, or create a demo
+application.
+
+<Details title="Create a demo app" opened="false">
+
+Create a directory on your Linux host called `demo-app` and add a simple HTML
+file to serve to clients:
 
 ```code
 $ mkdir demo-app
@@ -104,6 +110,10 @@ $ nohup python3 -m http.server 9000 --directory demo-app &
 Since port 9000 is not open on your Linux host, there is currently no way to
 access the web service from your local workstation. We will configure Teleport to
 enable you to access the web service securely.
+
+</Details>
+
+The rest of this page assumes a service listening for HTTP requests on port `9000`. Adjust this value to match your application.
 
 ## Step 3/6. Set up Teleport on your Linux host
 
