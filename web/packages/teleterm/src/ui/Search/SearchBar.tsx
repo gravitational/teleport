@@ -71,19 +71,22 @@ function SearchBar() {
     },
   });
 
+  // Handle outside click when the search bar is open.
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     const onClickOutside = e => {
       if (!e.composedPath().includes(containerRef.current)) {
         close();
       }
     };
 
-    if (isOpen) {
-      const { cleanup } = addWindowEventListener('click', onClickOutside, {
-        capture: true,
-      });
-      return cleanup;
-    }
+    const { cleanup } = addWindowEventListener('click', onClickOutside, {
+      capture: true,
+    });
+    return cleanup;
   }, [close, isOpen, addWindowEventListener]);
 
   // closeIfAnotherElementReceivedFocus handles a scenario where the focus shifts from the search
