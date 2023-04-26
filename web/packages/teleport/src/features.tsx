@@ -616,8 +616,8 @@ export class FeatureAssist implements TeleportFeature {
     component: Assist,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return flags.assist;
   }
 }
 

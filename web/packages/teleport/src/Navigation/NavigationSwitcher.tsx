@@ -27,6 +27,7 @@ import { useHistory } from 'react-router';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
 import icon from './teleport-icon.png';
+import { useTeleport } from 'teleport';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
@@ -126,7 +127,12 @@ const Background = styled.div`
 `;
 
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
-  const [showAssist, setShowAssist] = useLocalStorage('show-assist', true);
+  const ctx = useTeleport();
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+  const [showAssist, setShowAssist] = useLocalStorage(
+    'show-assist',
+    assistEnabled
+  );
 
   const [open, setOpen] = useState(showAssist);
 
@@ -259,11 +265,13 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     );
   }
 
-  items.push(
-    <DropdownItem key="assist" open={open} onClick={() => handleOpenAssist()}>
-      Assist
-    </DropdownItem>
-  );
+  if (assistEnabled) {
+    items.push(
+      <DropdownItem key="assist" open={open} onClick={() => handleOpenAssist()}>
+        Assist
+      </DropdownItem>
+    );
+  }
 
   return (
     <Container ref={ref}>

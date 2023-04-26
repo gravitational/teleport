@@ -100,6 +100,8 @@ type userACL struct {
 	Integrations access `json:"integrations"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust access `json:"deviceTrust"`
+	// AssistTrust defines access to assist feature.
+	AssistTrust access `json:"assist"`
 }
 
 type authType string
@@ -193,6 +195,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
+	assistAccess := newAccess(userRoles, ctx, types.KindAssistant)
 
 	var billingAccess access
 	if features.Cloud {
@@ -239,6 +242,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
 		DeviceTrust:             deviceTrust,
+		AssistTrust:             assistAccess,
 	}
 
 	// local user
