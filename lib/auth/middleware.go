@@ -890,3 +890,30 @@ func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
 		c.CloseIdleConnections()
 	}
 }
+
+// IdentityForwardingHeaders returns a copy of the provided headers with
+// the TeleportImpersonateUserHeader and TeleportImpersonateIPHeader headers
+// set to the identity provided.
+// The returned headers shouln't be used across requests as they contain
+// the client's IP address and the user's identity.
+func IdentityForwardingHeaders(ctx context.Context, originalHeaders http.Header) (http.Header, error) {
+	identity, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b, err := json.Marshal(identity.GetIdentity())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headers := originalHeaders.Clone()
+	headers.Set(TeleportImpersonateUserHeader, string(b))
+
+	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headers.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
+	return headers, nil
+}

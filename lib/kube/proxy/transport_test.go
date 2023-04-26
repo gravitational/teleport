@@ -161,7 +161,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 	}{
 		{
 			name:          "local site",
-			dialerCreator: f.localClusterDiater,
+			dialerCreator: f.localClusterDialer,
 			want: reversetunnel.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -178,7 +178,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 		},
 		{
 			name:          "remote site",
-			dialerCreator: f.remoteClusterDiater,
+			dialerCreator: f.remoteClusterDialer,
 			want: reversetunnel.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
