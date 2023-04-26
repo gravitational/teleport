@@ -3715,11 +3715,10 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	humanDuration := "EXPIRED"
 	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
-		// Display <1m if less then 1 minute left while valid instead of 0s
+		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
 		if duration < time.Minute {
 			humanDuration = "valid for <1m"
-		} else {
-			humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
 		}
 	}
 
