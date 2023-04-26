@@ -79,6 +79,9 @@ endif
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
+RUST_VERSION ?= $(shell make --no-print-directory -C build.assets print-rust-version)
+RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
+
 # Have cargo use sparse crates.io protocol:
 # https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
 # TODO: Delete when it becomes default in Rust 1.70.0
@@ -1257,3 +1260,12 @@ build-ui-e: ensure-js-deps
 .PHONY: docker-ui
 docker-ui:
 	$(MAKE) -C build.assets ui
+
+# rustup-install-target-toolchain ensures the required rust compiler is
+# installed to build for $(ARCH)/$(OS) for the version of rust we use, as
+# defined in build.assets/Makefile. It assumes that `rustup` is already
+# installed for managing the rust toolchain.
+.PHONY: rustup-install-target-toolchain
+rustup-install-target-toolchain:
+	rustup override set $(RUST_VERSION)
+	rustup target add $(RUST_TARGET_ARCH)
