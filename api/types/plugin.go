@@ -289,12 +289,12 @@ func (p *PluginV1) MatchSearch(values []string) bool {
 	return MatchSearch(fieldVals, values, nil)
 }
 
-// GetStaticLabels returns the database static labels.
+// GetStaticLabels returns the plugin static labels.
 func (p *PluginV1) GetStaticLabels() map[string]string {
 	return p.Metadata.Labels
 }
 
-// SetStaticLabels sets the database static labels.
+// SetStaticLabels sets the plugin static labels.
 func (p *PluginV1) SetStaticLabels(sl map[string]string) {
 	p.Metadata.Labels = sl
 }
