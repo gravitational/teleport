@@ -3631,6 +3631,7 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// CreatePlugins creates a new plugin resource
 func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	p, ok := plugin.(*types.PluginV1)
 	if !ok {
@@ -3643,24 +3644,29 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	return nil
 }
 
+// DeleteAllPlugins deletes all plugin resources
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllPlugins(ctx, &emptypb.Empty{})
 	return trace.Wrap(err)
 }
 
+// DeletePlugin deletes a plugin resource
 func (c *Client) DeletePlugin(ctx context.Context, name string) error {
 	_, err := c.grpc.DeletePlugin(ctx, &types.ResourceRequest{Name: name})
 	return trace.Wrap(err)
 }
 
+// GetPlugin gets a plugin resource
 func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	return c.grpc.GetPlugin(ctx, &types.ResourceRequest{Name: name})
 }
 
+// GetPlugins gets all plugin resources
 func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) (*types.PluginListV1, error) {
 	return c.grpc.GetPlugins(ctx, &emptypb.Empty{})
 }
 
+// ListPlugins returns a list of plugin resources
 func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
 	request := &types.ListPluginsRequest{
 		Limit:    int32(limit),
