@@ -65,7 +65,7 @@ const StyledNavButton = styled.button(props => {
     borderRadius: '4px',
 
     '&:hover, &:focus': {
-      background: props.theme.colors.levels.surfaceSecondary,
+      background: props.theme.colors.spotBackground[0],
     },
     ...space(props),
     ...width(props),

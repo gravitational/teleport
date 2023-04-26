@@ -26,13 +26,8 @@ const contrastThreshold = 3;
 const colors = {
   levels: {
     sunken: '#0C143D',
-    sunkenSecondary: '#131B43',
-
     surface: '#222C59',
-    surfaceSecondary: '#182047',
-
     elevated: '#344179',
-
     popout: '#4A5688',
   },
 
@@ -144,6 +139,8 @@ const colors = {
 
   danger: pink.A400,
   highlight: yellow[50],
+  // for CLI commands
+  bgTerminal: '#010B1C',
   disabled: blueGrey[500],
   info: lightBlue[600],
   success: teal.A700,

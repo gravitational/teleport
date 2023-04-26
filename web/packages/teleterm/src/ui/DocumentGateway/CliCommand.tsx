@@ -45,7 +45,7 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
       alignItems="center"
       justifyContent="space-between"
       borderRadius={2}
-      bg="levels.sunkenSecondary"
+      bg="bgTerminal"
       mb={2}
     >
       <Flex
