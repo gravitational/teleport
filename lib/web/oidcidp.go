@@ -133,14 +133,13 @@ func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httproute
 		return nil, trace.Errorf("no certificates were provided")
 	}
 
-	/*
-		Get the last certificate of the chain
-		https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
-		> If you see more than one certificate, find the last certificate displayed (at the end of the command output).
-		> This contains the certificate of the top intermediate CA in the certificate authority chain.
+	// Get the last certificate of the chain
+	// https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
+	// > If you see more than one certificate, find the last certificate displayed (at the end of the command output).
+	// > This contains the certificate of the top intermediate CA in the certificate authority chain.
+	//
+	// The guide above uses openssl but the expected list of certificates and their order is the same.
 
-		The guide above uses openssl but the expected list of certificates and their order is the same.
-	*/
 	lastCertificateIdx := len(certs) - 1
 	cert := certs[lastCertificateIdx]
 	thumbprint := sha1.Sum(cert.Raw)
