@@ -217,7 +217,7 @@ const Input = styled.input(props => {
       color: theme.colors.text.secondary,
     },
     '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
+      color: theme.colors.text.primary,
       borderColor: theme.colors.light,
     },
     '&:focus': {

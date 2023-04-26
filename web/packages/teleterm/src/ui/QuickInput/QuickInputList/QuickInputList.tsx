@@ -165,7 +165,7 @@ const StyledItem = styled.div(({ theme, $active }) => {
     },
 
     padding: '2px 8px',
-    color: theme.colors.text.contrast,
+    color: theme.colors.text.primary,
     background: $active
       ? theme.colors.levels.surface
       : theme.colors.levels.sunken,
@@ -175,7 +175,7 @@ const StyledItem = styled.div(({ theme, $active }) => {
 const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
+    color: theme.colors.text.primary,
     background: theme.colors.levels.surface,
     boxSizing: 'border-box',
     marginTop: '42px',
