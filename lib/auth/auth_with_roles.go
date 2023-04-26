@@ -5984,7 +5984,7 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (
 
 // InsertAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
