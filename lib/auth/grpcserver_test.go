@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -1716,7 +1717,7 @@ func TestIsMFARequired(t *testing.T) {
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: "node-a",
+			Name: uuid.NewString(),
 		},
 		Spec: types.ServerSpecV2{
 			Hostname: "node-a",
@@ -1857,6 +1858,102 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
 	require.False(t, resp.Required)
+}
+
+func TestIsMFARequired_NodeMatch(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Register an SSH node.
+	node, err := types.NewServerWithLabels(uuid.NewString(), types.KindNode, types.ServerSpecV2{
+		Hostname:    "node-a",
+		Addr:        "127.0.0.1:3022",
+		PublicAddrs: []string{"node.example.com:3022", "localhost:3022"},
+	}, map[string]string{"foo": "bar"})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// Create a fake user with per session mfa required for all nodes.
+	role, err := CreateRole(ctx, srv.Auth(), "mfa-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{"mfa-user"},
+			NodeLabels: types.Labels{types.Wildcard: utils.Strings{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(srv.Auth(), "mfa-user", role)
+	require.NoError(t, err)
+
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc string
+		// IsMFARequired only expects a host name or ip without the port.
+		node        string
+		expectMatch require.BoolAssertionFunc
+	}{
+		{
+			desc:        "OK uuid match",
+			node:        node.GetName(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK host name match",
+			node:        node.GetHostname(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK addr match",
+			node:        node.GetAddr(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK public addr 1 match",
+			node:        "node.example.com",
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK public addr 2 match",
+			node:        "localhost",
+			expectMatch: require.True,
+		},
+		{
+			desc:        "NOK label match",
+			node:        "foo",
+			expectMatch: require.False,
+		},
+		{
+			desc:        "NOK unknown ip",
+			node:        "1.2.3.4",
+			expectMatch: require.False,
+		},
+		{
+			desc:        "NOK unknown addr",
+			node:        "unknown.example.com",
+			expectMatch: require.False,
+		},
+	} {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+					Login: user.GetName(),
+					Node:  tc.node,
+				}},
+			})
+			require.NoError(t, err)
+			tc.expectMatch(t, resp.Required)
+		})
+	}
 }
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
