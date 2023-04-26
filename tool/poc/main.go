@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/pem"
 	"github.com/sirupsen/logrus"
 	"io"
+	"os"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/google/go-tpm/tpm2"
@@ -160,6 +162,16 @@ func run(rootLog logrus.FieldLogger) error {
 	}
 	ek := eks[0]
 	logger.Printf("TPM EK: %+v type: %T", ek, ek.Public)
+
+	if ek.Certificate != nil {
+		logger.Printf("cert detected")
+		pem.Encode(os.Stdout, &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: ek.Certificate.Raw,
+		})
+	} else {
+		logger.Printf("no cert, url %s", ek.CertificateURL)
+	}
 
 	akConfig := &attest.AKConfig{}
 	ak, err := tpm.NewAK(akConfig)
