@@ -382,6 +382,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	return sess.checkIfFileTransferApproved(req)
 }
 
+// FileTransferRequestEvent is an event used to Notify party members during File Transfer Request approval process
 type FileTransferRequestEvent string
 
 const (
@@ -403,7 +404,7 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 	session := scx.getSession()
 	if session == nil {
 		s.log.Debugf("Unable to notify %s, no session found in context.", res)
-		return trace.NotFound("No session found in context.")
+		return trace.NotFound("no session found in context")
 	}
 	sid := session.id
 
@@ -1606,7 +1607,7 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisi
 		}
 	}
 	if approver == nil {
-		return nil, trace.AccessDenied("Cannot approve file transfer requests if not in the current moderated session")
+		return nil, trace.AccessDenied("cannot approve file transfer requests if not in the current moderated session")
 	}
 
 	fileTransferReq.approvers[approver.user] = approver
@@ -1638,7 +1639,7 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 	defer s.mu.Unlock()
 	fileTransferReq := s.fileTransferRequests[params.RequestID]
 	if fileTransferReq == nil {
-		return nil, trace.NotFound("File Transfer Request %s not found", params.RequestID)
+		return nil, trace.NotFound("file transfer request %s not found", params.RequestID)
 	}
 	var denier *party
 	for _, p := range s.parties {
@@ -1647,7 +1648,7 @@ func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionP
 		}
 	}
 	if denier == nil {
-		return nil, trace.AccessDenied("Cannot deny file transfer requests if not in the current moderated session")
+		return nil, trace.AccessDenied("cannot deny file transfer requests if not in the current moderated session")
 	}
 
 	delete(s.fileTransferRequests, fileTransferReq.id)

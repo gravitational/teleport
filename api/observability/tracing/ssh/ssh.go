@@ -58,9 +58,9 @@ type EnvsReq struct {
 	EnvsJSON []byte `json:"envs"`
 }
 
-// FileTransferRequestReq contains parameters used to create a file transfer
+// FileTransferReq contains parameters used to create a file transfer
 // request to be stored in the SSH server
-type FileTransferRequestReq struct {
+type FileTransferReq struct {
 	// Download is true if the file transfer requests a download, false if upload
 	Download bool
 	// Location is the location of the file to be downloaded, or directory to upload a file

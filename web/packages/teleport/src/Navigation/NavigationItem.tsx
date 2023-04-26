@@ -44,20 +44,21 @@ const ExternalLink = styled.a`
   ${commonNavigationItemStyles};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
+  color: ${props => props.theme.colors.text.primary};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: #512fc9;
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
 
     ${LinkContent} {
       font-weight: 700;

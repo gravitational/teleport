@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/memorydb"
@@ -546,6 +547,75 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 	require.Empty(t, cmp.Diff(expected, actual))
 }
 
+// TestDatabaseFromRDSV2Instance tests converting an RDS instance (from aws sdk v2/rds) to a database resource.
+func TestDatabaseFromRDSV2Instance(t *testing.T) {
+	instance := &rdsTypesV2.DBInstance{
+		DBInstanceArn:                    aws.String("arn:aws:rds:us-west-1:123456789012:db:instance-1"),
+		DBInstanceIdentifier:             aws.String("instance-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DBInstanceStatus:                 aws.String("available"),
+		DbiResourceId:                    aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: true,
+		Engine:                           aws.String(RDSEnginePostgres),
+		EngineVersion:                    aws.String("13.0"),
+		Endpoint: &rdsTypesV2.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    5432,
+		},
+		TagList: []rdsTypesV2.Tag{{
+			Key:   aws.String("key"),
+			Value: aws.String("val"),
+		}},
+	}
+	expected, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "instance-1",
+		Description: "RDS instance in us-west-1",
+		Labels: map[string]string{
+			types.OriginLabel:  types.OriginCloud,
+			labelAccountID:     "123456789012",
+			labelRegion:        "us-west-1",
+			labelEngine:        RDSEnginePostgres,
+			labelEngineVersion: "13.0",
+			labelEndpointType:  "instance",
+			labelStatus:        "available",
+			"key":              "val",
+		},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-west-1",
+			RDS: types.RDS{
+				InstanceID: "instance-1",
+				ClusterID:  "cluster-1",
+				ResourceID: "resource-1",
+				IAMAuth:    true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	actual, err := NewDatabaseFromRDSV2Instance(instance)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual))
+
+	t.Run("with name override", func(t *testing.T) {
+		newName := "override-1"
+
+		instance.TagList = append(instance.TagList,
+			rdsTypesV2.Tag{
+				Key:   aws.String(labelTeleportDBName),
+				Value: aws.String(newName),
+			},
+		)
+		expected.Metadata.Name = newName
+
+		actual, err := NewDatabaseFromRDSV2Instance(instance)
+		require.NoError(t, err)
+		require.Equal(t, actual.GetName(), newName)
+	})
+}
+
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
 func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 	instance := &rds.DBInstance{
@@ -730,6 +800,82 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		}
 		_, err := NewDatabasesFromRDSClusterCustomEndpoints(&badCluster)
 		require.Error(t, err)
+	})
+}
+
+// TestDatabaseFromRDSV2Cluster tests converting an RDS cluster to a database resource.
+// It uses the V2 of the aws sdk.
+func TestDatabaseFromRDSV2Cluster(t *testing.T) {
+	cluster := &rdsTypesV2.DBCluster{
+		DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:cluster-1"),
+		DBClusterIdentifier:              aws.String("cluster-1"),
+		DbClusterResourceId:              aws.String("resource-1"),
+		IAMDatabaseAuthenticationEnabled: aws.Bool(true),
+		Engine:                           aws.String(RDSEngineAuroraMySQL),
+		EngineVersion:                    aws.String("8.0.0"),
+		Status:                           aws.String("available"),
+		Endpoint:                         aws.String("localhost"),
+		ReaderEndpoint:                   aws.String("reader.host"),
+		Port:                             aws.Int32(3306),
+		CustomEndpoints: []string{
+			"myendpoint1.cluster-custom-example.us-east-1.rds.amazonaws.com",
+			"myendpoint2.cluster-custom-example.us-east-1.rds.amazonaws.com",
+		},
+		TagList: []rdsTypesV2.Tag{{
+			Key:   aws.String("key"),
+			Value: aws.String("val"),
+		}},
+	}
+
+	expectedAWS := types.AWS{
+		AccountID: "123456789012",
+		Region:    "us-east-1",
+		RDS: types.RDS{
+			ClusterID:  "cluster-1",
+			ResourceID: "resource-1",
+			IAMAuth:    true,
+		},
+	}
+
+	t.Run("primary", func(t *testing.T) {
+		expected, err := types.NewDatabaseV3(types.Metadata{
+			Name:        "cluster-1",
+			Description: "Aurora cluster in us-east-1",
+			Labels: map[string]string{
+				types.OriginLabel:  types.OriginCloud,
+				labelAccountID:     "123456789012",
+				labelRegion:        "us-east-1",
+				labelEngine:        RDSEngineAuroraMySQL,
+				labelEngineVersion: "8.0.0",
+				labelEndpointType:  "primary",
+				labelStatus:        "available",
+				"key":              "val",
+			},
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+			AWS:      expectedAWS,
+		})
+		require.NoError(t, err)
+		actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expected, actual))
+
+		t.Run("with name override", func(t *testing.T) {
+			newName := "override-1"
+
+			cluster.TagList = append(cluster.TagList,
+				rdsTypesV2.Tag{
+					Key:   aws.String(labelTeleportDBName),
+					Value: aws.String(newName),
+				},
+			)
+			expected.Metadata.Name = newName
+
+			actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+			require.NoError(t, err)
+			require.Equal(t, actual.GetName(), newName)
+		})
 	})
 }
 

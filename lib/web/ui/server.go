@@ -238,17 +238,35 @@ type Database struct {
 	Labels []Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
+	// URI of the database.
+	URI string `json:"uri"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
+	// AWS contains AWS specific fields.
+	AWS *AWS `json:"aws,omitempty"`
 }
+
+// AWS contains AWS specific fields.
+type AWS struct {
+	// embeds types.AWS fields into this struct when des/serializing.
+	types.AWS `json:""`
+	// Status describes the current server status as reported by AWS.
+	// Currently this field is populated for AWS RDS Databases when Listing Databases using the AWS OIDC Integration
+	Status string `json:"status,omitempty"`
+}
+
+const (
+	// LabelStatus is the label key containing the database status, e.g. "available"
+	LabelStatus = "status"
+)
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
-	return Database{
+	db := Database{
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -257,7 +275,21 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
 		Hostname:      stripProtocolAndPort(database.GetURI()),
+		URI:           database.GetURI(),
 	}
+
+	if database.IsAWSHosted() {
+		dbStatus := ""
+		if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
+			dbStatus = statusLabel
+		}
+		db.AWS = &AWS{
+			AWS:    database.GetAWS(),
+			Status: dbStatus,
+		}
+	}
+
+	return db
 }
 
 // MakeDatabases creates database objects.
