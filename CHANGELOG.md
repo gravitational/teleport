@@ -1168,7 +1168,7 @@ secure cipher suites for desktop access.
 
 As a result of these changes, desktop access users with desktops running Windows
 Server 2012R2 will need to perform
-[additional configuration](https://goteleport.com/docs/desktop-access/getting-started/#step-47-configure-a-certificate-for-rdp-connections)
+[additional configuration](./docs/desktop-access/getting-started.mdx#step-47-configure-a-certificate-for-rdp-connections)
 to force Windows to use commpatible cipher suites.
 
 Windows desktops running Windows Server 2016 and newer will continue to operate
@@ -1815,7 +1815,7 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
-For more details see [Per-Session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
+For more details see [Per-Session MFA](./docs/access-controls/guides/per-session-mfa.mdx) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
 
 #### Dual Authorization Workflows
 
@@ -1887,7 +1887,7 @@ Configure Database Access following the [Getting Started](./docs/pages/database-
 * [AWS RDS/Aurora MySQL](./docs/pages/database-access/guides/rds.mdx)
 * [Self-hosted PostgreSQL](./docs/pages/database-access/guides/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](./docs/pages/database-access/guides/mysql-self-hosted.mdx)
-* [GUI clients](https://goteleport.com/docs/connect-your-client/gui-clients/)
+* [GUI clients](.docs/connect-your-client/gui-clients.mdx)
 
 ##### Resources
 
@@ -2242,7 +2242,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Reference](https://goteleport.com/docs/api-reference/) to simply developing applications against Teleport.
+We've added an [API Reference](./docs/api-reference.mdx) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 
@@ -2390,7 +2390,7 @@ auth_service:
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+Please follow our [standard upgrade procedure](./docs/management/admin.mdx#upgrading-teleport).
 
 ## 4.3.9
 
@@ -2510,13 +2510,13 @@ Teleport 4.3 introduces four new plugins that work out of the box with [Approval
 
 #### Documentation
 
-*   [Moved SSO under Enterprise Section](https://gravitational.com/teleport/docs/enterprise/sso/ssh_sso/)
+*   [Moved SSO under Enterprise Section](./docs/access-controls/sso.mdx)
 *   [Documented Teleport Plugins](./docs/pages/access-controls/access-request-plugins/index.mdx)
-*   [Documented Kubernetes Role Mapping](https://gravitational.com/teleport/docs/kubernetes_ssh/#kubernetes-groups-and-users)
+*   [Documented Kubernetes Role Mapping](./docs/kubernetes-access/manage-access/rbac.mdx)
 
 #### Upgrade Notes
 
-Always follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport?utm_source=github&utm_medium=changelog&utm_campaign=4_3) to upgrade to this version.
+Always follow the [recommended upgrade procedure](./docs/management/operations/upgrading.mdx?utm_source=github&utm_medium=changelog&utm_campaign=4_3) to upgrade to this version.
 
 ##### New Signing Algorithm
 
@@ -2527,7 +2527,7 @@ teleport:
     ca_signature_algo: "rsa-sha2-512"
 ```
 
-Rotate the cluster CA, following [these docs](https://gravitational.com/teleport/docs/admin-guide/#certificate-rotation?utm_source=github&utm_medium=changelog&utm_campaign=4_3).
+Rotate the cluster CA, following [these docs](./docs/management/operations/ca-rotation.mdx?utm_source=github&utm_medium=changelog&utm_campaign=4_3).
 
 ##### Web UI
 
@@ -2546,13 +2546,13 @@ can limit access by changing the options on the new `event` resource.
 
 ##### Kubernetes Permissions
 
-The minimum set of Kubernetes permissions that need to be granted to Teleport proxies has been updated. If you use the Kubernetes integration, please make sure that the ClusterRole used by the proxy has [sufficient permissions](https://gravitational.com/teleport/docs/kubernetes_ssh#impersonation).
+The minimum set of Kubernetes permissions that need to be granted to Teleport proxies has been updated. If you use the Kubernetes integration, please make sure that the ClusterRole used by the proxy has [sufficient permissions](./docs/kubernetes-access/manage-access/rbac.mdx).
 
 ##### Path prefix for etcd
 
-The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+The [etcd backend](./docs/reference/backends.mdx#etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](./docs/management/operations/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](./docs/management/operations/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -2929,7 +2929,7 @@ The lists of improvements and bug fixes above mention only the significant chang
 
 ### Upgrading
 
-Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+Teleport 4.0 is backwards compatible with Teleport 3.2 and later. [Follow the recommended upgrade procedure to upgrade to this version.](./docs/management/operations/upgrading.mdx)
 
 Note that due to substantial changes between Teleport 3.2 and 4.0, we recommend creating a backup of the backend datastore (DynamoDB, etcd, or dir) before upgrading a cluster to Teleport 4.0 to allow downgrades.
 
@@ -3172,7 +3172,7 @@ usability and performance improvements listed below.
 * Unified (AKA "single pane of glass") RBAC for both SSH and Kubernetes permissions.
 
 For more information about Kubernetes support, take a look at
-the [Kubernetes and SSH Integration Guide](https://gravitational.com/teleport/docs/kubernetes_ssh/)
+the [Kubernetes and SSH Integration Guide](./docs/kubernetes-access/introduction.mdx)
 
 #### Improvements
 
@@ -3199,7 +3199,7 @@ on Github for more.
 
 #### Upgrading to 3.0
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+Follow the [recommended upgrade procedure](./docs/management/operations/upgrading.mdx)
 to upgrade to this version.
 
 **WARNING:** if you are using Teleport with the etcd back-end, make sure your
@@ -3304,7 +3304,7 @@ As awlays, this release contains several bug fixes. The full list can be seen [h
 
 #### Upgrading
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade to this version.
+Follow the [recommended upgrade procedure](./docs/management/operations/upgrading.mdx)) to upgrade to this version.
 
 ## 2.6.9
 
@@ -3432,7 +3432,7 @@ You can see the full list of 2.6.0 changes [here](https://github.com/gravitation
 
 #### Upgrading
 
-Follow the [recommended upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+Follow the [recommended upgrade procedure](./docs/management/operations/upgrading.mdx)
 to upgrade to this version.
 
 ## 2.5.7
@@ -3519,7 +3519,7 @@ release, which includes:
 
 * The Teleport daemon now implements built-in connection draining which allows
   zero-downtime upgrades.
-  [See documentation](https://gravitational.com/teleport/docs/admin-guide/#graceful-restarts).
+  [See documentation](./docs/management/admin/daemon.mdx#step-33-restart-the-teleport-daemon).
 
 * Dynamic join tokens for new nodes can now be explicitly set via `tctl node add --token`.
   This allows Teleport admins to use an external mechanism for generating
