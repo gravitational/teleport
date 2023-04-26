@@ -16,9 +16,9 @@ export const CreditCard = ({ setValid }: CreditCardProps) => {
             base: {
               backgroundColor: theme.colors.spotBackground[0],
               fontSize: '16px',
-              color: theme.colors.text.primary,
+              color: theme.colors.text.main,
               '::placeholder': {
-                color: theme.colors.text.placeholder,
+                color: theme.colors.text.muted,
               },
             },
             invalid: {
