@@ -131,8 +131,8 @@ A lock is placed on a local user if, within a 30 minute window, a local user has
 The lock lasts 20 minutes. After the lock has expired the user may attempt to log in again.
 
 Overriding a lock is available to users with rights to maintain `user` resources,
-available in the built-in `editor` role. To turn off a lock, update the user entry
-, following these steps.
+available in the built-in `editor` role. To turn off a lock, update the user entry,
+following these steps.
 
 Retrieve the user entry so you can edit the status:
 
@@ -160,7 +160,7 @@ Update the `is_locked` field under `status` to `false` and save the file. Now
 update the user entry with the command below:
 
 ```code
-$ tctl create -f jeff.yaml
+$ tctl create -f user.yaml
 ```
 
 The user will now be unlocked and can attempt to authenticate again.
