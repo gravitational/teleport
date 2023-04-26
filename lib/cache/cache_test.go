@@ -1977,18 +1977,14 @@ func TestOktaAssignments(t *testing.T) {
 				},
 				types.OktaAssignmentSpecV1{
 					User: "test-user@test.user",
-					Actions: []*types.OktaAssignmentActionV1{
+					Targets: []*types.OktaAssignmentTargetV1{
 						{
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-								Id:   "123456",
-							},
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
 						},
 						{
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_GROUP,
-								Id:   "234567",
-							},
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
 						},
 					},
 				},

@@ -216,12 +216,12 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Create a couple Okta assignments.
 	assignment1 := oktaAssignment(t, "assignment1", "test-user@test.user", constants.OktaAssignmentStatusPending, clock.Now(),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456"),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, "123456"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_GROUP, "234567"),
 	)
 	assignment2 := oktaAssignment(t, "assignment2", "test-user@test.user", constants.OktaAssignmentStatusPending, clock.Now(),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456"),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, "123456"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_GROUP, "234567"),
 	)
 
 	// Initially we expect no assignments.
@@ -287,8 +287,8 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Update the assignment.
 	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user", constants.OktaAssignmentStatusProcessing, clock.Now(),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456"),
-		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, "123456"),
+		oktaTarget(t, types.OktaAssignmentTargetV1_GROUP, "234567"),
 	)
 	_, err = service.UpdateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
@@ -340,14 +340,14 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func oktaAssignment(t *testing.T, name, username, status string, lastTransition time.Time, actions ...*types.OktaAssignmentActionV1) types.OktaAssignment {
+func oktaAssignment(t *testing.T, name, username, status string, lastTransition time.Time, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
 	assignment, err := types.NewOktaAssignment(
 		types.Metadata{
 			Name: name,
 		},
 		types.OktaAssignmentSpecV1{
 			User:    username,
-			Actions: actions,
+			Targets: targets,
 		},
 	)
 	require.NoError(t, err)
@@ -357,15 +357,13 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 	return assignment
 }
 
-func oktaAction(t *testing.T, targetType types.OktaAssignmentActionTargetV1_OktaAssignmentActionTargetType,
-	id string) *types.OktaAssignmentActionV1 {
+func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
+	id string) *types.OktaAssignmentTargetV1 {
 
-	action := &types.OktaAssignmentActionV1{
-		Target: &types.OktaAssignmentActionTargetV1{
-			Type: targetType,
-			Id:   id,
-		},
+	target := &types.OktaAssignmentTargetV1{
+		Type: targetType,
+		Id:   id,
 	}
 
-	return action
+	return target
 }

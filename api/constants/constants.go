@@ -173,14 +173,14 @@ const (
 	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
 	OktaAssignmentStatusUnknown = "unknown"
 
-	// OktaAssignmentActionTargetApplication is an application target of an Okta assignment action.
-	OktaAssignmentActionTargetApplication = "application"
+	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetApplication = "application"
 
-	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment action.
-	OktaAssignmentActionTargetGroup = "group"
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetGroup = "group"
 
-	// OktaAssignmentActionTargetUnknown is an unknown target of an Okta assignment action.
-	OktaAssignmentActionTargetUnknown = "unknown"
+	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
+	OktaAssignmentTargetUnknown = "unknown"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
