@@ -221,7 +221,7 @@ func NewTerminalParamsFromUint32(w uint32, h uint32) (*TerminalParams, error) {
 // NewTerminalParamsFromInt returns new terminal parameters from int width and height
 func NewTerminalParamsFromInt(w int, h int) (*TerminalParams, error) {
 	if w > maxSize || w < minSize {
-		return nil, trace.BadParameter("bad witdth")
+		return nil, trace.BadParameter("bad width")
 	}
 	if h > maxSize || h < minSize {
 		return nil, trace.BadParameter("bad height")
