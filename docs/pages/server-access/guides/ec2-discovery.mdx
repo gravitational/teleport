@@ -401,11 +401,11 @@ It is likely that you're running an older SSM agent version. Upgrade to SSM agen
 
 ### `InvalidInstanceId: Instances [[i-123]] not in a valid state for account 456`
 
-The following problems can cause this exception:
-- The discovery node don't have permission to access the managed node.
-- AWS Systems Manager Agent(SSM Agent) isn't running. Verify that SSM Agent is running.
+The following problems can cause this error:
+- The Discovery Service doesn't have permission to access the managed node.
+- AWS Systems Manager Agent (SSM Agent) isn't running. Verify that SSM Agent is running.
 - SSM Agent isn't registered with the SSM endpoint. Try reinstalling SSM Agent.
-- The discovered instance does not have permission to recieve SSM
+- The discovered instance does not have permission to receive SSM
   commands, verify the instance includes the AmazonSSMManagedInstanceCore IAM policy.
 
 ## Next steps
