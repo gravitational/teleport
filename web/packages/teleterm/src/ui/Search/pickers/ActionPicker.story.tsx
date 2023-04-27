@@ -59,6 +59,7 @@ export const Items = (props: { maxWidth: string }) => {
           max-width: ${maxWidth};
           min-width: 0;
           flex: 1;
+          background-color: ${props => props.theme.colors.levels.elevated};
 
           display: flex;
           flex-direction: column;
@@ -75,6 +76,7 @@ export const Items = (props: { maxWidth: string }) => {
           max-width: ${maxWidth};
           min-width: 0;
           flex: 1;
+          background-color: ${props => props.theme.colors.levels.elevated};
 
           display: flex;
           flex-direction: column;
