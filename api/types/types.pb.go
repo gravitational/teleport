@@ -4797,6 +4797,7 @@ var xxx_messageInfo_AuthPreferenceSpecV2 proto.InternalMessageInfo
 
 // AssistOptions is a set of options related to the Teleport Assist feature.
 type AssistOptions struct {
+	// OpenAI is a set of options related to the OpenAI assist backend.
 	OpenAI               *OpenAIOptions `protobuf:"bytes,1,opt,name=OpenAI,proto3" json:"openai,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
@@ -4838,6 +4839,7 @@ var xxx_messageInfo_AssistOptions proto.InternalMessageInfo
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
 type OpenAIOptions struct {
+	// APIToken is the API token used to authenticate with the OpenAI API.
 	APIToken             string   `protobuf:"bytes,1,opt,name=APIToken,proto3" json:"api_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

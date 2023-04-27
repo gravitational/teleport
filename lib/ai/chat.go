@@ -102,11 +102,20 @@ func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 	return resp.Choices[0].Message.Content, nil
 }
 
+// StreamingMessage represents a message that is streamed from the assistant and will later be stored as a normal message in the conversation store.
 type StreamingMessage struct {
-	Role   string
-	Idx    int
+	// Role describes the OpenAI role of the message, i.e it's sender.
+	Role string
+
+	// Idx is a semi-unique ID assigned when loading a conversation so that the UI can group partial messages together.
+	Idx int
+
+	// Chunks is a channel of message chunks that are streamed from the assistant.
 	Chunks <-chan string
-	Error  <-chan error
+
+	// Error is a channel which may receive one error if the assistant encounters an error while streaming.
+	// Consumers should stop reading from all channels if they receive an error and abort.
+	Error <-chan error
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.

@@ -1678,11 +1678,13 @@ message AuthPreferenceSpecV2 {
 
 // AssistOptions is a set of options related to the Teleport Assist feature.
 message AssistOptions {
+  // OpenAI is a set of options related to the OpenAI assist backend.
   OpenAIOptions OpenAI = 1 [(gogoproto.jsontag) = "openai,omitempty"];
 }
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
 message OpenAIOptions {
+  // APIToken is the API token used to authenticate with the OpenAI API.
   string APIToken = 1 [(gogoproto.jsontag) = "api_token,omitempty"];
 }
 
