@@ -363,8 +363,7 @@ func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
 			Namespace: namespace,
 		},
 		Spec: types.ServerSpecV2{
-			Addr:       addr,
-			PublicAddr: addr,
+			Addr: addr,
 		},
 	}
 }
