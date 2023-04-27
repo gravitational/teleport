@@ -74,14 +74,16 @@ export class ResourcesService {
     clusterUri,
     search,
     filter,
+    limit,
   }: {
     clusterUri: uri.ClusterUri;
     search: string;
     // TODO(ravicious): Accept just `server | database | kube` as searchFilter here, wrap it in a
     // variant of a discriminated union in searchResult.ts.
     filter: ResourceTypeSearchFilter | undefined;
+    limit: number;
   }): Promise<PromiseSettledResult<SearchResult[]>[]> {
-    const params = { search, clusterUri, sort: null, limit: 100 };
+    const params = { search, clusterUri, sort: null, limit };
 
     const getServers = () =>
       this.fetchServers(params).then(
