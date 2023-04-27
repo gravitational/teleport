@@ -264,7 +264,7 @@ exports[`loaded 1`] = `
 }
 
 .c14:disabled .c15 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c9 {

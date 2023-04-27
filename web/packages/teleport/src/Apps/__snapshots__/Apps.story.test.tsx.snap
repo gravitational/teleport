@@ -659,7 +659,7 @@ exports[`failed state 1`] = `
 }
 
 .c38:disabled .c20 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c13 {
@@ -1702,7 +1702,7 @@ exports[`loaded state 1`] = `
 }
 
 .c38:disabled .c20 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c13 {

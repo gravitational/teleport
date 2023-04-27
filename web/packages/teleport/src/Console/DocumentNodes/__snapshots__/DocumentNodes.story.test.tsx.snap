@@ -307,7 +307,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c37:disabled .c26 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c19 {

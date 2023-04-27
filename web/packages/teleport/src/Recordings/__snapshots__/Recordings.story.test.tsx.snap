@@ -416,7 +416,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c16:disabled .c17 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c11 {

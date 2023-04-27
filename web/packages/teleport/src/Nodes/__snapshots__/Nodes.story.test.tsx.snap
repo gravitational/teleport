@@ -599,7 +599,7 @@ exports[`failed 1`] = `
 }
 
 .c31:disabled .c20 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c13 {
@@ -1624,7 +1624,7 @@ exports[`loaded 1`] = `
 }
 
 .c34:disabled .c23 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c16 {

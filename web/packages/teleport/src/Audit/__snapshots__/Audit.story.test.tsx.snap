@@ -211,7 +211,7 @@ exports[`list of all events 1`] = `
 }
 
 .c12:disabled .c13 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c10 {
@@ -7404,7 +7404,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c16:disabled .c17 {
-  opacity: 0.2;
+  opacity: 0.1;
 }
 
 .c11 {
