@@ -372,6 +372,16 @@ const (
 	LimiterBurst = 40
 )
 
+// Default high rate limits for unauthenticated endpoints that are CPU constrained.
+const (
+	// LimiterHighPeriod is the default period for high rate unauthenticated limiters.
+	LimiterHighPeriod = 1 * time.Minute
+	// LimiterHighAverage is the default average for high rate unauthenticated limiters.
+	LimiterHighAverage = 120
+	// LimiterHighBurst is the default burst for high rate unauthenticated limiters.
+	LimiterHighBurst = 480
+)
+
 const (
 	// HostCertCacheSize is the number of host certificates to cache at any moment.
 	HostCertCacheSize = 4000
