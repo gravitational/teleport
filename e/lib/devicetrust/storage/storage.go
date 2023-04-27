@@ -577,19 +577,21 @@ func (s *S) deleteCollectedData(ctx context.Context, deviceID string) error {
 // GetDeviceByID reads a device by ID.
 // Returns the stored device or trace.NotFound.
 func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, error) {
+	type collectedDataResp struct {
+		cd  []*devicepb.DeviceCollectedData
+		err error
+	}
+
 	// Fetch collected data for the device asynchronously.
 	cdCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	cdC := make(chan []*devicepb.DeviceCollectedData)
+	cdC := make(chan collectedDataResp)
 	go func() {
 		cd, err := s.getDeviceCollectedData(cdCtx, deviceID)
-		if err != nil {
-			s.logger.
-				WithError(err).
-				WithField("DeviceID", deviceID).
-				Warn("Failed to fetch collected data for device")
+		cdC <- collectedDataResp{
+			cd:  cd,
+			err: err,
 		}
-		cdC <- cd
 	}()
 
 	// Fetch the device.
@@ -601,7 +603,15 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 	}
 
 	// Add collected data to it.
-	dev.CollectedData = <-cdC
+	resp := <-cdC
+	if resp.err != nil {
+		s.logger.
+			WithError(err).
+			WithField("DeviceID", deviceID).
+			Warn("Failed to fetch collected data for device")
+		// err swallowed on purpose, in keeping with legacy behavior
+	}
+	dev.CollectedData = resp.cd // Always safe to do.
 
 	return dev, nil
 }
