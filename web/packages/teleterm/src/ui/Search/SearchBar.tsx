@@ -115,11 +115,14 @@ function SearchBar() {
     >
       {!isOpen && (
         <>
-          <Input {...defaultInputProps} css={`
-            &:hover {
-              background: ${props => props.theme.colors.spotBackground[0]};
-            }
-          `} />
+          <Input
+            {...defaultInputProps}
+            css={`
+              &:hover {
+                background: ${props => props.theme.colors.spotBackground[0]};
+              }
+            `}
+          />
           <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}

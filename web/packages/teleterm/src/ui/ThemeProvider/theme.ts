@@ -17,7 +17,7 @@ limitations under the License.
 import { fonts } from 'design/theme/fonts';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
 import { sharedStyles } from 'design/theme/sharedStyles';
-import { darkTheme } from "design/theme";
+import { darkTheme } from 'design/theme';
 
 const sansSerif = 'system-ui';
 
