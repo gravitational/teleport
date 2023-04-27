@@ -19,11 +19,11 @@ package ai
 import "github.com/sashabaranov/go-openai"
 
 type Client struct {
-	svc openai.Client
+	svc *openai.Client
 }
 
 func NewClient(apiURL string) *Client {
-	return &Client{*openai.NewClient(apiURL)}
+	return &Client{openai.NewClient(apiURL)}
 }
 
 func (client *Client) NewChat(username string) *Chat {
