@@ -19,6 +19,8 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
@@ -81,7 +83,7 @@ func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 // Summary create a short summary for the given input.
 func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 	resp, err := chat.client.svc.CreateChatCompletion(
-		context.Background(),
+		ctx,
 		openai.ChatCompletionRequest{
 			Model: openai.GPT4,
 			Messages: []openai.ChatCompletionMessage{
@@ -98,8 +100,16 @@ func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 	return resp.Choices[0].Message.Content, nil
 }
 
+type StreamingMessage struct {
+	Role   string
+	Idx    int
+	Chunks <-chan string
+	Error  <-chan error
+}
+
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
+	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 0 {
 		return &Message{
 			Role:    openai.ChatMessageRoleAssistant,
@@ -108,6 +118,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 		}, nil
 	}
 
+	// if not, copy the current chat log to a new slice and append the suffix instruction
 	messages := make([]openai.ChatCompletionMessage, len(chat.messages)+1)
 	copy(messages, chat.messages)
 	messages[len(messages)-1] = openai.ChatCompletionMessage{
@@ -115,29 +126,87 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 		Content: promptExtractInstruction,
 	}
 
-	resp, err := chat.client.svc.CreateChatCompletion(
-		context.Background(),
+	// create a streaming completion request, we do this to optimistically stream the response when
+	// we don't believe it's a payload
+	stream, err := chat.client.svc.CreateChatCompletionStream(
+		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4,
-			Messages: messages,
+			Model:     openai.GPT4,
+			Messages:  messages,
+			MaxTokens: maxTokens,
+			Stream:    true,
 		},
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	respBody := resp.Choices[0].Message.Content
-	var c CompletionCommand
-	err = json.Unmarshal([]byte(respBody), &c)
-	switch err {
-	case nil:
-		return &c, nil
-	default:
-		return &Message{
-			Role:    openai.ChatMessageRoleAssistant,
-			Content: respBody,
-			Idx:     len(chat.messages) - 1,
-		}, nil
+	// fetch the first delta to check for a possible JSON payload
+	response, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	// if it looks like a JSON payload, let's wait for the entire response and try to parse it
+	if response.Choices[0].Delta.Content == "{" {
+		payload := response.Choices[0].Delta.Content
+	outer:
+		for {
+			response, err := stream.Recv()
+			switch {
+			case errors.Is(err, io.EOF):
+				break outer
+			case err != nil:
+				return nil, trace.Wrap(err)
+			}
+
+			payload += response.Choices[0].Delta.Content
+		}
+
+		// if we can parse it, return the parsed payload, otherwise return a non-streaming message
+		var c CompletionCommand
+		err = json.Unmarshal([]byte(payload), &c)
+		switch err {
+		case nil:
+			return &c, nil
+		default:
+			return &Message{
+				Role:    openai.ChatMessageRoleAssistant,
+				Content: payload,
+				Idx:     len(chat.messages) - 1,
+			}, nil
+		}
+	}
+
+	// if it doesn't look like a JSON payload, return a streaming message to the caller
+	chunks := make(chan string, 1)
+	errCh := make(chan error)
+	chunks <- response.Choices[0].Delta.Content
+	go func() {
+		defer close(chunks)
+
+		for {
+			response, err := stream.Recv()
+			switch {
+			case errors.Is(err, io.EOF):
+				return
+			case err != nil:
+				errCh <- trace.Wrap(err)
+				return
+			}
+
+			select {
+			case chunks <- response.Choices[0].Delta.Content:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return &StreamingMessage{
+		Role:   openai.ChatMessageRoleAssistant,
+		Idx:    len(chat.messages) - 1,
+		Chunks: chunks,
+		Error:  errCh,
+	}, nil
 }
