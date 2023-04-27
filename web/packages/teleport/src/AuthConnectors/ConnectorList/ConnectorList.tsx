@@ -84,7 +84,7 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
         <Icons.Github
           style={{ textAlign: 'center' }}
           fontSize="50px"
-          color="text.primary"
+          color="text.main"
           mb={3}
           mt={3}
         />
