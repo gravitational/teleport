@@ -341,6 +341,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is a Teleport Assist resource kind.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 

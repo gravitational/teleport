@@ -5957,31 +5957,46 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
-	// TODO(jakule): Check if user has access to given conversation ID
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.CreateAssistantConversation(ctx, req)
 }
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
-	// TODO(jakule): Check if user has access to given conversation ID
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetAssistantConversations(ctx, request)
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
-	// TODO(jakule): Check if user has access to given conversation ID
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetAssistantMessages(ctx, id)
 }
 
 // InsertAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
-	// TODO(jakule): Check if user has access to given conversation ID
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &emptypb.Empty{}, a.authServer.InsertAssistantMessage(ctx, msg)
 }
 
 // SetAssistantConversationTitle set the given title as the assistant conversation title.
 func (a *ServerWithRoles) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
-	// TODO(jakule): Check if user has access to given conversation ID
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetAssistantConversationTitle(ctx, msg)
 }
 
@@ -6019,7 +6034,7 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 
 	if modules.GetModules().Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
-		// an external cloud-specific databse.
+		// an external cloud-specific database.
 		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
 	}
 
