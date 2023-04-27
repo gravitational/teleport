@@ -102,7 +102,7 @@ export function CreateLock({
             style={{ cursor: 'pointer' }}
           />
           <Box>
-            <Text typography="h4" color="text.primary" bold>
+            <Text typography="h4" color="text.main" bold>
               Create New Lock
             </Text>
           </Box>
