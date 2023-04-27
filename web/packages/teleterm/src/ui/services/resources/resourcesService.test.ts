@@ -124,6 +124,7 @@ describe('searchResources', () => {
       clusterUri: '/clusters/foo',
       search: '',
       filter: undefined,
+      limit: 10,
     });
     expect(searchResults).toHaveLength(3);
 
@@ -160,6 +161,7 @@ describe('searchResources', () => {
         filter: 'resource-type',
         resourceType: 'servers',
       },
+      limit: 10,
     });
     expect(searchResults).toHaveLength(1);
 
@@ -183,6 +185,7 @@ describe('searchResources', () => {
       clusterUri: '/clusters/foo',
       search: '',
       filter: undefined,
+      limit: 10,
     });
     expect(searchResults).toHaveLength(3);
 
