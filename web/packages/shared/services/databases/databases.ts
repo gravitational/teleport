@@ -15,33 +15,33 @@
  */
 
 export type DbType =
-  | "self-hosted"
-  | "rds"
-  | "rdsproxy"
-  | "redshift"
-  | "redshift-serverless"
-  | "gcp"
-  | "azure"
-  | "elasticache"
-  | "memorydb"
-  | "keyspace"
-  | "cassandra"
-  | "dynamodb"
-  | "opensearch";
+  | 'self-hosted'
+  | 'rds'
+  | 'rdsproxy'
+  | 'redshift'
+  | 'redshift-serverless'
+  | 'gcp'
+  | 'azure'
+  | 'elasticache'
+  | 'memorydb'
+  | 'keyspace'
+  | 'cassandra'
+  | 'dynamodb'
+  | 'opensearch';
 
 export type DbProtocol =
-  | "postgres"
-  | "mysql"
-  | "mongodb"
-  | "oracle"
-  | "redis"
-  | "cockroachdb"
-  | "sqlserver"
-  | "snowflake"
-  | "cassandra"
-  | "elasticsearch"
-  | "opensearch"
-  | "dynamodb";
+  | 'postgres'
+  | 'mysql'
+  | 'mongodb'
+  | 'oracle'
+  | 'redis'
+  | 'cockroachdb'
+  | 'sqlserver'
+  | 'snowflake'
+  | 'cassandra'
+  | 'elasticsearch'
+  | 'opensearch'
+  | 'dynamodb';
 
 const formatProtocol = (input: DbProtocol) => {
   switch (input) {
@@ -56,15 +56,15 @@ const formatProtocol = (input: DbProtocol) => {
     case 'redis':
       return 'Redis';
     case 'snowflake':
-        return 'Snowflake';
+      return 'Snowflake';
     case 'oracle':
       return 'Oracle';
     case 'cockroachdb':
       return 'CockroachDB';
     case 'cassandra':
-        return 'Cassandra';
+      return 'Cassandra';
     case 'elasticsearch':
-        return 'Elasticsearch';
+      return 'Elasticsearch';
     default:
       return input;
   }
