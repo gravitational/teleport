@@ -363,7 +363,7 @@ const getMockedSearchContext = (): SearchContext.SearchContext => ({
   closeWithoutRestoringFocus: () => {},
   resetInput: () => {},
   changeActivePicker: () => {},
-  onInputValueChange: () => {},
+  setInputValue: () => {},
   activePicker: pickers.actionPicker,
   inputRef: undefined,
   pauseUserInteraction: async cb => {
