@@ -99,7 +99,7 @@ func (h *Handler) getAssistantConversations(w http.ResponseWriter, r *http.Reque
 	return resp, err
 }
 
-func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
 	req := struct {
 		Message string `json:"message"`
 	}{}
@@ -110,6 +110,29 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 
 	authClient, err := sctx.GetClient()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationID := p.ByName("conversation_id")
+
+	conversationInfo := &proto.ConversationInfo{
+		Id:    conversationID,
+		Title: req.Message,
+	}
+
+	if err := authClient.SetAssistantConversationTitle(r.Context(), conversationInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
+func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+	req := struct {
+		Message string `json:"message"`
+	}{}
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -128,9 +151,6 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	conversationInfo := &proto.ConversationInfo{
 		Id:    conversationID,
 		Title: titleSummary,
-	}
-	if err := authClient.SetAssistantConversationTitle(r.Context(), conversationInfo); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	return conversationInfo, nil
