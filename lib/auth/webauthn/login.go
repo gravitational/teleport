@@ -28,6 +28,7 @@ import (
 	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -100,9 +101,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, passwordless bool) (
 				webDev.CredentialRpId)
 
 			// "Cut" device from slice.
-			l := len(devices)
-			devices[i] = devices[l-1]
-			devices = devices[:l-1]
+			devices = slices.Delete(devices, i, i+1)
 			i--
 
 			foundInvalid = true
