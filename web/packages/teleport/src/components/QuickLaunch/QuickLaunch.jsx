@@ -53,7 +53,7 @@ export default function FieldInputSsh({
       <StyledLabel>SSH:</StyledLabel>
       <StyledInput
         bg="levels.surface"
-        color="text.primary"
+        color="text.main"
         placeholder="login@host:port"
         autoFocus={autoFocus}
         onKeyPress={onKeyPress}
@@ -119,7 +119,7 @@ const StyledInput = styled.input`
 
   ::placeholder {
     opacity: 1;
-    color: ${props => props.theme.colors.text.placeholder};
+    color: ${props => props.theme.colors.text.muted};
     font-size: ${props => props.theme.fontSizes[1]}px;
   }
 

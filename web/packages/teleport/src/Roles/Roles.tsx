@@ -86,7 +86,7 @@ export function Roles(props: State) {
           <Box
             ml="auto"
             width="240px"
-            color="text.primary"
+            color="text.main"
             style={{ flexShrink: 0 }}
           >
             <Text typography="h6" mb={3} caps>
@@ -100,7 +100,7 @@ export function Roles(props: State) {
             <Text>
               Learn more in{' '}
               <Link
-                color="text.primary"
+                color="text.main"
                 target="_blank"
                 href="https://goteleport.com/docs/access-controls/guides/role-templates/"
               >
@@ -140,7 +140,7 @@ function Directions() {
     <>
       WARNING Roles are defined using{' '}
       <Link
-        color="text.primary"
+        color="text.main"
         target="_blank"
         href="https://en.wikipedia.org/wiki/YAML"
       >

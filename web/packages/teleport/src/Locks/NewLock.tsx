@@ -16,7 +16,15 @@ limitations under the License.
 
 import React, { useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Input, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonBorder,
+  ButtonSecondary,
+  Flex,
+  Input,
+  Text,
+} from 'design';
 import { Cell, LabelCell } from 'design/DataTable';
 import Select from 'shared/components/Select';
 import { ArrowBack } from 'design/Icon';
@@ -208,7 +216,7 @@ function TargetList({
       altKey: 'add-btn',
       render: ({ targetValue }) => (
         <Cell align="right">
-          <ButtonPrimary
+          <ButtonBorder
             onClick={onAdd.bind(null, targetValue)}
             data-testid="btn-cell"
             disabled={selectedLockTargets.some(
@@ -217,7 +225,7 @@ function TargetList({
             )}
           >
             + Add
-          </ButtonPrimary>
+          </ButtonBorder>
         </Cell>
       ),
     });
