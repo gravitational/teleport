@@ -14,14 +14,34 @@
  * limitations under the License.
  */
 
-export type DbType = 'redshift' | 'rds' | 'gcp' | 'self-hosted';
+export type DbType =
+  | "self-hosted"
+  | "rds"
+  | "rdsproxy"
+  | "redshift"
+  | "redshift-serverless"
+  | "gcp"
+  | "azure"
+  | "elasticache"
+  | "memorydb"
+  | "keyspace"
+  | "cassandra"
+  | "dynamodb"
+  | "opensearch";
 
 export type DbProtocol =
-  | 'postgres'
-  | 'mysql'
-  | 'mongodb'
-  | 'sqlserver'
-  | 'redis';
+  | "postgres"
+  | "mysql"
+  | "mongodb"
+  | "oracle"
+  | "redis"
+  | "cockroachdb"
+  | "sqlserver"
+  | "snowflake"
+  | "cassandra"
+  | "elasticsearch"
+  | "opensearch"
+  | "dynamodb";
 
 const formatProtocol = (input: DbProtocol) => {
   switch (input) {
@@ -35,6 +55,16 @@ const formatProtocol = (input: DbProtocol) => {
       return 'SQL Server';
     case 'redis':
       return 'Redis';
+    case 'snowflake':
+        return 'Snowflake';
+    case 'oracle':
+      return 'Oracle';
+    case 'cockroachdb':
+      return 'CockroachDB';
+    case 'cassandra':
+        return 'Cassandra';
+    case 'elasticsearch':
+        return 'Elasticsearch';
     default:
       return input;
   }
@@ -45,16 +75,40 @@ export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
 
   switch (type) {
     case 'rds':
-      output.title = `RDS ${formatProtocol(protocol)}`;
+      output.title = `Amazon RDS ${formatProtocol(protocol)}`;
+      return output;
+    case 'rdsproxy':
+      output.title = `Amazon RDS Proxy ${formatProtocol(protocol)}`;
       return output;
     case 'redshift':
-      output.title = 'Redshift';
+      output.title = 'Amazon Redshift';
+      return output;
+    case 'redshift-serverless':
+      output.title = 'Amazon Redshift Serverless';
+      return output;
+    case 'elasticache':
+      output.title = 'Amazon ElastiCache';
+      return output;
+    case 'memorydb':
+      output.title = 'Amazon MemoryDB';
+      return output;
+    case 'keyspace':
+      output.title = 'Amazon Keyspaces';
+      return output;
+    case 'dynamodb':
+      output.title = 'Amazon DynamoDB';
+      return output;
+    case 'opensearch':
+      output.title = 'Amazon OpenSearch';
       return output;
     case 'self-hosted':
       output.title = `Self-hosted ${formatProtocol(protocol)}`;
       return output;
     case 'gcp':
       output.title = `Cloud SQL ${formatProtocol(protocol)}`;
+      return output;
+    case 'azure':
+      output.title = `Azure ${formatProtocol(protocol)}`;
       return output;
     default:
       output.title = `${type} ${formatProtocol(protocol)}`;
