@@ -94,4 +94,5 @@ export interface FeatureFlags {
   enrollIntegrationsOrPlugins: boolean;
   enrollIntegrations: boolean;
   deviceTrust: boolean;
+  assist: boolean;
 }

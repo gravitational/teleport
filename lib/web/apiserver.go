@@ -979,27 +979,27 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 }
 
 func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference(ctx)
+	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
 	var as webclient.AuthenticationSettings
 
-	switch cap.GetType() {
+	switch authPreference.GetType() {
 	case constants.Local:
-		as, err = localSettings(cap)
+		as, err = localSettings(authPreference)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case constants.OIDC:
-		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = oidcSettings(oidcConnector, cap)
+			as = oidcSettings(oidcConnector, authPreference)
 		} else {
 			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
@@ -1009,16 +1009,16 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
-			as = oidcSettings(oidcConnectors[0], cap)
+			as = oidcSettings(oidcConnectors[0], authPreference)
 		}
 	case constants.SAML:
-		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = samlSettings(samlConnector, cap)
+			as = samlSettings(samlConnector, authPreference)
 		} else {
 			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
@@ -1028,15 +1028,15 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
-			as = samlSettings(samlConnectors[0], cap)
+			as = samlSettings(samlConnectors[0], authPreference)
 		}
 	case constants.Github:
-		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			githubConnector, err := authClient.GetGithubConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
-			as = githubSettings(githubConnector, cap)
+			as = githubSettings(githubConnector, authPreference)
 		} else {
 			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
@@ -1045,18 +1045,23 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 			if len(githubConnectors) == 0 {
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
-			as = githubSettings(githubConnectors[0], cap)
+			as = githubSettings(githubConnectors[0], authPreference)
 		}
 	default:
-		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", authPreference.GetType())
 	}
 
-	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	as.HasMessageOfTheDay = authPreference.GetMessageOfTheDay() != ""
 	pingResp, err := authClient.Ping(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
+
+	mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+
+	// TODO(jakule): Currently assist is disabled when MFA is enabled as this part is not implemented.
+	as.Assist.Enabled = !mfaRequired && authPreference.IsAssistEnabled()
 
 	return as, nil
 }

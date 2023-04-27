@@ -407,6 +407,8 @@ type AuthenticationSettings struct {
 	HasMessageOfTheDay bool `json:"has_motd"`
 	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
 	LoadAllCAs bool `json:"load_all_cas,omitempty"`
+	// AssistEnabled is true when Teleport Assist feature is enabled.
+	Assist AssistFeatures `json:"assist"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -456,6 +458,11 @@ type GithubSettings struct {
 type DeviceTrustSettings struct {
 	Disabled   bool `json:"disabled,omitempty"`
 	AutoEnroll bool `json:"auto_enroll,omitempty"`
+}
+
+// AssistFeatures holds assist related options.
+type AssistFeatures struct {
+	Enabled bool `json:"enabled"`
 }
 
 func (ps *ProxySettings) TunnelAddr() (string, error) {
