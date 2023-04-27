@@ -1279,9 +1279,9 @@ version switcher.
   - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
 
 - [ ] Verify getting started instructions are accurate:
-  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
-  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
-  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
+  - [ ] OSS: https://goteleport.com/docs/try-out-teleport/linux-server/
+  - [ ] Enterprise: https://goteleport.com/docs/choose-an-edition/teleport-enterprise/getting-started/?scope=enterprise
+  - [ ] Cloud: https://goteleport.com/docs/choose-an-edition/teleport-cloud/getting-started/?scope=cloud
   - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
 
 - [ ] Verify upcoming releases page is accurate:
