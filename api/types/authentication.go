@@ -354,7 +354,9 @@ func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 }
 
 func (c *AuthPreferenceV2) IsAssistEnabled() bool {
-	return c.Spec.Assist != nil && c.Spec.Assist.APIURL != ""
+	return c.Spec.Assist != nil &&
+		c.Spec.Assist.OpenAI != nil &&
+		c.Spec.Assist.OpenAI.APIToken != ""
 }
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
