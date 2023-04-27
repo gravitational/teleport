@@ -108,10 +108,6 @@ function SearchBar() {
         height: 100%;
         border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
-
-        &:hover > input {
-          background: ${props => props.theme.colors.spotBackground[0]};
-        }
       `}
       justifyContent="center"
       ref={containerRef}
@@ -119,7 +115,11 @@ function SearchBar() {
     >
       {!isOpen && (
         <>
-          <Input {...defaultInputProps} />
+          <Input {...defaultInputProps} css={`
+            &:hover {
+              background: ${props => props.theme.colors.spotBackground[0]};
+            }
+          `} />
           <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
