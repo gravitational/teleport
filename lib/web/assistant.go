@@ -144,6 +144,15 @@ type commandPayload struct {
 	Labels  []ai.Label `json:"labels,omitempty"`
 }
 
+type partialMessagePayload struct {
+	Content string `json:"content,omitempty"`
+	Idx     int    `json:"idx,omitempty"`
+}
+
+type partialFinalizePayload struct {
+	Idx int `json:"idx,omitempty"`
+}
+
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
 	authClient, err := sctx.GetClient()
@@ -282,6 +291,78 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 	}
 
 	switch message := message.(type) {
+	case *ai.StreamingMessage:
+		// collection of the entire message, used for writing to conversation log
+		content := ""
+
+		// stream all chunks to client
+	outer:
+		for {
+			select {
+			case chunk, ok := <-message.Chunks:
+				if !ok {
+					break outer
+				}
+
+				content += chunk
+				payload := partialMessagePayload{
+					Content: chunk,
+					Idx:     message.Idx,
+				}
+
+				payloadJSON, err := json.Marshal(payload)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				protoMsg := &proto.AssistantMessage{
+					ConversationId: conversationID,
+					Type:           "CHAT_PARTIAL_MESSAGE_ASSISTANT",
+					Payload:        string(payloadJSON),
+					CreatedTime:    h.clock.Now().UTC(),
+				}
+
+				if err := ws.WriteJSON(protoMsg); err != nil {
+					return trace.Wrap(err)
+				}
+			case err = <-message.Error:
+				return trace.Wrap(err)
+			}
+		}
+
+		// tell the client that the message is complete
+		finalizePayload := partialFinalizePayload{
+			Idx: message.Idx,
+		}
+
+		finalizePayloadJSON, err := json.Marshal(finalizePayload)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		finalizeProtoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE",
+			Payload:        string(finalizePayloadJSON),
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+
+		if err := ws.WriteJSON(finalizeProtoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// write the entire message to both in-memory chain and persistent storage
+		chat.Insert(message.Role, content)
+		protoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           "CHAT_MESSAGE_ASSISTANT",
+			Payload:        content,
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+
+		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
 	case *ai.Message:
 		// write assistant message to both in-memory chain and persistent storage
 		chat.Insert(message.Role, message.Content)
