@@ -62,6 +62,7 @@ const allAccessAcl: Acl = {
   plugins: fullAccess,
   integrations: { ...fullAccess, use: true },
   deviceTrust: fullAccess,
+  assist: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
