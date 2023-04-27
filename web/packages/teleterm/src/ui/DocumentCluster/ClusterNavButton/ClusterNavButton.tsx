@@ -51,6 +51,7 @@ const StyledNavButton = styled.button(props => {
       ? props.theme.colors.light
       : props.theme.colors.text.slightlyMuted,
     cursor: 'pointer',
+    fontFamily: 'inherit',
     display: 'inline-flex',
     fontSize: '14px',
     position: 'relative',

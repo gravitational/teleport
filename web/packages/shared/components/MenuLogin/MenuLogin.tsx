@@ -177,6 +177,7 @@ function getLoginItemListContent(
 }
 
 const StyledButton = styled.button`
+  font-family: inherit;
   color: inherit;
   border: none;
   flex: 1;
