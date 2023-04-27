@@ -84,7 +84,7 @@ describe('correct formatting of all type and protocol combos', () => {
     ${'self-hosted'}         | ${'cassandra'}           | ${'Self-hosted Cassandra'}
     ${'self-hosted'}         | ${'cockroachdb'}         | ${'Self-hosted CockroachDB'}
     ${'self-hosted'}         | ${'oracle'}              | ${'Self-hosted Oracle'}
-    ${'self-hosted'}         | ${'snowflake'}           | ${'Self-hosted Snowflake'}
+    ${'self-hosted'}         | ${'snowflake'}           | ${'Snowflake'}
     ${'self-hosted'}         | ${'elasticsearch'}       | ${'Self-hosted Elasticsearch'}
     ${'some other type'}     | ${'some other protocol'} | ${'some other type some other protocol'}
   `(
