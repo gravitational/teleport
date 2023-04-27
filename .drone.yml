@@ -1527,13 +1527,13 @@ steps:
       path: /root/.aws
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
       template: |
         *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     when:
       status: [failure]
 
@@ -17179,6 +17179,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 7224a6e8b123edaa8e1ea6f0fc9a549c40168c2b1db39d2d40caaa8b3655c206
+hmac: 9f1ad0be018d525a0f7557151af1d91981d712e872d38fdb3d747753c3078b93
 
 ...
