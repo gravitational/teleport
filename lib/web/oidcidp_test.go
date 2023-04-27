@@ -74,7 +74,6 @@ func TestOIDCIdPPublicEndpoints(t *testing.T) {
 }
 
 func TestThumbprint(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 
 	// Proxy starts with self-signed certificates.
