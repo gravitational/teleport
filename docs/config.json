@@ -346,7 +346,7 @@
         {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
-          "forScopes": ["enterprise", "oss", "cloud"],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Set Up Login Rules",
@@ -362,6 +362,11 @@
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Kubernetes Operator",
+              "slug": "/access-controls/login-rules/kubernetes/",
+              "forScopes": ["enterprise"]
             }
           ]
         },

@@ -192,8 +192,14 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					// TODO(gavin): support assume_role_arn for AWS EKS.
-					client, err := s.Clients.GetAWSEKSClient(s.ctx, region)
+					client, err := s.Clients.GetAWSEKSClient(
+						s.ctx,
+						region,
+						cloud.WithAssumeRole(
+							matcher.AssumeRole.RoleARN,
+							matcher.AssumeRole.ExternalID,
+						),
+					)
 					if err != nil {
 						return trace.Wrap(err)
 					}

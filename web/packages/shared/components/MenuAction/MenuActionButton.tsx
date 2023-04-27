@@ -55,7 +55,7 @@ export default class MenuActionIcon extends React.Component<Props> {
           {...buttonProps}
         >
           OPTIONS
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           getContentAnchorEl={null}

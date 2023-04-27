@@ -81,7 +81,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           onClick={onOpen}
         >
           CONNECT
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
@@ -144,9 +144,8 @@ function getLoginItemListContent(
     case 'processing':
       return (
         <Indicator
-          css={({ theme }) => `
+          css={`
             align-self: center;
-            color: ${theme.colors.brand}
           `}
         />
       );
@@ -185,7 +184,7 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.secondary};
+  color: ${theme.colors.text.slightlyMuted};
   background: transparent;
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
@@ -201,20 +200,20 @@ const StyledMenuItem = styled(MenuItem)(
 const Input = styled.input(
   ({ theme }) => `
   background: transparent;
-  border: 1px solid ${theme.colors.text.placeholder};
+  border: 1px solid ${theme.colors.text.muted};
   border-radius: 4px;
   box-sizing: border-box;
-  color: ${theme.colors.text.primary};
+  color: ${theme.colors.text.main};
   height: 32px;
   outline: none;
 
   &:focus, &:hover {
-    border 1px solid ${theme.colors.text.secondary};
+    border 1px solid ${theme.colors.text.slightlyMuted};
     outline: none;
   }
 
   ::placeholder {
-    color: ${theme.colors.text.placeholder};
+    color: ${theme.colors.text.muted};
   }
 `,
   space
