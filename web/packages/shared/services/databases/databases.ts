@@ -55,8 +55,6 @@ const formatProtocol = (input: DbProtocol) => {
       return 'SQL Server';
     case 'redis':
       return 'Redis';
-    case 'snowflake':
-      return 'Snowflake';
     case 'oracle':
       return 'Oracle';
     case 'cockroachdb':
@@ -73,6 +71,11 @@ const formatProtocol = (input: DbProtocol) => {
 export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
   const output = { type, protocol, title: '' };
 
+  switch (protocol) {
+    case 'snowflake':
+      output.title = 'Snowflake';
+      return output;
+  }
   switch (type) {
     case 'rds':
       output.title = `Amazon RDS ${formatProtocol(protocol)}`;
