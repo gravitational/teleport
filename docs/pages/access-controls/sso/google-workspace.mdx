@@ -168,14 +168,17 @@ correct Google Workspace plan.
 
 </Notice>
 
-### Create an OAuth client ID
+#### Configure the OAuth Client ID
 
-In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the following as an authorized redirect URI.
+In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient)
+page of the GCP console, select "Web application" as the Application type, pick a name, then add
+the callback URL. For most deployments, the callback URL is your `public_addr` value.
+
+The following is an example of an entry in the Callback URI field:
 
 ```txt
-https://<address of proxy server>:3080/v1/webapi/oidc/callback
+https://example.teleport.com/v1/webapi/oidc/callback
 ```
-
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
 
   Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client".
