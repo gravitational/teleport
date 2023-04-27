@@ -35,6 +35,7 @@ import {
   Author,
   ExecuteRemoteCommandPayload,
   Message,
+  TextMessageContent,
   Type,
 } from '../services/messages';
 
@@ -67,28 +68,62 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
+type MessagesAction = (messages: Message[]) => void;
+
+interface PartialMessagePayload {
+  content: string
+  idx: number;
+}
+
 async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
-): Promise<Message> {
+): Promise<MessagesAction> {
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
-    return {
+    const newMessage: Message = {
       author: Author.Teleport,
       content: {
         type: Type.Message,
         value: message.payload,
-      },
-    };
+      }
+    }
+    
+    return (messages: Message[]) => messages.push(newMessage)
+  }
+
+  if (message.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT') {
+    return (messages: Message[]) => {
+      const partial: PartialMessagePayload = JSON.parse(message.payload);
+      const existing = messages.findIndex(m => m.idx === partial.idx);
+      if (existing) {
+        const copy = JSON.parse(JSON.stringify(messages[existing]));
+        (copy.content as TextMessageContent).value += partial.content;
+        messages[existing] = copy;
+      } else {
+        const newMessage: Message = {
+          author: Author.Teleport,
+          content: {
+            type: Type.Message,
+            value: partial.content,
+          },
+          idx: partial.idx,
+        }
+
+        messages.push(newMessage)
+      }
+    }
   }
 
   if (message.type === 'CHAT_MESSAGE_USER') {
-    return {
+    const newMessage: Message = {
       author: Author.User,
       content: {
         type: Type.Message,
         value: message.payload,
       },
     };
+    
+    return (messages: Message[]) => messages.push(newMessage)
   }
 
   const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
@@ -130,7 +165,7 @@ async function convertServerMessage(
       nodes.agents.map(e => e.sshLogins)
     );
 
-    return {
+    const newMessage: Message = {
       author: Author.Teleport,
       isNew: true,
       content: {
@@ -140,7 +175,9 @@ async function convertServerMessage(
         selectedLogin: availableLogins ? availableLogins[0] : '',
         availableLogins: availableLogins,
       },
-    };
+    }
+
+    return (messages: Message[]) => messages.push(newMessage)
   }
 }
 
@@ -189,13 +226,13 @@ export function MessagesContextProvider(
       return;
     }
 
-    setMessages(
-      await Promise.all(
-        res.Messages.map(async m => {
-          return await convertServerMessage(m, clusterId);
-        })
-      )
-    );
+    let messages: Message[] = []
+    for (const m of res.Messages) {
+      const action = await convertServerMessage(m, clusterId);
+      action(messages);
+    }
+
+    setMessages(messages);
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -209,7 +246,7 @@ export function MessagesContextProvider(
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
       convertServerMessage(value, clusterId).then(res => {
-        setMessages(prev => prev.concat(res));
+        setMessages(prev => {res([...prev]); return prev});
         setResponding(false);
       });
     }
