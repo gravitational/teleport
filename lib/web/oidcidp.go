@@ -96,9 +96,11 @@ func (h *Handler) jwksOIDC(_ http.ResponseWriter, r *http.Request, _ httprouter.
 // thumbprint returns the thumbprint as required by AWS when adding an OIDC Identity Provider.
 // This is documented here:
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
+// Returns the thumbprint of the top intermediate CA that signed the TLS cert used to serve HTTPS requests.
+// In case of a self signed certificate, then it returns the thumbprint of the TLS cert itself.
 func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httprouter.Params) (interface{}, error) {
 	// Dial requires the following address format: host:port
-	cfgPublicAddress := h.cfg.PublicProxyAddr
+	cfgPublicAddress := h.PublicProxyAddr()
 	if !strings.Contains(cfgPublicAddress, "://") {
 		cfgPublicAddress = "https://" + cfgPublicAddress
 	}
