@@ -107,13 +107,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://myoldappid.com",
 				},
 				Webauthn: &types.Webauthn{
-					RPID: "myexplicitid",
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
+				require.Equal(t, "localhost", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
 		},
 		{
