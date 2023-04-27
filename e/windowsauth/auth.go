@@ -7,9 +7,8 @@ void * allocateLsa(PLSA_DISPATCH_TABLE tbl, ULONG size);
 void * allocatePrivate(PLSA_DISPATCH_TABLE tbl, ULONG size);
 NTSTATUS allocateClient(PLSA_DISPATCH_TABLE tbl, PLSA_CLIENT_REQUEST req, ULONG size, void** out);
 
-extern BOOLEAN AllocateLocallyUniqueId(PLUID Luid);
 NTSTATUS copyToClientBuffer(PLSA_DISPATCH_TABLE tbl, PLSA_CLIENT_REQUEST ClientRequest,ULONG Length,void* ClientBaseAddress,void* BufferToCopy);
-NTSTATUS createLogonSession(PLSA_DISPATCH_TABLE tbl, PLUID LogonId);
+NTSTATUS createLogonSession(PLSA_DISPATCH_TABLE tbl, void* LogonId);
 */
 import "C"
 
@@ -21,18 +20,30 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"math"
 	"os"
 	"os/user"
+	"sync"
 	"syscall"
 	"unsafe"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 )
+
+// see mksyscall.go
+//sys NetUserAdd(servername *uint16, level uint32, buf *userInfo, errIndex *uint32) (err error) [failretval!=0] = Netapi32.NetUserAdd
+//sys NetUserDel(servername *uint16, user *uint16) (err error) [failretval!=0] = Netapi32.NetUserDel
+//sys NetLocalGroupAddMembers(servername *uint16, group *uint16, level uint32, members *membersInfo, totalEntries uint32) (err error) [failretval!=0] = Netapi32.NetLocalGroupAddMembers
+//sys NetLocalGroupAdd(servername *uint16, level uint32, buf *membersInfo, errIndex *uint32) (err error) [failretval!=0] = Netapi32.NetLocalGroupAdd
+//sys NetLocalGroupDel(servername *uint16, group *uint16) (err error) [failretval!=0] = Netapi32.NetLocalGroupDel
+//sys NetUserSetFlags(servername *uint16, username *uint16, level uint32, buf *flags, errIndex *uint32) (err error) [failretval!=0] = Netapi32.NetUserSetInfo
+//sys AllocateLocallyUniqueId(pluid *windows.LUID) (err error) = Advapi32.AllocateLocallyUniqueId
 
 const (
 	// LsaTokenInformationV1 is type of token returned by LsaApLogonUser
@@ -66,39 +77,211 @@ const (
 	unknownError
 )
 
+// Constants used in NetUserSetInfo calls. See https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ns-lmaccess-user_info_1008
+const (
+	flagsLevel      = 1008
+	scriptExecuted  = 1
+	accountDisabled = 2
+)
+
 // maxComputerName length is the maximum number of bytes (not characters)
 // for a computer name. See https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/naming-conventions-for-computer-domain-site-ou
 const maxComputerNameLength = 32
 
+const (
+	// teleportUsers is the name of the group used for bookkeeping, all users created by Teleport will be part of this group
+	teleportUsers = "Teleport Users"
+
+	// remoteDesktopUsers is group required for RDP connections to work, we will add it automatically to all users we manage
+	remoteDesktopUsers = "Remote Desktop Users"
+)
+
 var smartCardLogonKeyUsage = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 20, 2, 2}
+
+var createUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 
 // LSATokenInformation is Go version of LSA_TOKEN_INFORMATION_V1 structure
 // https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa378721(v=vs.85)
 type LSATokenInformation struct {
-	ExpirationTime uint64
-	User           syscall.Tokenuser
-	Groups         *windows.Tokengroups
-	PrimaryGroup   syscall.Tokenprimarygroup
-	Privileges     unsafe.Pointer
-	Owner          syscall.Tokenuser
-	DefaultDacl    unsafe.Pointer
+	expirationTime uint64
+	user           syscall.Tokenuser
+	groups         *windows.Tokengroups
+	primaryGroup   syscall.Tokenprimarygroup
+	privileges     unsafe.Pointer
+	owner          syscall.Tokenuser
+	defaultDacl    unsafe.Pointer
+}
+
+// userInfo is Go version of USER_INFO_1 structure
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ns-lmaccess-user_info_1
+type userInfo struct {
+	name        *uint16
+	password    *uint16
+	passwordAge uint32
+	priv        uint32
+	homeDir     *uint16
+	comment     *uint16
+	flags       uint32
+	scriptPath  *uint16
+}
+
+// flags is Go version of USER_INFO_1008 structure
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ns-lmaccess-user_info_1008
+type flags struct {
+	flags uint32
+}
+
+// membersInfo is Go version of two structures: LOCALGROUP_MEMBERS_INFO_3 and LOCALGROUP_INFO_0
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ns-lmaccess-localgroup_members_info_3
+// https://learn.microsoft.com/en-us/windows/win32/api/lmaccess/ns-lmaccess-localgroup_info_0
+type membersInfo struct {
+	domainAndName *uint16
+}
+
+// shouldCreateUser checks if certificate contains createUserOID and will extract from it if we should create user and
+// which groups the user should be part of.
+func shouldCreateUser(cert *x509.Certificate) (bool, []string) {
+	for _, ext := range cert.Extensions {
+		if ext.Id.Equal(createUserOID) {
+			log.Info("Found create user OID")
+			var data struct {
+				CreateUser bool     `json:"createUser"`
+				Groups     []string `json:"groups"`
+			}
+			if err := json.Unmarshal(ext.Value, &data); err != nil {
+				log.WithError(err).Error("can't unmarshall")
+				return false, nil
+			}
+			return data.CreateUser, append(data.Groups, remoteDesktopUsers, teleportUsers)
+		}
+	}
+	log.Info("No create user OID")
+	return false, nil
+}
+
+func createGroups(groups []string) error {
+	for _, group := range groups {
+		if _, err := user.LookupGroup(group); err != nil {
+			log.WithField("group", group).Info("creating group")
+			uname, err := windows.UTF16PtrFromString(group)
+			if err != nil {
+				return fmt.Errorf("can't convert group name: %w", err)
+			}
+			if err := NetLocalGroupAdd(nil, 0, &membersInfo{domainAndName: uname}, nil); err != nil {
+				return fmt.Errorf("can't add group %q: %w", group, err)
+			}
+		}
+	}
+	return nil
+}
+
+// ensureUser will create user if it's missing and will add this new user to teleportUsers group to mark it as managed
+// by Teleport.
+func ensureUser(name string) error {
+	if _, err := user.Lookup(name); err == nil {
+		return nil
+	}
+
+	uname, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return fmt.Errorf("can't convert name: %w", err)
+	}
+
+	if err = NetUserAdd(nil, 1, &userInfo{name: uname, priv: 1}, nil); err != nil {
+		err = fmt.Errorf("can't create user: %w", err)
+		return err
+	}
+
+	account, err := user.Lookup(name)
+	if err != nil {
+		return fmt.Errorf("can't lookup user: %w", err)
+	}
+
+	if _, err := user.LookupGroup(teleportUsers); err != nil {
+		if err := createGroups([]string{teleportUsers}); err != nil {
+			return fmt.Errorf("can't create Teleport Users group: %w", err)
+		}
+	}
+
+	if err := addToGroup(account, teleportUsers); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addToGroup(account *user.User, group string) error {
+	log.WithFields(log.Fields{
+		"name":  account.Name,
+		"group": group,
+	}).Info("adding to group")
+	domainAndName, err := windows.UTF16PtrFromString(account.Username)
+	if err != nil {
+		return err
+	}
+
+	ugroup, err := windows.UTF16PtrFromString(group)
+	if err != nil {
+		return err
+	}
+
+	if err := NetLocalGroupAddMembers(nil, ugroup, 3, &membersInfo{domainAndName}, 1); err != nil {
+		return fmt.Errorf("can't add user to group: %w", err)
+	}
+	return nil
 }
 
 //export LsaApLogonUser
 func LsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authenticationInformation,
 	clientAuthenticationBase *byte, authenticationInformationLength uint32, profileBuffer *unsafe.Pointer,
-	profileBufferLength *C.ulong, logonId C.PLUID, subStatus *uint32, tokenInformationType *uint32,
+	profileBufferLength *C.ulong, logonId unsafe.Pointer, subStatus *uint32, tokenInformationType *uint32,
 	tokenInformation *unsafe.Pointer, accountName, authenticatingAuthority *C.PUNICODE_STRING) uint32 {
 	return lsaApLogonUser(clientRequest, logonType, authenticationInformation, clientAuthenticationBase,
-		authenticationInformationLength, profileBuffer, profileBufferLength, logonId, subStatus, tokenInformationType,
-		tokenInformation, accountName, authenticatingAuthority)
+		authenticationInformationLength, profileBuffer, profileBufferLength, (*windows.LUID)(logonId),
+		subStatus, tokenInformationType, tokenInformation, accountName, authenticatingAuthority)
+}
+
+// sessions represent logon sessions managed by this Authentication Package
+type sessions struct {
+	mu            sync.Mutex
+	luidsToNames  map[windows.LUID]string
+	namesToCounts map[string]int
+}
+
+// start associates session logon ID and username and increases number of active sessions for that username.
+// Returns true if starting fresh session i.e. count of active sessions for the username was 0 before this call.
+func (s *sessions) start(luid windows.LUID, name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.luidsToNames[luid] = name
+	s.namesToCounts[name] += 1
+	return s.namesToCounts[name] == 1
+}
+
+// end marks end of the session for specified logon ID, decreasing number of active sessions for associated username.
+// Returns true if there was username matching the logon ID, and it was last session for this user i.e. active sessions
+// count is 0 after this call
+func (s *sessions) end(luid windows.LUID) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	name, ok := s.luidsToNames[luid]
+	if !ok {
+		return "", false
+	}
+	s.namesToCounts[name] -= 1
+	return name, s.namesToCounts[name] == 0
+}
+
+var logonSessions = sessions{
+	luidsToNames:  make(map[windows.LUID]string),
+	namesToCounts: make(map[string]int),
 }
 
 // lsaApLogonUser authenticates a user's logon credentials.
 // https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_ap_logon_user
 func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authenticationInformation, _ *byte,
 	authenticationInformationLength uint32, profileBuffer *unsafe.Pointer, profileBufferLength *C.ulong,
-	logonId C.PLUID, subStatus *uint32, tokenInformationType *uint32, tokenInformation *unsafe.Pointer,
+	logonId *windows.LUID, subStatus *uint32, tokenInformationType *uint32, tokenInformation *unsafe.Pointer,
 	accountName, authenticatingAuthority *C.PUNICODE_STRING) uint32 {
 	log.WithField("logon type", logonType).Info("logging user")
 	*subStatus = invalidCertificate
@@ -161,6 +344,57 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 		return statusLogonFailure
 	}
 
+	if err := AllocateLocallyUniqueId(logonId); err != nil {
+		log.WithError(err).Error("can't allocate logon id")
+		return statusLogonFailure
+	}
+
+	var groupIds []string
+
+	createUser, groups := shouldCreateUser(cert)
+	if createUser {
+		if err := ensureUser(name); err != nil {
+			log.WithError(err).Error("can't create user")
+			return statusLogonFailure
+		}
+		teleportGroup, err := user.LookupGroup(teleportUsers)
+		if err != nil {
+			log.WithError(err).Error("can't find Teleport Users group")
+			return statusLogonFailure
+		}
+		account, err := user.Lookup(name)
+		if err != nil {
+			log.WithError(err).Error("can't lookup user")
+			return statusLogonFailure
+		}
+		groupIds, err = account.GroupIds()
+		if err != nil {
+			log.WithError(err).Error("can't get user groups")
+			return statusLogonFailure
+		}
+
+		if slices.Contains(groupIds, teleportGroup.Gid) {
+			// user is part of Teleport Users group i.e. managed by Teleport
+
+			// create all requested groups
+			if err := createGroups(groups); err != nil {
+				log.WithError(err).Error("can't create groups")
+				return statusLogonFailure
+			}
+
+			// gather SIDs for all requested groups
+			groupIds = nil
+			for _, g := range groups {
+				group, err := user.LookupGroup(g)
+				if err != nil {
+					log.WithError(err).Errorf("can't lookup group %s", group)
+					return statusLogonFailure
+				}
+				groupIds = append(groupIds, group.Gid)
+			}
+		}
+	}
+
 	account, err := user.Lookup(name)
 	if err != nil {
 		log.WithFields(log.Fields{log.ErrorKey: err, "name": name}).Error("can't lookup user")
@@ -177,10 +411,13 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 		return statusLogonFailure
 	}
 
-	groupIds, err := account.GroupIds()
-	if err != nil {
-		log.WithError(err).Error("can't get user groups")
-		return statusLogonFailure
+	// if the user is not managed by Teleport we gather groups from the system
+	if groupIds == nil {
+		groupIds, err = account.GroupIds()
+		if err != nil {
+			log.WithError(err).Error("can't get user groups")
+			return statusLogonFailure
+		}
 	}
 
 	log.WithFields(log.Fields{
@@ -190,36 +427,37 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 		"username": account.Username,
 	}).Info("account")
 
-	if status, err := C.AllocateLocallyUniqueId(logonId); status == 0 {
-		log.WithError(err).Error("can't allocate logon id")
-		return statusLogonFailure
-	}
-	if status := C.createLogonSession(DispatchTable, logonId); status != Success {
+	if status := C.createLogonSession(DispatchTable, unsafe.Pointer(logonId)); status != Success {
 		log.WithError(err).Error("can't create logon session")
 		return statusLogonFailure
 	}
 
+	log.WithFields(log.Fields{
+		"name": name,
+		"luid": logonId,
+	}).Info("LUID")
+
 	*tokenInformationType = LsaTokenInformationV1
 	*tokenInformation = C.allocateLsa(DispatchTable, C.ulong(unsafe.Sizeof(LSATokenInformation{})))
 	tokenInfo := (*LSATokenInformation)(*tokenInformation)
-	tokenInfo.ExpirationTime = math.MaxUint64
+	tokenInfo.expirationTime = math.MaxUint64
 
-	tokenInfo.User.User.Sid = (*syscall.SID)(C.allocateLsa(DispatchTable, (C.ulong)(sid.Len())))
-	if err := syscall.CopySid(uint32(sid.Len()), tokenInfo.User.User.Sid, sid); err != nil {
+	tokenInfo.user.User.Sid = (*syscall.SID)(C.allocateLsa(DispatchTable, (C.ulong)(sid.Len())))
+	if err := syscall.CopySid(uint32(sid.Len()), tokenInfo.user.User.Sid, sid); err != nil {
 		log.WithError(err).Error("can't copy user SID")
 		return statusLogonFailure
 	}
 
-	tokenInfo.PrimaryGroup.PrimaryGroup = (*syscall.SID)(C.allocateLsa(DispatchTable, (C.ulong)(primaryGroupSid.Len())))
-	if err := syscall.CopySid(uint32(primaryGroupSid.Len()), tokenInfo.PrimaryGroup.PrimaryGroup, primaryGroupSid); err != nil {
+	tokenInfo.primaryGroup.PrimaryGroup = (*syscall.SID)(C.allocateLsa(DispatchTable, (C.ulong)(primaryGroupSid.Len())))
+	if err := syscall.CopySid(uint32(primaryGroupSid.Len()), tokenInfo.primaryGroup.PrimaryGroup, primaryGroupSid); err != nil {
 		log.WithError(err).Error("can't copy primary group SID")
 		return statusLogonFailure
 	}
 
 	groupsSize := 4 + uint32(len(groupIds)*int(unsafe.Sizeof(windows.SIDAndAttributes{})))
-	tokenInfo.Groups = (*windows.Tokengroups)(C.allocatePrivate(DispatchTable, C.ulong(groupsSize)))
-	tokenInfo.Groups.GroupCount = uint32(len(groupIds))
-	targetGroups := tokenInfo.Groups.AllGroups()
+	tokenInfo.groups = (*windows.Tokengroups)(C.allocatePrivate(DispatchTable, C.ulong(groupsSize)))
+	tokenInfo.groups.GroupCount = uint32(len(groupIds))
+	targetGroups := tokenInfo.groups.AllGroups()
 
 	for i, group := range groupIds {
 		gsid, err := syscall.StringToSid(group)
@@ -330,6 +568,7 @@ func lsaApInitializePackage(authenticationPackageId C.USHORT, lsaDispatchTable C
 	(**authenticationPackageName).Length = C.ushort(len(APName))
 	(**authenticationPackageName).MaximumLength = C.ushort(len(APName))
 	(**authenticationPackageName).Buffer = C.CString(APName)
+
 	return 0
 }
 
@@ -355,12 +594,33 @@ func LsaApCallPackageUntrusted(clientRequest *unsafe.Pointer, protocolSubmitBuff
 
 //export LsaApLogonTerminated
 func LsaApLogonTerminated(logonId unsafe.Pointer) {
-	lsaApLogonTerminated(logonId)
+	lsaApLogonTerminated((*windows.LUID)(logonId))
 }
 
 // lsaApLogonTerminated is called when logon session started by this package ends i.e. user logs out.
 // https://learn.microsoft.com/en-us/windows/win32/api/ntsecpkg/nc-ntsecpkg-lsa_ap_logon_terminated
-func lsaApLogonTerminated(logonId unsafe.Pointer) {
+func lsaApLogonTerminated(logonId *windows.LUID) {
+	log.WithFields(log.Fields{"luid": *logonId}).Info("terminated")
+	if name, last := logonSessions.end(*logonId); last {
+		//this was last session for the user, disable it
+		log.WithField("name", name).Info("disabling user")
+		if err := setUserStatus(name, false); err != nil {
+			log.WithError(err).Error("can't disable user")
+		}
+	}
+}
+
+// setUserStatus can make user disabled (they can't log in) or enabled.
+func setUserStatus(name string, active bool) error {
+	uname, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return fmt.Errorf("can't convert name: %w", err)
+	}
+	newFlags := uint32(scriptExecuted)
+	if !active {
+		newFlags = newFlags | accountDisabled
+	}
+	return NetUserSetFlags(nil, uname, flagsLevel, &flags{flags: newFlags}, nil)
 }
 
 func toLSAString(s string) (C.PUNICODE_STRING, error) {

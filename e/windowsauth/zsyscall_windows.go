@@ -38,11 +38,20 @@ func errnoErr(e syscall.Errno) error {
 }
 
 var (
+	modAdvapi32 = windows.NewLazySystemDLL("Advapi32.dll")
+	modNetapi32 = windows.NewLazySystemDLL("Netapi32.dll")
 	modSecur32  = windows.NewLazySystemDLL("Secur32.dll")
 	modUser32   = windows.NewLazySystemDLL("User32.dll")
 	modadvapi32 = windows.NewLazySystemDLL("advapi32.dll")
 	modole32    = windows.NewLazySystemDLL("ole32.dll")
 
+	procAllocateLocallyUniqueId        = modAdvapi32.NewProc("AllocateLocallyUniqueId")
+	procNetLocalGroupAdd               = modNetapi32.NewProc("NetLocalGroupAdd")
+	procNetLocalGroupAddMembers        = modNetapi32.NewProc("NetLocalGroupAddMembers")
+	procNetLocalGroupDel               = modNetapi32.NewProc("NetLocalGroupDel")
+	procNetUserAdd                     = modNetapi32.NewProc("NetUserAdd")
+	procNetUserDel                     = modNetapi32.NewProc("NetUserDel")
+	procNetUserSetInfo                 = modNetapi32.NewProc("NetUserSetInfo")
 	procLsaConnectUntrusted            = modSecur32.NewProc("LsaConnectUntrusted")
 	procLsaDeregisterLogonProcess      = modSecur32.NewProc("LsaDeregisterLogonProcess")
 	procLsaLookupAuthenticationPackage = modSecur32.NewProc("LsaLookupAuthenticationPackage")
@@ -57,6 +66,62 @@ var (
 	procCryptSignHashW                 = modadvapi32.NewProc("CryptSignHashW")
 	procCoTaskMemAlloc                 = modole32.NewProc("CoTaskMemAlloc")
 )
+
+func AllocateLocallyUniqueId(pluid *windows.LUID) (err error) {
+	r1, _, e1 := syscall.Syscall(procAllocateLocallyUniqueId.Addr(), 1, uintptr(unsafe.Pointer(pluid)), 0, 0)
+	if r1 == 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetLocalGroupAdd(servername *uint16, level uint32, buf *membersInfo, errIndex *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procNetLocalGroupAdd.Addr(), 4, uintptr(unsafe.Pointer(servername)), uintptr(level), uintptr(unsafe.Pointer(buf)), uintptr(unsafe.Pointer(errIndex)), 0, 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetLocalGroupAddMembers(servername *uint16, group *uint16, level uint32, members *membersInfo, totalEntries uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procNetLocalGroupAddMembers.Addr(), 5, uintptr(unsafe.Pointer(servername)), uintptr(unsafe.Pointer(group)), uintptr(level), uintptr(unsafe.Pointer(members)), uintptr(totalEntries), 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetLocalGroupDel(servername *uint16, group *uint16) (err error) {
+	r1, _, e1 := syscall.Syscall(procNetLocalGroupDel.Addr(), 2, uintptr(unsafe.Pointer(servername)), uintptr(unsafe.Pointer(group)), 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetUserAdd(servername *uint16, level uint32, buf *userInfo, errIndex *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procNetUserAdd.Addr(), 4, uintptr(unsafe.Pointer(servername)), uintptr(level), uintptr(unsafe.Pointer(buf)), uintptr(unsafe.Pointer(errIndex)), 0, 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetUserDel(servername *uint16, user *uint16) (err error) {
+	r1, _, e1 := syscall.Syscall(procNetUserDel.Addr(), 2, uintptr(unsafe.Pointer(servername)), uintptr(unsafe.Pointer(user)), 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
+
+func NetUserSetFlags(servername *uint16, username *uint16, level uint32, buf *flags, errIndex *uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procNetUserSetInfo.Addr(), 5, uintptr(unsafe.Pointer(servername)), uintptr(unsafe.Pointer(username)), uintptr(level), uintptr(unsafe.Pointer(buf)), uintptr(unsafe.Pointer(errIndex)), 0)
+	if r1 != 0 {
+		err = errnoErr(e1)
+	}
+	return
+}
 
 func LsaConnectUntrusted(lsaHandle *windows.Handle) (err error) {
 	r1, _, e1 := syscall.Syscall(procLsaConnectUntrusted.Addr(), 1, uintptr(unsafe.Pointer(lsaHandle)), 0, 0)

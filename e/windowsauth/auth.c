@@ -31,7 +31,7 @@ NTSTATUS copyToClientBuffer(PLSA_DISPATCH_TABLE tbl,
                                  BufferToCopy);
 }
 
-NTSTATUS createLogonSession(PLSA_DISPATCH_TABLE tbl, PLUID LogonId) {
+NTSTATUS createLogonSession(PLSA_DISPATCH_TABLE tbl, void *LogonId) {
   return tbl->CreateLogonSession(LogonId);
 }
 
