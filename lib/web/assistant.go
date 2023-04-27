@@ -38,6 +38,15 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
+const (
+	messageKindCommand                  = "COMMAND"
+	messageKindUserMessage              = "CHAT_MESSAGE_USER"
+	messageKindAssistantMessage         = "CHAT_MESSAGE_ASSISTANT"
+	messageKindAssistantPartialMessage  = "CHAT_PARTIAL_MESSAGE_ASSISTANT"
+	messageKindAssistantPartialFinalize = "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE"
+	messageKindSystemMessage            = "CHAT_MESSAGE_SYSTEM"
+)
+
 func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
@@ -243,7 +252,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_MESSAGE_USER",
+			Type:           messageKindUserMessage,
 			Payload:        wsIncoming.Payload,
 			CreatedTime:    h.clock.Now().UTC(),
 		}); err != nil {
@@ -275,7 +284,11 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *Ses
 		return nil, trace.Errorf("assist spec is not set")
 	}
 
-	client := ai.NewClient(prefsV2.Spec.Assist.OpenAIToken)
+	if prefsV2.Spec.Assist.OpenAI == nil {
+		return nil, trace.Errorf("assist openai backend is not configured")
+	}
+
+	client := ai.NewClient(prefsV2.Spec.Assist.OpenAI.APIToken)
 	chat := client.NewChat(sctx.cfg.User)
 
 	return chat, nil
@@ -285,7 +298,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 	ws *websocket.Conn, authClient auth.ClientI,
 ) error {
 	// query the assistant and fetch an answer
-	message, err := chat.Complete(ctx, 2000)
+	message, err := chat.Complete(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -317,7 +330,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 
 				protoMsg := &proto.AssistantMessage{
 					ConversationId: conversationID,
-					Type:           "CHAT_PARTIAL_MESSAGE_ASSISTANT",
+					Type:           messageKindAssistantPartialMessage,
 					Payload:        string(payloadJSON),
 					CreatedTime:    h.clock.Now().UTC(),
 				}
@@ -342,7 +355,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 
 		finalizeProtoMsg := &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE",
+			Type:           messageKindAssistantPartialFinalize,
 			Payload:        string(finalizePayloadJSON),
 			CreatedTime:    h.clock.Now().UTC(),
 		}
@@ -355,7 +368,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 		chat.Insert(message.Role, content)
 		protoMsg := &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_MESSAGE_ASSISTANT",
+			Type:           messageKindAssistantMessage,
 			Payload:        content,
 			CreatedTime:    h.clock.Now().UTC(),
 		}
@@ -368,7 +381,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 		chat.Insert(message.Role, message.Content)
 		protoMsg := &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_MESSAGE_ASSISTANT",
+			Type:           messageKindAssistantMessage,
 			Payload:        message.Content,
 			CreatedTime:    h.clock.Now().UTC(),
 		}
@@ -392,7 +405,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 		}
 
 		msg := &proto.AssistantMessage{
-			Type:           "COMMAND",
+			Type:           messageKindCommand,
 			ConversationId: conversationID,
 			Payload:        string(payloadJson),
 			CreatedTime:    h.clock.Now().UTC(),
@@ -414,11 +427,11 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 
 func kindToRole(kind string) string {
 	switch kind {
-	case "CHAT_MESSAGE_USER":
+	case messageKindUserMessage:
 		return openai.ChatMessageRoleUser
-	case "CHAT_MESSAGE_ASSISTANT":
+	case messageKindAssistantMessage:
 		return openai.ChatMessageRoleAssistant
-	case "CHAT_MESSAGE_SYSTEM":
+	case messageKindSystemMessage:
 		return openai.ChatMessageRoleSystem
 	default:
 		return ""

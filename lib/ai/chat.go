@@ -28,6 +28,8 @@ import (
 	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 )
 
+const maxResponseTokens = 2000
+
 // Message represents a message within a live conversation.
 // Indexed by ID for frontend ordering and future partial message streaming.
 type Message struct {
@@ -108,7 +110,7 @@ type StreamingMessage struct {
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
+func (chat *Chat) Complete(ctx context.Context) (any, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 0 {
 		return &Message{
@@ -133,7 +135,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 		openai.ChatCompletionRequest{
 			Model:     openai.GPT4,
 			Messages:  messages,
-			MaxTokens: maxTokens,
+			MaxTokens: maxResponseTokens,
 			Stream:    true,
 		},
 	)

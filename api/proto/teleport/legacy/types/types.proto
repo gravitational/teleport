@@ -1678,7 +1678,12 @@ message AuthPreferenceSpecV2 {
 
 // AssistOptions is a set of options related to the Teleport Assist feature.
 message AssistOptions {
-  string OpenAIToken = 1 [(gogoproto.jsontag) = "openai_token,omitempty"];
+  OpenAIOptions OpenAI = 1 [(gogoproto.jsontag) = "openai,omitempty"];
+}
+
+// OpenAIOptions stores options related to the OpenAI assist backend.
+message OpenAIOptions {
+  string APIToken = 1 [(gogoproto.jsontag) = "api_token,omitempty"];
 }
 
 // U2F defines settings for U2F device.
