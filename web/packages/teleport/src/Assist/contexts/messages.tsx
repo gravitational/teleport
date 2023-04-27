@@ -71,7 +71,7 @@ interface MessagesContextProviderProps {
 type MessagesAction = (messages: Message[]) => void;
 
 interface PartialMessagePayload {
-  content: string
+  content: string;
   idx: number;
 }
 
@@ -79,17 +79,17 @@ async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
-  console.log(message)
+  console.log(message);
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     const newMessage: Message = {
       author: Author.Teleport,
       content: {
         type: Type.Message,
         value: message.payload,
-      }
-    }
-    
-    return (messages: Message[]) => messages.push(newMessage)
+      },
+    };
+
+    return (messages: Message[]) => messages.push(newMessage);
   }
 
   if (message.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT') {
@@ -108,15 +108,15 @@ async function convertServerMessage(
             value: partial.content,
           },
           idx: partial.idx,
-        }
+        };
 
-        messages.push(newMessage)
+        messages.push(newMessage);
       }
-    }
+    };
   }
 
   if (message.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE') {
-    return (_messages: Message[]) => {}
+    return (/*_messages: Message[]*/) => {};
   }
 
   if (message.type === 'CHAT_MESSAGE_USER') {
@@ -127,8 +127,8 @@ async function convertServerMessage(
         value: message.payload,
       },
     };
-    
-    return (messages: Message[]) => messages.push(newMessage)
+
+    return (messages: Message[]) => messages.push(newMessage);
   }
 
   const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
@@ -180,9 +180,9 @@ async function convertServerMessage(
         selectedLogin: availableLogins ? availableLogins[0] : '',
         availableLogins: availableLogins,
       },
-    }
+    };
 
-    return (messages: Message[]) => messages.push(newMessage)
+    return (messages: Message[]) => messages.push(newMessage);
   }
 }
 
@@ -231,7 +231,7 @@ export function MessagesContextProvider(
       return;
     }
 
-    let messages: Message[] = []
+    let messages: Message[] = [];
     for (const m of res.Messages) {
       const action = await convertServerMessage(m, clusterId);
       action(messages);
