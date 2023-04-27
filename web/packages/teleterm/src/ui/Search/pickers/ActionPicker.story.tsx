@@ -53,7 +53,7 @@ export const Items = (props: { maxWidth: string }) => {
   const { maxWidth = '600px' } = props;
 
   return (
-    <Flex gap={4}>
+    <Flex gap={4} alignItems="flex-start">
       <div
         css={`
           max-width: ${maxWidth};
