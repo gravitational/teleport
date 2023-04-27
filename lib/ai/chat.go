@@ -18,14 +18,16 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-
-	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 )
+
+const maxResponseTokens = 2000
 
 // Message represents a message within a live conversation.
 // Indexed by ID for frontend ordering and future partial message streaming.
@@ -38,14 +40,13 @@ type Message struct {
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
 	client   *Client
-	username string
-	messages []*assistantservice.ChatCompletionMessage
+	messages []openai.ChatCompletionMessage
 }
 
 // Insert inserts a message into the conversation. This is commonly in the
 // form of a user's input but may also take the form of a system messages used for instructions.
 func (chat *Chat) Insert(role string, content string) Message {
-	chat.messages = append(chat.messages, &assistantservice.ChatCompletionMessage{
+	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
 		Role:    role,
 		Content: content,
 	})
@@ -68,83 +69,149 @@ type CompletionCommand struct {
 	Labels  []Label  `json:"labels,omitempty"`
 }
 
-func labelsToPbLabels(vals []*assistantservice.Label) []Label {
-	ret := make([]Label, 0, len(vals))
-	for _, v := range vals {
-		ret = append(ret, Label{
-			Key:   v.Key,
-			Value: v.Value,
-		})
-	}
-
-	return ret
-}
-
 // Summary create a short summary for the given input.
 func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
-	var opts []grpc.DialOption
-
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.Dial(chat.client.apiURL, opts...)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	assistantClient := assistantservice.NewAssistantServiceClient(conn)
-
-	resp, err := assistantClient.TitleSummary(ctx, &assistantservice.TitleSummaryRequest{
-		Message: message,
-	})
+	resp, err := chat.client.svc.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{Role: openai.ChatMessageRoleSystem, Content: promptSummarizeTitle},
+				{Role: openai.ChatMessageRoleUser, Content: message},
+			},
+		},
+	)
 
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return resp.Title, nil
+	return resp.Choices[0].Message.Content, nil
+}
+
+// StreamingMessage represents a message that is streamed from the assistant and will later be stored as a normal message in the conversation store.
+type StreamingMessage struct {
+	// Role describes the OpenAI role of the message, i.e it's sender.
+	Role string
+
+	// Idx is a semi-unique ID assigned when loading a conversation so that the UI can group partial messages together.
+	Idx int
+
+	// Chunks is a channel of message chunks that are streamed from the assistant.
+	Chunks <-chan string
+
+	// Error is a channel which may receive one error if the assistant encounters an error while streaming.
+	// Consumers should stop reading from all channels if they receive an error and abort.
+	Error <-chan error
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
-	var opts []grpc.DialOption
-
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.Dial(chat.client.apiURL, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	assistantClient := assistantservice.NewAssistantServiceClient(conn)
-
-	response, err := assistantClient.Complete(ctx, &assistantservice.CompleteRequest{
-		Username: chat.username,
-		Messages: chat.messages,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch {
-	case response.Kind == "command":
-		command := CompletionCommand{
-			Command: response.Command,
-			Nodes:   response.Nodes,
-			Labels:  labelsToPbLabels(response.Labels),
-		}
-
-		return &command, nil
-	case response.Kind == "chat":
-		message := Message{
+func (chat *Chat) Complete(ctx context.Context) (any, error) {
+	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
+	if len(chat.messages) == 1 {
+		return &Message{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: response.Content,
+			Content: initialAIResponse,
 			Idx:     len(chat.messages) - 1,
+		}, nil
+	}
+
+	// if not, copy the current chat log to a new slice and append the suffix instruction
+	messages := make([]openai.ChatCompletionMessage, len(chat.messages)+1)
+	copy(messages, chat.messages)
+	messages[len(messages)-1] = openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: promptExtractInstruction,
+	}
+
+	// create a streaming completion request, we do this to optimistically stream the response when
+	// we don't believe it's a payload
+	stream, err := chat.client.svc.CreateChatCompletionStream(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model:     openai.GPT4,
+			Messages:  messages,
+			MaxTokens: maxResponseTokens,
+			Stream:    true,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// fetch the first delta to check for a possible JSON payload
+	var response openai.ChatCompletionStreamResponse
+top:
+	response, err = stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	trimmed := strings.TrimSpace(response.Choices[0].Delta.Content)
+	if len(trimmed) == 0 {
+		goto top
+	}
+
+	// if it looks like a JSON payload, let's wait for the entire response and try to parse it
+	if strings.HasPrefix(trimmed, "{") {
+		payload := response.Choices[0].Delta.Content
+	outer:
+		for {
+			response, err := stream.Recv()
+			switch {
+			case errors.Is(err, io.EOF):
+				break outer
+			case err != nil:
+				return nil, trace.Wrap(err)
+			}
+
+			payload += response.Choices[0].Delta.Content
 		}
 
-		return &message, nil
-	default:
-		return nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
+		// if we can parse it, return the parsed payload, otherwise return a non-streaming message
+		var c CompletionCommand
+		err = json.Unmarshal([]byte(payload), &c)
+		switch err {
+		case nil:
+			return &c, nil
+		default:
+			return &Message{
+				Role:    openai.ChatMessageRoleAssistant,
+				Content: payload,
+				Idx:     len(chat.messages) - 1,
+			}, nil
+		}
 	}
+
+	// if it doesn't look like a JSON payload, return a streaming message to the caller
+	chunks := make(chan string, 1)
+	errCh := make(chan error)
+	chunks <- response.Choices[0].Delta.Content
+	go func() {
+		defer close(chunks)
+
+		for {
+			response, err := stream.Recv()
+			switch {
+			case errors.Is(err, io.EOF):
+				return
+			case err != nil:
+				errCh <- trace.Wrap(err)
+				return
+			}
+
+			select {
+			case chunks <- response.Choices[0].Delta.Content:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return &StreamingMessage{
+		Role:   openai.ChatMessageRoleAssistant,
+		Idx:    len(chat.messages) - 1,
+		Chunks: chunks,
+		Error:  errCh,
+	}, nil
 }

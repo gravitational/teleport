@@ -56,6 +56,7 @@ export interface Message {
   isNew?: boolean;
   content: MessageContent;
   author: Author;
+  idx?: number;
 }
 
 export interface ExecOutput {

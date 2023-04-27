@@ -38,6 +38,15 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
+const (
+	messageKindCommand                  = "COMMAND"
+	messageKindUserMessage              = "CHAT_MESSAGE_USER"
+	messageKindAssistantMessage         = "CHAT_MESSAGE_ASSISTANT"
+	messageKindAssistantPartialMessage  = "CHAT_PARTIAL_MESSAGE_ASSISTANT"
+	messageKindAssistantPartialFinalize = "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE"
+	messageKindSystemMessage            = "CHAT_MESSAGE_SYSTEM"
+)
+
 func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
@@ -144,6 +153,15 @@ type commandPayload struct {
 	Labels  []ai.Label `json:"labels,omitempty"`
 }
 
+type partialMessagePayload struct {
+	Content string `json:"content,omitempty"`
+	Idx     int    `json:"idx,omitempty"`
+}
+
+type partialFinalizePayload struct {
+	Idx int `json:"idx,omitempty"`
+}
+
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
 	authClient, err := sctx.GetClient()
@@ -234,7 +252,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_MESSAGE_USER",
+			Type:           messageKindUserMessage,
 			Payload:        wsIncoming.Payload,
 			CreatedTime:    h.clock.Now().UTC(),
 		}); err != nil {
@@ -266,7 +284,11 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *Ses
 		return nil, trace.Errorf("assist spec is not set")
 	}
 
-	client := ai.NewClient(prefsV2.Spec.Assist.APIURL)
+	if prefsV2.Spec.Assist.OpenAI == nil {
+		return nil, trace.Errorf("assist openai backend is not configured")
+	}
+
+	client := ai.NewClient(prefsV2.Spec.Assist.OpenAI.APIToken)
 	chat := client.NewChat(sctx.cfg.User)
 
 	return chat, nil
@@ -276,18 +298,94 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 	ws *websocket.Conn, authClient auth.ClientI,
 ) error {
 	// query the assistant and fetch an answer
-	message, err := chat.Complete(ctx, 500)
+	message, err := chat.Complete(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch message := message.(type) {
+	case *ai.StreamingMessage:
+		// collection of the entire message, used for writing to conversation log
+		content := ""
+
+		// stream all chunks to client
+	outer:
+		for {
+			select {
+			case chunk, ok := <-message.Chunks:
+				if !ok {
+					break outer
+				}
+
+				if len(chunk) == 0 {
+					continue outer
+				}
+
+				content += chunk
+				payload := partialMessagePayload{
+					Content: chunk,
+					Idx:     message.Idx,
+				}
+
+				payloadJSON, err := json.Marshal(payload)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				protoMsg := &proto.AssistantMessage{
+					ConversationId: conversationID,
+					Type:           messageKindAssistantPartialMessage,
+					Payload:        string(payloadJSON),
+					CreatedTime:    h.clock.Now().UTC(),
+				}
+
+				if err := ws.WriteJSON(protoMsg); err != nil {
+					return trace.Wrap(err)
+				}
+			case err = <-message.Error:
+				return trace.Wrap(err)
+			}
+		}
+
+		// tell the client that the message is complete
+		finalizePayload := partialFinalizePayload{
+			Idx: message.Idx,
+		}
+
+		finalizePayloadJSON, err := json.Marshal(finalizePayload)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		finalizeProtoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           messageKindAssistantPartialFinalize,
+			Payload:        string(finalizePayloadJSON),
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+
+		if err := ws.WriteJSON(finalizeProtoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// write the entire message to both in-memory chain and persistent storage
+		chat.Insert(message.Role, content)
+		protoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           messageKindAssistantMessage,
+			Payload:        content,
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+
+		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
 	case *ai.Message:
 		// write assistant message to both in-memory chain and persistent storage
 		chat.Insert(message.Role, message.Content)
 		protoMsg := &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_MESSAGE_ASSISTANT",
+			Type:           messageKindAssistantMessage,
 			Payload:        message.Content,
 			CreatedTime:    h.clock.Now().UTC(),
 		}
@@ -311,7 +409,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 		}
 
 		msg := &proto.AssistantMessage{
-			Type:           "COMMAND",
+			Type:           messageKindCommand,
 			ConversationId: conversationID,
 			Payload:        string(payloadJson),
 			CreatedTime:    h.clock.Now().UTC(),
@@ -333,11 +431,11 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 
 func kindToRole(kind string) string {
 	switch kind {
-	case "CHAT_MESSAGE_USER":
+	case messageKindUserMessage:
 		return openai.ChatMessageRoleUser
-	case "CHAT_MESSAGE_ASSISTANT":
+	case messageKindAssistantMessage:
 		return openai.ChatMessageRoleAssistant
-	case "CHAT_MESSAGE_SYSTEM":
+	case messageKindSystemMessage:
 		return openai.ChatMessageRoleSystem
 	default:
 		return ""
