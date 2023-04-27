@@ -229,7 +229,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={4}
     mt={4}
     mb={4}

@@ -87,7 +87,7 @@ exports[`empty state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   min-height: 32px;
@@ -100,7 +100,6 @@ exports[`empty state 1`] = `
 .c12:hover,
 .c12:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c12:active {
@@ -318,7 +317,7 @@ exports[`failed 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -329,7 +328,6 @@ exports[`failed 1`] = `
 .c27:hover,
 .c27:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c27:active {
@@ -372,7 +370,7 @@ exports[`failed 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c6 {
@@ -615,7 +613,7 @@ exports[`failed 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -815,7 +813,7 @@ exports[`failed 1`] = `
         >
           <div
             class="c23"
-            color="text.contrast"
+            color="text.main"
             style="text-transform: uppercase;"
           >
             Showing 
@@ -1059,7 +1057,7 @@ exports[`loaded 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -1070,7 +1068,6 @@ exports[`loaded 1`] = `
 .c27:hover,
 .c27:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c27:active {
@@ -1113,7 +1110,7 @@ exports[`loaded 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c6 {
@@ -1356,7 +1353,7 @@ exports[`loaded 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1562,7 +1559,7 @@ exports[`loaded 1`] = `
         >
           <div
             class="c23"
-            color="text.contrast"
+            color="text.main"
             style="text-transform: uppercase;"
           >
             Showing 
@@ -1828,7 +1825,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

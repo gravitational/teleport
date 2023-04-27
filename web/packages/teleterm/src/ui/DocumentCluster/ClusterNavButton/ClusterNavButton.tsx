@@ -49,7 +49,7 @@ const StyledNavButton = styled.button(props => {
   return {
     color: props.active
       ? props.theme.colors.light
-      : props.theme.colors.text.secondary,
+      : props.theme.colors.text.slightlyMuted,
     cursor: 'pointer',
     display: 'inline-flex',
     fontSize: '14px',

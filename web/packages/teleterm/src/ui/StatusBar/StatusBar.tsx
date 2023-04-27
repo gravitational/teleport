@@ -39,7 +39,7 @@ export function StatusBar() {
       overflow="hidden"
     >
       <Text
-        color="text.secondary"
+        color="text.slightlyMuted"
         fontSize="14px"
         css={`
           white-space: nowrap;

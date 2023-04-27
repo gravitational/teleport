@@ -63,7 +63,7 @@ exports[`success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -75,7 +75,6 @@ exports[`success state 1`] = `
 .c22:hover,
 .c22:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c22:active {
@@ -107,7 +106,7 @@ exports[`success state 1`] = `
   color: #FFFFFF;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -381,7 +380,7 @@ exports[`success state 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -440,7 +439,7 @@ exports[`success state 1`] = `
           >
             <div
               class="c13"
-              color="text.primary"
+              color="text.main"
               style="white-space: nowrap; text-transform: uppercase;"
             >
               Showing 
@@ -554,7 +553,7 @@ exports[`success state 1`] = `
                 OPTIONS
                 <span
                   class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -592,7 +591,7 @@ exports[`success state 1`] = `
                 OPTIONS
                 <span
                   class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -636,7 +635,7 @@ exports[`success state 1`] = `
                 OPTIONS
                 <span
                   class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>

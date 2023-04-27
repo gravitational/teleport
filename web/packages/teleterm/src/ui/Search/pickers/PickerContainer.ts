@@ -23,7 +23,7 @@ export const PickerContainer = styled.div`
   box-sizing: border-box;
   z-index: 1000;
   font-size: 12px;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   background: ${props => props.theme.colors.levels.elevated};
   box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: ${props => props.theme.radii[2]}px;

@@ -123,8 +123,7 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 		return trace.Wrap(err)
 	}
 	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	fmt.Fprintf(c.tc.Stderr,
-		"Database certificate renewed: valid until %s [valid for %v]\n",
+	log.Debugf("Database certificate renewed: valid until %s [valid for %v]",
 		leaf.NotAfter.Format(time.RFC3339), certTTL)
 	// reduce per-handshake processing by setting the parsed leaf.
 	tlsCert.Leaf = leaf

@@ -90,7 +90,7 @@ export function ShareFeedbackFormFields({
           updateFormField('newsletterEnabled', !formValues.newsletterEnabled);
         }}
       >
-        <Text ml={2} color="text.primary">
+        <Text ml={2} color="text.main">
           Sign me up for the newsletter
         </Text>
       </Toggle>
@@ -106,7 +106,7 @@ export function ShareFeedbackFormFields({
       >
         <Text
           ml={2}
-          color="text.primary"
+          color="text.main"
           css={`
             line-height: 18px;
           `}

@@ -87,7 +87,7 @@ exports[`empty state for enterprise, can create 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   min-height: 32px;
@@ -100,7 +100,6 @@ exports[`empty state for enterprise, can create 1`] = `
 .c12:hover,
 .c12:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c12:active {
@@ -318,7 +317,7 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -330,7 +329,6 @@ exports[`failed state 1`] = `
 .c30:hover,
 .c30:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c30:active {
@@ -361,7 +359,7 @@ exports[`failed state 1`] = `
   transition: color 0.3s;
   color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -389,7 +387,7 @@ exports[`failed state 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c27 {
@@ -726,7 +724,7 @@ exports[`failed state 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -891,7 +889,7 @@ exports[`failed state 1`] = `
           >
             <div
               class="c23"
-              color="text.contrast"
+              color="text.main"
               style="text-transform: uppercase;"
             >
               Showing 
@@ -1191,7 +1189,7 @@ exports[`failed state 1`] = `
                 LAUNCH
                 <span
                   class="c20 c34 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -1362,7 +1360,7 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -1374,7 +1372,6 @@ exports[`loaded state 1`] = `
 .c30:hover,
 .c30:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c30:active {
@@ -1405,7 +1402,7 @@ exports[`loaded state 1`] = `
   transition: color 0.3s;
   color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -1433,7 +1430,7 @@ exports[`loaded state 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c27 {
@@ -1770,7 +1767,7 @@ exports[`loaded state 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1941,7 +1938,7 @@ exports[`loaded state 1`] = `
           >
             <div
               class="c23"
-              color="text.contrast"
+              color="text.main"
               style="text-transform: uppercase;"
             >
               Showing 
@@ -2241,7 +2238,7 @@ exports[`loaded state 1`] = `
                 LAUNCH
                 <span
                   class="c20 c34 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -2434,7 +2431,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

@@ -58,6 +58,7 @@ function SearchBar() {
     isOpen,
     open,
     close,
+    addWindowEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
@@ -75,10 +76,12 @@ function SearchBar() {
       }
     };
     if (isOpen) {
-      window.addEventListener('click', onClickOutside);
-      return () => window.removeEventListener('click', onClickOutside);
+      const { cleanup } = addWindowEventListener('click', onClickOutside, {
+        capture: true,
+      });
+      return cleanup;
     }
-  }, [close, isOpen]);
+  }, [close, isOpen, addWindowEventListener]);
 
   function handleOnFocus(e: React.FocusEvent) {
     open(e.relatedTarget);
@@ -144,7 +147,7 @@ const Input = styled.input`
   padding-inline: ${props => props.theme.space[2]}px;
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;
 
@@ -153,7 +156,7 @@ const Shortcut = styled(Box).attrs({ p: 1 })`
   right: ${props => props.theme.space[2]}px;
   top: 50%;
   transform: translate(0, -50%);
-  color: ${({ theme }) => theme.colors.text.secondary};
+  color: ${({ theme }) => theme.colors.text.slightlyMuted};
   background-color: ${({ theme }) => theme.colors.levels.elevated};
   line-height: 12px;
   font-size: 12px;

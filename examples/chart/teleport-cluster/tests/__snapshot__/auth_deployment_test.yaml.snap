@@ -88,6 +88,16 @@ should add an operator side-car when operator is enabled:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -214,6 +224,16 @@ should set nodeSelector when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -305,6 +325,16 @@ should set resources when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -381,6 +411,16 @@ should set securityContext when set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config
@@ -460,6 +500,16 @@ should use OSS image and not mount license when enterprise is not set in values:
         sources:
         - serviceAccountToken:
             path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-auth
       name: config

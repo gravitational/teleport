@@ -63,7 +63,7 @@ export function RecentClusters() {
             `}
           >
             <Text
-              color="text.primary"
+              color="text.main"
               mr={2}
               title={cluster.userWithClusterName}
               css={`

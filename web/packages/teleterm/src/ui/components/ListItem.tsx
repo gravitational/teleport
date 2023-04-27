@@ -29,7 +29,7 @@ export const ListItem = styled.li`
   padding: 0 16px;
   font-weight: ${props => props.theme.regular};
   font-family: ${props => props.theme.font};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   height: 34px;
   background: inherit;
   border: none;
