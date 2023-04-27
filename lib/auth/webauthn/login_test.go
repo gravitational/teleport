@@ -27,6 +27,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -502,6 +503,122 @@ func TestPasswordlessFlow_Finish_errors(t *testing.T) {
 			require.Contains(t, err.Error(), test.wantErrMsg)
 		})
 	}
+}
+
+// TestCredentialRPID tests the recording of CredentialRpId and scenarios
+// related to RPID mismatch.
+func TestCredentialRPID(t *testing.T) {
+	const origin = "https://example.com"
+	const originOther = "https://notexample.com"
+	const rpID = "example.com"
+	const user = "llama"
+
+	ctx := context.Background()
+	identity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: rpID}
+	webOtherRP := &types.Webauthn{RPID: "notexample.com"}
+
+	dev1Key, err := mocku2f.Create()
+	require.NoError(t, err)
+
+	register := func(config *types.Webauthn, user, origin, deviceName string, key *mocku2f.Key) (*types.MFADevice, error) {
+		webRegistration := &wanlib.RegistrationFlow{
+			Webauthn: config,
+			Identity: identity,
+		}
+
+		const passwordless = false
+		cc, err := webRegistration.Begin(ctx, user, passwordless)
+		if err != nil {
+			return nil, err
+		}
+
+		ccr, err := key.SignCredentialCreation(origin, cc)
+		if err != nil {
+			return nil, err
+		}
+
+		return webRegistration.Finish(ctx, wanlib.RegisterResponse{
+			User:             user,
+			DeviceName:       deviceName,
+			CreationResponse: ccr,
+			Passwordless:     passwordless,
+		})
+	}
+
+	t.Run("register writes credential RPID", func(t *testing.T) {
+		mfaDev, err := register(webConfig, user, origin, "dev1" /* deviceName */, dev1Key)
+		require.NoError(t, err, "Registration failed")
+		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+	})
+
+	// "Reset" all stored CredentialRpIds to simulate devices created before the
+	// field existed.
+	assert.Len(t, identity.User.GetLocalAuth().MFA, 1, "MFA device count mismatch")
+	for _, dev := range identity.User.GetLocalAuth().MFA {
+		dev.GetWebauthn().CredentialRpId = ""
+	}
+
+	t.Run("login issues challenges for unknown credential RPID", func(t *testing.T) {
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP, // Wrong RPID!
+			Identity: identity,
+		}
+
+		_, err := webLogin.Begin(ctx, user)
+		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
+	})
+
+	t.Run("login writes credential RPID", func(t *testing.T) {
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webConfig,
+			Identity: identity,
+		}
+
+		assertion, err := webLogin.Begin(ctx, user)
+		require.NoError(t, err, "Begin failed")
+
+		car, err := dev1Key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+
+		mfaDev, err := webLogin.Finish(ctx, user, car)
+		require.NoError(t, err, "Finish failed")
+		assert.Equal(t, rpID, mfaDev.GetWebauthn().CredentialRpId, "CredentialRpId mismatch")
+	})
+
+	t.Run("login doesn't issue challenges for the wrong RPIDs", func(t *testing.T) {
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP, // Wrong RPID!
+			Identity: identity,
+		}
+
+		_, err := webLogin.Begin(ctx, user)
+		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
+	})
+
+	t.Run("login issues challenges if at least one device matches", func(t *testing.T) {
+		other1Key, err := mocku2f.Create()
+		require.NoError(t, err)
+
+		// Register a device for the wrong/new RPID.
+		// Storage is now a mix of devices for both RPs.
+		_, err = register(webOtherRP, user, originOther, "other1" /* deviceName */, other1Key)
+		require.NoError(t, err, "Registration failed")
+
+		webLogin := &wanlib.LoginFlow{
+			Webauthn: webOtherRP,
+			Identity: identity,
+		}
+		assertion, err := webLogin.Begin(ctx, user)
+		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
+
+		// Verify that we got the correct device.
+		assert.Len(t, assertion.Response.AllowedCredentials, 1, "AllowedCredentials")
+		assert.Equal(t,
+			other1Key.KeyHandle,
+			assertion.Response.AllowedCredentials[0].CredentialID,
+			"Expected key handle for device `other1`")
+	})
 }
 
 type fakeIdentity struct {
