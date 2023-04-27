@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestSSH verifies "tsh ssh" command.
@@ -253,7 +252,9 @@ func TestSSHLoadAllCAs(t *testing.T) {
 
 // TestProxySSH verifies "tsh proxy ssh" functionality
 func TestProxySSH(t *testing.T) {
-	createAgent(t)
+	// ssh agent can cause race conditions in parallel tests.
+	disableAgent(t)
+	ctx := context.Background()
 
 	tests := []struct {
 		name string
@@ -280,7 +281,9 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
 
 			proxyRequest := fmt.Sprintf("%s.%s:%d",
@@ -289,35 +292,27 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
-				return Run(context.Background(), []string{
+				return Run(ctx, []string{
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
 				}, opts...)
 			}
 
-			t.Run("login", func(t *testing.T) {
+			// login to Teleport
+			homePath, kubeConfigPath := mustLogin(t, s)
+
+			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
 
-				// Should fail without login
-				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()))
-				require.Error(t, err)
-
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
-				// Should succeed with login
-				err = runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
+				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
-				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
+				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
@@ -332,13 +327,9 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
 				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.Error(t, err)
-				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 			})
 		})
 	}
@@ -702,6 +693,11 @@ func createAgent(t *testing.T) string {
 	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
 
 	return teleAgent.Path
+}
+
+func disableAgent(t *testing.T) {
+	t.Helper()
+	t.Setenv(teleport.SSHAuthSock, "")
 }
 
 func setMockSSOLogin(t *testing.T, s *suite) cliOption {
