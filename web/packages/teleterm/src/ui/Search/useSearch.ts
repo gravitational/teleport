@@ -89,11 +89,11 @@ export function useResourceSearch() {
       const promiseResults = (
         await Promise.all(
           clustersToSearch.map(cluster =>
-            resourcesService.searchResources(
-              cluster.uri,
+            resourcesService.searchResources({
+              clusterUri: cluster.uri,
               search,
-              resourceTypeSearchFilter
-            )
+              filter: resourceTypeSearchFilter,
+            })
           )
         )
       ).flat();

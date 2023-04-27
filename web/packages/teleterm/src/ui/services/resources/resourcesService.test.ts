@@ -120,11 +120,11 @@ describe('searchResources', () => {
     };
     const service = new ResourcesService(tshClient as tsh.TshClient);
 
-    const searchResults = await service.searchResources(
-      '/clusters/foo',
-      '',
-      undefined
-    );
+    const searchResults = await service.searchResources({
+      clusterUri: '/clusters/foo',
+      search: '',
+      filter: undefined,
+    });
     expect(searchResults).toHaveLength(3);
 
     const [actualServers, actualDatabases, actualKubes] = searchResults;
@@ -153,9 +153,13 @@ describe('searchResources', () => {
     };
     const service = new ResourcesService(tshClient as tsh.TshClient);
 
-    const searchResults = await service.searchResources('/clusters/foo', '', {
-      filter: 'resource-type',
-      resourceType: 'servers',
+    const searchResults = await service.searchResources({
+      clusterUri: '/clusters/foo',
+      search: '',
+      filter: {
+        filter: 'resource-type',
+        resourceType: 'servers',
+      },
     });
     expect(searchResults).toHaveLength(1);
 
@@ -175,11 +179,11 @@ describe('searchResources', () => {
     };
     const service = new ResourcesService(tshClient as tsh.TshClient);
 
-    const searchResults = await service.searchResources(
-      '/clusters/foo',
-      '',
-      undefined
-    );
+    const searchResults = await service.searchResources({
+      clusterUri: '/clusters/foo',
+      search: '',
+      filter: undefined,
+    });
     expect(searchResults).toHaveLength(3);
 
     const [actualServers, actualDatabases, actualKubes] = searchResults;
