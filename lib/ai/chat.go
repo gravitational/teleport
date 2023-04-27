@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
@@ -107,7 +108,7 @@ type StreamingMessage struct {
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context) (any, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
-	if len(chat.messages) == 0 {
+	if len(chat.messages) == 1 {
 		return &Message{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: initialAIResponse,
@@ -139,13 +140,20 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 	}
 
 	// fetch the first delta to check for a possible JSON payload
-	response, err := stream.Recv()
+	var response openai.ChatCompletionStreamResponse
+top:
+	response, err = stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	trimmed := strings.TrimSpace(response.Choices[0].Delta.Content)
+	if len(trimmed) == 0 {
+		goto top
+	}
+
 	// if it looks like a JSON payload, let's wait for the entire response and try to parse it
-	if response.Choices[0].Delta.Content == "{" {
+	if strings.HasPrefix(trimmed, "{") {
 		payload := response.Choices[0].Delta.Content
 	outer:
 		for {

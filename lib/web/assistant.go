@@ -317,6 +317,10 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 					break outer
 				}
 
+				if len(chunk) == 0 {
+					continue outer
+				}
+
 				content += chunk
 				payload := partialMessagePayload{
 					Content: chunk,

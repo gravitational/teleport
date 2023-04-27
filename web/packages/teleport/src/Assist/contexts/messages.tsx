@@ -79,6 +79,7 @@ async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
+  console.log(message)
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     const newMessage: Message = {
       author: Author.Teleport,
@@ -95,7 +96,7 @@ async function convertServerMessage(
     return (messages: Message[]) => {
       const partial: PartialMessagePayload = JSON.parse(message.payload);
       const existing = messages.findIndex(m => m.idx === partial.idx);
-      if (existing) {
+      if (existing !== -1) {
         const copy = JSON.parse(JSON.stringify(messages[existing]));
         (copy.content as TextMessageContent).value += partial.content;
         messages[existing] = copy;
@@ -112,6 +113,10 @@ async function convertServerMessage(
         messages.push(newMessage)
       }
     }
+  }
+
+  if (message.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE') {
+    return (_messages: Message[]) => {}
   }
 
   if (message.type === 'CHAT_MESSAGE_USER') {
@@ -244,9 +249,12 @@ export function MessagesContextProvider(
   useEffect(() => {
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
-
       convertServerMessage(value, clusterId).then(res => {
-        setMessages(prev => {res([...prev]); return prev});
+        setMessages(prev => {
+          const curr = [...prev];
+          res(curr);
+          return curr;
+        });
         setResponding(false);
       });
     }
