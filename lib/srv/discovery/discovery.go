@@ -18,12 +18,15 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -331,7 +334,10 @@ func (s *Server) handleEC2Discovery() {
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				instances.AccountID, genInstancesLogStr(instances.Instances))
 			if err := s.handleInstances(&instances); err != nil {
-				if trace.IsNotFound(err) {
+				var aErr awserr.Error
+				if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+					s.Log.WithError(err).Error("Invalid instance ID found. This can happen if the instance doesnt have a running SSM agent that is registered with the SSM endpoint (may require reinstalling the SSM Agent, or giving the instance IAM permissions to receive SSM commands), or the discovery instance doesnt have permissions to access the node.")
+				} else if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
