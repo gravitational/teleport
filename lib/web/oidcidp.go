@@ -109,17 +109,13 @@ func (h *Handler) thumbprint(_ http.ResponseWriter, r *http.Request, _ httproute
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	port := addrURL.Port()
-	if port == "" {
-		port = "443"
-	}
-	address := fmt.Sprintf("%s:%s", addrURL.Hostname(), port)
+
 	d := tls.Dialer{
 		Config: &tls.Config{
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 		},
 	}
-	conn, err := d.DialContext(r.Context(), "tcp", address)
+	conn, err := d.DialContext(r.Context(), "tcp", addrURL.Host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
