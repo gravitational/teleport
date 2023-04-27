@@ -100,8 +100,10 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
+    - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
+    - [ ] GCP integration tests are passing
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -123,6 +125,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Network request are blocked when a policy deny them.
 
 - [ ] Audit Log
+  - [ ] Audit log with dynamodb
+    - [ ] AWS integration tests are passing
+  - [ ] Audit log with Firestore
+    - [ ] GCP integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
