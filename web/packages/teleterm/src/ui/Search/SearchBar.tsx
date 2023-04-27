@@ -53,7 +53,7 @@ function SearchBar() {
   const {
     activePicker,
     inputValue,
-    onInputValueChange,
+    setInputValue,
     inputRef,
     isOpen,
     open,
@@ -125,7 +125,7 @@ function SearchBar() {
     placeholder: activePicker.placeholder,
     value: inputValue,
     onChange: e => {
-      onInputValueChange(e.target.value);
+      setInputValue(e.target.value);
     },
     onFocus: (e: React.FocusEvent) => {
       open(e.relatedTarget);

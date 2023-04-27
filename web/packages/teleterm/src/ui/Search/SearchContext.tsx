@@ -33,7 +33,7 @@ export interface SearchContext {
   inputValue: string;
   filters: SearchFilter[];
   activePicker: SearchPicker;
-  onInputValueChange(value: string): void;
+  setInputValue(value: string): void;
   changeActivePicker(picker: SearchPicker): void;
   isOpen: boolean;
   open(fromElement?: Element): void;
@@ -208,7 +208,7 @@ export const SearchContextProvider: FC = props => {
       value={{
         inputRef,
         inputValue,
-        onInputValueChange: setInputValue,
+        setInputValue,
         changeActivePicker,
         activePicker,
         filters,
