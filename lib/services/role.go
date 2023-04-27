@@ -2397,9 +2397,17 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 // a role disallows host user creation
 func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	sudoers := make(map[string]struct{})
+	var sudoers []string
 	serverLabels := s.GetAllLabels()
-	for _, role := range set {
+
+	roleSet := make([]types.Role, len(set))
+	copy(roleSet, set)
+	sort.SliceStable(roleSet, func(i, j int) bool {
+		return strings.Compare(roleSet[i].GetName(), roleSet[j].GetName()) == -1
+	})
+
+	seenSudoers := make(map[string]struct{})
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2418,10 +2426,16 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			groups[group] = struct{}{}
 		}
 		for _, sudoer := range role.GetHostSudoers(types.Allow) {
-			sudoers[sudoer] = struct{}{}
+			if _, ok := seenSudoers[sudoer]; ok {
+				continue
+			}
+			seenSudoers[sudoer] = struct{}{}
+			sudoers = append(sudoers, sudoer)
 		}
 	}
-	for _, role := range set {
+
+	var finalSudoers []string
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2432,18 +2446,25 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Deny) {
 			delete(groups, group)
 		}
-		for _, sudoer := range role.GetHostSudoers(types.Deny) {
-			if sudoer == "*" {
-				sudoers = nil
-				break
+
+	outer:
+		for _, sudoer := range sudoers {
+			for _, deniedSudoer := range role.GetHostSudoers(types.Deny) {
+				if deniedSudoer == "*" {
+					finalSudoers = nil
+					break outer
+				}
+				if sudoer != deniedSudoer {
+					finalSudoers = append(finalSudoers, sudoer)
+				}
 			}
-			delete(sudoers, sudoer)
 		}
+		sudoers = finalSudoers
 	}
 
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: utils.StringsSliceFromSet(sudoers),
+		Sudoers: sudoers,
 	}, nil
 }
 
