@@ -108,11 +108,18 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
 		}, nil
 	}
 
+	messages := make([]openai.ChatCompletionMessage, len(chat.messages)+1)
+	copy(messages, chat.messages)
+	messages[len(messages)-1] = openai.ChatCompletionMessage{
+		Role:    openai.ChatMessageRoleUser,
+		Content: promptExtractInstruction,
+	}
+
 	resp, err := chat.client.svc.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
 			Model:    openai.GPT4,
-			Messages: chat.messages,
+			Messages: messages,
 		},
 	)
 
