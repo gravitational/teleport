@@ -24,8 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-
-	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 )
 
 const maxResponseTokens = 2000
@@ -68,18 +66,6 @@ type CompletionCommand struct {
 	Command string   `json:"command,omitempty"`
 	Nodes   []string `json:"nodes,omitempty"`
 	Labels  []Label  `json:"labels,omitempty"`
-}
-
-func labelsToPbLabels(vals []*assistantservice.Label) []Label {
-	ret := make([]Label, 0, len(vals))
-	for _, v := range vals {
-		ret = append(ret, Label{
-			Key:   v.Key,
-			Value: v.Value,
-		})
-	}
-
-	return ret
 }
 
 // Summary create a short summary for the given input.
