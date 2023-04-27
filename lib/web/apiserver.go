@@ -346,6 +346,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		MaxConnections:   defaults.LimiterMaxConnections,
 		MaxNumberOfUsers: defaults.LimiterMaxConcurrentUsers,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// highLimiter is used for endpoints which are only CPU constrained and require high request rates
 	h.highLimiter, err = limiter.NewRateLimiter(limiter.Config{
 		Rates: []limiter.Rate{
