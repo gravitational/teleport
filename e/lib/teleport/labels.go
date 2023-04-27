@@ -23,8 +23,11 @@ const (
 	OktaOrgURLLabel = "okta/org"
 
 	// OktaGroupIDLabel is the label for the Okta group ID on user group objects.
-	OktaGroupIDLabel = types.TeleportHiddenLabelPrefix + "okta-group-id"
+	OktaGroupIDLabel = types.TeleportInternalLabelPrefix + "okta-group-id"
 
 	// OktaAppIDLabel is the label for the Okta application ID on appserver objects.
-	OktaAppIDLabel = types.TeleportHiddenLabelPrefix + "okta-app-id"
+	OktaAppIDLabel = types.TeleportInternalLabelPrefix + "okta-app-id"
+
+	// OktaAssignmentSourceLabel is the label for the source of the Okta assignment.
+	OktaAssignmentSourceLabel = types.TeleportInternalLabelPrefix + "source"
 )

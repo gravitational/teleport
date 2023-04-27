@@ -40,10 +40,6 @@ const (
 	maxAccessRequestRetryWait = 60 * time.Second
 )
 
-var (
-	assignmentSourceLabel = fmt.Sprintf("%ssource", types.TeleportHiddenLabelPrefix)
-)
-
 // AccessRequestReconcilerClient is a client that consists of only the interfaces
 // needed for the AccessRequestReconciler.
 type AccessRequestReconcilerClient interface {
@@ -498,7 +494,7 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequest.GetName(),
 		Labels: map[string]string{
-			assignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequest.GetName()),
+			teleport.OktaAssignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequest.GetName()),
 		},
 	}, types.OktaAssignmentSpecV1{
 		User:        accessRequest.GetUser(),

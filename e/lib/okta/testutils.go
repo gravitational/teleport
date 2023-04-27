@@ -284,7 +284,8 @@ func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin strin
 	metadata := types.Metadata{
 		Name: mustAppName(t, hash, name, appLinkName),
 		Labels: map[string]string{
-			types.OriginLabel: origin,
+			types.OriginLabel:       origin,
+			teleport.OktaAppIDLabel: name,
 		},
 	}
 
@@ -320,7 +321,7 @@ func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.T
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequestName,
 		Labels: map[string]string{
-			assignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequestName),
+			teleport.OktaAssignmentSourceLabel: fmt.Sprintf(accessRequestFormat, accessRequestName),
 		},
 	},
 		types.OktaAssignmentSpecV1{

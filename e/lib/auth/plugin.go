@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	"github.com/gravitational/teleport/e/lib/loginrule/loginrulev1"
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
+	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -197,6 +198,23 @@ func (p *Plugin) RegisterAuthServices(server interface{}) error {
 	// register the start hour getter so that auth can use it during periodic MaintenanceWindow
 	// resource sync.
 	p.authServer.AuthServer.SetUpgradeWindowStartHourGetter(p.getAccountUpgradeWindowStartHour)
+
+	clusterName, err := p.authServer.AuthServer.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Register the Okta user assignment creator login hook.
+	uac, err := okta.NewUserAssignmentCreator(okta.UserAssignmentCreatorConfig{
+		Log:         log,
+		ClusterName: clusterName.GetClusterName(),
+		AccessPoint: p.authServer.AuthServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
 	return nil
 }
