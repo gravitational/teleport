@@ -168,15 +168,27 @@ impl Client {
 
     fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
         let req = GetStatusChange_Call::decode(input)?;
+        let timeout = req.timeout;
         debug!("got {:?}", req);
-        let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
-        if resp.no_change() {
-            debug!("blocking GetStatusChange call indefinitely, no response since our status will never change");
-            Ok(None)
-        } else {
-            debug!("sending {:?}", resp);
-            Ok(Some(Box::new(resp)))
+
+        let mut resp = GetStatusChange_Return::new(req);
+
+        if timeout == INFINITE_TIMEOUT && resp.no_change() {
+            debug!("blocking GetStatusChange call with infinite timeout indefinitely, no response since our status will never change");
+            return Ok(None);
         }
+
+        // Immediate timeout and no change, respond with SCARD_E_TIMEOUT.
+        if timeout == 0 && resp.no_change() {
+            resp.return_code = ReturnCode::SCARD_E_TIMEOUT;
+        }
+
+        if timeout != INFINITE_TIMEOUT && timeout != 0 {
+            warn!("timeout is not infinite or zero, this is not currently supported");
+        }
+
+        debug!("sending {:?}", resp);
+        Ok(Some(Box::new(resp)))
     }
 
     fn handle_connect(&mut self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
@@ -1022,6 +1034,8 @@ impl Encode for Context_Call {
     }
 }
 
+const INFINITE_TIMEOUT: u32 = 0xFFFFFFFF;
+
 #[derive(Debug)]
 #[allow(dead_code, non_camel_case_types)]
 struct GetStatusChange_Call {
@@ -1214,7 +1228,7 @@ struct GetStatusChange_Return {
     reader_states: Vec<ReaderState_Common_Call>,
 }
 impl GetStatusChange_Return {
-    fn new(return_code: ReturnCode, req: GetStatusChange_Call) -> Self {
+    fn new(req: GetStatusChange_Call) -> Self {
         let mut reader_states = vec![];
         for state in req.states {
             match state.reader.as_str() {
@@ -1253,8 +1267,9 @@ impl GetStatusChange_Return {
                 }
             }
         }
+
         Self {
-            return_code,
+            return_code: ReturnCode::SCARD_S_SUCCESS,
             reader_states,
         }
     }
