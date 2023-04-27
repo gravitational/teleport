@@ -2960,6 +2960,13 @@ message WebauthnDevice {
   // view of the registration process; the authenticator alone can determine
   // if a key is truly resident.)
   bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
