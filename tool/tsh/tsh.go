@@ -1207,6 +1207,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case show.FullCommand():
 		err = onShow(&cf)
 	case status.FullCommand():
+		// onStatus can be invoked directly with `tsh status` but is also
+		// invoked from other commands. When invoked directly, we use a
+		// context with a short timeout to prevent the command from taking
+		// too long due to fetching alerts on slow networks.
+		var cancel context.CancelFunc
+		cf.Context, cancel = context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
+		defer cancel()
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
