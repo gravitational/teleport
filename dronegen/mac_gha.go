@@ -33,7 +33,7 @@ func darwinTagPipelineGHA() pipeline {
 				name:              "release-mac-amd64.yaml",
 				srcRefVar:         "DRONE_TAG",
 				ref:               "${DRONE_TAG}",
-				timeout:           60 * time.Minute,
+				timeout:           150 * time.Minute,
 				slackOnError:      true,
 				shouldTagWorkflow: true,
 				inputs: map[string]string{
@@ -61,7 +61,7 @@ func darwinPushPipelineGHA() pipeline {
 				name:              "release-mac-amd64.yaml",
 				srcRefVar:         "DRONE_COMMIT",
 				ref:               "${DRONE_BRANCH}",
-				timeout:           60 * time.Minute,
+				timeout:           150 * time.Minute,
 				slackOnError:      true,
 				shouldTagWorkflow: true,
 				inputs: map[string]string{
