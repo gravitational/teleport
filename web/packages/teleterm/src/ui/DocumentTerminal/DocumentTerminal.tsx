@@ -111,6 +111,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       visible={visible}
       flexDirection="column"
       pl={2}
+      pt={1}
       onContextMenu={attempt.data?.openContextMenu}
       autoFocusDisabled={true}
     >
