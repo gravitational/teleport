@@ -22,16 +22,17 @@ import Flex from 'design/Flex';
 
 export type Props = {
   children: React.ReactNode;
+  noIcon?: boolean;
   [index: string]: any;
 };
 
 const salesUrl = 'https://goteleport.com/signup/enterprise/';
 
-export function ButtonLockedFeature({ children, ...rest }) {
+export function ButtonLockedFeature({ children, noIcon = false, ...rest }) {
   return (
     <StyledButton onClick={() => window.open(salesUrl, 'blank')} {...rest}>
       <Flex alignItems="center">
-        <UnlockIcon />
+        {!noIcon && <UnlockIcon />}
         {children}
       </Flex>
     </StyledButton>
