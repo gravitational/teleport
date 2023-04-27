@@ -100,6 +100,14 @@ func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
+	if len(chat.messages) == 0 {
+		return &Message{
+			Role:    openai.ChatMessageRoleAssistant,
+			Content: initialAIResponse,
+			Idx:     len(chat.messages) - 1,
+		}, nil
+	}
+
 	resp, err := chat.client.svc.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{

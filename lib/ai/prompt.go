@@ -21,6 +21,8 @@ import "fmt"
 const promptSummarizeTitle = `You will be given a message. Create a short summary of that message.
 Respond only with summary, nothing else.`
 
+const initialAIResponse = `Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT.`
+
 func promptCharacter(username string) string {
 	return fmt.Sprintf(`
 You are Teleport, a tool that users can use to connect to Linux servers and run relevant commands, as well as have a conversation.
