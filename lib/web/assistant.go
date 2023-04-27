@@ -266,7 +266,7 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *Ses
 		return nil, trace.Errorf("assist spec is not set")
 	}
 
-	client := ai.NewClient(prefsV2.Spec.Assist.APIURL)
+	client := ai.NewClient(prefsV2.Spec.Assist.OpenAIToken)
 	chat := client.NewChat(sctx.cfg.User)
 
 	return chat, nil
@@ -276,7 +276,7 @@ func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversatio
 	ws *websocket.Conn, authClient auth.ClientI,
 ) error {
 	// query the assistant and fetch an answer
-	message, err := chat.Complete(ctx, 500)
+	message, err := chat.Complete(ctx, 2000)
 	if err != nil {
 		return trace.Wrap(err)
 	}

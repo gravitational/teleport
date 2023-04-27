@@ -16,17 +16,24 @@ limitations under the License.
 
 package ai
 
+import "github.com/sashabaranov/go-openai"
+
 type Client struct {
-	apiURL string
+	svc openai.Client
 }
 
 func NewClient(apiURL string) *Client {
-	return &Client{apiURL}
+	return &Client{*openai.NewClient(apiURL)}
 }
 
 func (client *Client) NewChat(username string) *Chat {
 	return &Chat{
-		client:   client,
-		username: username,
+		client: client,
+		messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: promptCharacter(username),
+			},
+		},
 	}
 }

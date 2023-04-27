@@ -18,11 +18,10 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 )
@@ -38,14 +37,13 @@ type Message struct {
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
 	client   *Client
-	username string
-	messages []*assistantservice.ChatCompletionMessage
+	messages []openai.ChatCompletionMessage
 }
 
 // Insert inserts a message into the conversation. This is commonly in the
 // form of a user's input but may also take the form of a system messages used for instructions.
 func (chat *Chat) Insert(role string, content string) Message {
-	chat.messages = append(chat.messages, &assistantservice.ChatCompletionMessage{
+	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
 		Role:    role,
 		Content: content,
 	})
@@ -82,69 +80,49 @@ func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 
 // Summary create a short summary for the given input.
 func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
-	var opts []grpc.DialOption
-
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.Dial(chat.client.apiURL, opts...)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	assistantClient := assistantservice.NewAssistantServiceClient(conn)
-
-	resp, err := assistantClient.TitleSummary(ctx, &assistantservice.TitleSummaryRequest{
-		Message: message,
-	})
+	resp, err := chat.client.svc.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{Role: openai.ChatMessageRoleSystem, Content: promptSummarizeTitle},
+				{Role: openai.ChatMessageRoleUser, Content: message},
+			},
+		},
+	)
 
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return resp.Title, nil
+	return resp.Choices[0].Message.Content, nil
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (any, error) {
-	var opts []grpc.DialOption
+	resp, err := chat.client.svc.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT4,
+			Messages: chat.messages,
+		},
+	)
 
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	conn, err := grpc.Dial(chat.client.apiURL, opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer conn.Close()
-
-	assistantClient := assistantservice.NewAssistantServiceClient(conn)
-
-	response, err := assistantClient.Complete(ctx, &assistantservice.CompleteRequest{
-		Username: chat.username,
-		Messages: chat.messages,
-	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	switch {
-	case response.Kind == "command":
-		command := CompletionCommand{
-			Command: response.Command,
-			Nodes:   response.Nodes,
-			Labels:  labelsToPbLabels(response.Labels),
-		}
-
-		return &command, nil
-	case response.Kind == "chat":
-		message := Message{
-			Role:    openai.ChatMessageRoleAssistant,
-			Content: response.Content,
-			Idx:     len(chat.messages) - 1,
-		}
-
-		return &message, nil
+	respBody := resp.Choices[0].Message.Content
+	var c CompletionCommand
+	err = json.Unmarshal([]byte(respBody), &c)
+	switch err {
+	case nil:
+		return &c, nil
 	default:
-		return nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
+		return &Message{
+			Role:    openai.ChatMessageRoleAssistant,
+			Content: respBody,
+			Idx:     len(chat.messages) - 1,
+		}, nil
 	}
 }
