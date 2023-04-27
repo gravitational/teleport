@@ -28,7 +28,7 @@ export interface TextAreaProps extends React.ComponentPropsWithRef<'textarea'> {
 
 export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   appearance: none;
-  border: 1px solid ${props => props.theme.colors.text.placeholder};
+  border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
   box-sizing: border-box;
   min-height: 50px;
@@ -37,18 +37,18 @@ export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   padding: 16px;
   outline: none;
   width: 100%;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   background: inherit;
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.placeholder};
+    color: ${props => props.theme.colors.text.muted};
     opacity: 1;
   }
 
   &:hover,
   &:focus,
   &:active {
-    border: 1px solid ${props => props.theme.colors.text.secondary};
+    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
   :read-only {
