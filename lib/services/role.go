@@ -2716,7 +2716,7 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	return m
 }
 
-// DesktopGroups returns desktop groups matching a desktop or nil if a role disallows desktop user creation
+// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
 func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 	groups := make(map[string]struct{})
 	labels := s.GetAllLabels()
