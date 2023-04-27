@@ -1367,13 +1367,13 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 
 // AssistOptions is a set of options related to the Teleport Assist feature.
 type AssistOptions struct {
-	// APIURL is the API URL used to connect to the Teleport Assist service.
-	APIURL string `yaml:"api_url,omitempty"`
+	// OpenAIToken is the OpenAI API token required for the Teleport Assist feature.
+	OpenAIToken string `yaml:"openai_token,omitempty"`
 }
 
 func (ao *AssistOptions) Parse() (*types.AssistOptions, error) {
 	return &types.AssistOptions{
-		APIURL: ao.APIURL,
+		OpenAIToken: ao.OpenAIToken,
 	}, nil
 }
 
