@@ -31,7 +31,7 @@ db_service:
     # Discovered databases are also accessed by the database service via
     # this role.
     assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
-    # Optional AWS external ID that the database service will use to assume
+    # Optional AWS external ID that the Database Service will use to assume
     # a role in an external AWS account.
     external_id: "example-external-id"
     # AWS resource tags to match when registering databases.
