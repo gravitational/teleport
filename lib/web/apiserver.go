@@ -2789,10 +2789,6 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	return sessionData, displayLogin, nil
 }
 
-type siteSessionGenerateReq struct {
-	Session session.Session `json:"session"`
-}
-
 type siteSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
 }
