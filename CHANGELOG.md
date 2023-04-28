@@ -1,5 +1,41 @@
 # Changelog
 
+## 12.2.5 (04/28/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Auth
+  * Fixed issue where Github SSO would fail if a user is a part of more than 30 teams. [#25098](https://github.com/gravitational/teleport/pull/25098)
+  * Fixed issue with `tsh login` with "required" hardware key policy returning "policy not met" error. [#24956](https://github.com/gravitational/teleport/pull/24956)
+  * Improved device trust logging and error reporting. [#24912](https://github.com/gravitational/teleport/pull/24912)
+  * Detect and warn about RPID changes when using webautn. [#25289](https://github.com/gravitational/teleport/pull/25289)
+* Access Management
+  * Fixed issue with running install script on macOS for enterprise clusters. [#25076](https://github.com/gravitational/teleport/pull/25076)
+* Server Access
+  * Fixed issue with headless `tsh ssh` not working when used in `rsync -rsh`. [#25242](https://github.com/gravitational/teleport/pull/25242)
+  * Fixed issue with headless `tsh ssh` prompting users for MFA. [#25187](https://github.com/gravitational/teleport/pull/25187)
+  * Fixed issue with `tsh ssh` failing to connect over public address with per-session MFA. [#25223](https://github.com/gravitational/teleport/pull/25223)
+  * Fixed issue with `tsh scp` failing on some destination paths. [#24861](https://github.com/gravitational/teleport/pull/24861)
+  * Require explicit username in headless `tsh ssh`. [#25112](https://github.com/gravitational/teleport/pull/25112)
+  * Updated automatic user provisioning to sort sudoers lines by role name to ensure stable order. [#24792](https://github.com/gravitational/teleport/pull/24792)
+  * Updated `tsh` commands to recognize `SSH_` environment variables. [#24470](https://github.com/gravitational/teleport/pull/24470)
+* Database Access
+  * Fixed issue with `tsh db env` and `tsh db config` not recognizing separate MySQL listener. [#24827](https://github.com/gravitational/teleport/pull/24827)
+* Kubernetes Access
+  * Added `--set-context` flag to `tsh kube login` to allow overriding default context name. [#25253](https://github.com/gravitational/teleport/pull/25253)
+* IdP
+  * Fixed issue with SAML IdP not being disabled properly. [#25309](https://github.com/gravitational/teleport/pull/25309)
+* IP Pinning
+  * Fixed interoperability issues with load balancers with proxy protocol v2 enabled. [#25302](https://github.com/gravitational/teleport/pull/25302)
+* CLI
+  * Fixed issue with cluster alerts sometimes not showing up after `tsh login`. [#25300](https://github.com/gravitational/teleport/pull/25300)
+* AMIs
+  * Fixed issue with startup script failing to acquire lock from AWS metadata. [#25296](https://github.com/gravitational/teleport/pull/25296)
+* HSM
+  * Fixed issue with inadvertent deletion of active HSM keys when using YubiHSM2 SDK version 2023.1. [#25208](https://github.com/gravitational/teleport/pull/25208)
+* Performance & Scalability
+  * Improved performance of MFA ceremony. [#24804](https://github.com/gravitational/teleport/pull/24804)
+
 ## 12.2.4 (04/18/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
