@@ -48,11 +48,11 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func createUsersExtension(createUser bool, groups []string) (pkix.Extension, error) {
+func createUsersExtension(groups []string) (pkix.Extension, error) {
 	value, err := json.Marshal(struct {
 		CreateUser bool     `json:"createUser"`
 		Groups     []string `json:"groups"`
-	}{createUser, groups})
+	}{true, groups})
 	if err != nil {
 		return pkix.Extension{}, trace.Wrap(err)
 	}
@@ -80,10 +80,6 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	createUser, err := createUsersExtension(req.CreateUser, req.Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	csr := &x509.CertificateRequest{
 		Subject: pkix.Name{CommonName: req.Username},
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
@@ -95,8 +91,15 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		ExtraExtensions: []pkix.Extension{
 			EnhancedKeyUsageExtension,
 			san,
-			createUser,
 		},
+	}
+
+	if req.CreateUser {
+		createUser, err := createUsersExtension(req.Groups)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
 	}
 
 	if req.ActiveDirectorySID != "" {
