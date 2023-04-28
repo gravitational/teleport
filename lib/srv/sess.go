@@ -1587,9 +1587,6 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	defer s.mu.Unlock()
 
 	req := s.newFileTransferRequest(params)
-	fmt.Println("----")
-	fmt.Printf("%+v\n", req)
-	fmt.Println("----")
 	s.fileTransferRequests[req.id] = req
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
