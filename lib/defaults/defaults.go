@@ -683,6 +683,10 @@ const (
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
+
+	// JWTUse is the default usage of the JWT.
+	// See https://www.rfc-editor.org/rfc/rfc7517#section-4.2 for more information.
+	JWTUse = "sig"
 )
 
 var (

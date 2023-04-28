@@ -117,7 +117,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	switch config.Type {
 	case types.DatabaseCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-	case types.KindJWT:
+	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
 		publicKey, privateKey, err := testauthority.New().GenerateJWT()
