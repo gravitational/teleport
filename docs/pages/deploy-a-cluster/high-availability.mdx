@@ -59,9 +59,9 @@ High-availability Teleport clusters require two load balancers:
   Proxy Service instance to an available Auth Service instance. This handles TLS
   traffic to the Auth Service's gRPC endpoint.
 
-Neither load balancer must terminate TLS. Both load balancers must transparently
-forward the TCP traffic they receive. In other words, these must be Layer 4 load
-balances, not Layer 7 (e.g., HTTP) load balancers.
+Both load balancers must transparently forward the TCP traffic they receive,
+without terminating TLS. In other words, these must be Layer 4 load balancers,
+not Layer 7 (e.g., HTTP).
 
 We recommend configuring your load balancers to route traffic across multiple
 zones (if using a cloud provider) or data centers (if using an on-premise
@@ -350,9 +350,8 @@ environment.
 
 #### `proxy_service` and `auth_service`
 
-The `proxy_service` section configures the Proxy Service, which we will run
-together on each Teleport instance. The configuration will depend on whether you
-are enabling TLS Routing in your cluster:
+The `proxy_service` section configures the Proxy Service. The configuration will
+depend on whether you are enabling TLS Routing in your cluster:
 
 <Tabs>
 <TabItem label="TLS Routing">
