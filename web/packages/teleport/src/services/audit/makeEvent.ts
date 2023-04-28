@@ -1167,60 +1167,60 @@ export const formatters: Formatters = {
       `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
   },
   [eventCodes.DEVICE_CREATE]: {
-    type: 'device',
+    type: 'device.create',
     desc: 'Device Register',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has registered a device`
-        : `User [${user.user}] has failed to register a device`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has registered a device`
+        : `User [${user}] has failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
-    type: 'device',
+    type: 'device.delete',
     desc: 'Device Delete',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has deleted a device`
-        : `User [${user.user}] has failed to delete a device`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has deleted a device`
+        : `User [${user}] has failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
-    type: 'device',
+    type: 'device.authenticate',
     desc: 'Device Authenticate',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully authenticated their device`
-        : `User [${user.user}] has failed to authenticate their device`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has successfully authenticated their device`
+        : `User [${user}] has failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
-    type: 'device',
+    type: 'device.enroll',
     desc: 'Device Enrollment',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully enrolled their device`
-        : `User [${user.user}] has failed to enroll their device`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has successfully enrolled their device`
+        : `User [${user}] has failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
-    type: 'device',
+    type: 'device.token.create',
     desc: 'Device Enroll Token Create',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] created a device enroll token`
-        : `User [${user.user}] has failed to create a device enroll token`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] created a device enroll token`
+        : `User [${user}] has failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
-    type: 'device',
+    type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has spent a device enroll token`
-        : `User [${user.user}] has failed to spend a device enroll token`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has spent a device enroll token`
+        : `User [${user}] has failed to spend a device enroll token`,
   },
   [eventCodes.DEVICE_UPDATE]: {
-    type: 'device',
+    type: 'device.update',
     desc: 'Device Update',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has updated a device`
-        : `User [${user.user}] has failed to update a device`,
+    format: ({ user, success }) =>
+      success
+        ? `User [${user}] has updated a device`
+        : `User [${user}] has failed to update a device`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',

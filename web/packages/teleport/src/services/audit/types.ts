@@ -1291,8 +1291,8 @@ type RawDeviceEvent<T extends EventCode> = RawEvent<
   T,
   {
     device: { asset_tag: string; device_id: string; os_type: number };
-    status: { success: boolean };
-    user: { user: string };
+    success: boolean;
+    user: string;
   }
 >;
 
