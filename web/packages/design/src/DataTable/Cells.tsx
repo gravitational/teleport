@@ -128,6 +128,9 @@ export const ClickableLabelCell = ({
         kind="secondary"
         css={`
           cursor: pointer;
+          &:hover {
+            background-color: ${props => props.theme.colors.spotBackground[1]};
+          }
         `}
       >
         {labelText}

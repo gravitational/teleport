@@ -24,6 +24,12 @@ export const StyledTable = styled(Table)`
     vertical-align: middle;
     padding: 8px;
   }
+  & > thead > tr > th {
+    background: ${props => props.theme.colors.spotBackground[1]};
+  }
+  border-radius: 8px;
+  box-shadow: ${props => props.theme.boxShadow[0]};
+  overflow: hidden;
 ` as typeof Table;
 
 export const StyledSpinner = styled(Spinner)`

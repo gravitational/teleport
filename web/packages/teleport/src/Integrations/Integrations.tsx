@@ -25,14 +25,16 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import { integrationService } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
 
 import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
+import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
+import { useIntegrationOperation } from './useIntegrationOperation';
 
 import type { Integration } from 'teleport/services/integrations';
 
 export function Integrations() {
+  const integrationOps = useIntegrationOperation();
   const [items, setItems] = useState<Integration[]>([]);
   const { attempt, run } = useAttempt('processing');
 
@@ -40,27 +42,50 @@ export function Integrations() {
   const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
 
   useEffect(() => {
+    // TODO(lisa): handle paginating as a follow up polish.
+    // Default fetch is 1k of integrations, which is plenty for beginning.
     run(() =>
-      integrationService.fetchIntegrations(cfg.proxyCluster).then(setItems)
+      integrationService.fetchIntegrations().then(resp => setItems(resp.items))
     );
   }, []);
 
+  function deleteIntegration() {
+    return integrationOps.remove().then(() => {
+      const updatedItems = items.filter(
+        i => i.name !== integrationOps.item.name
+      );
+      setItems(updatedItems);
+      integrationOps.clear();
+    });
+  }
+
   return (
-    <FeatureBox>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-        <IntegrationsAddButton canCreate={canCreateIntegrations} />
-      </FeatureHeader>
-      {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
+    <>
+      <FeatureBox>
+        <FeatureHeader>
+          <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
+          <IntegrationsAddButton canCreate={canCreateIntegrations} />
+        </FeatureHeader>
+        {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'success' && (
+          <IntegrationList
+            list={items}
+            onDeleteIntegration={integrationOps.onRemove}
+          />
+        )}
+      </FeatureBox>
+      {integrationOps.type === 'delete' && (
+        <DeleteIntegrationDialog
+          name={integrationOps.item.name}
+          onClose={integrationOps.clear}
+          onDelete={deleteIntegration}
+        />
       )}
-      {attempt.status === 'success' && (
-        /* TODO(lisa): deletion is stubbed until backend is implemented*/
-        <IntegrationList list={items} onDelete={null} />
-      )}
-    </FeatureBox>
+    </>
   );
 }

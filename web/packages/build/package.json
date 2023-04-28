@@ -40,6 +40,8 @@
     "@storybook/builder-webpack5": "^6.5.16",
     "@storybook/manager-webpack5": "^6.5.16",
     "@storybook/react": "^6.5.16",
+    "@storybook/addon-toolbars": "^6.5.16",
+    "@storybook/components": "^6.5.16",
     "@swc/plugin-styled-components": "1.5.41",
     "@testing-library/jest-dom": "^5.15.1",
     "@testing-library/react": "^12.1.2",

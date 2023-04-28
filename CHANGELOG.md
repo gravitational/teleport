@@ -347,11 +347,11 @@ This release of Teleport contains multiple improvements and bug fixes.
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
 
-## Moderated Sessions
+### Moderated Sessions
 
 * Fixed issue with moderated sessions not being disconnected on Ctrl+C. [#20588](https://github.com/gravitational/teleport/pull/20588)
 
-## Other fixes and improvements
+### Other fixes and improvements
 
 * Fixed issue with node install script downloading OSS binaries in Enterprise edition. [#20816](https://github.com/gravitational/teleport/pull/20816)
 * Fixed a regression when renewing Kubernetes dynamic credentials that prevented multiple renewals. [#20788](https://github.com/gravitational/teleport/pull/20788)

@@ -17,17 +17,93 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { Integration, IntegrationStatusCode } from './types';
+import {
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationStatusCode,
+  IntegrationListResponse,
+  AwsOidcListDatabasesRequest,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
+  RdsEngineIdentifier,
+} from './types';
 
 export const integrationService = {
-  fetchIntegration(clusterId: string, name: string): Promise<Integration> {
-    return api
-      .get(cfg.getIntegrationsUrl(clusterId, name))
-      .then(makeIntegration);
+  fetchIntegration(name: string): Promise<Integration> {
+    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
 
-  fetchIntegrations(clusterId: string): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl(clusterId)).then(makeIntegrations);
+  fetchIntegrations(): Promise<IntegrationListResponse> {
+    return api.get(cfg.getIntegrationsUrl()).then(resp => {
+      const integrations = resp?.items ?? [];
+      return {
+        items: integrations.map(makeIntegration),
+        nextKey: resp?.nextKey,
+      };
+    });
+  },
+
+  createIntegration(req: IntegrationCreateRequest): Promise<void> {
+    return api.post(cfg.getIntegrationsUrl(), req);
+  },
+
+  updateIntegration(name: string): Promise<void> {
+    return api.put(cfg.getIntegrationsUrl(name));
+  },
+
+  deleteIntegration(name: string): Promise<void> {
+    return api.delete(cfg.getIntegrationsUrl(name));
+  },
+
+  fetchAwsRdsDatabases(
+    integrationName,
+    rdsEngineIdentifier: RdsEngineIdentifier,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest;
+    switch (rdsEngineIdentifier) {
+      case 'mysql':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb'],
+        };
+        break;
+      case 'postgres':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['postgres'],
+        };
+        break;
+      case 'aurora-mysql':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora', 'aurora-mysql'],
+        };
+        break;
+      case 'aurora-postgres':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-postgresql'],
+        };
+        break;
+    }
+
+    return api
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
+      .then(json => {
+        const dbs = json?.databases ?? [];
+        return {
+          databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
   },
 };
 
@@ -52,5 +128,20 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+}
+
+export function makeAwsDatabase(json: any): AwsRdsDatabase {
+  json = json ?? {};
+  const { aws, name, uri, labels, protocol } = json;
+
+  return {
+    engine: protocol,
+    name,
+    uri,
+    status: aws?.status,
+    labels: labels ?? [],
+    resourceId: aws?.rds?.resource_id,
+    accountId: aws?.account_id,
   };
 }

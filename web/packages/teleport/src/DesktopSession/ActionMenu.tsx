@@ -28,7 +28,7 @@ export default function ActionMenu(props: Props) {
         buttonIconProps={{
           ml: 4,
           size: 0,
-          color: 'text.secondary',
+          color: 'text.slightlyMuted',
           style: { fontSize: '20px' },
         }}
         menuProps={menuProps}

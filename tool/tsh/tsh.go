@@ -331,6 +331,9 @@ type CLIConf struct {
 	// mockSSOLogin used in tests to override sso login handler in teleport client.
 	mockSSOLogin client.SSOLoginFunc
 
+	// mockHeadlessLogin used in tests to override Headless login handler in teleport client.
+	mockHeadlessLogin client.SSHLoginFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -595,10 +598,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
 
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
-	localUser, _ := client.Username()
 	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
@@ -886,18 +888,18 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
-	benchSSH := bench.Command("ssh", "Run SSH benchmark test")
+	benchSSH := bench.Command("ssh", "Run SSH benchmark test").Hidden()
 	benchSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
 	var benchKubeOpts benchKubeOptions
-	benchKube := bench.Command("kube", "Run Kube benchmark test")
+	benchKube := bench.Command("kube", "Run Kube benchmark test").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
-	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods")
+	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
-	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod")
+	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod").Hidden()
 	benchExecKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
 	benchExecKube.Arg("pod", "Pod name to exec into").Required().StringVar(&benchKubeOpts.pod)
 	benchExecKube.Arg("command", "Command to execute on a pod").Required().StringsVar(&cf.RemoteCommand)
@@ -964,9 +966,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 
 	// Headless login approval
-	headless := app.Command("headless", "headless commands").Interspersed(true)
-	approve := headless.Command("approve", "headless approval").Interspersed(true)
-	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
+	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
+	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1205,6 +1207,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case show.FullCommand():
 		err = onShow(&cf)
 	case status.FullCommand():
+		// onStatus can be invoked directly with `tsh status` but is also
+		// invoked from other commands. When invoked directly, we use a
+		// context with a short timeout to prevent the command from taking
+		// too long due to fetching alerts on slow networks.
+		var cancel context.CancelFunc
+		cf.Context, cancel = context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
+		defer cancel()
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
@@ -3343,6 +3352,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
+		if !cf.ExplicitUsername {
+			return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
+		}
 	}
 
 	if err := tryLockMemory(cf); err != nil {
@@ -3493,6 +3505,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// pass along mock sso login if provided (only used in tests)
 	c.MockSSOLogin = cf.mockSSOLogin
+	c.MockHeadlessLogin = cf.mockHeadlessLogin
 
 	// Set tsh home directory
 	c.HomePath = cf.HomePath
@@ -3780,10 +3793,14 @@ func onShow(cf *CLIConf) error {
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	var prefix string
-	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
+	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
+		if duration < time.Minute {
+			humanDuration = "valid for <1m"
+		}
 	}
 
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -4688,7 +4705,7 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, opts ...upd
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "")
+	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
 	return trace.Wrap(err)
 }
 

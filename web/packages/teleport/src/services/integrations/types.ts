@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Label } from 'teleport/types';
+
 /**
  * type Integration v. type Plugin:
  *
@@ -40,7 +42,12 @@ export type Integration<
   details?: string;
   statusCode: IntegrationStatusCode;
 };
-export type IntegrationKind = 'aws-oidc';
+// IntegrationKind string values should be in sync
+// with the backend value for defining the integration
+// resource's subKind field.
+export enum IntegrationKind {
+  AwsOidc = 'aws-oidc',
+}
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
@@ -86,3 +93,111 @@ export function getStatusCodeDescription(
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 export type PluginKind = 'slack';
+
+export type IntegrationCreateRequest = {
+  name: string;
+  subKind: IntegrationKind;
+  awsoidc?: IntegrationSpecAwsOidc;
+};
+
+export type IntegrationListResponse = {
+  items: Integration[];
+  nextKey?: string;
+};
+
+// awsRegionMap maps the AWS regions to it's region name
+// as defined in (omitted gov cloud regions):
+// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html
+export const awsRegionMap = {
+  'us-east-2': 'US East (Ohio)',
+  'us-east-1': 'US East (N. Virginia)',
+  'us-west-1': 'US West (N. California)',
+  'us-west-2': 'US West (Oregon)',
+  'af-south-1': 'Africa (Cape Town)',
+  'ap-east-1': 'Asia Pacific (Hong Kong)',
+  'ap-south-2': 'Asia Pacific (Hyderabad)',
+  'ap-southeast-3': 'Asia Pacific (Jakarta)',
+  'ap-southeast-4': 'Asia Pacific (Melbourne)',
+  'ap-south-1': 'Asia Pacific (Mumbai)',
+  'ap-northeast-3': 'Asia Pacific (Osaka)',
+  'ap-northeast-2': 'Asia Pacific (Seoul)',
+  'ap-southeast-1': 'Asia Pacific (Singapore)',
+  'ap-southeast-2': 'Asia Pacific (Sydney)',
+  'ap-northeast-1': 'Asia Pacific (Tokyo)',
+  'ca-central-1': 'Canada (Central)',
+  'eu-central-1': 'Europe (Frankfurt)',
+  'eu-west-1': 'Europe (Ireland)',
+  'eu-west-2': 'Europe (London)',
+  'eu-south-1': 'Europe (Milan)',
+  'eu-west-3': 'Europe (Paris)',
+  'eu-south-2': 'Europe (Spain)',
+  'eu-north-1': 'Europe (Stockholm)',
+  'eu-central-2': 'Europe (Zurich)',
+  'me-south-1': 'Middle East (Bahrain)',
+  'me-central-1': 'Middle East (UAE)',
+  'sa-east-1': 'South America (São Paulo)',
+};
+
+export type Regions = keyof typeof awsRegionMap;
+
+// RdsEngine are the expected backend string values,
+// used when requesting lists of rds databases of the
+// specified engine.
+export type RdsEngine =
+  | 'aurora' // (for MySQL 5.6-compatible Aurora)
+  | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+  | 'aurora-postgresql'
+  | 'mariadb'
+  | 'mysql'
+  | 'postgres';
+
+// RdsEngineIdentifier are the name of engines
+// used to determine the grouping of similar RdsEngines.
+// eg: if `aurora-mysql` then the grouping of RdsEngines
+// is 'aurora, aurora-mysql`, they are both mysql but
+// refer to different versions. This type is used solely
+// for frontend.
+export type RdsEngineIdentifier =
+  | 'mysql'
+  | 'postgres'
+  | 'aurora-mysql'
+  | 'aurora-postgres';
+
+export type AwsOidcListDatabasesRequest = {
+  // engines is used as a filter to get a list of specified engines only.
+  engines: RdsEngine[];
+  region: Regions;
+  // nextToken is the start key for the next page
+  nextToken?: string;
+  // rdsType describes the type of RDS dbs to request.
+  // `cluster` is used for requesting aurora related
+  // engines, and `instance` for rest of engines.
+  rdsType: 'instance' | 'cluster';
+};
+
+export type AwsRdsDatabase = {
+  // engine of the database. eg. aurora-mysql
+  engine: RdsEngine;
+  // name is the the Database's name.
+  name: string;
+  // uri contains the endpoint with port for connecting to this Database.
+  uri: string;
+  // resourceId is the AWS Region-unique, immutable identifier for the DB.
+  resourceId: string;
+  // accountId is the AWS account id.
+  accountId: string;
+  // labels contains this Instance tags.
+  labels: Label[];
+  // status contains this Instance status.
+  // There is a lot of status states available so only a select few were
+  // hard defined to use to determine the status color.
+  // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
+  status: 'available' | 'failed' | 'deleting';
+};
+
+export type ListAwsRdsDatabaseResponse = {
+  databases: AwsRdsDatabase[];
+  // nextToken is the start key for the next page.
+  // Empty value means last page.
+  nextToken?: string;
+};

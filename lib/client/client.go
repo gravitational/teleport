@@ -47,6 +47,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -636,6 +637,11 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -651,6 +657,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
 		RequesterName:         params.RequesterName,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 
@@ -1114,6 +1121,8 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
+		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1219,6 +1228,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 	case proxy.teleportClient.TLSRoutingEnabled:
 		clientConfig.Addrs = []string{proxy.teleportClient.WebProxyAddr}
 		clientConfig.ALPNSNIAuthDialClusterName = clusterName
+		clientConfig.ALPNConnUpgradeRequired = proxy.teleportClient.TLSRoutingConnUpgradeRequired
 	default:
 		clientConfig.Dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return proxy.dialAuthServer(ctx, clusterName)

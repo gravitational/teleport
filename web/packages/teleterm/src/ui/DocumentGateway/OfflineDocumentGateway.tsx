@@ -49,7 +49,7 @@ export function OfflineDocumentGateway(props: OfflineDocumentGatewayProps) {
     >
       <Text
         typography="h5"
-        color="text.primary"
+        color="text.main"
         mb={2}
         style={{ position: 'relative' }}
       >

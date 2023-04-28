@@ -40,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -188,15 +188,28 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
+	signers, err := tc.LocalAgent().Signers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(signers) == 0 {
+		return trace.BadParameter("no SSH auth methods loaded, are you logged in?")
+	}
+
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
-		User: tc.HostLogin,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
-		},
+		User:            tc.HostLogin,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
+			log.Infof("Access denied to %v connecting to %v: %v", tc.HostLogin, remoteProxyAddr, err)
+			return trace.AccessDenied(`access denied to %v connecting to %v`, tc.HostLogin, remoteProxyAddr)
+		}
 		return trace.Wrap(err)
 	}
 	defer client.Close()
@@ -234,53 +247,31 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
 	// if it is false, then remoteProxyAddr is the SSH proxy port.
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-	httpsProxy := apiutils.GetProxyURL(remoteProxyAddr)
 
-	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If HTTPS_PROXY is configured, we need to open a TCP connection via
-	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
-	// connection.
-	var tcpConn net.Conn
-	if httpsProxy != nil {
-		httpProxyTLSConfig := &tls.Config{
-			RootCAs:            pool,
-			InsecureSkipVerify: tc.InsecureSkipVerify,
-			ServerName:         httpsProxy.Hostname(),
-		}
-		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr, client.WithTLSConfig(httpProxyTLSConfig))
+	var dialer client.ContextDialer
+	switch {
+	case sp.tlsRouting:
+		pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		tcpConn, err = (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+		dialer = client.NewALPNDialer(client.ALPNDialerConfig{
+			TLSConfig: &tls.Config{
+				RootCAs:            pool,
+				NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
+				InsecureSkipVerify: tc.InsecureSkipVerify,
+				ServerName:         sp.proxyHost,
+			},
+			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(remoteProxyAddr),
+		})
+
+	default:
+		dialer = client.NewDialer(ctx, apidefaults.DefaultIdleTimeout, apidefaults.DefaultIOTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
 	}
 
-	// If TLS routing is not enabled, just return the TCP connection
-	if !sp.tlsRouting {
-		return tcpConn, nil
-	}
-
-	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
-	tlsConfig := &tls.Config{
-		RootCAs:            pool,
-		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-		ServerName:         sp.proxyHost,
-	}
-	tlsConn := tls.Client(tcpConn, tlsConfig)
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		tlsConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return tlsConn, nil
+	conn, err := dialer.DialContext(ctx, "tcp", remoteProxyAddr)
+	return conn, trace.Wrap(err)
 }
 
 func proxySubsystemName(userHost, cluster string) string {

@@ -16,7 +16,15 @@ limitations under the License.
 
 import React, { useState } from 'react';
 
-import { Box, ButtonPrimary, ButtonSecondary, Flex, Input, Text } from 'design';
+import {
+  Box,
+  ButtonPrimary,
+  ButtonBorder,
+  ButtonSecondary,
+  Flex,
+  Input,
+  Text,
+} from 'design';
 import { Cell, LabelCell } from 'design/DataTable';
 import Select from 'shared/components/Select';
 import { ArrowBack } from 'design/Icon';
@@ -72,10 +80,10 @@ export function NewLockContent({
     additionalTargets
   );
 
-  function onAdd(name) {
+  function onAdd(target: string) {
     selectedLockTargets.push({
       type: selectedTargetType.value,
-      name,
+      name: target,
     });
     setSelectedLockTargets([...selectedLockTargets]);
   }
@@ -108,7 +116,7 @@ export function NewLockContent({
         </FeatureHeaderTitle>
       </FeatureHeader>
       <Flex justifyContent="space-between">
-        <Box width="150px" mb={4} data-testid="resource-selector">
+        <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
             value={selectedTargetType}
             options={lockTargets}
@@ -136,7 +144,7 @@ export function NewLockContent({
         p={3}
         mt={4}
         css={`
-          background: ${({ theme }) => theme.colors.levels.surfaceSecondary};
+          background: ${({ theme }) => theme.colors.spotBackground[0]};
         `}
       >
         <Box>
@@ -183,38 +191,41 @@ function TargetList({
   }
 
   const columns: TableColumn<any>[] = data.length
-    ? Object.keys(data[0]).map(c => {
-        const col: TableColumn<any> = {
-          key: c,
-          headerText: c,
-          isSortable: true,
-        };
-        if (c === 'labels') {
-          col.render = target => {
-            const labels = target.labels || [];
-            return (
-              <LabelCell data={labels.map(l => `${l.name}: ${l.value}`)} />
-            );
+    ? Object.keys(data[0])
+        .filter(k => k !== 'targetValue') // don't show targetValue in the table
+        .map(c => {
+          const col: TableColumn<any> = {
+            key: c,
+            headerText: c === 'lastUsed' ? 'Last Used' : c,
+            isSortable: true,
           };
-        }
-        return col;
-      })
+          if (c === 'labels') {
+            col.render = target => {
+              const labels = target.labels || [];
+              return (
+                <LabelCell data={labels.map(l => `${l.name}: ${l.value}`)} />
+              );
+            };
+          }
+          return col;
+        })
     : [];
 
   if (columns.length) {
     columns.push({
       altKey: 'add-btn',
-      render: ({ name }) => (
+      render: ({ targetValue }) => (
         <Cell align="right">
-          <ButtonPrimary
-            onClick={onAdd.bind(null, name)}
+          <ButtonBorder
+            onClick={onAdd.bind(null, targetValue)}
             data-testid="btn-cell"
             disabled={selectedLockTargets.some(
-              target => target.type === selectedTarget && target.name === name
+              target =>
+                target.type === selectedTarget && target.name === targetValue
             )}
           >
             + Add
-          </ButtonPrimary>
+          </ButtonBorder>
         </Cell>
       ),
     });

@@ -216,6 +216,8 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -615,10 +617,21 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(clusterId: string, name?: string) {
-    return generateResourcePath(cfg.api.integrationsPath, {
+  getIntegrationsUrl(integrationName?: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationsPath, {
       clusterId,
-      name,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbListUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
     });
   },
 
@@ -708,6 +721,14 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+}
+
+export interface UrlIntegrationExecuteRequestParams {
+  // name is the name of integration to execute (use).
+  name: string;
+  // action is the expected backend string value
+  // used to describe what to use the integration for.
+  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;

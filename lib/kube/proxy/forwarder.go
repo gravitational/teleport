@@ -64,6 +64,7 @@ import (
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -87,7 +88,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -171,7 +171,13 @@ type ForwarderConfig struct {
 	// the upstream Teleport proxy or Kubernetes service when forwarding requests
 	// using the forward identity (i.e. proxy impersonating a user) method.
 	ConnTLSConfig *tls.Config
+	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+	// It is used to determine if the cluster is licensed for Kubernetes usage.
+	ClusterFeatures ClusterFeaturesGetter
 }
+
+// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+type ClusterFeaturesGetter func() proto.Features
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -198,6 +204,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.ClusterFeatures == nil {
+		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
@@ -259,7 +268,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize)
+	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,13 +277,12 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	// deleting expired entried clusters and kube_servers entries.
 	// In the meantime, we need to make sure that the cache is cleaned
 	// from time to time.
-	transportClients, err := ttlmap.New(defaults.ClientCacheSize)
+	transportClients, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	closeCtx, close := context.WithCancel(cfg.Context)
-
 	fwd := &Forwarder{
 		log:               cfg.log,
 		cfg:               cfg,
@@ -290,6 +298,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		clusterDetails:  make(map[string]*kubeDetails),
 		cachedTransport: transportClients,
 	}
+
 	router := httprouter.New()
 
 	router.UseRawPath = true
@@ -339,6 +348,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return fwd, nil
 }
 
@@ -498,6 +508,11 @@ const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
+	// If the cluster is not licensed for Kubernetes, return an error to the client.
+	if !f.cfg.ClusterFeatures().Kubernetes {
+		// If the cluster is not licensed for Kubernetes, return an error to the client.
+		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
+	}
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/authenticate",
@@ -532,31 +547,20 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	if err != nil {
 		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
 	}
-	peers := req.TLS.PeerCertificates
-	if len(peers) > 1 {
-		// when turning intermediaries on, don't forget to verify
-		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
-		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
-	}
-	if len(peers) == 0 {
-		return nil, trace.AccessDenied("access denied: only mutual TLS authentication is supported")
-	}
-	clientCert := peers[0]
-	clientIdentity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
 	kubeResource := getPodResourceFromRequest(req.RequestURI)
-	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, clientIdentity, kubeResource)
+	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
 		if trace.IsAccessDenied(err) {
 			if kubeResource != nil {
 				return nil, trace.AccessDenied(
 					kubeResourceDeniedAccessMsg(
-						clientIdentity.Username,
+						// return the unmapped username to the client, otherwise for leaf
+						// clusters the client will see the "remote-username".
+						userContext.UnmappedIdentity.GetIdentity().Username,
 						req.Method,
 						kubeResource,
 					),
@@ -711,14 +715,15 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 
 // formatStatusResponseError formats the error response into a kube Status object.
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	code := trace.ErrorToCode(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
 		// user-friendly message. The underlying root error is likely too
 		// low-level to be useful.
 		Message: respErr.Error(),
-		Code:    int32(trace.ErrorToCode(respErr)),
-		Reason:  errorToKubeStatusReason(respErr),
+		Code:    int32(code),
+		Reason:  errorToKubeStatusReason(respErr, code),
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -737,7 +742,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	}
 }
 
-func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req *http.Request, isRemoteUser bool, kubeResource *types.KubernetesResource) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
 		"kube.Forwarder/setupContext",
@@ -938,8 +943,8 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req
 		recordingConfig:       recordingConfig,
 		kubeClusterName:       kubeCluster,
 		kubeResource:          kubeResource,
-		certExpires:           clientIdentity.Expires,
-		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, clientIdentity),
+		certExpires:           identity.Expires,
+		disconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(roles, authPref, &identity),
 		teleportCluster: teleportClusterClient{
 			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
@@ -1125,11 +1130,6 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		),
 	)
 	defer span.End()
-
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
@@ -2991,7 +2991,7 @@ func getRequestVerb(method string) string {
 
 // errorToKubeStatusReason returns an appropriate StatusReason based on the
 // provided error type.
-func errorToKubeStatusReason(err error) metav1.StatusReason {
+func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 	switch {
 	case trace.IsAggregate(err):
 		return metav1.StatusReasonTimeout
@@ -3011,6 +3011,8 @@ func errorToKubeStatusReason(err error) metav1.StatusReason {
 		return metav1.StatusReasonTooManyRequests
 	case trace.IsConnectionProblem(err):
 		return metav1.StatusReasonTimeout
+	case code == http.StatusInternalServerError:
+		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
 	}

@@ -55,9 +55,10 @@ function SearchBar() {
     inputValue,
     onInputValueChange,
     inputRef,
-    opened,
+    isOpen,
     open,
     close,
+    addWindowEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
@@ -74,11 +75,13 @@ function SearchBar() {
         close();
       }
     };
-    if (opened) {
-      window.addEventListener('click', onClickOutside);
-      return () => window.removeEventListener('click', onClickOutside);
+    if (isOpen) {
+      const { cleanup } = addWindowEventListener('click', onClickOutside, {
+        capture: true,
+      });
+      return cleanup;
     }
-  }, [close, opened]);
+  }, [close, isOpen, addWindowEventListener]);
 
   function handleOnFocus(e: React.FocusEvent) {
     open(e.relatedTarget);
@@ -117,13 +120,13 @@ function SearchBar() {
       ref={containerRef}
       onFocus={handleOnFocus}
     >
-      {!opened && (
+      {!isOpen && (
         <>
           <Input {...defaultInputProps} />
           <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
-      {opened && (
+      {isOpen && (
         <activePicker.picker
           // autofocusing cannot be done in `open` function as it would focus the input from closed state
           input={<Input {...defaultInputProps} autoFocus={true} />}
@@ -147,7 +150,7 @@ const Input = styled.input`
   padding-inline: ${props => props.theme.space[2]}px;
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;
 
@@ -156,7 +159,7 @@ const Shortcut = styled(Box).attrs({ p: 1 })`
   right: ${props => props.theme.space[2]}px;
   top: 50%;
   transform: translate(0, -50%);
-  color: ${({ theme }) => theme.colors.text.secondary};
+  color: ${({ theme }) => theme.colors.text.slightlyMuted};
   background-color: ${({ theme }) => theme.colors.levels.surface};
   line-height: 12px;
   font-size: 12px;
