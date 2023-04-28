@@ -1622,7 +1622,7 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, func(as *auth.Server) error {
+	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1640,7 +1640,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})
+	})...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1713,7 +1713,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		PluginRegistry: process.PluginRegistry,
-		Emitter:        checkingEmitter,
+		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
 	}
 
@@ -2438,6 +2438,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
 			regular.SetCAGetter(caGetter),
+			regular.SetPublicAddrs(cfg.SSH.PublicAddrs),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3879,6 +3880,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetSessionController(sessionController),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
+		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
 	)
 	if err != nil {
 		return trace.Wrap(err)
