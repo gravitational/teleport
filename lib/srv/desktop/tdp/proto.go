@@ -279,6 +279,12 @@ func readRawPNG2Frame(firstByte byte, in byteReader) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// prevent allocation of giant buffers.
+	// this also avoids panic for due to overflow.
+	if pngLength > maxPNGFrameDataLength {
+		return nil, trace.BadParameter("pngLength too big: %v", pngLength)
+	}
+
 	b := make([]byte, 1+4+pngLength+16)
 	b[0] = firstByte
 
@@ -675,12 +681,8 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
-	var completionID, directoryID uint32
-	err := binary.Read(in, binary.BigEndian, &completionID)
-	if err != nil {
-		return SharedDirectoryAnnounce{}, trace.Wrap(err)
-	}
-	err = binary.Read(in, binary.BigEndian, &directoryID)
+	var directoryID uint32
+	err := binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
@@ -1417,6 +1419,9 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v >> 8))
 	b.WriteByte(byte(v))
 }
+
+// maxPNGFrameDataLength is maximum data length for PNG2Frame
+const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (
