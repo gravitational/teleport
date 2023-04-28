@@ -4,7 +4,6 @@ agentsPerPod: 15
 minReadySeconds: 30
 
 image:
-  # TODO: remove after v12 is released
   tag: 13.0.0-alpha.2
 
 joinParams:

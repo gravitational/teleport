@@ -24,6 +24,9 @@ data:
       enabled: false
     ssh_service:
       enabled: true
+      commands:
+        - name: fullname
+          command: ['bash', '-c', 'echo "$HOSTNAME-$REPLICA"']
       # listen_addr set at runtime to avoid conflicts in the same pod
       # listen_addr: 0.0.0.0:3022
   entrypoint.sh: |2

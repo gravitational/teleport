@@ -26,8 +26,7 @@ podMonitor:
   enabled: true
   interval: ""
 
-# TODO: change after v12 is released
-teleportVersionOverride: 12.0.0-hugochartsplit.2
+teleportVersionOverride: 13.0.0-alpha.1
 
 auth:
   teleportConfig:
