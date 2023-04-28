@@ -350,6 +350,11 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
 
+	// get the requested location from env vars
+	location, _ := scx.GetEnv(sftp.FileTransferDstPath)
+	if location == "" {
+		return false, nil
+	}
 	// if a sessID and requestID environment variables were not set, return not approved and no error.
 	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
 	// moderated session approval process has completed.
@@ -373,6 +378,10 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	if req == nil {
 		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
 		return false, trace.NotFound("File transfer request not found")
+	}
+
+	if req.location != location {
+		return false, trace.AccessDenied("requested destination path does not match the current request")
 	}
 
 	if req.requester != scx.Identity.TeleportUser {
@@ -1578,6 +1587,9 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	defer s.mu.Unlock()
 
 	req := s.newFileTransferRequest(params)
+	fmt.Println("----")
+	fmt.Printf("%+v\n", req)
+	fmt.Println("----")
 	s.fileTransferRequests[req.id] = req
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
