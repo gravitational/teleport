@@ -141,6 +141,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		expectedError  string
 		req            *fileTransferRequest
 		reqID          string
+		location       string
 	}{
 
 		{
@@ -168,13 +169,27 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			},
 		},
 		{
+			name:           "current request location does not match original location",
+			expectedResult: false,
+			expectedError:  "requested destination path does not match the current request",
+			reqID:          "123",
+			location:       "~/Downloads",
+			req: &fileTransferRequest{
+				requester: "michael",
+				approvers: make(map[string]*party),
+				location:  "~/badlocation",
+			},
+		},
+		{
 			name:           "approved request",
 			expectedResult: true,
 			expectedError:  "",
 			reqID:          "123",
+			location:       "~/Downloads",
 			req: &fileTransferRequest{
 				requester: "teleportUser",
 				approvers: approvers,
+				location:  "~/Downloads",
 			},
 		},
 	}
@@ -193,6 +208,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
+			scx.SetEnv(sftp.FileTransferDstPath, tt.location)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
