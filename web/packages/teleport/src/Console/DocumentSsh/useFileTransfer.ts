@@ -51,6 +51,7 @@ export const useFileTransfer = (
   addMfaToScpUrls: boolean
 ) => {
   const { filesStore } = useFileTransferContext();
+  const startTransfer = filesStore.start;
   const ctx = useConsoleContext();
   const currentUser = ctx.getStoreUser();
   const [fileTransferRequests, setFileTransferRequests] = useState<
@@ -58,6 +59,7 @@ export const useFileTransfer = (
   >([]);
   const { getScpUrl, attempt: getMfaResponseAttempt } =
     useGetScpUrl(addMfaToScpUrls);
+  const { clusterId, serverId, login } = currentDoc;
 
   const download = useCallback(
     async (
@@ -65,12 +67,11 @@ export const useFileTransfer = (
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      const { clusterId, serverId, login } = currentDoc;
       const url = await getScpUrl({
         location,
-        clusterId: clusterId,
-        serverId: serverId,
-        login: login,
+        clusterId,
+        serverId,
+        login,
         filename: location,
         moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
@@ -84,7 +85,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().download(url, abortController);
     },
-    [currentDoc, getScpUrl]
+    [clusterId, login, serverId, getScpUrl]
   );
 
   const upload = useCallback(
@@ -94,12 +95,11 @@ export const useFileTransfer = (
       abortController: AbortController,
       moderatedSessionParams?: ModeratedSessionParams
     ) => {
-      const { clusterId, serverId, login } = currentDoc;
       const url = await getScpUrl({
         location,
-        clusterId: clusterId,
-        serverId: serverId,
-        login: login,
+        clusterId,
+        serverId,
+        login,
         filename: file.name,
         moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
@@ -113,7 +113,7 @@ export const useFileTransfer = (
       }
       return getHttpFileTransferHandlers().upload(url, file, abortController);
     },
-    [currentDoc, getScpUrl]
+    [clusterId, serverId, login, getScpUrl]
   );
 
   /*
@@ -141,7 +141,7 @@ export const useFileTransfer = (
       }
 
       if (request.download) {
-        return filesStore.start({
+        return startTransfer({
           name: request.location,
           runFileTransfer: abortController =>
             download(request.location, abortController, {
@@ -155,7 +155,7 @@ export const useFileTransfer = (
       if (!file) {
         throw new Error('Approved file not found for upload.');
       }
-      return filesStore.start({
+      return startTransfer({
         name: request.filename,
         runFileTransfer: abortController =>
           upload(request.location, file, abortController, {
@@ -164,7 +164,7 @@ export const useFileTransfer = (
           }),
       });
     },
-    [currentUser.username, download, filesStore, upload]
+    [currentUser.username, download, startTransfer, upload]
   );
 
   // handleFileTransferUpdate is called when a FILE_TRANSFER_REQUEST event is received. This is used when
