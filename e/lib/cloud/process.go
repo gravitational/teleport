@@ -156,7 +156,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		}
 
 		process.Supervisor.RegisterFunc("pluginmanager", func() error {
-			return trace.Wrap(pluginManager.Run(process.ExitContext()))
+			return trace.Wrap(pluginManager.Run(process.GracefulExitContext()))
 		})
 	}
 
