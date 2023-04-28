@@ -229,7 +229,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
 		DeviceEnrollEvent, DeviceAuthenticateCode,
 		DeviceEnrollTokenCreateEvent:
-		e = &events.DeviceEvent{}
+		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
