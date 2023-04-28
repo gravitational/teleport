@@ -287,7 +287,11 @@ function PagedTable<T>({
         {renderBody(paginatedData[currentPage])}
       </StyledTable>
       {!isTopPager && (
-        <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
+        <StyledPanel
+          borderBottomLeftRadius={3}
+          borderBottomRightRadius={3}
+          showTopBorder={true}
+        >
           <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
@@ -317,7 +321,7 @@ function ServersideTable<T>({
         {renderHeaders()}
         {renderBody(data)}
       </StyledTable>
-      <StyledPanel>
+      <StyledPanel showTopBorder={true}>
         <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
       </StyledPanel>
     </>

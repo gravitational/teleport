@@ -89,7 +89,7 @@ export const StyledTable = styled.table(
   borderRadius
 );
 
-export const StyledPanel = styled.nav`
+export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -98,6 +98,10 @@ export const StyledPanel = styled.nav`
   justify-content: space-between;
   background: ${props => props.theme.colors.levels.surface};
   ${borderRadius}
+  border-top: ${props =>
+    props.showTopBorder
+      ? '1px solid ' + props.theme.colors.spotBackground[0]
+      : undefined}
 `;
 
 export const StyledTableWrapper = styled.div`
