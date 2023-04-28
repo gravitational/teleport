@@ -295,6 +295,7 @@
     "connectorname",
     "cqlsh",
     "createkey",
+    "createnongalleryapp",
     "creds",
     "crond",
     "customizability",
