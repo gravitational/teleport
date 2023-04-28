@@ -883,6 +883,36 @@ func TestMux(t *testing.T) {
 			_, err = utils.RoundtripWithConn(clt)
 			require.Error(t, err)
 		})
+		t.Run("proxy line with non-teleport TLV", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
+
+			awsProxyLine := ProxyLine{
+				Protocol:    TCP4,
+				Source:      addr1,
+				Destination: addr2,
+				TLVs: []TLV{
+					{
+						Type:  PP2TypeAWS,
+						Value: []byte{0x42, 0x84, 0x42, 0x84},
+					},
+				},
+				IsVerified: false,
+			}
+
+			header, err := awsProxyLine.Bytes()
+			require.NoError(t, err)
+
+			_, err = conn.Write(header)
+			require.NoError(t, err)
+
+			clt := tls.Client(conn, clientConfig(backend4))
+
+			out, err := utils.RoundtripWithConn(clt)
+			require.NoError(t, err)
+			require.Equal(t, addr1.String(), out)
+		})
 	})
 	// Ensures that we can correctly send and verify signed PROXY header
 	t.Run("signed PROXY header is ignored if signed by wrong cluster", func(t *testing.T) {
