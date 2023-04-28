@@ -688,11 +688,10 @@ func TestList(t *testing.T) {
 		},
 	}
 
+	tshHome, _ := mustLogin(t, s)
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			tshHome, _ := mustLogin(t, s)
 			stdout := &bytes.Buffer{}
-
 			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
 			require.NoError(t, err)
 
