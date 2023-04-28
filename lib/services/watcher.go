@@ -521,7 +521,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1198,7 +1198,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit()
+	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1444,8 +1444,6 @@ type Node interface {
 	GetNamespace() string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
-	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.

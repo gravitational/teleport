@@ -200,19 +200,14 @@ function DbEngineInstructions({
 }) {
   switch (dbLocation) {
     case DatabaseLocation.Aws:
-      if (dbEngine === DatabaseEngine.Postgres) {
+      if (
+        dbEngine === DatabaseEngine.Postgres ||
+        dbEngine === DatabaseEngine.AuroraPostgres
+      ) {
         return (
           <Box mb={3}>
             <Text mb={2}>
-              Database users must allow{' '}
-              <Link
-                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL"
-                target="_blank"
-              >
-                IAM authentication
-              </Link>{' '}
-              in order to be used with Database Access for RDS. To enable, users
-              must have a <Mark>rds_iam</Mark> role:
+              Users must have an <Mark>rds_iam</Mark> role:
             </Text>
             <TextSelectCopyMulti
               bash={false}
@@ -227,20 +222,15 @@ function DbEngineInstructions({
           </Box>
         );
       }
-      if (dbEngine === DatabaseEngine.MySql) {
+      if (
+        dbEngine === DatabaseEngine.MySql ||
+        dbEngine === DatabaseEngine.AuroraMysql
+      ) {
         return (
           <Box mb={3}>
             <Box mb={2}>
               <Text mb={2}>
-                Database users must allow{' '}
-                <Link
-                  href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL"
-                  target="_blank"
-                >
-                  IAM authentication
-                </Link>{' '}
-                in order to be used with Database Access for RDS. Users must
-                have the RDS authentication plugin enabled:
+                Users must have the RDS authentication plugin enabled:
               </Text>
               <TextSelectCopyMulti
                 bash={false}

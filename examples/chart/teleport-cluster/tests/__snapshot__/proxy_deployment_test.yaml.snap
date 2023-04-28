@@ -4,8 +4,8 @@ should provision initContainer correctly when set in values:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       name: wait-auth-update
     - args:
       - echo test
@@ -58,10 +58,11 @@ should set nodeSelector when set in values:
   1: |
     affinity:
       podAntiAffinity: null
+    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -113,13 +114,16 @@ should set nodeSelector when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
     initContainers:
     - command:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       name: wait-auth-update
     nodeSelector:
       environment: security
@@ -127,6 +131,21 @@ should set nodeSelector when set in values:
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -151,10 +170,11 @@ should set resources when set in values:
   1: |
     affinity:
       podAntiAffinity: null
+    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -213,17 +233,35 @@ should set resources when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
     initContainers:
     - command:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       name: wait-auth-update
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -233,10 +271,11 @@ should set securityContext for initContainers when set in values:
   1: |
     affinity:
       podAntiAffinity: null
+    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -295,13 +334,16 @@ should set securityContext for initContainers when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
     initContainers:
     - command:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -313,6 +355,21 @@ should set securityContext for initContainers when set in values:
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -322,10 +379,11 @@ should set securityContext when set in values:
   1: |
     affinity:
       podAntiAffinity: null
+    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -384,13 +442,16 @@ should set securityContext when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
     initContainers:
     - command:
       - teleport
       - wait
       - no-resolve
-      - RELEASE-NAME-auth-v12.NAMESPACE.svc.cluster.local
-      image: public.ecr.aws/gravitational/teleport:13.0.0-dev
+      - RELEASE-NAME-auth-v13.NAMESPACE.svc.cluster.local
+      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
       name: wait-auth-update
       securityContext:
         allowPrivilegeEscalation: false
@@ -402,6 +463,21 @@ should set securityContext when set in values:
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
+        - configMap:
+            items:
+            - key: ca.crt
+              path: ca.crt
+            name: kube-root-ca.crt
+        - downwardAPI:
+            items:
+            - fieldRef:
+                fieldPath: metadata.namespace
+              path: namespace
     - configMap:
         name: RELEASE-NAME-proxy
       name: config

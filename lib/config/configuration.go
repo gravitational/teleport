@@ -522,6 +522,10 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if haveProxyServer {
+			if fc.Proxy.Enabled() {
+				return trace.BadParameter("proxy_server can not be specified when proxy service is enabled")
+			}
+
 			addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1211,6 +1215,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {

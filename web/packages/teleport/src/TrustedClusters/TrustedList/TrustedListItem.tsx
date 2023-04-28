@@ -58,7 +58,7 @@ export default function TrustedListItem(props: Props) {
           my="4"
           style={{ textAlign: 'center' }}
           fontSize="48px"
-          color="text.primary"
+          color="text.main"
         />
         <Text
           typography="p"

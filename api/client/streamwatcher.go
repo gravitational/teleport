@@ -30,7 +30,11 @@ import (
 // NewWatcher returns a new streamWatcher
 func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.WatchEvents(cancelCtx, &proto.Watch{Kinds: watch.Kinds})
+	protoWatch := proto.Watch{
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
+	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)

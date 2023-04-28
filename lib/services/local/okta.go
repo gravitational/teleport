@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,20 +35,18 @@ const (
 	oktaImportRuleMaxPageSize = 200
 	oktaAssignmentPrefix      = "okta_assignment"
 	oktaAssignmentMaxPageSize = 200
-
-	oktaAssignmentModifyLockTTL = 10 * time.Second
-	oktaAssignmentModifyLock    = "okta_assignment_modify_lock"
 )
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
 	log           logrus.FieldLogger
+	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(backend backend.Backend) (*OktaService, error) {
+func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
 		Backend:       backend,
 		PageLimit:     oktaImportRuleMaxPageSize,
@@ -74,6 +73,7 @@ func NewOktaService(backend backend.Backend) (*OktaService, error) {
 
 	return &OktaService{
 		log:           logrus.WithFields(logrus.Fields{trace.Component: "okta:local-service"}),
+		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
 	}, nil
@@ -116,17 +116,7 @@ func (o *OktaService) ListOktaAssignments(ctx context.Context, pageSize int, nex
 
 // GetOktaAssignment returns the specified Okta assignment resources.
 func (o *OktaService) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
-	var assignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		assignment, err = o.assignmentSvc.GetResource(ctx, name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	return assignment, trace.Wrap(err)
+	return o.assignmentSvc.GetResource(ctx, name)
 }
 
 // CreateOktaAssignment creates a new Okta assignment resource.
@@ -136,57 +126,39 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	var previousAssignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		previousAssignment, err = o.assignmentSvc.GetResource(ctx, assignment.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return o.assignmentSvc.UpdateResource(ctx, assignment)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return previousAssignment, nil
+	return assignment, o.assignmentSvc.UpdateResource(ctx, assignment)
 }
 
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (o *OktaService) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	var assignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		assignment, err = o.assignmentSvc.GetResource(ctx, name)
-		if err != nil {
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(currentAssignment types.OktaAssignment) error {
+		// Only update the status if the given duration has passed.
+		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
+		if sinceLastTransition < timeHasPassed {
+			return trace.BadParameter("only %s has passed since last transition", sinceLastTransition)
+		}
+
+		if err := currentAssignment.SetStatus(status); err != nil {
 			return trace.Wrap(err)
 		}
+		currentAssignment.SetLastTransition(o.clock.Now())
 
-		for _, action := range assignment.GetActions() {
-			if err := action.SetStatus(status); err != nil {
-				o.log.Warnf("Unable to transition status from %s -> %s", action.GetStatus(), status)
-			}
-		}
-
-		return o.assignmentSvc.UpdateResource(ctx, assignment)
+		return nil
 	})
-	return assignment, trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
+	return nil
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) error {
-	return trace.Wrap(o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		return o.assignmentSvc.DeleteResource(ctx, name)
-	}))
+	return o.assignmentSvc.DeleteResource(ctx, name)
 }
 
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
-	return trace.Wrap(o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		return o.assignmentSvc.DeleteAllResources(ctx)
-	}))
+	return o.assignmentSvc.DeleteAllResources(ctx)
 }

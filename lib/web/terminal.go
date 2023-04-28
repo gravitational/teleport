@@ -96,7 +96,6 @@ type AuthProvider interface {
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
-	GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -534,6 +533,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 					NodeName:       t.sessionData.ServerID,
 					Usage:          authproto.UserCertsRequest_SSH,
 					Format:         tc.CertificateFormat,
+					SSHLogin:       tc.HostLogin,
 				},
 			},
 		}); err != nil {
@@ -548,6 +548,28 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	challenge := resp.GetMFAChallenge()
 	if challenge == nil {
 		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
+	}
+
+	switch challenge.MFARequired {
+	case authproto.MFARequired_MFA_REQUIRED_NO:
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	case authproto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
+		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+			Target: &authproto.IsMFARequiredRequest_Node{
+				Node: &authproto.NodeLogin{
+					Node:  t.sessionData.ServerID,
+					Login: tc.HostLogin,
+				},
+			},
+		})
+		if err != nil {
+			return nil, trace.Wrap(client.MFARequiredUnknown(err))
+		}
+
+		if !mfaRequiredResp.Required {
+			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		}
+	case authproto.MFARequired_MFA_REQUIRED_YES:
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
@@ -637,7 +659,11 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 		return nil, trace.Wrap(err)
 	}
 
-	signer := agentless.SignerFromSSHCertificate(cert, t.authProvider)
+	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -697,7 +723,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) {
+	if mfaErr != nil && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -772,22 +798,6 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (*client.NodeClient, error) {
-	mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-		Target: &authproto.IsMFARequiredRequest_Node{
-			Node: &authproto.NodeLogin{
-				Node:  t.sessionData.ServerID,
-				Login: tc.HostLogin,
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(client.MFARequiredUnknown(err))
-	}
-
-	if !mfaRequiredResp.Required {
-		return nil, trace.Wrap(client.MFARequiredUnknown(trace.AccessDenied("no access to %s", t.sessionData.ServerHostname)))
-	}
-
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc)
 	if err != nil {
