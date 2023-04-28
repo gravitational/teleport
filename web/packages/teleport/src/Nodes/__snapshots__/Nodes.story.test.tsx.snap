@@ -357,11 +357,98 @@ exports[`failed 1`] = `
   font-size: 14px;
 }
 
-.c32 {
+.c33 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c31 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c31 .c20 {
+  color: inherit;
+}
+
+.c31:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c31:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c31:hover:enabled,
+.c31:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c31:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c34 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c34 .c20 {
+  color: inherit;
+}
+
+.c34:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c34:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c34:hover:enabled,
+.c34:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c34:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -458,7 +545,6 @@ exports[`failed 1`] = `
 
 .c24 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -521,7 +607,7 @@ exports[`failed 1`] = `
   line-height: 16px;
 }
 
-.c24 tbody tr {
+.c24 > tbody > tr:not(:last-of-type) > td {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
@@ -549,6 +635,7 @@ exports[`failed 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c4 {
@@ -577,29 +664,12 @@ exports[`failed 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c31 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c31 .c20 {
+.c32 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c31:hover .c20,
-.c31:focus .c20 {
-  opacity: 1;
-}
-
-.c31:disabled {
-  cursor: default;
-}
-
-.c31:disabled .c20 {
-  opacity: 0.1;
+.c32 .c20:before {
+  padding-left: 1px;
 }
 
 .c13 {
@@ -1090,10 +1160,10 @@ exports[`failed 1`] = `
           </td>
           <td>
             <span
-              style="cursor: default;"
+              style="cursor: default; white-space: nowrap;"
               title="This node is connected to cluster through reverse tunnel"
             >
-              ⟵ tunnel
+              ← tunnel
             </span>
           </td>
           <td>
@@ -1137,10 +1207,10 @@ exports[`failed 1`] = `
           </td>
           <td>
             <span
-              style="cursor: default;"
+              style="cursor: default; white-space: nowrap;"
               title="This node is connected to cluster through reverse tunnel"
             >
-              ⟵ tunnel
+              ← tunnel
             </span>
           </td>
           <td>
@@ -1191,20 +1261,20 @@ exports[`failed 1`] = `
           class="c22"
         >
           <button
-            class="c31"
+            class="c31 c32"
             title="Previous page"
           >
             <span
-              class="c20 c32 icon icon-arrow-left-circle "
+              class="c20 c33 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c31"
+            class="c34 c32"
             title="Next page"
           >
             <span
-              class="c20 c32 icon icon-arrow-right-circle "
+              class="c20 c33 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
@@ -1323,11 +1393,98 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c35 {
+.c36 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c34 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c34 .c23 {
+  color: inherit;
+}
+
+.c34:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c34:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c34:hover:enabled,
+.c34:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c34:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c37 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c37 .c23 {
+  color: inherit;
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c37:hover:enabled,
+.c37:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c37:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c22 {
@@ -1483,7 +1640,6 @@ exports[`loaded 1`] = `
 
 .c27 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1546,7 +1702,7 @@ exports[`loaded 1`] = `
   line-height: 16px;
 }
 
-.c27 tbody tr {
+.c27 > tbody > tr:not(:last-of-type) > td {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
@@ -1574,6 +1730,7 @@ exports[`loaded 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c8 {
@@ -1602,29 +1759,12 @@ exports[`loaded 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c34 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c34 .c23 {
+.c35 .c23 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c34:hover .c23,
-.c34:focus .c23 {
-  opacity: 1;
-}
-
-.c34:disabled {
-  cursor: default;
-}
-
-.c34:disabled .c23 {
-  opacity: 0.1;
+.c35 .c23:before {
+  padding-left: 1px;
 }
 
 .c16 {
@@ -2140,10 +2280,10 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <span
-              style="cursor: default;"
+              style="cursor: default; white-space: nowrap;"
               title="This node is connected to cluster through reverse tunnel"
             >
-              ⟵ tunnel
+              ← tunnel
             </span>
           </td>
           <td>
@@ -2187,10 +2327,10 @@ exports[`loaded 1`] = `
           </td>
           <td>
             <span
-              style="cursor: default;"
+              style="cursor: default; white-space: nowrap;"
               title="This node is connected to cluster through reverse tunnel"
             >
-              ⟵ tunnel
+              ← tunnel
             </span>
           </td>
           <td>
@@ -2241,20 +2381,20 @@ exports[`loaded 1`] = `
           class="c25"
         >
           <button
-            class="c34"
+            class="c34 c35"
             title="Previous page"
           >
             <span
-              class="c23 c35 icon icon-arrow-left-circle "
+              class="c23 c36 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c34"
+            class="c37 c35"
             title="Next page"
           >
             <span
-              class="c23 c35 icon icon-arrow-right-circle "
+              class="c23 c36 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
