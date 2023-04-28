@@ -1169,56 +1169,56 @@ export const formatters: Formatters = {
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
     desc: 'Device Register',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has registered a device`
         : `User [${user}] has failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
     type: 'device.delete',
     desc: 'Device Delete',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has deleted a device`
         : `User [${user}] has failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
     type: 'device.authenticate',
     desc: 'Device Authenticate',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has successfully authenticated their device`
         : `User [${user}] has failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
     type: 'device.enroll',
     desc: 'Device Enrollment',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has successfully enrolled their device`
         : `User [${user}] has failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
     type: 'device.token.create',
     desc: 'Device Enroll Token Create',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] created a device enroll token`
         : `User [${user}] has failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
     type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has spent a device enroll token`
         : `User [${user}] has failed to spend a device enroll token`,
   },
   [eventCodes.DEVICE_UPDATE]: {
     type: 'device.update',
     desc: 'Device Update',
-    format: ({ user, success }) =>
-      success
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
         ? `User [${user}] has updated a device`
         : `User [${user}] has failed to update a device`,
   },
