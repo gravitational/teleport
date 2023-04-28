@@ -67,6 +67,7 @@ export default function useGateway(doc: types.DocumentGateway) {
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
     await ctx.clustersService.removeGateway(doc.gatewayUri);
+    workspaceDocumentsService.close(doc.uri);
   });
 
   const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
@@ -115,12 +116,6 @@ export default function useGateway(doc: types.DocumentGateway) {
       leafClusterId,
     });
   };
-
-  useEffect(() => {
-    if (disconnectAttempt.status === 'success') {
-      workspaceDocumentsService.close(doc.uri);
-    }
-  }, [disconnectAttempt.status]);
 
   const shouldCreateGateway =
     rootCluster.connected && !connected && connectAttempt.status === '';
