@@ -1,6 +1,6 @@
 ---
 authors: Alex McGrath (alex.mcgrath@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 57 - Automatic discovery and enrollment of AWS servers
@@ -323,7 +323,7 @@ Possible agentless installer script:
     if [ ! "$CERTIFICATE_ROTATION" = "" ]; then
       IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
       PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/public-ipv4")
-	  
+
 	  sudo teleport join \
 	   --openssh-config=$SSHD_CONFIG \
 	   --join-method=iam \

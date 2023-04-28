@@ -125,12 +125,47 @@ type testPack struct {
 	Server *Service
 }
 
+type listenerWithAddr struct {
+	*bufconn.Listener
+	localAddr net.Addr
+}
+
+func (l *listenerWithAddr) Addr() net.Addr {
+	return l.localAddr
+}
+
+func (l *listenerWithAddr) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	return &connWithAddr{
+		Conn: conn,
+		addr: l.localAddr,
+	}, err
+}
+
+type connWithAddr struct {
+	net.Conn
+	addr net.Addr
+}
+
+func (c *connWithAddr) RemoteAddr() net.Addr {
+	return c.addr
+}
+
+func (c *connWithAddr) LocalAddr() net.Addr {
+	return c.addr
+}
+
 // newServer creates a [Service] with the provided config and
 // an authenticated client to exercise various RPCs on the [Service].
 func newServer(t *testing.T, cfg ServerConfig) testPack {
 	// gRPC testPack.
 	const bufSize = 100 // arbitrary
+	var lisWithAddr net.Listener
 	lis := bufconn.Listen(bufSize)
+	lisWithAddr = &listenerWithAddr{
+		Listener:  lis,
+		localAddr: utils.MustParseAddr("127.0.0.1:4242"),
+	}
 	t.Cleanup(func() {
 		require.NoError(t, lis.Close())
 	})
@@ -152,7 +187,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 
 	// Start.
 	go func() {
-		if err := s.Serve(lis); err != nil {
+		if err := s.Serve(lisWithAddr); err != nil {
 			panic(fmt.Sprintf("Serve returned err = %v", err))
 		}
 	}()
@@ -162,7 +197,11 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	defer cancel()
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return lis.DialContext(ctx)
+			conn, err := lis.DialContext(ctx)
+			return &connWithAddr{
+				Conn: conn,
+				addr: utils.MustParseAddr("127.0.0.1:8484"),
+			}, err
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
@@ -218,7 +257,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 				FIPS:              test.FIPS,
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
@@ -300,7 +339,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				Logger:            utils.NewLoggerForTests(),
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 			})
 
 			stream, err := srv.Client.ProxyCluster(context.Background())
@@ -361,10 +400,18 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				return nil, trace.AccessDenied("no access checker")
 			},
 			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
+				err := stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 					HostPort: "1234",
 					Cluster:  "test",
-				}}))
+				}})
+				switch {
+				// The server will attempt to get the authz context prior to receiving the first
+				// message from the client which may terminate the stream and result in an EOF.
+				case errors.Is(err, io.EOF):
+					return
+				default:
+					require.NoError(t, err)
+				}
 
 				resp, err := stream.Recv()
 				require.Nil(t, resp)
@@ -380,7 +427,6 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				default:
 					t.Fatalf("expected either EOF or Access Denied, got %v", err)
 				}
-
 			},
 		},
 		{
@@ -443,7 +489,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				SignerFn:          fakeSigner,
 				ConnectionMonitor: fakeMonitor{},
 				Logger:            utils.NewLoggerForTests(),
-				LocalAddr:         &utils.NetAddr{},
+				LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
 					checker, err := test.checkerFn(info)
 					if err != nil {
@@ -507,7 +553,7 @@ func TestService_ProxySSH(t *testing.T) {
 		Dialer:            sshSrv,
 		SignerFn:          fakeSigner,
 		Logger:            utils.NewLoggerForTests(),
-		LocalAddr:         &utils.NetAddr{},
+		LocalAddr:         utils.MustParseAddr("127.0.0.1:4242"),
 		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
 			return func() (teleagent.Agent, error) {
@@ -613,6 +659,58 @@ func TestService_ProxySSH(t *testing.T) {
 	keys, err := agent.NewClient(agentRW).List()
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
+}
+
+func TestGetDestinationAddress(t *testing.T) {
+	testCases := []struct {
+		listenerAddr string
+		srcAddr      string
+		expected     string
+	}{
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "1.2.3.4:56",
+			expected:     "1.2.3.4:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "[2601:602:8700:4470:a3:813c:1d8c:30b9]:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "1.2.3.4:56",
+			expected:     "[::1]:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "0.0.0.0:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "4.3.2.1:65",
+			listenerAddr: "[::]:56",
+			expected:     "127.0.0.1:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "[::]:56",
+			expected:     "[::1]:56",
+		},
+		{
+			srcAddr:      "[2601:602:8700:4470:a3:813c:1d8c:30b9]:65",
+			listenerAddr: "0.0.0.0:56",
+			expected:     "[::1]:56",
+		},
+	}
+
+	for i, tt := range testCases {
+		t.Run(fmt.Sprintf("Test #%d", i), func(t *testing.T) {
+			res, err := getDestinationAddress(utils.MustParseAddr(tt.srcAddr), utils.MustParseAddr(tt.listenerAddr))
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, res.String())
+		})
+	}
 }
 
 // clientStream implements the [streamutils.Source] interface

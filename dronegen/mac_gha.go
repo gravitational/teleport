@@ -28,14 +28,19 @@ func darwinTagPipelineGHA() pipeline {
 		buildType:    buildType{os: "darwin", arch: "amd64"},
 		trigger:      triggerTag,
 		pipelineName: "build-darwin-amd64",
-		ghaWorkflow:  "release-mac-amd64.yaml",
-		srcRefVar:    "DRONE_TAG",
-		workflowRef:  "${DRONE_TAG}",
-		timeout:      60 * time.Minute,
-		slackOnError: true,
-		inputs: map[string]string{
-			"release-artifacts": "true",
-			"build-packages":    "true",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-mac-amd64.yaml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				slackOnError:      true,
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-artifacts": "true",
+					"build-packages":    "true",
+				},
+			},
 		},
 	}
 	return ghaBuildPipeline(bt)
@@ -51,14 +56,19 @@ func darwinPushPipelineGHA() pipeline {
 		buildType:    buildType{os: "darwin", arch: "amd64"},
 		trigger:      triggerPush,
 		pipelineName: "push-build-darwin-amd64",
-		ghaWorkflow:  "release-mac-amd64.yaml",
-		srcRefVar:    "DRONE_COMMIT",
-		workflowRef:  "${DRONE_BRANCH}",
-		timeout:      60 * time.Minute,
-		slackOnError: true,
-		inputs: map[string]string{
-			"release-artifacts": "false",
-			"build-packages":    "false",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-mac-amd64.yaml",
+				srcRefVar:         "DRONE_COMMIT",
+				ref:               "${DRONE_BRANCH}",
+				timeout:           150 * time.Minute,
+				slackOnError:      true,
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-artifacts": "false",
+					"build-packages":    "false",
+				},
+			},
 		},
 	}
 	return ghaBuildPipeline(bt)

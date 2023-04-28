@@ -83,8 +83,8 @@ const ContentBox = styled.div`
 `;
 
 const ViewLink = styled(NavLink)`
-  background: #0091ea;
-  color: white;
+  background: ${props => props.theme.colors.buttons.link.default};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 5px;
   margin-top: 10px;
   text-decoration: none;
@@ -93,7 +93,7 @@ const ViewLink = styled(NavLink)`
   cursor: pointer;
 
   &:hover {
-    background: #4db2f0;
+    background: ${props => props.theme.colors.buttons.link.hover};
   }
 `;
 

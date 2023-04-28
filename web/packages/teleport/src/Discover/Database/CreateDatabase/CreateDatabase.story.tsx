@@ -39,12 +39,6 @@ export const InitSelfHostedMySql = () => (
   </MemoryRouter>
 );
 
-export const InitAws = () => (
-  <MemoryRouter>
-    <CreateDatabaseView {...props} dbLocation={DatabaseLocation.Aws} />
-  </MemoryRouter>
-);
-
 export const NoPerm = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} canCreateDatabase={false} />
@@ -80,4 +74,6 @@ const props: State = {
   dbLocation: DatabaseLocation.SelfHosted,
   isDbCreateErr: false,
   prevStep: () => null,
+  nextStep: () => null,
+  createdDb: {} as any,
 };

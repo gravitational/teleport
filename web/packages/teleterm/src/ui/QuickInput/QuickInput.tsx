@@ -206,7 +206,7 @@ const Input = styled.input(props => {
     flex: '1',
     zIndex: '0',
     boxSizing: 'border-box',
-    color: theme.colors.text.primary,
+    color: theme.colors.text.main,
     width: '100%',
     fontSize: '14px',
     border: `0.5px ${theme.colors.action.disabledBackground} solid`,
@@ -214,17 +214,17 @@ const Input = styled.input(props => {
     outline: 'none',
     padding: props.isOpened ? '2px 8px' : '2px 46px 2px 8px', // wider right margin makes place for a shortcut
     '::placeholder': {
-      color: theme.colors.text.secondary,
+      color: theme.colors.text.slightlyMuted,
     },
     '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
+      color: theme.colors.text.main,
       borderColor: theme.colors.light,
     },
     '&:focus': {
-      borderColor: theme.colors.brand.main,
+      borderColor: theme.colors.brand,
       backgroundColor: theme.colors.levels.sunken,
       '::placeholder': {
-        color: theme.colors.text.placeholder,
+        color: theme.colors.text.muted,
       },
     },
 
@@ -240,7 +240,7 @@ const Shortcut = styled(Box)`
   right: 12px;
   top: 12px;
   padding: 2px 3px;
-  color: ${({ theme }) => theme.colors.text.secondary};
+  color: ${({ theme }) => theme.colors.text.slightlyMuted};
   background-color: ${({ theme }) => theme.colors.levels.surface};
   line-height: 12px;
   font-size: 12px;

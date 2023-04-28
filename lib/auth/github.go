@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/coreos/go-oidc/oauth2"
@@ -618,6 +619,10 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		return nil, trace.Wrap(err, "Failed to create user from provided parameters.")
 	}
 
+	if err := a.CallLoginHooks(ctx, user); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Auth was successful, return session, certificate, etc. to caller.
 	auth := GithubAuthResponse{
 		Req: GithubAuthRequestFromProto(req),
@@ -653,7 +658,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
 		sshCert, tlsCert, err := a.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, keys.AttestationStatementFromProto(req.AttestationStatement))
+			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
@@ -958,7 +963,7 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 
 // get makes a GET request to the provided URL using the client's token for auth
 func (c *githubAPIClient) get(page string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
+	request, err := http.NewRequest("GET", formatGithubURL(c.apiEndpointHostname, page), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -982,6 +987,11 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 	wls := utils.ParseWebLinks(response)
 
 	return bytes, wls.NextPage, nil
+}
+
+// formatGithubURL is a helper for formatting github api request URLs.
+func formatGithubURL(host string, path string) string {
+	return fmt.Sprintf("https://%s/%s", host, strings.TrimPrefix(path, "/"))
 }
 
 const (

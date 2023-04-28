@@ -34,6 +34,12 @@ import {
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 
+export type CrossClusterResourceSearchResult = {
+  results: resourcesServiceTypes.SearchResult[];
+  errors: resourcesServiceTypes.ResourceSearchError[];
+  search: string;
+};
+
 /**
  * useResourceSearch returns a function which searches for the given list of space-separated keywords across
  * all root and leaf clusters that the user is currently logged in to.
@@ -43,10 +49,12 @@ import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
  */
 export function useResourceSearch() {
   const { clustersService, resourcesService } = useAppContext();
-  clustersService.useState();
 
   return useCallback(
-    async (search: string, restrictions: SearchFilter[]) => {
+    async (
+      search: string,
+      filters: SearchFilter[]
+    ): Promise<CrossClusterResourceSearchResult> => {
       // useResourceSearch has to return _something_ when the input is empty. Imagine this scenario:
       //
       // 1. The user types in 'data' into the search bar.
@@ -57,13 +65,13 @@ export function useResourceSearch() {
       // issuing another one for empty input and making `useResourceSearch` return an empty array
       // in that scenario.
       if (!search) {
-        return { results: [], search };
+        return { results: [], errors: [], search };
       }
 
-      const clusterSearchFilter = restrictions.find(
+      const clusterSearchFilter = filters.find(
         s => s.filter === 'cluster'
       ) as ClusterSearchFilter;
-      const resourceTypeSearchFilter = restrictions.find(
+      const resourceTypeSearchFilter = filters.find(
         s => s.filter === 'resource-type'
       ) as ResourceTypeSearchFilter;
 
@@ -76,16 +84,37 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      const searchPromises = clustersToSearch.map(cluster =>
-        resourcesService.searchResources(
-          cluster.uri,
-          search,
-          resourceTypeSearchFilter
+      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
+      // get rejected.
+      const promiseResults = (
+        await Promise.all(
+          clustersToSearch.map(cluster =>
+            resourcesService.searchResources(
+              cluster.uri,
+              search,
+              resourceTypeSearchFilter
+            )
+          )
         )
-      );
-      const results = (await Promise.all(searchPromises)).flat();
+      ).flat();
 
-      return { results, search };
+      const results: resourcesServiceTypes.SearchResult[] = [];
+      const errors: resourcesServiceTypes.ResourceSearchError[] = [];
+
+      for (const promiseResult of promiseResults) {
+        switch (promiseResult.status) {
+          case 'fulfilled': {
+            results.push(...promiseResult.value);
+            break;
+          }
+          case 'rejected': {
+            errors.push(promiseResult.reason);
+            break;
+          }
+        }
+      }
+
+      return { results, errors, search };
     },
     [clustersService, resourcesService]
   );
@@ -97,23 +126,21 @@ export function useResourceSearch() {
  */
 export function useFilterSearch() {
   const { clustersService, workspacesService } = useAppContext();
-  clustersService.useState();
-  workspacesService.useState();
 
   return useCallback(
-    (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
+    (search: string, filters: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
               .toLocaleLowerCase()
               .includes(search.toLocaleLowerCase())
           );
-        }
-        // Cluster filter should not be visible if there is only one cluster
-        if (clusters.length === 1) {
-          return [];
         }
         return clusters.map(cluster => {
           let score = getLengthScore(search, cluster.name);
@@ -151,10 +178,8 @@ export function useFilterSearch() {
         }));
       };
 
-      const shouldReturnClusters = !restrictions.some(
-        r => r.filter === 'cluster'
-      );
-      const shouldReturnResourceTypes = !restrictions.some(
+      const shouldReturnClusters = !filters.some(r => r.filter === 'cluster');
+      const shouldReturnResourceTypes = !filters.some(
         r => r.filter === 'resource-type'
       );
 

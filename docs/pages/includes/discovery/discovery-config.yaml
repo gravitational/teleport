@@ -1,5 +1,11 @@
 discovery_service:
     enabled: "yes"
+    # discovery_group is used to group discovered resources into different
+    # sets. This is useful when you have multiple Teleport Discovery services
+    # running in the same cluster but polling different cloud providers or cloud
+    # accounts. It prevents discovered services from colliding in Teleport when
+    # managing discovered resources.
+    discovery_group: "disc-group"
     aws:
        # AWS resource types. Valid options are:
        # ec2 - discovers and registers AWS EC2 instances
@@ -11,7 +17,7 @@ discovery_service:
        # Optional section: Defaults to "*":"*"
        tags:
          "*": "*"
-       # Optional section: install is used to provide parameters to the AWS SSM document. 
+       # Optional section: install is used to provide parameters to the AWS SSM document.
        # If the install section isn't provided, the below defaults are used.
        # Only applicable for EC2 discovery.
        install:

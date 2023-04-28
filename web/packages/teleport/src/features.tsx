@@ -105,7 +105,9 @@ const Integrations = React.lazy(
 );
 const IntegrationEnroll = React.lazy(
   () =>
-    import(/* webpackChunkName: "integration-enroll" */ './IntegrationEnroll')
+    import(
+      /* webpackChunkName: "integration-enroll" */ '@gravitational/teleport/src/Integrations/Enroll'
+    )
 );
 
 // ****************************

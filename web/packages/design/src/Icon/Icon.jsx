@@ -22,13 +22,11 @@ import '../assets/icomoon/style.css';
 const Icon = styled.span`
   display: inline-block;
   transition: color 0.3s;
-  ${space} ${width} ${color} ${fontSize} ${lineHeight}
+  color: ${props => props.theme.colors.text.main};
+  ${space} ${width} ${color} ${fontSize} ${lineHeight};
 `;
 
 Icon.displayName = `Icon`;
-Icon.defaultProps = {
-  color: 'light',
-};
 
 function makeFontIcon(name, iconClassName) {
   const iconClass = `icon ${iconClassName}`;
@@ -77,6 +75,7 @@ export const ChatBubble = makeFontIcon(
   'ChatBubble',
   'icon-chat_bubble_outline'
 );
+export const Chart = makeFontIcon('Chart', 'icon-chart-bars');
 export const Check = makeFontIcon('Check', 'icon-check');
 export const ChevronCircleDown = makeFontIcon(
   'ChevronCircleDown',
@@ -194,6 +193,7 @@ export const Lock = makeFontIcon('Lock', 'icon-lock');
 export const Magnifier = makeFontIcon('Magnifier', 'icon-magnifier');
 export const MasterCard = makeFontIcon('MasterCard', 'icon-cc-mastercard');
 export const Memory = makeFontIcon('Memory', 'icon-memory');
+export const Moon = makeFontIcon('Moon', 'icon-moon');
 export const MoreHoriz = makeFontIcon('MoreHoriz', 'icon-more_horiz');
 export const MoreVert = makeFontIcon('MoreVert', 'icon-more_vert');
 export const Mute = makeFontIcon('Mute', 'icon-mute');
@@ -234,7 +234,6 @@ export const SettingsOverscan = makeFontIcon(
   'icon-settings_overscan'
 );
 export const Share = makeFontIcon('Share', 'icon-share');
-export const Shart = makeFontIcon('Shart', 'icon-chart-bars');
 export const ShieldCheck = makeFontIcon('ShieldCheck', 'icon-shield-check');
 export const Shrink = makeFontIcon('Shrink', 'icon-shrink');
 export const SmallArrowDown = makeFontIcon(
@@ -252,6 +251,7 @@ export const Speed = makeFontIcon('Speed', 'icon-speed-fast');
 export const Spinner = makeFontIcon('Spinner', 'icon-spinner8');
 export const Stars = makeFontIcon('Stars', 'icon-stars');
 export const Stripe = makeFontIcon('Stripe', 'icon-cc-stripe');
+export const Sun = makeFontIcon('Sun', 'icon-sun');
 export const SyncAlt = makeFontIcon('SyncAlt', 'icon-sync2');
 export const Tablet = makeFontIcon('Tablet', 'icon-tablet2');
 export const Tags = makeFontIcon('Tags', 'icon-tags');

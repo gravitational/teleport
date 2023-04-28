@@ -41,7 +41,7 @@ const (
 	// however it counts also headers. We round it to 250KB, just to be sure.
 	maxSNSMessageSize = 250 * 1024
 	// maxS3BasedSize defines some resonable threshold for S3 based messages (2GB).
-	maxS3BasedSize = 2 * 1024 * 1024 * 1024
+	maxS3BasedSize uint64 = 2 * 1024 * 1024 * 1024
 )
 
 // publisher is a SNS based events publisher.
@@ -108,7 +108,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 
 	b64Encoded := base64.StdEncoding.EncodeToString(marshaledProto)
 	if len(b64Encoded) > maxSNSMessageSize {
-		if len(b64Encoded) > maxS3BasedSize {
+		if uint64(len(b64Encoded)) > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", len(b64Encoded))
 		}
 		return trace.Wrap(p.emitViaS3(ctx, in.GetID(), marshaledProto))
@@ -142,7 +142,7 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 
 	_, err = p.snsPublisher.Publish(ctx, &sns.PublishInput{
 		TopicArn: aws.String(p.topicARN),
-		Message:  aws.String(string(buf)),
+		Message:  aws.String(base64.StdEncoding.EncodeToString(buf)),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeS3Based)},
 		},

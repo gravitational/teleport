@@ -1161,6 +1161,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		ctx.AddCloser(userAgent)
 	}
 
 	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
