@@ -82,9 +82,7 @@ func initSAMLIdP(ctx context.Context, cfg *servicecfg.Config, plugin *web.Plugin
 		return trace.Wrap(err)
 	}
 
-	if err := plugin.RegisterSAMLIdP(samlIdP); err != nil {
-		return trace.Wrap(err)
-	}
+	plugin.RegisterSAMLIdP(samlIdP)
 
 	cfg.Log.Infof("SAML identity provider has started successfully.")
 

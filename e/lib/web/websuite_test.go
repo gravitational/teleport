@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -48,6 +49,7 @@ type webSuite struct {
 	webServer      *httptest.Server
 	webServerURL   *url.URL
 	testAuthServer *auth.TestServer
+	webPlugin      *Plugin
 	proxyClient    *auth.Client
 	clock          clockwork.FakeClock
 }
@@ -81,6 +83,7 @@ func newWebSuite(t *testing.T) *webSuite {
 
 	pluginRegistry := plugin.NewRegistry()
 	webPlugin, err := NewPlugin(Config{})
+	s.webPlugin = webPlugin
 	require.NoError(t, err)
 	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
@@ -145,6 +148,11 @@ func newWebSuite(t *testing.T) *webSuite {
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &stubProxySettings{},
 		PluginRegistry:                  pluginRegistry,
+		ClusterFeatures: proto.Features{
+			// Turn on the enterprise features which impact the endpoint registration.
+			Cloud:         true,
+			RecoveryCodes: true,
+		},
 	}, web.SetSessionStreamPollPeriod(200*time.Millisecond), web.SetClock(s.clock))
 	require.NoError(t, err)
 

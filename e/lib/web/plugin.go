@@ -65,8 +65,13 @@ type Plugin struct {
 	mu sync.RWMutex
 	h  *web.Handler
 
+	// samlIdP is the SAML identity provider.
+	samlIdPMu sync.RWMutex
+	samlIdP   *saml.Service
+
 	// authMiddleware is the auth middleware.
-	authMiddleware *auth.Middleware
+	authMiddlewareMu sync.RWMutex
+	authMiddleware   *auth.Middleware
 }
 
 // GetName returns plugin name
@@ -101,17 +106,10 @@ func (p *Plugin) RegisterAuthWebHandlers(srv interface{}) error {
 // RegisterSAMLIdP will register the SAML IdP with the plugin.
 //
 //nolint:revive // Because we want this to be IdP.
-func (p *Plugin) RegisterSAMLIdP(samlIdP *saml.Service) error {
-	p.mu.RLock()
-	h := p.h
-	p.mu.RUnlock()
-	if h == nil {
-		return trace.BadParameter("the handler has not been set")
-	}
-
-	p.h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth(samlIdP.ServeHTTP))
-	p.h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth(samlIdP.ServeHTTP))
-	return nil
+func (p *Plugin) RegisterSAMLIdP(samlIdP *saml.Service) {
+	p.samlIdPMu.Lock()
+	defer p.samlIdPMu.Unlock()
+	p.samlIdP = samlIdP
 }
 
 // RegisterProxyWebHandlers registers to proxy web handler
@@ -130,9 +128,11 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		return trace.Wrap(err)
 	}
 
+	p.authMiddlewareMu.Lock()
 	p.authMiddleware = &auth.Middleware{
 		ClusterName: clusterName.GetClusterName(),
 	}
+	p.authMiddlewareMu.Unlock()
 
 	// Device Trust handlers
 	h.GET("/enterprise/devices", h.WithAuth(p.listDevicesHandle))
@@ -207,6 +207,9 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.GET("/enterprise/cloud/recovery/codes", h.WithAuth(p.getAccountRecoveryCodesMetadataHandle))
 	}
 
+	h.GET(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
+	h.POST(fmt.Sprintf("%s/*unused", saml.IdPRoute), p.withSAMLAuth())
+
 	return nil
 }
 
@@ -232,16 +235,28 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 	})
 }
 
-func (p *Plugin) withSAMLAuth(fn http.HandlerFunc) httprouter.Handle {
+func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+		p.samlIdPMu.RLock()
+		idpPresent := p.samlIdP == nil
+		p.samlIdPMu.RUnlock()
+
+		if !idpPresent {
+			p.Log.Debug("SAML IdP not set")
+			return nil, trace.NotFound("SAML IdP not found")
+		}
+
 		// We need the middleware before we can continue
-		if p.authMiddleware == nil {
+		p.authMiddlewareMu.RLock()
+		authMiddlewarePresent := p.authMiddleware == nil
+		p.authMiddlewareMu.RUnlock()
+
+		if !authMiddlewarePresent {
 			return nil, trace.BadParameter("the middleware is not yet ready")
 		}
 
 		sessCtx, err := p.h.AuthenticateRequest(w, r, false)
 		if err != nil {
-			p.Log.Debugf("SAML IdP authenticate failed: %v", err)
 			redirectURI := (&url.URL{
 				Scheme:   "https",
 				Host:     r.Host,
@@ -268,7 +283,7 @@ func (p *Plugin) withSAMLAuth(fn http.HandlerFunc) httprouter.Handle {
 			return nil, trace.Wrap(err)
 		}
 
-		fn(w, r.WithContext(newCtx))
+		p.samlIdP.ServeHTTP(w, r.WithContext(newCtx))
 		return nil, nil
 	})
 }
