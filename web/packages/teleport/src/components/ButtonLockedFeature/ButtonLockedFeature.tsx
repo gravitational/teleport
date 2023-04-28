@@ -20,17 +20,30 @@ import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
+import { CtaEvents, userEventService } from 'teleport/services/userEvent';
+
 export type Props = {
   children: React.ReactNode;
   noIcon?: boolean;
+  event?: CtaEvents;
   [index: string]: any;
 };
 
 const salesUrl = 'https://goteleport.com/signup/enterprise/';
 
-export function ButtonLockedFeature({ children, noIcon = false, ...rest }) {
+export function ButtonLockedFeature({
+  children,
+  noIcon = false,
+  event,
+  ...rest
+}: Props) {
+  function handleClick() {
+    userEventService.captureCtaEvent(event);
+    window.open(salesUrl, 'blank');
+  }
+
   return (
-    <StyledButton onClick={() => window.open(salesUrl, 'blank')} {...rest}>
+    <StyledButton onClick={handleClick} {...rest}>
       <Flex alignItems="center">
         {!noIcon && <UnlockIcon />}
         {children}

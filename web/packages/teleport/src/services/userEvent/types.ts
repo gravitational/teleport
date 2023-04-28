@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
+  UiCallToActionClickEvent = 'tp.ui.callToAction.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -108,6 +109,14 @@ export enum DiscoverEventStatus {
   Skipped = 'DISCOVER_STATUS_SKIPPED',
   Error = 'DISCOVER_STATUS_ERROR',
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
+}
+
+export enum CtaEvents {
+  authConnectors = 1,
+  activeSessions = 2,
+  accessRequests = 3,
+  premiumSupport = 4,
+  trustedDevices = 5,
 }
 
 export type UserEvent = {

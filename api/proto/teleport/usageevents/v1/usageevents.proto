@@ -194,6 +194,21 @@ message UIDiscoverDatabaseRDSEnrollEvent {
   int64 selected_resources_count = 4;
 }
 
+// UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
+message UICallToActionClickEvent {
+  CTA cta = 2;
+}
+
+// CTA represents teleport web UI's call to action buttons
+enum CTA {
+  CTA_UNSPECIFIED = 0;
+  CTA_AUTH_CONNECTOR = 1;
+  CTA_ACTIVE_SESSIONS = 2;
+  CTA_ACCESS_REQUESTS = 3;
+  CTA_PREMIUM_SUPPORT = 4;
+  CTA_TRUSTED_DEVICES = 5;
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -316,6 +331,7 @@ message UsageEventOneOf {
     UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 26;
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 27;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
+    UICallToActionClickEvent ui_call_to_action_click_event = 29;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
