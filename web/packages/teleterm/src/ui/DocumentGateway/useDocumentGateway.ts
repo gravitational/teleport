@@ -94,18 +94,6 @@ export default function useGateway(doc: types.DocumentGateway) {
     });
   });
 
-  const reconnect = (port: string) => {
-    if (rootCluster.connected) {
-      createGateway(port);
-      return;
-    }
-
-    ctx.commandLauncher.executeCommand('cluster-connect', {
-      clusterUri: rootCluster.uri,
-      onSuccess: () => createGateway(doc.port),
-    });
-  };
-
   const runCliCommand = () => {
     const { rootClusterId, leafClusterId } = routing.parseClusterUri(
       cluster.uri
@@ -134,7 +122,7 @@ export default function useGateway(doc: types.DocumentGateway) {
     defaultPort,
     disconnect,
     connected,
-    reconnect,
+    reconnect: createGateway,
     connectAttempt,
     runCliCommand,
     changeDbName,
