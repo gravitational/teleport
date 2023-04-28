@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +27,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -464,8 +464,8 @@ Host *
 `, tshPath)), 0o644)
 	require.NoError(t, err)
 
-	// Connect to "localnode" with OpenSSH.
-	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
+	// Connect to "rootnode" with OpenSSH.
+	mustRunOpenSSHCommand(t, sshConfigFile, "rootnode.root",
 		s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort), "echo", "hello")
 }
 
@@ -631,37 +631,72 @@ func TestList(t *testing.T) {
 	testCases := []struct {
 		description string
 		command     []string
-		resultNodes []string
+		assertion   func(t *testing.T, out []byte)
 	}{
 		{
 			description: "List root cluster nodes",
-			command:     []string{"ls"},
-			resultNodes: []string{"localnode " + rootNodeAddress.String()},
+			command:     []string{"ls", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				var results []types.ServerV2
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Len(t, results, 1)
+				require.Equal(t, "rootnode", results[0].Spec.Hostname)
+				require.Equal(t, rootNodeAddress.String(), results[0].Spec.Addr)
+			},
 		},
 		{
 			description: "List leaf cluster nodes",
-			command:     []string{"ls", "-c", "leaf1"},
-			resultNodes: []string{"localnode " + leafNodeAddress.String()},
+			command:     []string{"ls", "-c", "leaf1", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				var results []types.ServerV2
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Len(t, results, 1)
+				require.Equal(t, "leafnode", results[0].Spec.Hostname)
+				require.Equal(t, leafNodeAddress.String(), results[0].Spec.Addr)
+			},
 		},
 		{
 			description: "List all clusters nodes",
-			command:     []string{"ls", "-R"},
-			resultNodes: []string{"leaf1     localnode", "localhost localnode"},
+			command:     []string{"ls", "-R", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				expected := map[string]string{
+					"root":  "rootnode",
+					"leaf1": "leafnode",
+				}
+
+				type result struct {
+					Cluster string         `json:"cluster"`
+					Node    types.ServerV2 `json:"node"`
+				}
+				var results []result
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Equal(t, len(expected), len(results))
+				for _, res := range results {
+					node, ok := expected[res.Cluster]
+					require.True(t, ok, "expected node to be present for cluster %s", res.Cluster)
+					require.Equal(t, node, res.Node.Spec.Hostname)
+					address := leafNodeAddress
+					if res.Cluster == s.root.Config.Auth.ClusterName.GetName() {
+						address = rootNodeAddress
+					}
+					require.Equal(t, address.String(), results[0].Node.Spec.Addr)
+				}
+			},
 		},
 	}
 
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
 			tshHome, _ := mustLogin(t, s)
-			stdout := new(bytes.Buffer)
+			stdout := &bytes.Buffer{}
 
 			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
-
 			require.NoError(t, err)
-			require.Equal(t, len(test.resultNodes), len(strings.Split(stdout.String(), "\n"))-4) // 4 - unimportant new lines
-			for _, node := range test.resultNodes {
-				require.Contains(t, stdout.String(), node)
-			}
+
+			test.assertion(t, stdout.Bytes())
 		})
 	}
 }
