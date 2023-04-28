@@ -117,7 +117,16 @@ func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
 	eventTypes []string, limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: eventTypes}
-	return q.searchEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey, filter, "")
+	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+		fromUTC:   fromUTC,
+		toUTC:     toUTC,
+		limit:     limit,
+		order:     order,
+		startKey:  startKey,
+		filter:    filter,
+		sessionID: "",
+	})
+	return events, keyset, trace.Wrap(err)
 }
 
 func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
@@ -133,12 +142,29 @@ func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
 		}
 		filter.condition = condFn
 	}
-	return q.searchEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey, filter, sessionID)
+	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+		fromUTC:   fromUTC,
+		toUTC:     toUTC,
+		limit:     limit,
+		order:     order,
+		startKey:  startKey,
+		filter:    filter,
+		sessionID: sessionID,
+	})
+	return events, keyset, trace.Wrap(err)
 }
 
-func (q *querier) searchEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int,
-	order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string,
-) ([]apievents.AuditEvent, string, error) {
+type searchEventsRequest struct {
+	fromUTC, toUTC time.Time
+	limit          int
+	order          types.EventOrder
+	startKey       string
+	filter         searchEventsFilter
+	sessionID      string
+}
+
+func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	limit := req.limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -147,28 +173,28 @@ func (q *querier) searchEvents(ctx context.Context, fromUTC, toUTC time.Time, li
 	}
 
 	var startKeyset *keyset
-	if startKey != "" {
+	if req.startKey != "" {
 		var err error
-		startKeyset, err = fromKey(startKey)
+		startKeyset, err = fromKey(req.startKey)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 	}
 
 	query, params := prepareQuery(searchParams{
-		fromUTC:     fromUTC,
-		toUTC:       toUTC,
-		order:       order,
+		fromUTC:     req.fromUTC,
+		toUTC:       req.toUTC,
+		order:       req.order,
 		limit:       limit,
 		startKeyset: startKeyset,
-		filter:      filter,
-		sessionID:   sessionID,
+		filter:      req.filter,
+		sessionID:   req.sessionID,
 		tablename:   q.tablename,
 	})
 
 	q.logger.WithField("query", query).
 		WithField("params", params).
-		WithField("startKey", startKey).
+		WithField("startKey", req.startKey).
 		Debug("Executing events query on Athena")
 
 	queryId, err := q.startQueryExecution(ctx, query, params)
@@ -180,7 +206,7 @@ func (q *querier) searchEvents(ctx context.Context, fromUTC, toUTC time.Time, li
 		return nil, "", trace.Wrap(err)
 	}
 
-	output, nextKey, err := q.fetchResults(ctx, queryId, limit, filter.condition)
+	output, nextKey, err := q.fetchResults(ctx, queryId, limit, req.filter.condition)
 	return output, nextKey, trace.Wrap(err)
 }
 
