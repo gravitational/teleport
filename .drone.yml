@@ -695,6 +695,28 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd "$TeleportSrc\e\windowsauth"
+  - make VERSION=v$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -938,6 +960,28 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd "$TeleportSrc\e\windowsauth"
+  - make VERSION=v$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1017,6 +1061,8 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
+  - Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe"
+    -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -1033,8 +1079,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
-  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe'
+  - $relcliSha256 = '6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -19833,6 +19879,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 7fcb923a7333dcc4c361b6875a528cc529f4d0941b2e6931af7072cd905269cf
+hmac: 17294454984fa2f1853ae942fd6840e61e72b0a337baf29111de7de5a4137d26
 
 ...
