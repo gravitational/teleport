@@ -23,7 +23,6 @@ import Icon from '../Icon';
 export const StyledTable = styled.table(
   props => `
   background: ${props.theme.colors.levels.surface};
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -74,7 +73,10 @@ export const StyledTable = styled.table(
     line-height: 16px;
   }
 
-  tbody tr {
+  // When border-collapse: collapse is set on a table element, Safari incorrectly renders the row border with alpha channel.
+  // It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14.
+  // A workaround is to not use collapse and apply border to td elements.
+  & > tbody > tr:not(:last-of-type) > td {
     border-bottom: 1px solid ${props.theme.colors.spotBackground[0]};
   }
 
