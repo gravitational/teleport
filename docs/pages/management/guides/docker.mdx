@@ -8,10 +8,8 @@ This guide will explain how to run a container using one of Teleport's Docker
 images and execute commands on that container via Teleport's `tsh` client.
 
 Since all of Teleport's services are run from the same binary, you can
-use our Docker image to run Teleport services (e.g., the Database Service or App
-Service) or explore the Auth and Proxy Services locally. The distroless container
-does not allow running shells by default so an example of adding another Ubuntu container for
-server access is given.
+use our Docker image to run Teleport services (e.g., the Database Service or Application
+Service) or explore the Auth and Proxy Services locally. In this guide, we will also show you how to join a server (in this case, an Ubuntu container) to your local Dockerized Teleport cluster.
 
 ## Prerequisites
 
@@ -160,7 +158,7 @@ First start an Ubuntu container:
 ```code
 $ docker run -it --name=example-server --hostname=example-server ubuntu:latest bash
 ```
-
+After you start your shell within the Ubuntu container, run the following commands to install the Teleport SSH Service:
 <Tabs>
 <TabItem scope={["oss"]} label="Open Source">
 
@@ -217,7 +215,7 @@ $ apt-get install teleport-ent
 </Tabs>
 
 Keep the docker `example-server` terminal running and run a separate command
-in another terminal to add a node:
+in another terminal to create a join token that the Teleport SSH Service will use to establish trust with your Teleport cluster:
 
 ```code
 $ docker exec teleport tctl nodes add
@@ -240,7 +238,7 @@ $ docker exec teleport tctl nodes add
 
 Copy the full `teleport start` command and run in the `example-server` docker terminal.
 
-Open another terminal window and confirm the node was added
+Open another terminal window and confirm that you joined the SSH Service to the cluster
  with `tctl nodes ls` on the `teleport` container.
 
 ```code
