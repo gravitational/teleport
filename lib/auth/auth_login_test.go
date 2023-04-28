@@ -34,12 +34,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
-	mfa := configureForMFA(t, svr)
-	username := mfa.User
-	password := mfa.Password
-
 	tests := []struct {
 		name            string
 		spec            *types.AuthPreferenceSpecV2
@@ -104,13 +98,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://myoldappid.com",
 				},
 				Webauthn: &types.Webauthn{
-					RPID: "myexplicitid",
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
+				require.Equal(t, "localhost", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
 		},
 		{
@@ -143,7 +137,16 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			svr := newTestTLSServer(t)
+			authServer := svr.Auth()
+			mfa := configureForMFA(t, svr)
+			username := mfa.User
+			password := mfa.Password
+
 			authPreference, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
