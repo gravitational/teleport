@@ -201,9 +201,6 @@ export const useFileTransfer = (
     tty.on(EventType.FILE_TRANSFER_REQUEST_APPROVE, handleFileTransferApproval);
     tty.on(EventType.FILE_TRANSFER_REQUEST_DENY, handleFileTransferDenied);
     return () => {
-      if (!tty) {
-        return;
-      }
       tty.removeListener(
         EventType.FILE_TRANSFER_REQUEST,
         handleFileTransferUpdate
@@ -219,15 +216,15 @@ export const useFileTransfer = (
     };
   }, [tty, handleFileTransferDenied, handleFileTransferApproval]);
 
-  /*
-   * Transfer handlers
-   */
-
   function removeFileTransferRequest(requestId: string) {
     setFileTransferRequests(prevstate =>
       prevstate.filter(ft => ft.requestID !== requestId)
     );
   }
+
+  /*
+   * Transfer handlers
+   */
 
   async function getDownloader(
     location: string,
