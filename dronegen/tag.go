@@ -201,7 +201,7 @@ func tagPipelines() []pipeline {
 				name:              "release-linux-arm64.yml",
 				srcRefVar:         "DRONE_TAG",
 				ref:               "${DRONE_TAG}",
-				timeout:           60 * time.Minute,
+				timeout:           150 * time.Minute,
 				shouldTagWorkflow: true,
 				inputs:            map[string]string{"upload-artifacts": "true"},
 			},
