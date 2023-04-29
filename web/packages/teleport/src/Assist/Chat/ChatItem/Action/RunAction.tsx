@@ -23,6 +23,7 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
+import {useParams} from "react-router";
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -33,6 +34,7 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
     command: '',
     login: '',
     query: '',
+    conversation_id: '',
   };
 
   if (message.selectedLogin) {
@@ -68,10 +70,12 @@ interface RawPayload {
 
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
+  const urlParams = useParams<{ conversationId: string }>();
 
   const [state, setState] = useState(() => []);
 
   const params = convertContentToCommand(props.actions);
+  params.conversation_id = urlParams.conversationId;
 
   const search = new URLSearchParams();
 

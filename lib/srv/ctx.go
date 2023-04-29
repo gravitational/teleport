@@ -393,6 +393,9 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
+	multiWriter   io.Writer
+	recordSession bool
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string

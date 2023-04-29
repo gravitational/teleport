@@ -65,6 +65,28 @@ type CommandRequest struct {
 	Login string `json:"login"`
 	// Query is the predicate query to filter nodes where the command will be executed.
 	Query string `json:"query"`
+
+	ConversationID string `json:"conversation_id"`
+}
+
+func (c *CommandRequest) Check() error {
+	if c.Command == "" {
+		return trace.Errorf("missing command")
+	}
+
+	if c.Login == "" {
+		return trace.Errorf("missing login")
+	}
+
+	if c.ConversationID == "" {
+		return trace.Errorf("missing conversation ID")
+	}
+
+	return nil
+}
+
+type CommandExecutionResult struct {
+	SessionID string `json:"session_id"`
 }
 
 func (h *Handler) executeCommand(
@@ -82,6 +104,10 @@ func (h *Handler) executeCommand(
 	var req *CommandRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := req.Check(); err != nil {
+		return nil, trace.BadParameter("invalid payload: %v", err)
 	}
 
 	clt, err := sessionCtx.GetUserClient(r.Context(), site)
@@ -145,7 +171,7 @@ func (h *Handler) executeCommand(
 	}
 
 	if len(hosts) == 0 {
-		const errMsg = "no server founds"
+		const errMsg = "no servers found"
 		h.log.Error(errMsg)
 		return nil, trace.Errorf(errMsg)
 	}
@@ -190,7 +216,24 @@ func (h *Handler) executeCommand(
 			h.log.Infof("Executing command: %#v.", req)
 			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
-			return nil
+			msgPayload, err := json.Marshal(struct {
+				SessionID string `json:"session_id"`
+			}{
+				SessionID: string(sessionData.ID),
+			})
+
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			_, err = clt.InsertAssistantMessage(ctx, &authproto.AssistantMessage{
+				ConversationId: req.ConversationID,
+				Type:           "COMMAND_RESULT",
+				CreatedTime:    time.Now().UTC(),
+				Payload:        string(msgPayload),
+			})
+
+			return trace.Wrap(err)
 		}()
 
 		if err != nil {

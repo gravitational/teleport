@@ -119,6 +119,18 @@ async function convertServerMessage(
     return (/*_messages: Message[]*/) => {};
   }
 
+  if (message.type == 'COMMAND_RESULT') {
+    const newMessage: Message = {
+      author: Author.Teleport,
+      content: {
+        type: Type.Message,
+        value: message.payload,
+      },
+    };
+
+    return (messages: Message[]) => messages.push(newMessage);
+  }
+
   if (message.type === 'CHAT_MESSAGE_USER') {
     const newMessage: Message = {
       author: Author.User,
@@ -135,21 +147,13 @@ async function convertServerMessage(
     let query = '';
 
     if (cmd.nodes) {
-      for (const node of cmd.nodes) {
-        if (query) {
-          query += ' || ';
-        }
-        query += `name == "${node}"`;
-      }
+      query += cmd.nodes.map(node => `name == "${node}"`).join(' || ');
     }
 
     if (cmd.labels) {
-      for (const label of cmd.labels) {
-        if (query) {
-          query += ' || ';
-        }
-        query += `labels["${label.key}"] == "${label.value}"`;
-      }
+      query += cmd.labels
+        .map(label => `labels["${label.key}"] == "${label.value}"`)
+        .join(' || ');
     }
 
     return query;
