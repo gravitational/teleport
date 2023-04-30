@@ -483,6 +483,9 @@ var (
 	// PinnedIPASN1ExtensionOID is an extension ID used when encoding/decoding
 	// the IP the certificate is pinned to.
 	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
+
+	// CreateWindowsUserOID
+	CreateWindowsUserOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 16}
 )
 
 // Device Trust OIDs.
