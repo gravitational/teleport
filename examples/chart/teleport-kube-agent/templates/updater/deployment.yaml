@@ -88,7 +88,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /readyz
-            port: diag
+            port: healthz
           initialDelaySeconds: 5
           periodSeconds: 5
           failureThreshold: 6 # consider unready after 30s
