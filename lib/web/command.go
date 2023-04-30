@@ -65,8 +65,8 @@ type CommandRequest struct {
 	Login string `json:"login"`
 	// Query is the predicate query to filter nodes where the command will be executed.
 	Query string `json:"query"`
-
-	ConversationID string `json:"conversation_id"`
+	// ExecutionID is a unique ID used to identify the command execution.
+	ExecutionID string `json:"execution_id"`
 }
 
 func (c *CommandRequest) Check() error {
@@ -78,7 +78,7 @@ func (c *CommandRequest) Check() error {
 		return trace.Errorf("missing login")
 	}
 
-	if c.ConversationID == "" {
+	if c.ExecutionID == "" {
 		return trace.Errorf("missing conversation ID")
 	}
 
@@ -217,9 +217,11 @@ func (h *Handler) executeCommand(
 			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
 			msgPayload, err := json.Marshal(struct {
-				SessionID string `json:"session_id"`
+				ExecutionID string `json:"execution_id"`
+				SessionID   string `json:"session_id"`
 			}{
-				SessionID: string(sessionData.ID),
+				ExecutionID: req.ExecutionID,
+				SessionID:   string(sessionData.ID),
 			})
 
 			if err != nil {
@@ -227,7 +229,7 @@ func (h *Handler) executeCommand(
 			}
 
 			_, err = clt.InsertAssistantMessage(ctx, &authproto.AssistantMessage{
-				ConversationId: req.ConversationID,
+				ConversationId: req.ExecutionID,
 				Type:           "COMMAND_RESULT",
 				CreatedTime:    time.Now().UTC(),
 				Payload:        string(msgPayload),

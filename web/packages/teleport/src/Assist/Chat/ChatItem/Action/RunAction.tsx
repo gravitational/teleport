@@ -17,13 +17,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
+import { useParams } from 'react-router';
+
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
-import {useParams} from "react-router";
+
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -34,7 +36,6 @@ function convertContentToCommand(message: ExecuteRemoteCommandContent) {
     command: '',
     login: '',
     query: '',
-    conversation_id: '',
   };
 
   if (message.selectedLogin) {
@@ -75,12 +76,13 @@ export function RunCommand(props: RunCommandProps) {
   const [state, setState] = useState(() => []);
 
   const params = convertContentToCommand(props.actions);
-  params.conversation_id = urlParams.conversationId;
+
+  const execParams = { ...params, execution_id: urlParams.conversationId };
 
   const search = new URLSearchParams();
 
   search.set('access_token', getAccessToken());
-  search.set('params', JSON.stringify(params));
+  search.set('params', JSON.stringify(execParams));
 
   const url = `wss://${getHostName()}/v1/webapi/command/${clusterId}/execute?${search.toString()}`;
 

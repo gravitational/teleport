@@ -31,6 +31,8 @@ import api, { getAccessToken, getHostName } from 'teleport/services/api';
 import NodeService from 'teleport/services/nodes';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import cfg from 'teleport/config';
+
 import {
   Author,
   ExecuteRemoteCommandPayload,
@@ -120,11 +122,24 @@ async function convertServerMessage(
   }
 
   if (message.type == 'COMMAND_RESULT') {
+    const payload = JSON.parse(message.payload) as { session_id: string, execution_id: string };
+
+    const sessionUrl = cfg.getTerminalSessionUrl({
+      clusterId: clusterId,
+      sid: payload.session_id,
+    });
+
+    const resp = await api.fetch(sessionUrl + '/stream?offset=0&bytes=5242880', {
+      Accept: 'text/plain',
+        'Content-Type': 'text/plain; charset=utf-8',
+    })
+  .then(response => response.text())
+
     const newMessage: Message = {
       author: Author.Teleport,
       content: {
         type: Type.Message,
-        value: message.payload,
+        value: resp,
       },
     };
 
