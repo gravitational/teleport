@@ -20,6 +20,8 @@ Here are the steps we'll walkthrough:
 
 - (!docs/pages/includes/tctl.mdx!)
 
+- User assigned a Teleport role allowed to maintain users such as the built-in `editor` role.
+
 ## Step 1/3. Create a user
 
 (!docs/pages/includes/permission-warning.mdx!)
@@ -28,21 +30,21 @@ Here are the steps we'll walkthrough:
   Read [API authorization](./architecture.mdx#authorization) to learn more about defining custom roles for your API client.
 </Admonition>
 
-Create a user `api-admin` with the built-in role `editor`:
+Create a user `api-user` with the built-in role `access`:
 
 ```code
-# Run this directly on your Auth Server unless you are using Teleport Cloud
 # Add a user and login via the Proxy Service
-$ sudo tctl users add api-admin --roles=editor
+$ tctl users add api-user --roles=access
 ```
 
 ## Step 2/3. Generate client credentials
 
-Log in as the newly created user with `tsh`.
+Log in as the newly created user with `tsh`. Set the proxy host (e.g. `teleport.example.com` or in the form `mytenant.teleport.sh`
+for Teleport Enterprise Cloud tenants).
 
 ```code
 # generate tsh profile
-$ tsh login --user=api-admin --proxy=tele.example.com
+$ tsh login --user=api-user --proxy=<Var name="teleport.example.com" />
 ```
 
 The [Profile Credentials loader](https://pkg.go.dev/github.com/gravitational/teleport/api/client#LoadProfile)
@@ -66,8 +68,8 @@ To find the pseudoversion appropriate for a go.mod file for a specific git tag,
 run the following command from the `teleport` repository:
 
 ```code
-$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v12.1.0)"
-v0.0.0-20230307032901-49a6de744a3a
+$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v(=teleport.version=))"
+# v0.0.0-20230307032901-49a6de744a3a
 ```
 </Admonition>
 
@@ -77,48 +79,56 @@ Create a file called `main.go`, modifying the `Addrs` strings as needed:
 package main
 
 import (
-	"context"
-	"log"
+  "context"
+  "fmt"
+  "log"
+  "os"
 
-	"github.com/gravitational/teleport/api/client"
+  "github.com/gravitational/teleport/api/client"
 )
 
 func main() {
-	ctx := context.Background()
+  if len(os.Args) != 2 {
+    log.Fatalf("Require proxy host (teleport.example.com or mytenant.tenant.sh) argument")
+    return
 
-	clt, err := client.New(ctx, client.Config{
-		Addrs: []string{
-			// Teleport Cloud customers should use <tenantname>.teleport.sh
-			"tele.example.com:443",
-			"tele.example.com:3025",
-			"tele.example.com:3024",
-			"tele.example.com:3080",
- 		},
-		Credentials: []client.Credentials{
-			client.LoadProfile("", ""),
-		},
-	})
+  }
+  proxyHost := os.Args[1]
+  ctx := context.Background()
 
-	if err != nil {
-		log.Fatalf("failed to create client: %v", err)
-	}
+  clt, err := client.New(ctx, client.Config{
+    Addrs: []string{
+      //Alter if using different ports
+      fmt.Sprintf("%s:443", proxyHost),
+      fmt.Sprintf("%s:3025", proxyHost),
+      fmt.Sprintf("%s:3024", proxyHost),
+      fmt.Sprintf("%s:3080", proxyHost),
+    },
+    Credentials: []client.Credentials{
+      client.LoadProfile("", ""),
+    },
+  })
 
-	defer clt.Close()
-	resp, err := clt.Ping(ctx)
-	if err != nil {
-		log.Fatalf("failed to ping server: %v", err)
-	}
+  if err != nil {
+    log.Fatalf("failed to create client: %v", err)
+  }
 
-	log.Printf("Example success!")
-	log.Printf("Example server response: %s", resp)
-	log.Printf("Server version: %s", resp.ServerVersion)
+  defer clt.Close()
+  resp, err := clt.Ping(ctx)
+  if err != nil {
+    log.Fatalf("failed to ping server: %v", err)
+  }
+
+  log.Printf("Example success!")
+  log.Printf("Example server response: %s", resp)
+  log.Printf("Server version: %s", resp.ServerVersion)
 }
 ```
 
 Now you can run the program and connect the client to the Teleport Auth Server to fetch the server version.
 
 ```code
-$ go run main.go
+$ go run main.go <Var name="teleport.example.com" />
 ```
 
 ## Next steps
