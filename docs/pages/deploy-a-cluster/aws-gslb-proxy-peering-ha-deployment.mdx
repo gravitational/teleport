@@ -11,7 +11,7 @@ This deployment architecture features two important design decisions:
    [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/). 
    This allows for efficient distribution of traffic across resources that are globally distributed.
 
-2. Teleport's Proxy Peering is used to reduce the total number of tunnel connections in the Teleport cluster.
+2. Teleport's [Proxy Peering](../architecture/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
 
 
 This deployment architecture isn’t recommended for use cases where your users or resources are 
