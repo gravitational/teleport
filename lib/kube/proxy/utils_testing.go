@@ -223,7 +223,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
 		OnHeartbeat: func(err error) {
-			require.NoError(t, err)
+			// ignore not found errors because although the heartbeat is called before
+			// the close does not wait for the resource cleanup to finish.
+			if trace.IsNotFound(err) {
+				return
+			}
+			assert.NoError(t, err)
 			select {
 			case heartbeatsWaitChannel <- struct{}{}:
 			default:
