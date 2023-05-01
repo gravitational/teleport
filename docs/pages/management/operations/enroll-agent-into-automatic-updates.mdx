@@ -29,7 +29,7 @@ updates.
 
 ## Requirements
 
-- a Teleport agent either:
+- A Teleport agent, either:
   - started via systemd
   - deployed with the `teleport-kube-agent` Helm chart
 <ScopedBlock scope={["oss","enterprise"]}>
@@ -48,7 +48,7 @@ updates.
 <TabItem label="systemd">
 
 <ScopedBlock scope={["oss","enterprise"]}>
-- create the upgrade configuration directory
+Create the upgrade configuration directory:
   ```code
   $ mkdir -p /etc/teleport-upgrade.d/
   ```

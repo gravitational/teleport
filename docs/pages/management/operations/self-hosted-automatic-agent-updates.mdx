@@ -24,13 +24,13 @@ already done, or you are a Teleport Cloud user, you can directly
 
 ## Requirements
 
-- Self-hosted Teleport cluster running
-- `tctl` admin rights
-- either:
-  - a public S3 bucket, GCS bucket
-  - a webserver reachable from all agents with valid TLS certificates
+- Self-hosted Teleport cluster running.
+- `tctl` admin rights.
+- Either:
+  - a public S3/GCS bucket,
+  - a web server accessible from all agents with valid TLS certificates.
 
-## Step 1/3 Create release channel files
+## Step 1/3. Create release channel files
 
 A release channel contains two pieces of information: the targeted version
 and if the update is critical. Updaters subscribe to a release channel and will
@@ -40,7 +40,7 @@ will ignore the maintenance schedule and update as soon as possible.
 Create a directory for the new release channel `current`.
 
 ```code
-$mkdir current/
+$ mkdir current/
 ```
 
 Make the `current` release channel target the version (=teleport.version=):
@@ -55,7 +55,7 @@ And mark the update as not critical:
 $ echo -n "no" > current/critical
 ```
 
-## Step 2/3 Host the release channel files on the version server
+## Step 2/3. Host the release channel files on the version server
 
 The release channel must be hosted on a webserver with trusted TLS certificates
 and reachable by all agents.
@@ -69,7 +69,8 @@ The release channel needs to be served over HTTPS.
 Choose a way to serve the release channel and setup the hosting.
 
 The webserver must answer the following queries:
-```
+
+```code
 $ curl https://<hosting-domain-and-path>/current/version
 (=teleport.version=)
 
@@ -81,7 +82,7 @@ The web server serving the release channel is called the version server.
 Save the version server URL as it will be required later to configure the agent
 updaters.
 
-## Step 3/3 Configure the maintenance schedule
+## Step 3/3. Configure the maintenance schedule
 
 At this point the updaters can be configured to pull the version from the
 release channel and update the agents. However, they still don't know when

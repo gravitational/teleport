@@ -1,7 +1,6 @@
 ---
 title: Automatic Agent Update
 description: This chapter explains how Teleport agent automatic update is working.
-h1: Automatic Agent Update
 ---
 
 While many Teleport resources [support agentless
@@ -9,8 +8,8 @@ mode](../faq.mdx#can-teleport-be-deployed-in-agentless-mode), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Starting with version 13, Teleport supports automatic agent updates for apt/yum
-systems and Kubernetes clusters.
+Starting with version 13, Teleport supports automatic agent updates for Linux
+distributions using `apt` or `yum` package managers, and Kubernetes clusters.
 
 ## Update logic and failure modes
 
@@ -22,7 +21,7 @@ be possible without manually connecting to the resource and fixing the agent.
 The updater recurrently fetches the target version from a version server and
 updates the agent to the target version. Because restarting the agent can
 disrupt currently open sessions, it will only update the agent in two cases:
-during a maintenance window and when the agent is unhealthy.
+during a maintenance window or when the agent is unhealthy.
 
 When enrolled in a cluster with automatic updates, the agent will retrieve
 its maintenance schedule from the Teleport cluster and save it. When a
@@ -39,19 +38,19 @@ applied even if the updater is outside its regular maintenance window.
 ## Security
 
 When updating the agent, the updater will ensure the new version's authenticity
-before deploying it. On apt/yum setups, it relies on the existing package
-signature system. On Kubernetes-based environments, it validates the OCI image
-signature (using cosign's signature format).
+before deploying it. On Linux distributions using `apt` or `yum`, it relies on
+the existing package signature system. On Kubernetes-based environments, it
+validates the OCI image signature (using cosign's signature format).
 
 ## Version server and source of truth
 
 The agent version is subject to the following constraints:
 
-- the agent must never exceed the proxy or auth version
-- the agent must always be at most one major version below the proxy or auth
+- the agent must never exceed the proxy or auth version,
+- the agent must always be no more than one major version below the proxy or auth
   version.
 
-The best practice is always aligning the agent version with the proxy and auth
+The best practice is to always align the agent version with the proxy and auth
 ones. Doing so ensures the agents benefit from all available features and bug
 fixes for the given auth/proxy version.
 
