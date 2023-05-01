@@ -1055,10 +1055,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
-	if fc.Proxy.IdP.SAMLIdP.Enabled() {
-		cfg.Proxy.IdP.SAMLIdP.Enabled = true
-	}
-
+	cfg.Proxy.IdP.SAMLIdP.Enabled = fc.Proxy.IdP.SAMLIdP.Enabled()
 	cfg.Proxy.IdP.SAMLIdP.BaseURL = fc.Proxy.IdP.SAMLIdP.BaseURL
 
 	acme, err := fc.Proxy.ACME.Parse()

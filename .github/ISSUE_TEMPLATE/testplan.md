@@ -1149,6 +1149,16 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Non-AD setup
+  - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
+  - [ ] Installer works correctly invoked from command line
+  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
+  - [ ] Non-AD can be added as dynamic resource and is visible in UI
+  - [ ] Non-AD instance has label `teleport.dev/ad: false`
+  - [ ] Connecting to non-AD instance works with Enterprise license
+  - [ ] Connecting to non-AD instance fails with OSS
+  - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
+  - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
 ## Binaries compatibility
 
