@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// ForceSessionRecording can be used to record non-interactive SSH session.
+	ForceSessionRecording = "SSH_FORCE_SESSION_RECORDING"
 )
 
 const (

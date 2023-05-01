@@ -286,6 +286,10 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		// Use passed session ID. Assist uses this "feature" to record
 		// the execution output.
 		sessionID = rsession.ID(sid)
+	}
+
+	_, found = scx.GetEnv(teleport.ForceSessionRecording)
+	if found {
 		scx.recordSession = true
 	}
 
@@ -1285,7 +1289,9 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
 
-	s.io.On()
+	if scx.recordSession {
+		s.io.On()
+	}
 
 	// Process is running, wait for it to stop.
 	go func() {

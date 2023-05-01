@@ -556,6 +556,9 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		return
 	}
 
+	// Force session recording
+	nc.AddEnv(teleport.ForceSessionRecording, "true")
+
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	if err = nc.RunCommand(ctx, t.interactiveCommand); err != nil {
