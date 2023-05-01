@@ -131,7 +131,7 @@ proxy_templates:
 
 
 Templates are evaluated in order and the first one matching will take effect. For each
-replace rule set (`cluster`, `proxy`, and `host`), the corresponding cli value will
+replace rule set (`cluster`, `proxy`, and `host`), the corresponding cli value will be
 overridden (`--cluster`, `-J`, and `%h:%p`). If `template` and all replace rules are empty,
 the template is invalid.
 

@@ -131,7 +131,7 @@ func (t *ProxyTemplate) Check() (err error) {
 		return trace.BadParameter("empty proxy template")
 	}
 	if strings.TrimSpace(t.Proxy) == "" && strings.TrimSpace(t.Cluster) == "" && strings.TrimSpace(t.Host) == "" {
-		return trace.BadParameter("empty proxy, cluster, and host fields in proxy template. At least one is required.")
+		return trace.BadParameter("empty proxy, cluster, and host fields in proxy template, but at least one is required")
 	}
 	t.re, err = regexp.Compile(t.Template)
 	if err != nil {
