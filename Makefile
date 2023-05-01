@@ -79,6 +79,14 @@ PAM_MESSAGE := with-PAM-support
 endif
 endif
 
+# darwin universal (Intel + Apple Silicon combined) binary support
+RELEASE_darwin_arm64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-arm64-bin.tar.gz
+RELEASE_darwin_amd64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-amd64-bin.tar.gz
+BUILDDIR_arm64 = $(BUILDDIR)/arm64
+BUILDDIR_amd64 = $(BUILDDIR)/amd64
+# TARBINS is the path of the binaries in the release tarballs
+TARBINS = $(addprefix teleport/,$(BINS))
+
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
@@ -184,10 +192,10 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-ifeq ("$(OS)","windows")
-BINARIES=$(BUILDDIR)/tsh
-endif
+BINS_default = teleport tctl tsh tbot
+BINS_windows = tsh
+BINS = $(or $(BINS_$(OS)),$(BINS_default))
+BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
 # Joins elements of the list in arg 2 with the given separator.
 #   1. Element separator.
@@ -255,8 +263,8 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 # an error on unsupported architectures when not running this target.
 ELECTRON_BUILDER_ARCH_amd64 = x64
 ELECTRON_BUILDER_ARCH_arm64 = arm64
+ELECTRON_BUILDER_ARCH_universal = universal
 ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(error Unsupported architecture: $(ARCH)))
-unexport ELECTRON_BUILDER_ARCH
 
 #
 # 'make all' builds all 4 executables and places them in the current directory.
@@ -451,7 +459,7 @@ release-arm64:
 build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
-	cp -rf $(BUILDDIR)/* \
+	cp -rf $(BINARIES) \
 		examples \
 		build.assets/install\
 		README.md \
@@ -478,11 +486,38 @@ release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
 
 .PHONY: release-darwin
+ifneq ($(ARCH),universal)
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+else
+
+# release-darwin for ARCH == universal does not build binaries, but instead
+# combines previously-built binaries. For this, it depends on the ARM64 and
+# AMD64 signed tarballs being built into $(RELEASE_DIR). The dependencies
+# expressed here will not make that happen as this is typically done on CI
+# where these two tarballs are built in separate pipelines, and copied in for
+# the universal build.
+#
+# For local manual runs, create these tarballs with:
+#   make ARCH=arm64 release-darwin
+#   make ARCH=amd64 release-darwin
+# Ensure you have the rust toolchains for these installed by running
+#   make ARCH=arm64 rustup-install-target-toolchain
+#   make ARCH=amd64 rustup-install-target-toolchain
+release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
+	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
+	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
+	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
+	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
+	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
+	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	$(MAKE) ARCH=universal build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+endif
 
 #
 # make release-unix-only - Produces an Enterprise binary release tarball containing
@@ -565,8 +600,14 @@ release-connect: | $(RELEASE_DIR)
 	yarn install --frozen-lockfile
 	yarn build-term
 	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
+	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
 	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
-		cp web/packages/teleterm/build/release/"Teleport Connect-"*.dmg $(RELEASE_DIR); \
+		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		if [ "$(ARCH)" = 'universal' ]; then \
+			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+		fi; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
 	fi
 
 #

@@ -26,7 +26,7 @@ while getopts ":t:v:p:a:r:s:b:n" o; do
             ;;
         a)
             a=${OPTARG}
-            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm" && ${a} != "arm64" ]]; then usage; fi
+            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm" && ${a} != "arm64" && ${a} != "universal" ]]; then usage; fi
             ;;
         r)
             r=${OPTARG}
@@ -164,6 +164,9 @@ elif [[ "${ARCH}" == "arm64" ]]; then
     DEB_OUTPUT_ARCH="arm64"
     RPM_PACKAGE_ARCH="aarch64"
     RPM_OUTPUT_ARCH="arm64" # backwards compatibility
+elif [[ "${ARCH}" == "universal" ]]; then
+    TARBALL_ARCH="universal"
+    PACKAGE_ARCH="universal"
 fi
 
 # amd64 RPMs should use CentOS 7 compatible artifacts
@@ -205,13 +208,18 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "Unsupported architecture: ${ARCH}"
         exit 1
     fi
+    # No architecture tag on package filename for universal (multi-arch) binaries.
+    ARCH_TAG=""
+    if [[ "${PACKAGE_ARCH}" != "universal" ]]; then
+        ARCH_TAG="-${PACKAGE_ARCH}"
+    fi
     SIGN_PKG="true"
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
     BUNDLE_ID="${b:-com.gravitational.teleport}"
     if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}-${PACKAGE_ARCH}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     else
-        PKG_FILENAME="teleport-${TELEPORT_VERSION}-${PACKAGE_ARCH}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service"

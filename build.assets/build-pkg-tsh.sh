@@ -169,7 +169,12 @@ of the key to sign packages"
 
   # Prepare and sign the installer package.
   # Note that the installer does __NOT__ have a `v` in the version number.
-  target="$tmp/tsh-$TELEPORT_VERSION-$PACKAGE_ARCH.pkg" # switches from app to pkg
+  # The package for the universal binary does not have an architecture in the name.
+  local arch_tag=""
+  if [[ "$PACKAGE_ARCH" != "universal" ]]; then
+    arch_tag="-$PACKAGE_ARCH"
+  fi
+  target="$tmp/tsh-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
   local pkg_component_plist="$tmp/tsh-component.plist"
   local pkg_scripts="$buildassets/macos/scripts"
