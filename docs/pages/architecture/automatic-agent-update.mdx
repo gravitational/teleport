@@ -44,7 +44,8 @@ applied even if the updater is outside its regular maintenance window.
 When updating the agent, the updater will ensure the new version's authenticity
 before deploying it. On Linux distributions using `apt` or `yum`, it relies on
 the existing package signature system. On Kubernetes-based environments, it
-validates the OCI image signature (using cosign's signature format).
+validates the OCI image signature (using [cosign's signature
+](https://github.com/sigstore/cosign/blob/main/specs/SIGNATURE_SPEC.md)).
 
 ## Version server and source of truth
 

@@ -79,8 +79,9 @@ no
 ```
 
 The web server serving the release channel is called the version server.
-Save the version server URL as it will be required later to configure the agent
-updaters.
+Save the version server domain and release channel name (here respectively
+`<hosting-fomain-and-path>` and `current`) as they will be required
+later to configure the agent updaters.
 
 ## Step 3/3. Configure the maintenance schedule
 
@@ -92,10 +93,17 @@ Agents can retrieve the maintenance schedule from the Teleport cluster and
 pass it to the updater. In this step you'll configure the maintenance
 schedule for the whole cluster.
 
-Create the following `cmc.yaml` file to allow maintenances on Monday, Wednesday
+Create the following `cmc.yaml` manifest allowing maintenances on Monday, Wednesday
 and Friday between 02:00 and 03:00 UTC.
 
 (!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
+
+Finally, apply the manifest using `tctl`:
+
+```code
+$ tctl create cmc.yaml
+maintenance window has been updated
+```
 
 ## Next steps
 
