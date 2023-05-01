@@ -24,7 +24,7 @@ updates.
 ## Requirements
 
 <Tabs>
-<TabItem label="self-hosted">
+<TabItem label="Self-hosted">
 - A Teleport agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
@@ -39,38 +39,45 @@ updates.
 - as a Teleport Cloud user, you must check if your Could Tenant is enrolled
   into automatic updates.
 </TabItem>
+</Tabs>
 
 ## Enroll instructions
 
-
-<Tabs>
-<TabItem label="self-hosted">
-<TabItem label="systemd">
+<Tabs dropdownCaption="Cluster Type" dropdownSelected="Self-hosted">
+<TabItem label="systemd" options="Self-hosted">
 
 Create the upgrade configuration directory:
-  ```code
-  $ mkdir -p /etc/teleport-upgrade.d/
-  ```
-- If you changed the agent user to run as non-root, create
-  `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
-  Else, you can skip this step.
-  ```code
-  $ touch /etc/teleport-upgrade.d/schedule
-  $ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
-  ```
-- Configure the updater to connect to your custom version server and subscribe
-  to the right release channel.
-  ```code
-  $ echo <version-server-url/path>/<release-channel> > /etc/teleport-upgrade.d/endpoint
-  ```
-- install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install)
-  ```code
-  $ apt install teleport-ent-updater
-  # or
-  $ yum install teleport-ent-updater
-  ```
+
+```code
+$ mkdir -p /etc/teleport-upgrade.d/
+```
+
+If you changed the agent user to run as non-root, create
+`/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
+Else, you can skip this step:
+
+```code
+$ touch /etc/teleport-upgrade.d/schedule
+$ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+```
+
+Configure the updater to connect to your custom version server and subscribe
+to the right release channel:
+
+```code
+$ echo <version-server-url/path>/<release-channel> > /etc/teleport-upgrade.d/endpoint
+```
+
+Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
+
+```code
+$ apt install teleport-ent-updater
+# or
+$ yum install teleport-ent-updater
+```
 
 Finally, verify that the updater can see your version endpoint:
+
 ```code
 $ teleport-upgrade dry-run
 ```
@@ -78,7 +85,7 @@ $ teleport-upgrade dry-run
 You should see one of the following messages, depending on the target version
 you are currently serving:
 
-```code
+```text
 no upgrades available (1.2.3 == 1.2.3)
 an upgrade is available (1.2.3 -> 2.3.4)
 ```
@@ -90,7 +97,8 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-<TabItem label="teleport-kube-agent chart">
+
+<TabItem label="teleport-kube-agent chart" options="Self-hosted">
 
 Add the following chart values to your existing agent `values.yaml`:
 
@@ -104,6 +112,7 @@ updater:
 Update the Helm chart release with the new values by running `helm upgrade`.
 
 You can validate the updater is running properly by checking if its pod is ready:
+
 ```code
 $ kubectl get pods
 NAME                               READY   STATUS    RESTARTS   AGE
@@ -112,33 +121,37 @@ my-agent-1                         1/1     Running   0          14m
 my-agent-2                         1/1     Running   0          14m
 my-agent-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
 ```
-And by consulting its logs
+
+And by consulting its logs:
+
 ```code
 $ kubectl logs <your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
-</TabItem>
-</TabItem>
-<TabItem label="Teleport Cloud">
 
-<TabItem label="systemd">
+</TabItem>
+<TabItem label="systemd " options="Teleport Cloud">
 
-- If you changed the agent user to run as non-root, create
-  `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
-  Else, you can skip this step.
-  ```code
-  $ mkdir -p /etc/teleport-upgrade.d/
-  $ touch /etc/teleport-upgrade.d/schedule
-  $ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
-  ```
-- install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install)
-  ```code
-  $ apt install teleport-ent-updater
-  # or
-  $ yum install teleport-ent-updater
-  ```
+If you changed the agent user to run as non-root, create
+`/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
+Else, you can skip this step:
+
+```code
+$ mkdir -p /etc/teleport-upgrade.d/
+$ touch /etc/teleport-upgrade.d/schedule
+$ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+```
+
+Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
+
+```code
+$ apt install teleport-ent-updater
+# or
+$ yum install teleport-ent-updater
+```
 
 Finally, verify that the updater can see your version endpoint:
+
 ```code
 $ teleport-upgrade dry-run
 ```
@@ -146,7 +159,7 @@ $ teleport-upgrade dry-run
 You should see one of the following messages, depending on the target version
 you are currently serving:
 
-```code
+```text
 no upgrades available (1.2.3 == 1.2.3)
 an upgrade is available (1.2.3 -> 2.3.4)
 ```
@@ -158,7 +171,7 @@ not be exported yet.
 </Admonition>
 
 </TabItem>
-<TabItem label="teleport-kube-agent chart">
+<TabItem label="teleport-kube-agent chart " options="Teleport Cloud">
 
 Add the following chart values to your existing agent `values.yaml`:
 
@@ -170,6 +183,7 @@ updater:
 Update the Helm chart release with the new values by running `helm upgrade`.
 
 You can validate the updater is running properly by checking if its pod is ready:
+
 ```code
 $ kubectl get pods
 NAME                               READY   STATUS    RESTARTS   AGE
@@ -178,12 +192,14 @@ my-agent-1                         1/1     Running   0          14m
 my-agent-2                         1/1     Running   0          14m
 my-agent-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
 ```
-And by consulting its logs
+
+And by consulting its logs:
+
 ```code
 $ kubectl logs <your-agent-release>-updater
 2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
 ```
-</TabItem>
+
 </TabItem>
 </Tabs>
 
@@ -193,10 +209,13 @@ You can temporarily suspend automatic updates for an agent:
 
 <Tabs>
 <TabItem label="systemd">
+
 Disable the systemd timer:
+
 ```code
 $ systemctl disable teleport-upgrade.timer
 ```
+
 </TabItem>
 <TabItem label="teleport-kube-agent chart">
 Annotate the agent deployment with `teleport.dev/skipreconcile: "true"`.
