@@ -38,7 +38,7 @@ export const SessionJoinBtn = ({
     <JoinMenu>
       {showCTA && (
         <Box mx="12px" my="3">
-          <ButtonLockedFeature noIcon height="40px">
+          <ButtonLockedFeature noIcon>
             Join Active Sessions with Teleport Enterprise
           </ButtonLockedFeature>
         </Box>

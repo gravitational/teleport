@@ -22,7 +22,7 @@ import {
   SupportOSS,
   SupportCloud,
   SupportEnterprise,
-  SupportEnterpriseWithCTA,
+  SupportWithCTA,
 } from './Support.story';
 
 test('support OSS', () => {
@@ -41,6 +41,6 @@ test('support Enterprise', () => {
 });
 
 test('support Enterprise with CTA', () => {
-  const { container } = render(<SupportEnterpriseWithCTA />);
+  const { container } = render(<SupportWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });
