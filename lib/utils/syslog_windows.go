@@ -17,8 +17,8 @@ limitations under the License.
 package utils
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 )
 
 // SwitchLoggerToSyslog always returns an error on Windows.
