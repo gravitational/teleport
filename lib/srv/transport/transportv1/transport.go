@@ -147,7 +147,12 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.BadParameter("unable to find peer")
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, s.cfg.LocalAddr)
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, clientDst)
 	if err != nil {
 		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
 	}
