@@ -26,7 +26,6 @@ import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
 
-
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
 }

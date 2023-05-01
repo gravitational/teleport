@@ -393,7 +393,10 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	multiWriter   io.Writer
+	// multiWriter is used by to stream non-interactive session output
+	// to audit log.
+	multiWriter io.Writer
+	// recordSession forces non-interactive session recording. Used by Assist.
 	recordSession bool
 
 	// ChannelType holds the type of the channel. For example "session" or

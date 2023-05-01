@@ -122,18 +122,23 @@ async function convertServerMessage(
   }
 
   if (message.type == 'COMMAND_RESULT') {
-    const payload = JSON.parse(message.payload) as { session_id: string, execution_id: string };
+    const payload = JSON.parse(message.payload) as {
+      session_id: string;
+      execution_id: string;
+    };
 
     const sessionUrl = cfg.getTerminalSessionUrl({
       clusterId: clusterId,
       sid: payload.session_id,
     });
 
-    const resp = await api.fetch(sessionUrl + '/stream?offset=0&bytes=5242880', {
-      Accept: 'text/plain',
+    // The offset here is set base on A/B test that was run between me, myself and I.
+    const resp = await api
+      .fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
+        Accept: 'text/plain',
         'Content-Type': 'text/plain; charset=utf-8',
-    })
-  .then(response => response.text())
+      })
+      .then(response => response.text());
 
     const newMessage: Message = {
       author: Author.Teleport,
@@ -183,7 +188,7 @@ async function convertServerMessage(
     // TODO: fetch users after the query is edited in the UI.
     const nodes = await ns.fetchNodes(clusterId, {
       query: searchQuery,
-      limit: 100, // TODO: What is there is mode nodes?
+      limit: 100, // TODO: What if there is more nodes?
     });
     const availableLogins = findIntersection(
       nodes.agents.map(e => e.sshLogins)

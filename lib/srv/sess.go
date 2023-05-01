@@ -280,15 +280,15 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	sid, found := scx.GetEnv(sshutils.SessionEnvVar)
 	if !found {
+		// Create a new session ID. These sessions can not be joined
 		sessionID = rsession.NewID()
 	} else {
+		// Use passed session ID. Assist uses this "feature" to record
+		// the execution output.
 		sessionID = rsession.ID(sid)
+		scx.recordSession = true
 	}
 
-	// Create a new session ID. These sessions can not be joined so no point in
-	// looking for an exisiting one.
-
-	scx.recordSession = true
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
 	sess, err := newSession(ctx, sessionID, s, scx)
@@ -1231,6 +1231,7 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
 	if scx.recordSession {
+		// enable recording.
 		s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 		s.scx.multiWriter = s.io
 	}
