@@ -2405,15 +2405,6 @@ func createIdentityContext(login string, sessionCtx *SessionContext) (srv.Identi
 	}, nil
 }
 
-type UILock struct {
-	Name      string           `json:"name"`
-	Message   string           `json:"message"`
-	Expires   string           `json:"expires"`
-	CreatedAt string           `json:"createdAt"`
-	CreatedBy string           `json:"createdBy"`
-	Targets   types.LockTarget `json:"targets"`
-}
-
 func (h *Handler) getClusterLocks(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -2430,30 +2421,8 @@ func (h *Handler) getClusterLocks(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Lock data structure is reformatted to save doing it on the client as the
-	// Table component doesn't support nested complex objects. And fails to properly
-	// sort or filter results.
-	lockList := make([]UILock, 0, len(locks))
-	for _, lock := range locks {
-		var expires, createdAt string
-		if lock.LockExpiry() != nil {
-			expires = lock.LockExpiry().Format(time.RFC3339Nano)
-		}
 
-		if !lock.CreatedAt().IsZero() {
-			createdAt = lock.CreatedAt().Format(time.RFC3339Nano)
-		}
-
-		lockList = append(lockList, UILock{
-			Name:      lock.GetMetadata().Name,
-			Message:   lock.Message(),
-			Expires:   expires,
-			Targets:   lock.Target(),
-			CreatedAt: createdAt,
-			CreatedBy: lock.CreatedBy(),
-		})
-	}
-	return lockList, nil
+	return ui.MakeLocks(locks), nil
 }
 
 type createLockReq struct {
@@ -2506,7 +2475,7 @@ func (h *Handler) createClusterLock(
 		return nil, trace.Wrap(err)
 	}
 
-	return lock, nil
+	return ui.MakeLock(lock), nil
 }
 
 func (h *Handler) deleteClusterLock(
