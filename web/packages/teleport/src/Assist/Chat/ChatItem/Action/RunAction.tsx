@@ -76,7 +76,11 @@ export function RunCommand(props: RunCommandProps) {
 
   const params = convertContentToCommand(props.actions);
 
-  const execParams = { ...params, execution_id: urlParams.conversationId };
+  const execParams = {
+    ...params,
+    conversation_id: urlParams.conversationId,
+    execution_id: crypto.randomUUID(),
+  };
 
   const search = new URLSearchParams();
 

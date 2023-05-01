@@ -104,6 +104,8 @@ export function Chat() {
     />
   ));
 
+  console.log("items items ", items)
+
   let content;
   if (loading) {
     content = (

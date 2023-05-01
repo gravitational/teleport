@@ -125,6 +125,7 @@ async function convertServerMessage(
     const payload = JSON.parse(message.payload) as {
       session_id: string;
       execution_id: string;
+      node_id: string;
     };
 
     const sessionUrl = cfg.getTerminalSessionUrl({
@@ -143,8 +144,10 @@ async function convertServerMessage(
     const newMessage: Message = {
       author: Author.Teleport,
       content: {
-        type: Type.Message,
-        value: resp,
+        type: Type.ExecuteCommandOutput,
+        nodeId: payload.node_id,
+        executionId: payload.execution_id,
+        payload: resp,
       },
     };
 
