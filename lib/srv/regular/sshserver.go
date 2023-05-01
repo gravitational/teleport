@@ -67,8 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const sftpSubsystem = "sftp"
-
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
 })
@@ -2060,7 +2058,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == sftpSubsystem:
+	case r.Name == teleport.SFTPSubsystem:
 		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -1414,9 +1414,22 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			logger, err := athena.New(ctx, cfg)
+			var logger events.AuditLogger
+			logger, err = athena.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if cfg.LimiterBurst > 0 {
+				// Wrap athena logger with rate limiter on search events.
+				logger, err = events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
+					RefillTime:   cfg.LimiterRefillTime,
+					RefillAmount: cfg.LimiterRefillAmount,
+					Burst:        cfg.LimiterBurst,
+					AuditLogger:  logger,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:

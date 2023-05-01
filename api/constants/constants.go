@@ -392,7 +392,7 @@ const (
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
-	TimeoutGetClusterAlerts = time.Millisecond * 500
+	TimeoutGetClusterAlerts = time.Millisecond * 750
 )
 
 const (
