@@ -133,13 +133,13 @@ function makeIntegration(json: any): Integration {
 
 export function makeAwsDatabase(json: any): AwsRdsDatabase {
   json = json ?? {};
-  const { aws, name, uri, status, labels, protocol } = json;
+  const { aws, name, uri, labels, protocol } = json;
 
   return {
     engine: protocol,
     name,
     uri,
-    status,
+    status: aws?.status,
     labels: labels ?? [],
     resourceId: aws?.rds?.resource_id,
     accountId: aws?.account_id,

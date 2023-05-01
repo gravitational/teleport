@@ -15,22 +15,25 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, Text, Flex } from 'design';
+import { Box, ButtonPrimary, Text, Flex, ButtonSecondary } from 'design';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
+import { Refresh as RefreshIcon } from 'design/Icon';
 
 import { awsRegionMap, Regions } from 'teleport/services/integrations';
 
 export function AwsRegionSelector({
   onFetch,
-  disableBtn,
+  onRefresh,
+  disableFetch,
   disableSelector,
   clear,
 }: {
   onFetch(region: Regions): void;
-  disableBtn: boolean;
+  onRefresh(): void;
+  disableFetch: boolean;
   disableSelector: boolean;
   clear(): void;
 }) {
@@ -51,7 +54,7 @@ export function AwsRegionSelector({
   return (
     <Validation>
       {({ validator }) => (
-        <>
+        <Box>
           <Text mt={4}>
             Select the AWS Region you would like to see databases for:
           </Text>
@@ -69,17 +72,36 @@ export function AwsRegionSelector({
                 isDisabled={disableSelector}
               />
             </Box>
-            <ButtonPrimary
-              disabled={disableBtn || !selectedRegion}
-              onClick={() => handleFetch(validator)}
-              width="160px"
-              height="40px"
-              mt={1}
-            >
-              Fetch Databases
-            </ButtonPrimary>
+            <Flex alignItems="center">
+              <ButtonPrimary
+                disabled={disableFetch || !selectedRegion}
+                onClick={() => handleFetch(validator)}
+                width="160px"
+                height="40px"
+                mt={1}
+              >
+                Fetch Databases
+              </ButtonPrimary>
+              <ButtonSecondary
+                onClick={onRefresh}
+                ml={3}
+                mt={1}
+                title="Refresh database table"
+                height="40px"
+                width="30px"
+                css={`
+                  &:disabled {
+                    opacity: 0.35;
+                    pointer-events: none;
+                  }
+                `}
+                disabled={disableSelector || !disableFetch}
+              >
+                <RefreshIcon fontSize={3} />
+              </ButtonSecondary>
+            </Flex>
           </Flex>
-        </>
+        </Box>
       )}
     </Validation>
   );

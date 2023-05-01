@@ -22,7 +22,7 @@ import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 
-import { matchLabels, makeLabelMaps } from '../util';
+import { matchLabels } from '../util';
 
 import type {
   CreateDatabaseRequest,
@@ -111,7 +111,7 @@ export function useCreateDatabase() {
     updateAgentMeta({
       ...(agentMeta as DbMeta),
       resourceName: createdDb.name,
-      agentMatcherLabels: createdDb.labels,
+      agentMatcherLabels: dbPollingResult.labels,
       db: dbPollingResult,
     });
 
@@ -257,21 +257,10 @@ export function findActiveDatabaseSvc(
     return null;
   }
 
-  // Create maps for easy lookup and matching.
-  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
-    makeLabelMaps(newDbLabels);
-
-  const hasLabelsToMatch = newDbLabels.length > 0;
   for (let i = 0; i < dbServices.length; i++) {
     // Loop through the current service label keys and its value set.
     const currService = dbServices[i];
-    const match = matchLabels({
-      hasLabelsToMatch,
-      labelKeysToMatchMap,
-      labelValsToMatchMap,
-      labelToMatchSeenMap,
-      matcherLabels: currService.matcherLabels,
-    });
+    const match = matchLabels(newDbLabels, currService.matcherLabels);
 
     if (match) {
       return currService;
