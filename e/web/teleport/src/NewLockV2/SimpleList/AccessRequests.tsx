@@ -1,0 +1,97 @@
+import React from 'react';
+import Table, { Cell } from 'design/DataTable';
+import {
+  renderActionCell,
+  SimpleListProps,
+} from 'teleport/LocksV2/NewLock/ResourceList/common';
+
+import { AccessRequest } from 'e-teleport/services/workflow';
+import {
+  RequestedCell,
+  renderStatusCell,
+  renderReasonCell,
+  renderIdCell,
+  renderUserCell,
+  requestdMatcher,
+} from 'e-teleport/Workflow/ReviewRequests/RequestList/RequestList';
+
+export function AccessRequests(
+  props: SimpleListProps & { requests: AccessRequest[] }
+) {
+  const {
+    requests = [],
+    selectedResources,
+    toggleSelectResource,
+    fetchStatus,
+    pageSize,
+  } = props;
+
+  return (
+    <Table
+      data={requests}
+      columns={[
+        {
+          key: 'id',
+          headerText: 'Id',
+          isSortable: true,
+          render: renderIdCell,
+        },
+        {
+          key: 'state',
+          headerText: 'Status',
+          isSortable: true,
+          render: renderStatusCell,
+        },
+        {
+          key: 'user',
+          headerText: 'User',
+          isSortable: true,
+          render: renderUserCell,
+        },
+        {
+          key: 'roles',
+          headerText: 'Requested',
+          render: ({ resources, roles, id }) => (
+            <RequestedCell resources={resources} roles={roles} id={id} />
+          ),
+        },
+        {
+          key: 'resources',
+          isNonRender: true,
+        },
+        {
+          key: 'requestReason',
+          headerText: 'Request Reason',
+          isSortable: true,
+          render: renderReasonCell,
+        },
+        {
+          key: 'created',
+          headerText: 'Created',
+          isSortable: true,
+          render: ({ createdDuration }) => <Cell>{createdDuration}</Cell>,
+        },
+        {
+          altKey: 'action-btn',
+          render: ({ id }) =>
+            renderActionCell(
+              Boolean(selectedResources.access_request[id]),
+              () =>
+                toggleSelectResource({
+                  kind: 'access_request',
+                  targetValue: id,
+                })
+            ),
+        },
+      ]}
+      emptyText="No Requests Found"
+      isSearchable
+      pagination={{ pageSize }}
+      initialSort={{ key: 'created', dir: 'DESC' }}
+      customSearchMatchers={[requestdMatcher]}
+      fetching={{
+        fetchStatus,
+      }}
+    />
+  );
+}

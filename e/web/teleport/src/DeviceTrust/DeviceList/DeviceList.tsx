@@ -37,7 +37,11 @@ export const DeviceList = ({
   );
 };
 
-const IconCell = ({ osType }: { osType: 'Windows' | 'Linux' | 'macOS' }) => {
+export const IconCell = ({
+  osType,
+}: {
+  osType: 'Windows' | 'Linux' | 'macOS';
+}) => {
   let icon;
   switch (osType) {
     case 'Windows':

@@ -42,7 +42,7 @@ const SupportE = React.lazy(
   () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
 );
 const NewLock = React.lazy(
-  () => import(/* webpackChunkName: "new-lock" */ 'e-teleport/NewLock')
+  () => import(/* webpackChunkName: "new-lock" */ 'e-teleport/NewLockV2')
 );
 
 const DeviceTrust = React.lazy(
@@ -113,17 +113,13 @@ class FeatureReviewAccessRequests implements TeleportFeature {
   };
 }
 
-export class FeatureNewLock implements TeleportFeature {
+class FeatureNewLock extends OSS.FeatureNewLock {
   route = {
-    title: 'Create New Lock',
-    path: cfg.oss.routes.newLock,
-    exact: true,
+    ...super.getRoute(),
+    // Enterprise version allows resources access requests
+    // and device trusts to be locked.
     component: NewLock,
   };
-
-  hasAccess() {
-    return true;
-  }
 }
 
 // ****************************

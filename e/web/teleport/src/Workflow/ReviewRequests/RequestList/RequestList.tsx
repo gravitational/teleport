@@ -129,7 +129,7 @@ export function RequestList({
   );
 }
 
-function requestdMatcher(
+export function requestdMatcher(
   targetValue: any,
   searchValue: string,
   propName: keyof AccessRequest & string
@@ -149,7 +149,7 @@ function requestdMatcher(
   }
 }
 
-const renderUserCell = ({ user }: Row) => {
+export const renderUserCell = ({ user }: Row) => {
   return (
     <Cell
       style={{
@@ -165,7 +165,7 @@ const renderUserCell = ({ user }: Row) => {
   );
 };
 
-const renderIdCell = ({ id }: Row) => {
+export const renderIdCell = ({ id }: Row) => {
   return (
     <Cell
       style={{
@@ -181,7 +181,7 @@ const renderIdCell = ({ id }: Row) => {
   );
 };
 
-const renderReasonCell = ({ requestReason }: Row) => {
+export const renderReasonCell = ({ requestReason }: Row) => {
   return (
     <Cell
       style={{
@@ -197,7 +197,7 @@ const renderReasonCell = ({ requestReason }: Row) => {
   );
 };
 
-const renderStatusCell = ({ state }: Row) => {
+export const renderStatusCell = ({ state }: Row) => {
   let kind = 'warning';
   if (state === 'APPROVED') {
     kind = 'success';
@@ -244,7 +244,7 @@ const renderActionCell = (request: Row, assumeRole: (request: Row) => void) => {
   );
 };
 
-const RequestedCell = ({
+export const RequestedCell = ({
   roles,
   resources,
   id,

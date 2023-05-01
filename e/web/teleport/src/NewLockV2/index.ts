@@ -14,6 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { NewLock } from './NewLock';
-
-export default NewLock;
+// export as default for use with React.lazy
+export { NewLock as default } from './NewLock';
