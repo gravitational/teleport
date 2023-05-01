@@ -483,7 +483,7 @@ include darwin-signing.mk
 
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
-release-darwin-unsigned: clean full build-archive
+release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
 ifneq ($(ARCH),universal)
