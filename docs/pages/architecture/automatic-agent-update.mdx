@@ -9,9 +9,13 @@ are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
 Starting with version 13, Teleport supports automatic agent updates for Linux
-distributions using `apt` or `yum` package managers, and Kubernetes clusters.
+systemd-based distributions using `apt` or `yum` package managers, and
+Kubernetes clusters.
 
 ## Update logic and failure modes
+
+An updater is a piece of software deployed next to an agent which is responsible
+for updating it. Updating multiple agents requires multiple updaters.
 
 We designed the updater to be as decoupled from Teleport as possible. The
 updater can update agents even when they cannot join the Teleport cluster.
@@ -51,11 +55,15 @@ The agent version is subject to the following constraints:
   version.
 
 The best practice is to always align the agent version with the proxy and auth
-ones. Doing so ensures the agents benefit from all available features and bug
+ones. This ensures the agents benefit from all available features and bug
 fixes for the given auth/proxy version.
 
-For this reason, depending on the Teleport setup, the updater will use a
-different source of truth to retrieve the target version.
+For this reason, all updaters must subscribe to a release channel targeting
+versions that are compatible with their Teleport cluster. Teleport Cloud users
+must use the Teleport Cloud version server with the `stable/cloud` release
+channel. Self-hosted Teleport users must host their own version server and
+updater their release channel each time they update their Auth and Proxy
+instances.
 
 ### Teleport Cloud
 
