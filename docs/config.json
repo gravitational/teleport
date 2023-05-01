@@ -613,6 +613,20 @@
           "title": "Introduction",
           "slug": "/management/introduction/"
         },
+	{
+	  "title": "Configuring your Cluster",
+	  "slug": "/management/configuration/",
+	  "entries": [            
+	    {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/management/configuration/teleport-operator/"
+            },
+            {
+              "title": "Terraform Provider",
+              "slug": "/management/configuration/terraform-provider/"
+            }
+	  ]
+	},
         {
           "title": "Joining Teleport Services",
           "slug": "/management/join-services-to-your-cluster/",
@@ -764,14 +778,6 @@
           "title": "Integrations",
           "slug": "/management/guides/",
           "entries": [
-            {
-              "title": "Kubernetes Operator (Preview)",
-              "slug": "/management/guides/teleport-operator/"
-            },
-            {
-              "title": "Terraform Provider",
-              "slug": "/management/guides/terraform-provider/"
-            },
             {
               "title": "EC2 Tags",
               "slug": "/management/guides/ec2-tags/"
@@ -2383,12 +2389,12 @@
     },
     {
       "source": "/setup/guides/teleport-operator/",
-      "destination": "/management/guides/teleport-operator/",
+      "destination": "/management/configuration/teleport-operator/",
       "permanent": true
     },
     {
       "source": "/setup/guides/terraform-provider/",
-      "destination": "/management/guides/terraform-provider/",
+      "destination": "/management/configuration/terraform-provider/",
       "permanent": true
     },
     {
@@ -2789,6 +2795,16 @@
     {
       "source": "/choose-an-edition/teleport-cloud/",
       "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/teleport-operator/",
+      "destination": "/management/configuration/teleport-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/terraform-provider/",
+      "destination": "/management/configuration/terraform-provider/",
       "permanent": true
     }
   ]
