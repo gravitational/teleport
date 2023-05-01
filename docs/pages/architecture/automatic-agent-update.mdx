@@ -8,9 +8,8 @@ mode](../faq.mdx#can-teleport-be-deployed-in-agentless-mode), agent deployments
 are sometimes simpler and more convenient. However, large Teleport deployments
 can create an additional burden: updating all agents.
 
-Starting with version 13, Teleport supports automatic agent updates for Linux
-systemd-based distributions using `apt` or `yum` package managers, and
-Kubernetes clusters.
+Starting with version 13, Teleport supports automatic agent updates for systemd-based
+Linux distributions using `apt` or `yum` package managers, and Kubernetes clusters.
 
 ## Update logic and failure modes
 
@@ -19,7 +18,7 @@ for updating it. Updating multiple agents requires multiple updaters.
 
 We designed the updater to be as decoupled from Teleport as possible. The
 updater can update agents even when they cannot join the Teleport cluster.
-Pushing a broken version can happen, but the rollback/roll-forward must always
+Pushing a broken version can happen, but a rollback/roll-forward must always
 be possible without manually connecting to the resource and fixing the agent.
 
 The updater recurrently fetches the target version from a version server and
@@ -51,9 +50,9 @@ validates the OCI image signature (using [cosign's signature
 
 The agent version is subject to the following constraints:
 
-- the agent must never exceed the proxy or auth version,
-- the agent must always be no more than one major version below the proxy or auth
-  version.
+- the agent must never exceed the Proxy or Auth Service version,
+- the agent must always be no more than one major version below the Proxy or Auth
+  Service version.
 
 The best practice is to always align the agent version with the proxy and auth
 ones. This ensures the agents benefit from all available features and bug

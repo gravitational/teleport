@@ -34,8 +34,9 @@ already done, or you are a Teleport Cloud user, you can directly
 
 A release channel contains two pieces of information: the targeted version
 and if the update is critical. Updaters subscribe to a release channel and will
-update to the provided version if possible. If the update is critical, updaters
-will ignore the maintenance schedule and update as soon as possible.
+update to the provided version during a maintenance window if possible. If the
+update is critical, updaters will ignore the maintenance schedule and update as
+soon as possible.
 
 Create a directory for the new release channel `current`.
 
@@ -80,7 +81,7 @@ no
 
 The web server serving the release channel is called the version server.
 Save the version server domain and release channel name (here respectively
-`<hosting-fomain-and-path>` and `current`) as they will be required
+`<hosting-domain-and-path>` and `current`) as they will be required
 later to configure the agent updaters.
 
 ## Step 3/3. Configure the maintenance schedule
