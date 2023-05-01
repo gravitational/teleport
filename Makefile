@@ -37,6 +37,10 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 
+# RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
+# should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
+RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
+
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
@@ -406,6 +410,11 @@ clean-ui:
 #
 # make release - Produces a binary release tarball.
 #
+
+# RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
+$(RELEASE_DIR):
+	mkdir $@
+
 .PHONY:
 export
 release:
@@ -439,7 +448,7 @@ release-arm64:
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
-build-archive:
+build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
@@ -450,6 +459,7 @@ build-archive:
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
+	cp $(RELEASE).tar.gz $(RELEASE_DIR)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
@@ -550,11 +560,14 @@ release-windows: release-windows-unsigned
 # details.
 
 .PHONY: release-connect
-release-connect:
+release-connect: | $(RELEASE_DIR)
 	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
 	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
+		cp web/packages/teleterm/build/release/"Teleport Connect-"*.dmg $(RELEASE_DIR); \
+	fi
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
@@ -1167,7 +1180,7 @@ endif
 
 # build .pkg
 .PHONY: pkg
-pkg:
+pkg: | $(RELEASE_DIR)
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
@@ -1175,15 +1188,17 @@ pkg:
 	# runtime is currently ignored on OS X
 	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-*.pkg $(RELEASE_DIR)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
-pkg-tsh:
+pkg-tsh: | $(RELEASE_DIR)
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
+	cp $(BUILDDIR)/tsh-*.pkg $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
