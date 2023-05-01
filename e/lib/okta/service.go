@@ -167,6 +167,27 @@ type oktaClient interface {
 	// iterateApps will iterate over the list of all Okta applications.
 	iterateApps(context.Context, func(okta.App) error) error
 
+	// getGroupAssignments will return the list of users assigned to a group.
+	getGroupAssignments(ctx context.Context, groupID string) ([]string, error)
+
+	// getAppAssignments will return the list of users assigned to an app.
+	getAppAssignments(ctx context.Context, appID string) ([]string, error)
+
+	// listUsers will return a mapping of usernames to user IDs from Okta.
+	listUsers(ctx context.Context) (map[string]string, error)
+
+	// assignUserToGroup will assign the given user to the group.
+	assignUserToGroup(ctx context.Context, username, groupId string) error
+
+	// unassignUserFromGroup will unassign the given user from the group.
+	unassignUserFromGroup(ctx context.Context, username, groupId string) error
+
+	// assignUserToApplication will assign the given user to the application.
+	assignUserToApplication(ctx context.Context, username, applicationId string) error
+
+	// unassignUserFromApplication will unassign the given user from the application.
+	unassignUserFromApplication(ctx context.Context, username, applicationId string) error
+
 	// getOrgURL will return the org URL for the client.
 	orgURL() string
 }
@@ -318,7 +339,12 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	s.httpServer = &http.Server{Handler: httplib.MakeTracingHandler(authMiddleware, eteleport.ComponentOkta),
 		TLSConfig: s.tlsConfig}
 
-	s.assignmentReconciler = newAssignmentReconciler(ctx, s)
+	clusterName, err := s.accessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.assignmentReconciler = newAssignmentReconciler(ctx, clusterName.GetClusterName(), s)
 
 	return s, nil
 }

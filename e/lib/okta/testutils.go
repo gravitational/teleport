@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,9 +151,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 	ctx := context.Background()
 
 	emitter := eventstest.NewCountingEmitter()
-	client := &testOktaClient{
-		oktaOrgURL: testOrgURL,
-	}
+	client := newTestClient()
 	services.NewLockWatcher(ctx, services.LockWatcherConfig{})
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -167,6 +166,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
+
 	svc, err := newWithClientCreator(ctx, Config{
 		TLSConfig:       generateTestTLSConfig(t, testHostID, nil),
 		Authorizer:      authorizer,
@@ -200,6 +200,26 @@ type testOktaClient struct {
 	oktaGroups []*okta.Group
 	oktaApps   []okta.App
 	oktaOrgURL string
+
+	usernamesToUserIDsMu sync.Mutex
+	usernamesToUserIDs   map[string]string
+
+	groupsToUsersMu sync.Mutex
+	// groupsToUsers is a mapping of group IDs to users that have been assigned to them.
+	groupsToUsers map[string]map[string]bool
+
+	appsToUsersMu sync.Mutex
+	// appsToUsers is a mapping of application IDs to users that have been assigned to them.
+	appsToUsers map[string]map[string]bool
+}
+
+func newTestClient() *testOktaClient {
+	return &testOktaClient{
+		usernamesToUserIDs: map[string]string{},
+		groupsToUsers:      map[string]map[string]bool{},
+		appsToUsers:        map[string]map[string]bool{},
+		oktaOrgURL:         testOrgURL,
+	}
 }
 
 // iterateGroups will iterate over the list of all Okta groups.
@@ -222,6 +242,138 @@ func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error)
 	return nil
 }
 
+// getGroupAssignments will return the list of users assigned to a group.
+func (t *testOktaClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	userMap, ok := t.groupsToUsers[groupID]
+	if !ok {
+		return nil, trace.NotFound("assignments for group %s not found", groupID)
+	}
+
+	var users []string
+	for user := range userMap {
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// getAppAssignments will return the list of users assigned to an app.
+func (t *testOktaClient) getAppAssignments(ctx context.Context, appID string) ([]string, error) {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	userMap, ok := t.appsToUsers[appID]
+	if !ok {
+		return nil, trace.NotFound("assignments for app %s not found", appID)
+	}
+
+	var users []string
+	for user := range userMap {
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// listUsers will return a mapping of usernames to user IDs from Okta.
+func (t *testOktaClient) listUsers(ctx context.Context) (map[string]string, error) {
+	t.usernamesToUserIDsMu.Lock()
+	defer t.usernamesToUserIDsMu.Unlock()
+
+	usernamesToUserIDs := map[string]string{}
+	for k, v := range t.usernamesToUserIDs {
+		usernamesToUserIDs[k] = v
+	}
+
+	return usernamesToUserIDs, nil
+}
+
+// addUserID will add a mapping from the username to the user ID.
+func (t *testOktaClient) addUserID(username, userID string) {
+	t.usernamesToUserIDsMu.Lock()
+	defer t.usernamesToUserIDsMu.Unlock()
+
+	t.usernamesToUserIDs[username] = userID
+}
+
+// addGroupToMapping will add the given group to the group to user mapping in the test client.
+func (t *testOktaClient) addGroupToMapping(groupId string) {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	t.oktaGroups = append(t.oktaGroups, &okta.Group{
+		Id: groupId,
+	})
+	t.groupsToUsers[groupId] = map[string]bool{}
+}
+
+// assignUserToGroup will assign the given user to the group.
+func (t *testOktaClient) assignUserToGroup(ctx context.Context, username, groupId string) error {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	if _, ok := t.groupsToUsers[groupId]; !ok {
+		return trace.NotFound("provision: unable to find group %s", groupId)
+	}
+	t.groupsToUsers[groupId][username] = true
+
+	return nil
+}
+
+// unassignUserFromGroup will unassign the given user from the group.
+func (t *testOktaClient) unassignUserFromGroup(ctx context.Context, username, groupId string) error {
+	t.groupsToUsersMu.Lock()
+	defer t.groupsToUsersMu.Unlock()
+
+	if _, ok := t.groupsToUsers[groupId]; !ok {
+		return trace.NotFound("cleanup: unable to find group %s", groupId)
+	}
+	delete(t.groupsToUsers[groupId], username)
+
+	return nil
+}
+
+// addApplicationToMapping will add the given application to the application to user mapping in the test client.
+func (t *testOktaClient) addApplicationToMapping(applicationId string) {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	t.oktaApps = append(t.oktaApps, &okta.Application{
+		Id: applicationId,
+	})
+	t.appsToUsers[applicationId] = map[string]bool{}
+}
+
+// assignUserToApplication will assign the given user to the application.
+func (t *testOktaClient) assignUserToApplication(ctx context.Context, username, applicationId string) error {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	if _, ok := t.appsToUsers[applicationId]; !ok {
+		return trace.NotFound("provision: unable to find application %s", applicationId)
+	}
+	t.appsToUsers[applicationId][username] = true
+
+	return nil
+}
+
+// unassignUserFromApplication will unassign the given user from the application.
+func (t *testOktaClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
+	t.appsToUsersMu.Lock()
+	defer t.appsToUsersMu.Unlock()
+
+	if _, ok := t.appsToUsers[applicationId]; !ok {
+		return trace.NotFound("cleanup: unable to find application %s", applicationId)
+	}
+	delete(t.appsToUsers[applicationId], username)
+
+	return nil
+}
+
+// getOrgURL will return the org URL for the client.
 func (t *testOktaClient) orgURL() string {
 	return t.oktaOrgURL
 }
@@ -259,11 +411,13 @@ func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions
 
 // waitForResult will wait for a value on a channel and see if the value matches the expected value.
 func waitForResult[T any](t *testing.T, ch chan T, expected T, numTimes int) {
-	select {
-	case val := <-ch:
-		require.Equal(t, expected, val)
-	case <-time.After(5 * time.Second):
-		require.Fail(t, "timed out")
+	for i := 0; i < numTimes; i++ {
+		select {
+		case val := <-ch:
+			require.Equal(t, expected, val)
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "timed out")
+		}
 	}
 }
 
@@ -280,13 +434,17 @@ func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *typ
 	return app
 }
 
-func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin string) types.AppServer {
+func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin, orgURL string) types.AppServer {
+	labels := map[string]string{
+		types.OriginLabel:       origin,
+		teleport.OktaAppIDLabel: name,
+	}
+	if orgURL != "" {
+		labels[teleport.OktaOrgURLLabel] = orgURL
+	}
 	metadata := types.Metadata{
-		Name: mustAppName(t, hash, name, appLinkName),
-		Labels: map[string]string{
-			types.OriginLabel:       origin,
-			teleport.OktaAppIDLabel: name,
-		},
+		Name:   mustAppName(t, hash, name, appLinkName),
+		Labels: labels,
 	}
 
 	app := newApp(t, metadata, types.AppSpecV3{
@@ -302,11 +460,12 @@ func application(t *testing.T, hash crypto.Hash, name, appLinkName, origin strin
 	return appServer
 }
 
-func group(t *testing.T, name, origin string) types.UserGroup {
+func group(t *testing.T, name, origin, orgURL string) types.UserGroup {
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name: name,
 		Labels: map[string]string{
-			types.OriginLabel: origin,
+			types.OriginLabel:        origin,
+			teleport.OktaOrgURLLabel: orgURL,
 		},
 	})
 	require.NoError(t, err)
@@ -317,7 +476,8 @@ func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id
 	return &types.OktaAssignmentTargetV1{Type: targetType, Id: id}
 }
 
-func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.Time, status string, lastTransition time.Time, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
+func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.Time, status string, lastTransition time.Time,
+	finalized bool, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequestName,
 		Labels: map[string]string{
@@ -329,10 +489,15 @@ func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.T
 			Targets:        targets,
 			CleanupTime:    cleanupTime,
 			LastTransition: lastTransition,
+			Finalized:      finalized,
 		},
 	)
 	require.NoError(t, err)
 
 	require.NoError(t, assignment.SetStatus(status))
 	return assignment
+}
+
+func assignmentLess(a1, a2 types.OktaAssignment) bool {
+	return a1.GetName() < a2.GetName()
 }

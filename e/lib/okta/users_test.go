@@ -82,11 +82,11 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, assignments)
 
-	app1 := application(t, uac.hash, "app1", "link", types.OriginOkta)
+	app1 := application(t, uac.hash, "app1", "link", types.OriginOkta, testOrgURL)
 	_, err = ap.UpsertApplicationServer(ctx, app1)
 	require.NoError(t, err)
 
-	group1 := group(t, "group1", types.OriginOkta)
+	group1 := group(t, "group1", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, group1))
 
 	// Should get an assignment that has two actions: one for the app and one for the group.
@@ -124,7 +124,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 
 	// We'll add a new app, which should cause a new assignment to be generated and the
 	// old one to be marked as needing cleanup.
-	app2 := application(t, uac.hash, "app2", "link", types.OriginOkta)
+	app2 := application(t, uac.hash, "app2", "link", types.OriginOkta, testOrgURL)
 	_, err = ap.UpsertApplicationServer(ctx, app2)
 	require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 		cmpopts.SortSlices(assignmentLess)))
 
 	// We'll add in a group and make sure that triggers a second cleanup and another new assignment.
-	group2 := group(t, "group2", types.OriginOkta)
+	group2 := group(t, "group2", types.OriginOkta, testOrgURL)
 	require.NoError(t, ap.CreateUserGroup(ctx, group2))
 
 	require.NoError(t, uac.OnLogin(ctx, user))
@@ -248,7 +248,7 @@ func TestAssignmentDiff(t *testing.T) {
 	}{
 		{
 			name: "all new groups and apps",
-			newAssignment: assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{},
+			newAssignment: assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{}, false,
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 				target(types.OktaAssignmentTargetV1_GROUP, "group2"),
 				target(types.OktaAssignmentTargetV1_APPLICATION, "application1"),
@@ -265,14 +265,14 @@ func TestAssignmentDiff(t *testing.T) {
 		},
 		{
 			name: "some new, some old, some removed",
-			newAssignment: assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{},
+			newAssignment: assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{}, false,
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 				target(types.OktaAssignmentTargetV1_GROUP, "group2"),
 				target(types.OktaAssignmentTargetV1_APPLICATION, "application1"),
 				target(types.OktaAssignmentTargetV1_APPLICATION, "application3"),
 			),
 			oldAssignments: types.OktaAssignments{
-				assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{},
+				assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{}, false,
 					target(types.OktaAssignmentTargetV1_GROUP, "group2"),
 					target(types.OktaAssignmentTargetV1_GROUP, "group3"),
 					target(types.OktaAssignmentTargetV1_APPLICATION, "application1"),
@@ -304,8 +304,4 @@ func TestAssignmentDiff(t *testing.T) {
 			require.Equal(t, test.expectedRemovedApps, removedApps)
 		})
 	}
-}
-
-func assignmentLess(assignment1, assignment2 types.OktaAssignment) bool {
-	return assignment1.GetName() < assignment2.GetName()
 }

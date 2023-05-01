@@ -1,0 +1,489 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package okta
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+)
+
+const (
+	// The amount of time that will pass between running the assignment process loop.
+	timeBetweenAssignmentProcessLoops time.Duration = 5 * time.Minute
+
+	// The amount of time that must pass before a failed assignment can be retried.
+	timeBeforeFailedRetry time.Duration = 5 * time.Minute
+
+	// Any assignment left in timeout for this amount of time will be marked as failed.
+	processingTimeout time.Duration = 5 * time.Minute
+
+	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
+	// in the loop.
+	processAssignmentTimeout time.Duration = 1 * time.Minute
+
+	// maxNumWorkers is the maximum number of works that can concurrently use the
+	// Okta client.
+	maxNumWorkers = 5
+)
+
+type assignmentProcessorAccessPoint interface {
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
+
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// assignmentProcessor will process an Okta assignment, updating its status along the way.
+type assignmentProcessor struct {
+	log                *logrus.Entry
+	clock              clockwork.Clock
+	oktaOrgURL         string
+	accessPoint        assignmentProcessorAccessPoint
+	assignmentGetter   func() types.OktaAssignments
+	rateLimiter        *rate.Limiter
+	oktaClient         oktaClient
+	assignmentClientMu sync.RWMutex
+	assignmentClient   *assignmentClient
+	stopCh             chan struct{}
+
+	userTargetCounterMu sync.Mutex
+	// In the event of multiple assignments targeting the same user and group/application, we'll maintain
+	// a counter of active assignments. When this counter reaches 0 during a cleanup, the Okta API will
+	// be called. Otherwise, the assignment will be marked cleaned up but the Okta API will not be called
+	// until the counter reaches 0.
+	userTargetCounter map[string]map[string]struct{}
+}
+
+func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
+	rateLimiter := rate.NewLimiter(rate.Every(time.Second/time.Duration(maxNumWorkers)), 1)
+	return &assignmentProcessor{
+		log:               svc.log,
+		clock:             svc.clock,
+		oktaOrgURL:        svc.orgURL,
+		accessPoint:       svc.accessPoint,
+		assignmentGetter:  assignmentGetter,
+		rateLimiter:       rateLimiter,
+		oktaClient:        svc.client,
+		assignmentClient:  newAssignmentClient(svc.client, rateLimiter),
+		stopCh:            make(chan struct{}, 1),
+		userTargetCounter: map[string]map[string]struct{}{},
+	}
+}
+
+// start will start the processor loop, which is used for retrying assignment processing.
+func (a *assignmentProcessor) start(ctx context.Context, oktaClient oktaClient) {
+	go a.loop(ctx, oktaClient)
+}
+
+// loop runs the main body of the processing loop.
+func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
+	ticker := a.clock.NewTicker(timeBetweenAssignmentProcessLoops)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.Chan():
+		case <-a.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+
+		// Refresh the assignment client every loop.
+		a.assignmentClientMu.Lock()
+		a.assignmentClient = newAssignmentClient(oktaClient, a.rateLimiter)
+		a.assignmentClientMu.Unlock()
+
+		if err := a.processAssignments(ctx); err != nil {
+			a.log.Errorf("Error while processing assignments: %v", err)
+		}
+	}
+}
+
+// stop will stop the assignment processor loop.
+func (a *assignmentProcessor) stop() {
+	close(a.stopCh)
+}
+
+// processAssignments will iterate through all of the assignments, spawning a goroutine to
+// process each one.
+func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
+	var wg sync.WaitGroup
+	assignments := a.assignmentGetter()
+	numAssignments := len(assignments)
+	errs := make(chan error, numAssignments)
+
+	// Rebuild the target counter in a fresh loop.
+	a.rebuildTargetCounter(assignments)
+
+	// Use up to max num workers. If we have fewer assignments than workers,
+	// just use a worker per assignment.
+	numWorkers := maxNumWorkers
+	if numWorkers > numAssignments {
+		numWorkers = numAssignments
+	}
+	assignmentsCh := make(chan types.OktaAssignment, numWorkers)
+
+	// Use a fixed number of workers along with a rate limiter to ensure we don't smack into
+	// any rate limits. Enterprise rate limits for the API endpoints we use is 6000 per minute,
+	// which is 100 per second:
+	// https://developer.okta.com/docs/reference/rl-global-other-endpoints/
+	//
+	// Each Okta API call we do as part of processing a target consists of roughly 2 calls.
+	// By limiting our max workers to 5 and our rate limiting to 5 per second, this means that
+	// generally we expect to issue 10 Okta API calls per second (or less) when running through
+	// these assignments worst case. The assignment client will cache Okta state per run, so API
+	// calls will be minimized.
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				assignment, ok := <-assignmentsCh
+				if !ok {
+					return
+				}
+				ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
+				defer cancel()
+				errs <- a.processAssignment(ctx, assignment, true /* reconcile */)
+			}
+		}()
+	}
+
+	for _, assignment := range assignments {
+		assignmentsCh <- assignment
+	}
+
+	close(assignmentsCh)
+	wg.Wait()
+
+	close(errs)
+	return trace.NewAggregateFromChannel(errs, ctx)
+}
+
+// processAssignment will apply the proper actions dictated by the OktaAssignment. The function will
+// update the assignment with the results of the action application. An okta state is optionally suppliable
+// for caching in bulk runs. If reconcile is set, the function will attempt to find differences from the Okta
+// state and reconcile them. Otherwise, they will not be processed.
+func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment types.OktaAssignment, reconcile bool) error {
+	// Skip a finalized assignment, as it's already been cleaned up.
+	if assignment.IsFinalized() {
+		return nil
+	}
+
+	cleanupTime := assignment.GetCleanupTime()
+	needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
+
+	// We only process non-pending assignments if reconcile is set or if the assignment needs to be cleaned up.
+	if !needsCleanup && !reconcile && assignment.GetStatus() != constants.OktaAssignmentStatusPending {
+		return nil
+	}
+
+	sinceTransition := a.clock.Since(assignment.GetLastTransition())
+
+	switch assignment.GetStatus() {
+	case constants.OktaAssignmentStatusPending:
+	case constants.OktaAssignmentStatusSuccessful:
+		// We should only retry successful objects if the time between loops has passes since
+		// it last became successful
+		if sinceTransition < timeBetweenAssignmentProcessLoops {
+			return nil
+		}
+	case constants.OktaAssignmentStatusFailed:
+		// Only process this if enough time has passed since the failure state.
+		if sinceTransition < timeBeforeFailedRetry {
+			return nil
+		}
+	case constants.OktaAssignmentStatusProcessing:
+		// Only process this if enough time has passed since trying to process this.
+		if sinceTransition < processingTimeout {
+			return nil
+		}
+		a.log.Debugf("Assignment %s is stuck, so this service will be reprocessing it", assignment.GetName())
+	default:
+		return trace.BadParameter("unknown state %s, unable to process assignment %s", assignment.GetStatus(), assignment.GetName())
+	}
+
+	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
+		if !trace.IsCompareFailed(err) {
+			a.log.Debugf("Another service claimed assignment %s, so we're skipping it", assignment.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	// Update the status to processing, which will lock other services from operating on this.
+	err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), constants.OktaAssignmentStatusProcessing, sinceTransition)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if needsCleanup {
+		err = a.cleanupTargets(ctx, assignment)
+	} else {
+		err = a.processTargets(ctx, assignment)
+	}
+
+	// Set to success or failure depending on the errors from the targets.
+	nextStatus := constants.OktaAssignmentStatusSuccessful
+	finalized := false
+	if err != nil {
+		nextStatus = constants.OktaAssignmentStatusFailed
+	} else if needsCleanup {
+		// If we successfully cleaned up the assignment, we'll need to note it.
+		finalized = true
+	}
+
+	// If we successfully finalized the assignment, we'll update the finalized flag here.
+	if finalized {
+		if err := assignment.SetStatus(nextStatus); err != nil {
+			return trace.Wrap(err)
+		}
+		assignment.SetLastTransition(a.clock.Now())
+		assignment.SetFinalized(true)
+		_, updateErr := a.accessPoint.UpdateOktaAssignment(ctx, assignment)
+		if updateErr != nil {
+			return trace.Wrap(updateErr)
+		}
+	} else {
+		updateErr := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), nextStatus, 0)
+		if updateErr != nil {
+			return trace.NewAggregate(trace.Wrap(updateErr), err)
+		}
+	}
+
+	return trace.Wrap(err)
+}
+
+// processTargets will process or retry the targets for an assignment.
+func (a *assignmentProcessor) processTargets(ctx context.Context, assignment types.OktaAssignment) error {
+	assignmentClient := a.getAssignmentClient()
+
+	var errs []error
+	for _, target := range assignment.GetTargets() {
+		ok, err := a.authorizeTarget(ctx, target)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !ok {
+			a.log.Warnf("%s is not managed by this service", targetDescriptor(assignment, target))
+			continue
+		}
+
+		switch target.GetTargetType() {
+		case constants.OktaAssignmentTargetGroup:
+			var userInGroup bool
+			userInGroup, err = assignmentClient.userAssignedToGroup(ctx, assignment.GetUser(), target.GetID())
+			if err != nil {
+				break
+			}
+
+			if !userInGroup {
+				err = assignmentClient.registerUserToGroup(ctx, assignment.GetUser(), target.GetID())
+			}
+		case constants.OktaAssignmentTargetApplication:
+			var oktaAppID string
+			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
+			if err != nil {
+				break
+			}
+
+			var userInApp bool
+			userInApp, err = assignmentClient.userAssignedToApp(ctx, assignment.GetUser(), oktaAppID)
+			if err != nil {
+				break
+			}
+
+			if !userInApp {
+				err = assignmentClient.registerUserToApp(ctx, assignment.GetUser(), oktaAppID)
+			}
+		}
+
+		if err == nil {
+			a.registerUserTarget(assignment, target)
+		} else {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// cleanupTargets will cleanup the targets for an assignment.
+func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment types.OktaAssignment) error {
+	var errs []error
+	assignmentClient := a.getAssignmentClient()
+
+	for _, target := range assignment.GetTargets() {
+		ok, err := a.authorizeTarget(ctx, target)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !ok {
+			a.log.Warnf("%s is not managed by this service", targetDescriptor(assignment, target))
+			continue
+		}
+
+		// Only cleanup the target if there are no more known assignments that have the given target.
+		remainingAssignments := a.unregisterUserTarget(assignment, target)
+		if len(remainingAssignments) != 0 {
+			a.log.Infof("%s cleaned up, but assignments %v still reference it, so the target will not be removed.",
+				targetDescriptor(assignment, target), remainingAssignments)
+			continue
+		}
+
+		switch target.GetTargetType() {
+		case constants.OktaAssignmentTargetGroup:
+			var userInGroup bool
+			userInGroup, err = assignmentClient.userAssignedToGroup(ctx, assignment.GetUser(), target.GetID())
+			if err != nil {
+				break
+			}
+
+			if userInGroup {
+				err = assignmentClient.unregisterUserFromGroup(ctx, assignment.GetUser(), target.GetID())
+			}
+		case constants.OktaAssignmentTargetApplication:
+			var oktaAppID string
+			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
+			if err != nil {
+				break
+			}
+
+			var userInApp bool
+			userInApp, err = assignmentClient.userAssignedToApp(ctx, assignment.GetUser(), oktaAppID)
+			if err != nil {
+				break
+			}
+
+			if userInApp {
+				err = assignmentClient.unregisterUserFromApp(ctx, assignment.GetUser(), oktaAppID)
+			}
+		}
+
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// rebuildTargetCounter will rebuild the target counter based on the list of assignments.
+func (a *assignmentProcessor) rebuildTargetCounter(assignments []types.OktaAssignment) {
+	a.userTargetCounterMu.Lock()
+	defer a.userTargetCounterMu.Unlock()
+
+	a.userTargetCounter = map[string]map[string]struct{}{}
+
+	for _, assignment := range assignments {
+		if assignment.GetStatus() == constants.OktaAssignmentStatusSuccessful && !assignment.IsFinalized() {
+			for _, target := range assignment.GetTargets() {
+				targetName := userTargetName(assignment, target)
+				if _, ok := a.userTargetCounter[targetName]; !ok {
+					a.userTargetCounter[targetName] = map[string]struct{}{}
+				}
+				a.userTargetCounter[targetName][assignment.GetName()] = struct{}{}
+			}
+		}
+	}
+}
+
+// registerUserTarget registers a user target with the user target counter. This will be used in the event of
+// OktaAssignments with duplicate grants so that we don't clean up an assignment when the assignment is still valid
+// in a different assignment.
+func (a *assignmentProcessor) registerUserTarget(assignment types.OktaAssignment, target types.OktaAssignmentTarget) {
+	a.userTargetCounterMu.Lock()
+	defer a.userTargetCounterMu.Unlock()
+
+	targetName := userTargetName(assignment, target)
+
+	_, ok := a.userTargetCounter[targetName]
+	if !ok {
+		a.userTargetCounter[targetName] = map[string]struct{}{}
+	}
+
+	a.userTargetCounter[targetName][assignment.GetName()] = struct{}{}
+}
+
+// unregisterUserTarget unregisters a user target with the user target counter and returns the references left to it.
+func (a *assignmentProcessor) unregisterUserTarget(assignment types.OktaAssignment, target types.OktaAssignmentTarget) []string {
+	a.userTargetCounterMu.Lock()
+	defer a.userTargetCounterMu.Unlock()
+
+	targetName := userTargetName(assignment, target)
+
+	assignments, ok := a.userTargetCounter[targetName]
+	if !ok {
+		return nil
+	}
+
+	delete(assignments, assignment.GetName())
+
+	remainingAssignmentsMap := assignments
+
+	if len(remainingAssignmentsMap) == 0 {
+		delete(a.userTargetCounter, targetName)
+	}
+
+	var remainingAssignmentNames []string
+	for assignmentName := range remainingAssignmentsMap {
+		remainingAssignmentNames = append(remainingAssignmentNames, assignmentName)
+	}
+
+	return remainingAssignmentNames
+
+}
+
+// getAssignmentClient returns the assignment client.
+func (a *assignmentProcessor) getAssignmentClient() *assignmentClient {
+	a.assignmentClientMu.RLock()
+	defer a.assignmentClientMu.RUnlock()
+
+	return a.assignmentClient
+}
+
+// userTargetName returns a target name for a user target.
+func userTargetName(assignment types.OktaAssignment, target types.OktaAssignmentTarget) string {
+	return fmt.Sprintf("%x:%x:%x", assignment.GetUser(), target.GetTargetType(), target.GetID())
+}
+
+// targetDescriptor will return a string describing the target.
+func targetDescriptor(assignment types.OktaAssignment, target types.OktaAssignmentTarget) string {
+	return fmt.Sprintf("assignment %s for user %s, target %s %s", assignment.GetName(), assignment.GetUser(), target.GetTargetType(), target.GetID())
+}

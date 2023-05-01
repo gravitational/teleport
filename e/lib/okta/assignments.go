@@ -30,9 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AssignmentReconcilerClient is a client that consists of only the interfaces
+// AssignmentReconcilerAccessPoint is a client that consists of only the interfaces
 // needed for the AssignmentsReconciler.
-type AssignmentReconcilerClient interface {
+type AssignmentReconcilerAccessPoint interface {
 	types.Events
 
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
@@ -49,14 +49,15 @@ type AssignmentReconcilerClient interface {
 	DeleteOktaAssignment(ctx context.Context, name string) error
 }
 
-// assignmentReconciler is a process that monitors Okta assignments, performs Okta API
 // operations, and updates the Okta assignment status afterwards.
 type assignmentReconciler struct {
-	log   logrus.FieldLogger
-	clock clockwork.Clock
-
-	client  AssignmentReconcilerClient
-	watcher *services.OktaAssignmentWatcher
+	log                 *logrus.Entry
+	clock               clockwork.Clock
+	clusterName         string
+	accessPoint         AssignmentReconcilerAccessPoint
+	oktaClient          oktaClient
+	watcher             *services.OktaAssignmentWatcher
+	assignmentProcessor *assignmentProcessor
 
 	reconcileCh chan struct{}
 
@@ -69,22 +70,27 @@ type assignmentReconciler struct {
 	newAssignments   map[string]types.OktaAssignment
 
 	// These are used for testing.
-	onReconcile   func(types.OktaAssignments)
-	onReconcileCh chan struct{}
+	onReconcile               func(types.OktaAssignments)
+	onReconcileCh             chan struct{}
+	noAssignmentProcessorLoop bool
 }
 
 // newAssignmentReconciler creates a new AssignmentReconciler.
-func newAssignmentReconciler(ctx context.Context, svc *Service) *assignmentReconciler {
+func newAssignmentReconciler(ctx context.Context, clusterName string, svc *Service) *assignmentReconciler {
 	log := logrus.WithField(trace.Component, teleport.ComponentOktaAssignmentReconciler)
 	a := &assignmentReconciler{
 		log:            log,
 		clock:          svc.clock,
-		client:         svc.accessPoint,
+		clusterName:    clusterName,
+		accessPoint:    svc.accessPoint,
+		oktaClient:     svc.client,
 		reconcileCh:    make(chan struct{}),
 		stopCh:         make(chan struct{}, 1),
 		assignments:    make(map[string]types.OktaAssignment),
 		newAssignments: make(map[string]types.OktaAssignment),
 	}
+
+	a.assignmentProcessor = newAssignmentProcessor(svc, a.getAssignments)
 
 	return a
 }
@@ -95,8 +101,8 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 		Matcher: func(resource types.ResourceWithLabels) bool {
 			return a.matcher(ctx, resource)
 		},
-		GetCurrentResources: a.getAssignments,
-		GetNewResources:     a.getNewAssignments,
+		GetCurrentResources: toResourcesLabelMap(a.getAssignments),
+		GetNewResources:     toResourcesLabelMap(a.getNewAssignments),
 		OnCreate:            a.onCreate,
 		OnUpdate:            a.onUpdate,
 		OnDelete:            a.onDelete,
@@ -113,6 +119,12 @@ func (a *assignmentReconciler) start(ctx context.Context) error {
 	a.watcher = watcher
 
 	go a.reconcile(ctx, reconciler)
+
+	if !a.noAssignmentProcessorLoop {
+		// Start the assignment processor. This will run periodically to retry calls
+		// to Okta.
+		a.assignmentProcessor.start(ctx, a.oktaClient)
+	}
 
 	return nil
 }
@@ -156,22 +168,25 @@ func (a *assignmentReconciler) stop() {
 	close(a.stopCh)
 	close(a.reconcileCh)
 	a.watcher.Close()
+	if !a.noAssignmentProcessorLoop {
+		a.assignmentProcessor.stop()
+	}
 }
 
 // getAssignments returns the list of assignments currently known to the reconciler.
-func (a *assignmentReconciler) getAssignments() types.ResourcesWithLabelsMap {
+func (a *assignmentReconciler) getAssignments() types.OktaAssignments {
 	a.assignmentsMu.RLock()
 	defer a.assignmentsMu.RUnlock()
 
-	return copyAssignmentsMapToOktaAssignments(a.assignments).AsResources().ToMap()
+	return copyAssignmentsMapToOktaAssignments(a.assignments)
 }
 
 // getNewAssignments returns the list of new assignments that the reconciler has yet to act on.
-func (a *assignmentReconciler) getNewAssignments() types.ResourcesWithLabelsMap {
+func (a *assignmentReconciler) getNewAssignments() types.OktaAssignments {
 	a.newAssignmentsMu.RLock()
 	defer a.newAssignmentsMu.RUnlock()
 
-	return copyAssignmentsMapToOktaAssignments(a.newAssignments).AsResources().ToMap()
+	return copyAssignmentsMapToOktaAssignments(a.newAssignments)
 }
 
 // startResourceWatcher starts watching changes to assignment resources.
@@ -181,7 +196,7 @@ func (a *assignmentReconciler) startResourceWatcher(ctx context.Context) (*servi
 		RWCfg: services.ResourceWatcherConfig{
 			Component: teleport.ComponentOktaAssignmentReconciler,
 			Log:       a.log,
-			Client:    a.client,
+			Client:    a.accessPoint,
 		},
 	})
 	if err != nil {
@@ -226,7 +241,9 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, resource types.Reso
 		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
 	}
 
-	// TODO(mdwn): Implement onCreate
+	if err := a.assignmentProcessor.processAssignment(ctx, newAssignment, false); err != nil {
+		return trace.Wrap(err)
+	}
 
 	a.assignmentsMu.Lock()
 	a.assignments[newAssignment.GetName()] = newAssignment
@@ -239,10 +256,12 @@ func (a *assignmentReconciler) onCreate(ctx context.Context, resource types.Reso
 func (a *assignmentReconciler) onUpdate(ctx context.Context, resource types.ResourceWithLabels) error {
 	updatedAssignment, ok := resource.(types.OktaAssignment)
 	if !ok {
-		return trace.BadParameter("expected types.AccessRequest, got %T", resource)
+		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
 	}
 
-	// TODO(mdwn): Implement onUpdate
+	if err := a.assignmentProcessor.processAssignment(ctx, updatedAssignment, false); err != nil {
+		return trace.Wrap(err)
+	}
 
 	a.assignmentsMu.Lock()
 	a.assignments[updatedAssignment.GetName()] = updatedAssignment
@@ -252,13 +271,17 @@ func (a *assignmentReconciler) onUpdate(ctx context.Context, resource types.Reso
 }
 
 // onDelete will perform necessary Okta assignment operations based on deleted Okta assignments.
+// NOTE: This should never actually be run as users shouldn't be deleting OktaAssignment objects.
 func (a *assignmentReconciler) onDelete(ctx context.Context, resource types.ResourceWithLabels) error {
 	deletedAssignment, ok := resource.(types.OktaAssignment)
 	if !ok {
 		return trace.BadParameter("expected types.OktaAssignment, got %T", resource)
 	}
 
-	// TODO(mdwn): Implement onDelete
+	deletedAssignment.SetCleanupTime(a.clock.Now())
+	if err := a.assignmentProcessor.processAssignment(ctx, deletedAssignment, false); err != nil {
+		return trace.Wrap(err)
+	}
 
 	a.assignmentsMu.Lock()
 	delete(a.assignments, deletedAssignment.GetName())
@@ -270,6 +293,12 @@ func (a *assignmentReconciler) onDelete(ctx context.Context, resource types.Reso
 // matcher will match all Okta assignments.
 func (a *assignmentReconciler) matcher(ctx context.Context, resource types.ResourceWithLabels) bool {
 	return true
+}
+
+// toResourcesLabelMap is used by the reconciler. It will call a function that returns OktaAssignments
+// and then convert those into a ResourcesWithLabelMap.
+func toResourcesLabelMap(fn func() types.OktaAssignments) func() types.ResourcesWithLabelsMap {
+	return func() types.ResourcesWithLabelsMap { return fn().AsResources().ToMap() }
 }
 
 func copyAssignmentsMapToOktaAssignments(assignments map[string]types.OktaAssignment) types.OktaAssignments {
