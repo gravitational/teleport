@@ -2,6 +2,7 @@
 title: Access Controls Reference Documentation
 description: This reference shows you the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 h1: Teleport Access Controls Reference
+tocDepth: 3
 ---
 
 This guide shows you how to use Teleport roles to manage role-based access
@@ -469,3 +470,162 @@ Here is an explanation of the fields used in the `where` and `filter` conditions
 Check out our [predicate language](../reference/predicate-language.mdx#scoping-allowdeny-rules-in-role-resources)
 guide for a more in depth explanation of the language.
 
+## Template variables and functions
+
+Teleport provides several template variables and functions to enable more robust access control:
+
+<Details title="Internal Variables and Functions">
+
+#### `{{email.local(variable)}}`
+
+- **Type**: Function
+- **Description**: Extracts the local part of an email address.
+- **Example**: `{{email.local(alice@example.com)}}` -> alice
+
+#### `{{regexp.match(expression, variable)}}`
+
+- **Type**: Function
+- **Description**: Returns true if the provided string matches the specified pattern.
+- **Example**: `{{regexp.match("^Email: (.*)$", external.raw_email)}}` -> true for matching input
+
+#### `{{regexp.not_match(expression, variable)}}`
+
+- **Type**: Function
+- **Description**: Returns true if the provided string does not match the specified pattern.
+- **Example**: `{{regexp.not_match("^Email: (.*)$", external.raw_email)}}` -> true for non-matching input
+
+#### `{{regexp.replace(variable, expression, replacement)}}`
+
+- **Type**: Function
+- **Description**: Finds all matches of the expression and replaces them with the replacement. Supports expansion.
+- **Example**: `{{regexp.replace(external.email, "^(.*)@example.com$", "$1")}}` -> alice (when input is alice@example.com)
+
+#### `{{internal.azure_identities}}`
+
+- **Type**: Variable
+
+#### `{{internal.db_names}}`
+
+- **Type**: Variable
+- **Description**: List of all allowed database names.
+- **Example**: `{{internal.db_names}}` -> ["db_name_1", "db_name_2"]
+
+#### `{{internal.db_users}}`
+
+- **Type**: Variable
+- **Description**: List of all allowed database users.
+- **Example**: `{{internal.db_users}}` -> ["db_user_1", "db_user_2"]
+
+#### `{{internal.gcp_service_accounts}}`
+
+- **Type**: Variable
+
+#### `{{internal.jwt}}`
+
+- **Type**: Variable
+- **Description**: A JWT token signed by Teleport that contains user identity information.
+- **Example**: `"Authorization: Bearer {{internal.jwt}}"` -> `"Authorization": "Bearer eyJhbGci...`
+
+#### `{{internal.kube_username}}`
+
+- **Type**: Variable
+
+#### `{{internal.kubernetes_groups}}`
+
+- **Type**: Variable
+- **Description**: List of allowed Kubernetes groups.
+- **Example**: `{{internal.kubernetes_groups}}` -> ["group1", "group2"]
+
+#### `{{internal.kubernetes_users}}`
+
+- **Type**: Variable
+- **Description**: List of allowed Kubernetes users.
+- **Example**: `{{internal.kubernetes_users}}` -> ["user1", "user2"]
+
+#### `{{internal.logins}}`
+
+- **Type**: Variable
+- **Description**: List of allowed SSH logins.
+- **Example**: `{{internal.logins}}` -> ["user1", "user2"]
+
+#### `{{internal.windows_logins}}`
+
+- **Type**: Variable
+- **Description**: List of allowed Windows logins.
+- **Example**: `{{internal.windows_logins}}` -> ["user1", "user2"]
+
+</Details>
+
+<Details title="External Variables"
+>
+These variables provide context from an Identity Provider or other external data source.
+
+#### `{{external.logins}}`
+
+- **Type**: Variable
+
+#### `{{external.username}}`
+
+- **Type**: Variable
+
+#### `{{external.access["label"]}}`
+
+- **Type**: Variable
+
+#### `{{external.env}}`
+
+- **Type**: Variable
+
+#### `{{external.first_name}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's first name from the SSO provider.
+- **Example**: `{{external.first_name}}` -> `"Alice"`
+- **Provider**: OIDC/SAML
+
+#### `{{external.last_name}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's last name from the SSO provider.
+- **Example**: `{{external.last_name}}` -> `"Smith"`
+- **Provider**: OIDC/SAML
+
+#### `{{external.email}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's email address from the SSO provider.
+- **Example**: `{{external.email}}` -> `"alice@example.com"`
+- **Provider**: OIDC/SAML
+
+#### `{{external.groups}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's group membership from the SSO provider.
+- **Example**: `{{external.groups}}` -> `["group1", "group2"]`
+- **Provider**: OIDC/SAML
+
+#### `{{external.azure_identities}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's Azure identities from the SSO provider [(1)].
+- **Example**: `{{external.azure_identities}}` -> `["identity1"]`
+- **Provider**: OIDC/SAML
+
+#### `{{external.databases}}`
+
+- **Type**: Variable
+- **Description**: Fetches the user's allowed database names from the SSO provider [(2)].
+- **Example**: `{{external.databases}}` -> `["db1", "db2"]`
+- **Provider**: OIDC/SAML
+
+#### `{{external["custom_attribute"]}}`
+
+- **Type**: Variable
+- **Provider**: OIDC/SAML
+
+Please note that the `{{external.*}}` values and the `{{external["abcxyz"]}}` syntax are provider-dependent, as they rely on information from the SSO provider such as OIDC or SAML. Make sure to refer to your specific provider's documentation for the complete list of available variables and attributes.
+
+</Details>
+
+[(1)]: ../../application-access/cloud-apis/azure/#denying-access-to-azure-identities
+[(2)]: ../../database-access/rbac/#template-variables
