@@ -1,0 +1,99 @@
+---
+title: "Teleport Agents"
+description: Deploy agents to enroll resources in your infrastructure with Teleport. You can run multiple Teleport services per agent."
+---
+
+Teleport agents are Teleport instances that are configured to proxy traffic to
+resources in your infrastructure, such as servers, databases, and Kubernetes
+clusters. 
+
+This section shows you how to use Teleport agents to enable secure access to
+your infrastructure.
+
+## Architecture overview
+
+### Services
+
+Each Teleport agent can run one or more services.  A Teleport instance runs a
+service if it is enabled within the instance's configuration file. See the
+[Teleport Configuration
+Reference](../reference/configuration.mdx#enabling-teleport-services) for which
+services are enabled by default and how to enable a particular service.
+
+### Agent pools
+
+Agents typically run in the same private networks as the resources they proxy.
+They should be the only clients that can access a resource without Teleport.
+
+In this setup, agents dial the Teleport Proxy Service in order to establish
+reverse SSH tunnels. While the Proxy Service remains open to the public internet
+via its HTTPS port, agents require no open ports or public address.
+
+The Teleport Proxy Service uses these reverse tunnels to forward traffic from
+clients to an available agent, and agents apply RBAC rules and forward the
+traffic to resources in your infrastructure.
+
+```mermaid
+%%{init: {"flowchart": {"curve": "linear"}}}%%
+flowchart LR
+  proxy["Teleport Proxy Service"]
+  Clients--->proxy
+  subgraph private["Private network"]
+    db["Self-hosted database"]
+    subgraph agent2["Teleport agent"]
+      service3["Teleport Database Service"]
+      service4["Teleport Application Service"]
+    end
+
+    subgraph agent1["Teleport agent"]
+      service1["Teleport Kubernetes Service"]
+      service2["Teleport SSH Service"]
+    end
+
+    kubernetes["Kubernetes API server"]
+    ssh["SSH server"]
+    agent1 -.-> kubernetes & ssh
+    agent2 -.-> db
+  end
+
+  agent1 & agent2--Reverse tunnel---->proxy
+  agent2-.->cloud["Cloud provider API"]
+```
+
+Read our guide for how to use Terraform to [deploy a pool of
+agents](agent-pool.mdx). 
+
+## Joining agents
+
+Teleport agents need to establish trust with the Teleport Auth Service in order
+to authorize users to access your infrastructure. There are several ways to join
+an agent to your Teleport cluster, making it possible to automate the join
+process for your environment. Read about the available join methods in our [Join
+Services to your Cluster](./join-services-to-your-cluster.mdx) guides.
+
+## Enrolling infrastructure
+
+There are two ways to enroll infrastructure resources with Teleport agents:
+
+1. **Static**: Edit an agent's configuration file to configure a specific
+   infrastructure resource to proxy.
+1. **Dynamic**: Apply a [configuration
+   resource](../dynamic-resources/introduction.mdx) that configures a resource to
+   proxy.
+
+The dynamic method allows Teleport to discover resources automatically.  The
+Discovery Service polls your cloud provider APIs and modifies dynamic
+infrastructure resources as required.
+
+[Read our guide](placeholder--please-add.mdx) to deploying dynamic resources
+with Terraform.
+
+To learn how to enroll resources via static configuration files, plus all the
+ways Teleport supports enrolling infrastructure, consult our guides to each of
+Teleport's services:
+
+- [SSH Service](../server-access/introduction.mdx)
+- [Database Service](../database-access/introduction.mdx)
+- [Kubernetes Service](../kubernetes-access/introduction.mdx)
+- [Windows Desktop Service](../desktop-access/introduction.mdx)
+- [Application Service](../application-access/introduction.mdx)
