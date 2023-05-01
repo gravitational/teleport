@@ -157,10 +157,43 @@ func (ac *cloudWithRoles) GetBillingInformation(ctx context.Context, req *v1.Emp
 	return ac.plugin.cloudClient.GetBillingInformation(ctx, req)
 }
 
+// GetBillingSummaryInformation returns the users Billing Summary Information
+func (ac *cloudWithRoles) GetBillingSummaryInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetBillingSummaryInformationResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetBillingSummaryInformation(ctx, req)
+}
+
+// GetPaymentsInvoicesInformation returns users the Payments Invoices Information
+func (ac *cloudWithRoles) GetPaymentsInvoicesInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetPaymentsInvoicesInformationResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetPaymentsInvoicesInformation(ctx, req)
+}
+
+// GetInvoiceSettingsInformation returns the users Invoice Settings Information
+func (ac *cloudWithRoles) GetInvoiceSettingsInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetInvoiceSettingsInformationResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.GetInvoiceSettingsInformation(ctx, req)
+}
+
 // CreateSetupIntent creates a Stripe setup intent and returns the client secret. A Stripe SetupIntent guides the
 // process of setting up and saving a customer's payment credentials for future payments. https://stripe.com/docs/api/setup_intents
 func (ac *cloudWithRoles) CreateSetupIntent(ctx context.Context, req *v1.EmptyRequest) (*v1.CreateSetupIntentResponse, error) {
-	// todo (michellescripts) should we require an action check
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbCreate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return ac.plugin.cloudClient.CreateSetupIntent(ctx, req)
 }
 
@@ -234,6 +267,35 @@ func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest)
 	}
 
 	return ac.plugin.cloudClient.GetFeatures(ctx, req)
+}
+
+// UpdateStripeAddress updates account address information
+func (ac *cloudWithRoles) UpdateStripeAddress(ctx context.Context, req *v1.StripeBillingAddressRequest) (*v1.EmptyResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.UpdateStripeAddress(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event := &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.BillingInformationUpdateEvent,
+			Code: events.BillingInformationUpdateCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+	}
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing account update event.")
+	}
+
+	return res, nil
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {

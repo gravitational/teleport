@@ -63,6 +63,72 @@ export namespace Account {
   }
 }
 
+export class StripeBillingAddressRequest extends jspb.Message {
+  getName(): string;
+  setName(value: string): void;
+
+  hasAddress(): boolean;
+  clearAddress(): void;
+  getAddress(): StripeBillingAddress | undefined;
+  setAddress(value?: StripeBillingAddress): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StripeBillingAddressRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: StripeBillingAddressRequest): StripeBillingAddressRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StripeBillingAddressRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StripeBillingAddressRequest;
+  static deserializeBinaryFromReader(message: StripeBillingAddressRequest, reader: jspb.BinaryReader): StripeBillingAddressRequest;
+}
+
+export namespace StripeBillingAddressRequest {
+  export type AsObject = {
+    name: string,
+    address?: StripeBillingAddress.AsObject,
+  }
+}
+
+export class StripeBillingAddress extends jspb.Message {
+  getAddressCity(): string;
+  setAddressCity(value: string): void;
+
+  getAddressCountry(): string;
+  setAddressCountry(value: string): void;
+
+  getAddressLine1(): string;
+  setAddressLine1(value: string): void;
+
+  getAddressLine2(): string;
+  setAddressLine2(value: string): void;
+
+  getAddressPostalCode(): string;
+  setAddressPostalCode(value: string): void;
+
+  getAddressState(): string;
+  setAddressState(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StripeBillingAddress.AsObject;
+  static toObject(includeInstance: boolean, msg: StripeBillingAddress): StripeBillingAddress.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StripeBillingAddress, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StripeBillingAddress;
+  static deserializeBinaryFromReader(message: StripeBillingAddress, reader: jspb.BinaryReader): StripeBillingAddress;
+}
+
+export namespace StripeBillingAddress {
+  export type AsObject = {
+    addressCity: string,
+    addressCountry: string,
+    addressLine1: string,
+    addressLine2: string,
+    addressPostalCode: string,
+    addressState: string,
+  }
+}
+
 export class Card extends jspb.Message {
   getId(): string;
   setId(value: string): void;
@@ -261,6 +327,9 @@ export class Invoice extends jspb.Message {
   getInvoicePdf(): string;
   setInvoicePdf(value: string): void;
 
+  getUsageMau(): number;
+  setUsageMau(value: number): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): Invoice.AsObject;
   static toObject(includeInstance: boolean, msg: Invoice): Invoice.AsObject;
@@ -280,6 +349,7 @@ export namespace Invoice {
     periodEnd: number,
     periodStart: number,
     invoicePdf: string,
+    usageMau: number,
   }
 }
 
@@ -758,6 +828,202 @@ export namespace GetFeaturesResponse {
     saml: boolean,
     accessControls: boolean,
     hsm: boolean,
+  }
+}
+
+export class StripeUsage extends jspb.Message {
+  getInvoiceId(): string;
+  setInvoiceId(value: string): void;
+
+  getStatus(): string;
+  setStatus(value: string): void;
+
+  getPeriodEnd(): number;
+  setPeriodEnd(value: number): void;
+
+  getPeriodStart(): number;
+  setPeriodStart(value: number): void;
+
+  getUsageMau(): number;
+  setUsageMau(value: number): void;
+
+  getUsageTia(): number;
+  setUsageTia(value: number): void;
+
+  getUsagePr(): number;
+  setUsagePr(value: number): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): StripeUsage.AsObject;
+  static toObject(includeInstance: boolean, msg: StripeUsage): StripeUsage.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: StripeUsage, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): StripeUsage;
+  static deserializeBinaryFromReader(message: StripeUsage, reader: jspb.BinaryReader): StripeUsage;
+}
+
+export namespace StripeUsage {
+  export type AsObject = {
+    invoiceId: string,
+    status: string,
+    periodEnd: number,
+    periodStart: number,
+    usageMau: number,
+    usageTia: number,
+    usagePr: number,
+  }
+}
+
+export class GetBillingSummaryInformationResponse extends jspb.Message {
+  getUsageBasedBilling(): boolean;
+  setUsageBasedBilling(value: boolean): void;
+
+  getStripePublicKey(): string;
+  setStripePublicKey(value: string): void;
+
+  getStripeCustomerId(): string;
+  setStripeCustomerId(value: string): void;
+
+  hasStripeCurrentUsage(): boolean;
+  clearStripeCurrentUsage(): void;
+  getStripeCurrentUsage(): StripeUsage | undefined;
+  setStripeCurrentUsage(value?: StripeUsage): void;
+
+  getStripeTrial(): boolean;
+  setStripeTrial(value: boolean): void;
+
+  getStripeTrialEnd(): number;
+  setStripeTrialEnd(value: number): void;
+
+  getStripeMissingPaymentMethod(): boolean;
+  setStripeMissingPaymentMethod(value: boolean): void;
+
+  getProductName(): string;
+  setProductName(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetBillingSummaryInformationResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: GetBillingSummaryInformationResponse): GetBillingSummaryInformationResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetBillingSummaryInformationResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetBillingSummaryInformationResponse;
+  static deserializeBinaryFromReader(message: GetBillingSummaryInformationResponse, reader: jspb.BinaryReader): GetBillingSummaryInformationResponse;
+}
+
+export namespace GetBillingSummaryInformationResponse {
+  export type AsObject = {
+    usageBasedBilling: boolean,
+    stripePublicKey: string,
+    stripeCustomerId: string,
+    stripeCurrentUsage?: StripeUsage.AsObject,
+    stripeTrial: boolean,
+    stripeTrialEnd: number,
+    stripeMissingPaymentMethod: boolean,
+    productName: string,
+  }
+}
+
+export class GetPaymentsInvoicesInformationResponse extends jspb.Message {
+  getUsageBasedBilling(): boolean;
+  setUsageBasedBilling(value: boolean): void;
+
+  getStripePublicKey(): string;
+  setStripePublicKey(value: string): void;
+
+  getStripeCustomerId(): string;
+  setStripeCustomerId(value: string): void;
+
+  getStripeMissingPaymentMethod(): boolean;
+  setStripeMissingPaymentMethod(value: boolean): void;
+
+  clearStripeCardsList(): void;
+  getStripeCardsList(): Array<Card>;
+  setStripeCardsList(value: Array<Card>): void;
+  addStripeCards(value?: Card, index?: number): Card;
+
+  clearStripeInvoicesList(): void;
+  getStripeInvoicesList(): Array<Invoice>;
+  setStripeInvoicesList(value: Array<Invoice>): void;
+  addStripeInvoices(value?: Invoice, index?: number): Invoice;
+
+  getProductName(): string;
+  setProductName(value: string): void;
+
+  getStripeTrialEnd(): number;
+  setStripeTrialEnd(value: number): void;
+
+  getStripeDefaultSourceId(): string;
+  setStripeDefaultSourceId(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetPaymentsInvoicesInformationResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: GetPaymentsInvoicesInformationResponse): GetPaymentsInvoicesInformationResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetPaymentsInvoicesInformationResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetPaymentsInvoicesInformationResponse;
+  static deserializeBinaryFromReader(message: GetPaymentsInvoicesInformationResponse, reader: jspb.BinaryReader): GetPaymentsInvoicesInformationResponse;
+}
+
+export namespace GetPaymentsInvoicesInformationResponse {
+  export type AsObject = {
+    usageBasedBilling: boolean,
+    stripePublicKey: string,
+    stripeCustomerId: string,
+    stripeMissingPaymentMethod: boolean,
+    stripeCardsList: Array<Card.AsObject>,
+    stripeInvoicesList: Array<Invoice.AsObject>,
+    productName: string,
+    stripeTrialEnd: number,
+    stripeDefaultSourceId: string,
+  }
+}
+
+export class GetInvoiceSettingsInformationResponse extends jspb.Message {
+  getUsageBasedBilling(): boolean;
+  setUsageBasedBilling(value: boolean): void;
+
+  getStripePublicKey(): string;
+  setStripePublicKey(value: string): void;
+
+  getStripeCustomerId(): string;
+  setStripeCustomerId(value: string): void;
+
+  hasStripeInvoiceBillingAddress(): boolean;
+  clearStripeInvoiceBillingAddress(): void;
+  getStripeInvoiceBillingAddress(): StripeBillingAddress | undefined;
+  setStripeInvoiceBillingAddress(value?: StripeBillingAddress): void;
+
+  getStripeInvoiceEmail(): string;
+  setStripeInvoiceEmail(value: string): void;
+
+  getStripeInvoicePurchaseOrderNumber(): string;
+  setStripeInvoicePurchaseOrderNumber(value: string): void;
+
+  getStripeCustomerName(): string;
+  setStripeCustomerName(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): GetInvoiceSettingsInformationResponse.AsObject;
+  static toObject(includeInstance: boolean, msg: GetInvoiceSettingsInformationResponse): GetInvoiceSettingsInformationResponse.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: GetInvoiceSettingsInformationResponse, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): GetInvoiceSettingsInformationResponse;
+  static deserializeBinaryFromReader(message: GetInvoiceSettingsInformationResponse, reader: jspb.BinaryReader): GetInvoiceSettingsInformationResponse;
+}
+
+export namespace GetInvoiceSettingsInformationResponse {
+  export type AsObject = {
+    usageBasedBilling: boolean,
+    stripePublicKey: string,
+    stripeCustomerId: string,
+    stripeInvoiceBillingAddress?: StripeBillingAddress.AsObject,
+    stripeInvoiceEmail: string,
+    stripeInvoicePurchaseOrderNumber: string,
+    stripeCustomerName: string,
   }
 }
 

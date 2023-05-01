@@ -11,23 +11,23 @@ import (
 
 // MockedClient mocks cloud client APIs
 type MockedClient struct {
-	// SubmitUsageReports reports usage
+	// MockSubmitUsageReports reports usage
 	MockSubmitUsageReports func(in *v1.SubmitUsageReportsRequest) (*v1.EmptyResponse, error)
-	// ListInvoices lists customer invoices
+	// MockListInvoices lists customer invoices
 	MockListInvoices func() (*v1.ListInvoicesResponse, error)
-	// GetBillingInformation returns customer billing information
+	// MockGetBillingInformation returns customer billing information
 	MockGetBillingInformation func() (*v1.GetBillingInformationResponse, error)
-	// CreateSetupIntent creates an intent in stripe and returns the client secret
-	MockCreateSetupIntent func() (*v1.CreateSetupIntentResponse, error)
-	// AddCard adds a new credit card to customer account
+	// MockCreateSetupIntent creates an intent in stripe and returns the client secret
+	MockCreateSetupIntent func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.CreateSetupIntentResponse, error)
+	// MockAddCard adds a new credit card to customer account
 	MockAddCard func(in *v1.AddCardRequest) (*v1.EmptyResponse, error)
-	// RemoveCardRequest removes a credit card from tenant account
+	// MockRemoveCardRequest removes a credit card from tenant account
 	MockRemoveCard func(in *v1.RemoveCardRequest) (*v1.EmptyResponse, error)
-	// UpdateCard updates tenant credit card
+	// MockUpdateCard updates tenant credit card
 	MockUpdateCard func(in *v1.UpdateCardRequest) (*v1.EmptyResponse, error)
-	// UpdateAccount updates tenant account information
+	// MockUpdateAccount updates tenant account information
 	MockUpdateAccount func(in *v1.UpdateAccountRequest) (*v1.EmptyResponse, error)
-	// ListBillingCycles lists tenant billing cycles
+	// MockListBillingCycles lists tenant billing cycles
 	MockListBillingCycles func() (*v1.ListBillingCyclesResponse, error)
 	// MockSendAccountRecoveryLink sends an email with a recovery link to user.
 	MockSendAccountRecoveryLink func() (*v1.EmptyResponse, error)
@@ -41,6 +41,14 @@ type MockedClient struct {
 	MockUpdateAccountUpgradeWindowStartHour func() (*v1.EmptyResponse, error)
 	// MockGetFeatures returns the subscription features
 	MockGetFeatures func(context.Context, *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
+	// MockGetBillingSummaryInformation returns the users Billing Summary Information
+	MockGetBillingSummaryInformation func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.GetBillingSummaryInformationResponse, error)
+	// MockGetPaymentsInvoicesInformation returns users the Payments Invoices Information
+	MockGetPaymentsInvoicesInformation func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.GetPaymentsInvoicesInformationResponse, error)
+	// MockGetInvoiceSettingsInformation returns the users Invoice Settings Information
+	MockGetInvoiceSettingsInformation func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.GetInvoiceSettingsInformationResponse, error)
+	// MockUpdateStripeAddress updates customer address information in Stripe
+	MockUpdateStripeAddress func(context.Context, *v1.StripeBillingAddressRequest, ...grpc.CallOption) (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -68,9 +76,9 @@ func (m *MockedClient) GetBillingInformation(ctx context.Context, in *v1.EmptyRe
 	return nil, trace.NotImplemented("GetBillingInformation is not implemented")
 }
 
-func (m *MockedClient) CreateSetupIntent(_ context.Context, _ *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.CreateSetupIntentResponse, error) {
+func (m *MockedClient) CreateSetupIntent(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.CreateSetupIntentResponse, error) {
 	if m.MockCreateSetupIntent != nil {
-		return m.MockCreateSetupIntent()
+		return m.MockCreateSetupIntent(ctx, in)
 	}
 
 	return nil, trace.NotImplemented("CreateSetupIntent is not implemented")
@@ -162,4 +170,33 @@ func (m *MockedClient) GetFeatures(ctx context.Context, in *v1.EmptyRequest, opt
 	}
 
 	return nil, trace.NotImplemented("MockGetFeatures is not implemented")
+}
+
+func (m *MockedClient) GetBillingSummaryInformation(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetBillingSummaryInformationResponse, error) {
+	if m.MockGetBillingSummaryInformation != nil {
+		return m.MockGetBillingSummaryInformation(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetBillingSummaryInformation is not implemented")
+}
+func (m *MockedClient) GetPaymentsInvoicesInformation(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetPaymentsInvoicesInformationResponse, error) {
+	if m.MockGetPaymentsInvoicesInformation != nil {
+		return m.MockGetPaymentsInvoicesInformation(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetPaymentsInvoicesInformation is not implemented")
+}
+func (m *MockedClient) GetInvoiceSettingsInformation(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetInvoiceSettingsInformationResponse, error) {
+	if m.MockGetInvoiceSettingsInformation != nil {
+		return m.MockGetInvoiceSettingsInformation(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("GetInvoiceSettingsInformation is not implemented")
+}
+func (m *MockedClient) UpdateStripeAddress(ctx context.Context, in *v1.StripeBillingAddressRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockUpdateStripeAddress != nil {
+		return m.MockUpdateStripeAddress(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("UpdateStripeAddress is not implemented")
 }

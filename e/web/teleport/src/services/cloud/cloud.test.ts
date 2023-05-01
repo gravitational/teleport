@@ -114,6 +114,7 @@ const invoices: Invoice[] = [
     periodEnd: 1617208855,
     periodStart: 1614616855,
     invoicePdf: 'direct-link-to-stripe-invoice',
+    usageMau: 0,
   },
   {
     invoiceId: 'ca3f7381-eb82-5066-8488-86029312b7ae',
@@ -123,5 +124,6 @@ const invoices: Invoice[] = [
     periodEnd: 1617208855,
     periodStart: 1614616855,
     invoicePdf: 'direct-link-to-stripe-invoice',
+    usageMau: 0,
   },
 ];
