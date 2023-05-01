@@ -8,9 +8,10 @@ description: How Teleport implements a single-port setup with TLS routing
   opened={true}
   scope={["oss", "enterprise"]}
   scopeOnly={true}
-  min="8.0"
+  min="13.0"
 >
-  TLS routing is available starting from Teleport `8.0`.
+  TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse proxies
+  support is available in Preview starting from Teleport `13.0`.
 </Details>
 
 In TLS routing mode [Teleport proxy](./proxy.mdx) multiplexes all client
@@ -24,17 +25,6 @@ network such as SSH.
 To implement TLS routing, Teleport uses SNI ([Server Name Indication](https://en.wikipedia.org/wiki/Server_Name_Indication))
 and ALPN ([Application-Level Protocol Negotiation](https://en.wikipedia.org/wiki/Application-Layer_Protocol_Negotiation))
 TLS extensions.
-
-<Admonition
-  type="warning"
-  title="TLS routing is incompatible with layer 7 load balancers and reverse proxies"
->
-TLS routing will not work in environments where layer 7 load balancers or reverse proxies are used. See further information in the [When to use TLS routing](#when-to-use-tls-routing) section below.
-</Admonition>
-
-## When to use TLS routing
-
-(!docs/pages/includes/tls-multiplexing-warnings.mdx!)
 
 ## How it works
 
@@ -112,8 +102,9 @@ Kubernetes client `kubectl` uses HTTPS API and TLS handshake to talk to the API
 server.
 
 As such, it is not possible to request a custom ALPN protocol using `kubectl`.
-Instead, Teleport leverages SNI and sets a `ServerName` prefixed with `kube.`
-when generating a kubeconfig file during `tsh kube login`:
+Instead, Teleport leverages SNI and sets a `ServerName` prefixed with
+`kube-teleport-proxy-alpn.` when generating a kubeconfig file during `tsh kube
+login`:
 
 ```yaml
 apiVersion: v1
@@ -122,7 +113,7 @@ clusters:
 - cluster:
     certificate-authority-data: ...
     server: https://proxy.example.com:443
-    tls-server-name: kube.proxy.example.com
+    tls-server-name: kube-teleport-proxy-alpn.proxy.example.com
   name: example
 ```
 
@@ -131,10 +122,10 @@ clusters:
 The `tsh db connect` command executes an appropriate database client for the
 database you're connecting to.
 
-In TLS routing mode, `tsh` starts a local proxy which database client connection
-is tunneled through. The local proxy uses one of `teleport-postgres`,
-`teleport-mysql` or `teleport-mongodb` ALPN values depending on the database.
-The proxy is shut down when the database session ends.
+In TLS routing mode, `tsh` starts a local proxy which database client
+connection is tunneled through. The local proxy uses ALPN values like
+`teleport-mysql` depending on the database. The proxy is shut down when the
+database session ends.
 
 ### Native and GUI clients
 
@@ -156,6 +147,34 @@ Application access, desktop access and Teleport web UI are served by the
 Teleport proxy's web listener and don't require a local proxy or any special
 ALPN/SNI negotiation. These web connections use standard `http1.1` and `h2`
 protocols for ALPN.
+
+Application access for TCP applications connects through a local proxy by `tsh
+proxy app` where the local proxy forwards the traffic to Teleport Proxy service
+using the `teleport-tcp` ALPN protocol.
+
+## Working with layer 7 load balancers or reverse proxies (Preview)
+
+Starting from version `13.0`, TLS routing can now be enabled allowing the
+Teleport proxy to serve a single port behind a layer 7 load balancer or reverse
+proxy.
+
+![Layer 7 load balancer setup](../../img/architecture/tls-routing-alb.svg)
+
+It is expected that the layer 7 load balancer or reverse proxy will terminate
+TLS with a public certificate, such as using ACM for AWS ALB. This means that
+the Proxy service does not require a Web TLS certificate using `http_keypair`
+or `acme`.
+
+Teleport clients automatically detect whether Teleport proxy behind a layer 7
+load balancer or a reverse proxy. In such cases, the client initiates a
+connection upgrade similar to "WebSocket" to bypass the load balancer and then
+tunnels the TLS routing traffic within.
+
+![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
+
+Non-Teleport clients require local proxies that can perform the connection
+upgrade. For example, the `tsh proxy kube` command creates a local proxy and an
+ephemeral kubeconfig for Kubernetes clients like `kubectl` to connect to.
 
 ## Next steps
 
