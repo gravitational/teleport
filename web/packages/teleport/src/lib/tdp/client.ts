@@ -16,6 +16,12 @@ import Logger from 'shared/libs/logger';
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 
+import init, {
+  init_wasm_log,
+  FastPathProcessor,
+  FastPathFrame,
+} from 'teleport/ironrdp/pkg';
+
 import Codec, {
   MessageType,
   FileType,
@@ -34,7 +40,6 @@ import type {
   ScrollAxis,
   ClientScreenSpec,
   PngFrame,
-  BitmapFrame,
   ClipboardData,
   SharedDirectoryInfoResponse,
   SharedDirectoryListResponse,
@@ -64,6 +69,15 @@ export enum TdpClientEvent {
   WS_CLOSE = 'ws close',
 }
 
+export enum LogType {
+  OFF = 'OFF',
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  INFO = 'INFO',
+  DEBUG = 'DEBUG',
+  TRACE = 'TRACE',
+}
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and recieving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -73,6 +87,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected socket: WebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
+  private fastPathProcessor: FastPathProcessor;
 
   private logger = Logger.create('TDPClient');
 
@@ -81,6 +96,18 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socketAddr = socketAddr;
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
+
+    // select the wasm log level
+    let wasmLogLevel = LogType.OFF;
+    if (import.meta.env.MODE === 'development') {
+      wasmLogLevel = LogType.DEBUG;
+    }
+
+    // init initializes the wasm module into memory
+    init().then(() => {
+      init_wasm_log(wasmLogLevel);
+      this.fastPathProcessor = new FastPathProcessor();
+    });
   }
 
   // Connect to the websocket and register websocket event handlers.
@@ -127,7 +154,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.handlePng2Frame(buffer);
           break;
         case MessageType.REMOTE_FX_FRAME:
-          this.handleRemoteFxFrame(buffer);
+          this.handleFastPathFrame(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -247,9 +274,29 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRemoteFxFrame(buffer: ArrayBuffer) {
-    this.codec.decodeRemoteFxFrame(buffer, (bmpFrame: BitmapFrame) =>
-      this.emit(TdpClientEvent.TDP_BITMAP_FRAME, bmpFrame)
+  handleFastPathFrame(buffer: ArrayBuffer) {
+    let decodedFastPathFrame = this.codec.decodeFastPathFrame(buffer);
+
+    // Need to create the wasm-bindgen FastPathFrame to pass into Rust
+    let fastPathFrame = new FastPathFrame(
+      decodedFastPathFrame.rpcId,
+      decodedFastPathFrame.data
+    );
+    // Passes buffer into RdpFrameProcessor.process
+    // In there we call RdpFrameProcessor.fast_path_processor.process()
+    // for out in outputs {}:
+    //   ActiveStageOutput::GraphicsUpdate(updated_region): we imitate their send_update_rectangle.
+    //   This eventually calls a callback to a JS function which emits the TDP_BITMAP_FRAME event.
+    //
+    //   ActiveStageOutput::ResponseFrame(frame) and ActiveStageOutput::Terminate
+    //   We add each of these to a vector, they are encoded to TDP in Rust and sent to the client
+    //   via the websocket which we pass in when RdpFrameProcessor is created.
+    this.fastPathProcessor.process(
+      fastPathFrame,
+      this,
+      (bmpFrame: BitmapFrame) => {
+        this.emit(TdpClientEvent.TDP_BITMAP_FRAME, bmpFrame); // todo(isaiah): in tdpclientcanvas render this event to the canvas
+      }
     );
   }
 
@@ -597,3 +644,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.socket?.close(closeCode);
   }
 }
+
+// Mimics the BitmapFrame struct in rust.
+export type BitmapFrame = {
+  top: number;
+  left: number;
+  image_data: ImageData;
+};

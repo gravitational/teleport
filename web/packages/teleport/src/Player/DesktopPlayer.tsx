@@ -27,6 +27,7 @@ import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import { ProgressBarDesktop } from './ProgressBar';
 
 import type { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
+import type { BitmapFrame } from 'teleport/lib/tdp/client';
 
 export const DesktopPlayer = ({
   sid,
@@ -40,6 +41,7 @@ export const DesktopPlayer = ({
   const {
     playerClient,
     tdpCliOnPngFrame,
+    tdpCliOnBitmapFrame,
     tdpCliOnClientScreenSpec,
     tdpCliOnWsClose,
     tdpCliOnTdpError,
@@ -68,6 +70,7 @@ export const DesktopPlayer = ({
         tdpCli={playerClient}
         tdpCliInit={true}
         tdpCliOnPngFrame={tdpCliOnPngFrame}
+        tdpCliOnBitmapFrame={tdpCliOnBitmapFrame}
         tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
         tdpCliOnWsClose={tdpCliOnWsClose}
         tdpCliOnTdpError={tdpCliOnTdpError}
@@ -120,6 +123,13 @@ const useDesktopPlayer = ({
     pngFrame: PngFrame
   ) => {
     ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
+  };
+
+  const tdpCliOnBitmapFrame = (
+    ctx: CanvasRenderingContext2D,
+    bmpFrame: BitmapFrame
+  ) => {
+    ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
   };
 
   const tdpCliOnClientScreenSpec = (
@@ -196,6 +206,7 @@ const useDesktopPlayer = ({
   return {
     playerClient,
     tdpCliOnPngFrame,
+    tdpCliOnBitmapFrame,
     tdpCliOnClientScreenSpec,
     tdpCliOnWsClose,
     tdpCliOnTdpError,

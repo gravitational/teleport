@@ -74,7 +74,7 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
-	TypeRemoteFxFrame                 = MessageType(29)
+	TypeFastPathFrame                 = MessageType(29)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -113,8 +113,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNGFrame(in)
 	case TypePNG2Frame:
 		return decodePNG2Frame(in)
-	case TypeRemoteFxFrame:
-		return decodeRemoteFxFrame(in)
+	case TypeFastPathFrame:
+		return decodeFastPathFrame(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -269,47 +269,47 @@ func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
 func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
-// RemoteFxFrame is a RemoteFX frame message
+// FastPathFrame is a RemoteFX frame message
 // | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
-type RemoteFxFrame struct {
+type FastPathFrame struct {
 	RpcId uint32
 	Data  []byte
 }
 
-func decodeRemoteFxFrame(in byteReader) (RemoteFxFrame, error) {
+func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 	var rpcId uint32
 	if err := binary.Read(in, binary.BigEndian, &rpcId); err != nil {
-		return RemoteFxFrame{}, trace.Wrap(err)
+		return FastPathFrame{}, trace.Wrap(err)
 	}
 
-	// Read PNG length so we can allocate buffer that will fit RemoteFxFrame message
+	// Read PNG length so we can allocate buffer that will fit FastPathFrame message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
-		return RemoteFxFrame{}, trace.Wrap(err)
+		return FastPathFrame{}, trace.Wrap(err)
 	}
 
-	// Allocate buffer that will fit RemoteFxFrame message
+	// Allocate buffer that will fit FastPathFrame message
 	// message type (1) + data_length (4) + data => 5 + data
 	data := make([]byte, 5+dataLength)
 
 	// Write message type and png length into the buffer
-	data[0] = byte(TypeRemoteFxFrame)
+	data[0] = byte(TypeFastPathFrame)
 	binary.BigEndian.PutUint32(data[1:5], dataLength)
 
 	// Write the data into the buffer
 	if _, err := io.ReadFull(in, data[5:]); err != nil {
-		return RemoteFxFrame{}, trace.Wrap(err)
+		return FastPathFrame{}, trace.Wrap(err)
 	}
 
-	return RemoteFxFrame{
+	return FastPathFrame{
 		RpcId: rpcId,
 		Data:  data,
 	}, nil
 }
 
-func (f RemoteFxFrame) Encode() ([]byte, error) {
+func (f FastPathFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRemoteFxFrame))
+	buf.WriteByte(byte(TypeFastPathFrame))
 	buf.WriteByte(byte(f.RpcId))
 	writeUint32(buf, uint32(len(f.Data)))
 	buf.Write(f.Data)

@@ -16,6 +16,7 @@ limitations under the License.
 import React, { useEffect, useRef } from 'react';
 
 import { TdpClientEvent } from 'teleport/lib/tdp';
+import { BitmapFrame } from 'teleport/lib/tdp/client';
 
 import type { CSSProperties } from 'react';
 import type {
@@ -30,6 +31,7 @@ export default function TdpClientCanvas(props: Props) {
     tdpCli,
     tdpCliInit = false,
     tdpCliOnPngFrame,
+    tdpCliOnBitmapFrame,
     tdpCliOnClipboardData,
     tdpCliOnTdpError,
     tdpCliOnTdpWarning,
@@ -86,6 +88,39 @@ export default function TdpClientCanvas(props: Props) {
       };
     }
   }, [tdpCli, tdpCliOnPngFrame]);
+
+  useEffect(() => {
+    if (tdpCli && tdpCliOnBitmapFrame) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      // Buffered rendering logic
+      var bitmapBuffer: BitmapFrame[] = [];
+      const renderBuffer = () => {
+        if (bitmapBuffer.length) {
+          for (let i = 0; i < bitmapBuffer.length; i++) {
+            tdpCliOnBitmapFrame(ctx, bitmapBuffer[i]);
+          }
+          bitmapBuffer = [];
+        }
+        requestAnimationFrame(renderBuffer);
+      };
+      requestAnimationFrame(renderBuffer);
+
+      const pushToBitmapBuffer = (bmpFrame: BitmapFrame) => {
+        bitmapBuffer.push(bmpFrame);
+      };
+
+      tdpCli.on(TdpClientEvent.TDP_BITMAP_FRAME, pushToBitmapBuffer);
+
+      return () => {
+        tdpCli.removeListener(
+          TdpClientEvent.TDP_BITMAP_FRAME,
+          pushToBitmapBuffer
+        );
+      };
+    }
+  }, [tdpCli, tdpCliOnBitmapFrame]);
 
   useEffect(() => {
     if (tdpCli && tdpCliOnClientScreenSpec) {
@@ -283,6 +318,10 @@ export type Props = {
   tdpCliOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
+  ) => void;
+  tdpCliOnBitmapFrame?: (
+    ctx: CanvasRenderingContext2D,
+    pngFrame: BitmapFrame
   ) => void;
   tdpCliOnClipboardData?: (clipboardData: ClipboardData) => void;
   tdpCliOnTdpError?: (error: Error) => void;

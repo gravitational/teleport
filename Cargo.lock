@@ -971,8 +971,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c85e1d9ab2eadba7e5040d4e09cbd6d072b76a557ad64e797c2cb9d4da21d7e4"
 dependencies = [
  "cfg-if 1.0.0",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1248,8 +1250,11 @@ checksum = "12b6ee2129af8d4fb011108c73d99a1b83a85977f23b82460c0ae2e25bb4b57f"
 name = "ironrdp"
 version = "0.1.0"
 dependencies = [
+ "byteorder",
  "bytes",
  "console_log",
+ "getrandom 0.2.9",
+ "ironrdp 0.5.0",
  "js-sys",
  "log",
  "wasm-bindgen",

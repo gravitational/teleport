@@ -21,8 +21,6 @@ import {
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import init, { process_buffer, init_ironrdp } from 'teleport/ironrdp/pkg';
-
 // This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
 window.TextEncoder = window.TextEncoder || TestTextEncoder;
 window.TextDecoder = window.TextDecoder || TestTextDecoder;
@@ -91,8 +89,6 @@ export type PngFrame = {
   bottom: number;
   data: HTMLImageElement;
 };
-
-export type BitmapFrame = PngFrame;
 
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
@@ -289,14 +285,11 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
-export enum LogType {
-  OFF = 'OFF',
-  ERROR = 'ERROR',
-  WARN = 'WARN',
-  INFO = 'INFO',
-  DEBUG = 'DEBUG',
-  TRACE = 'TRACE',
-}
+// | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+export type FastPathFrame = {
+  rpcId: number;
+  data: Uint8Array;
+};
 
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
@@ -308,19 +301,6 @@ export enum LogType {
 export default class Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
-
-  constructor() {
-    // select the wasm log level
-    let wasmLogLevel = LogType.OFF;
-    if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.DEBUG;
-    }
-
-    // init initializes the wasm module into memory
-    init().then(() => {
-      init_ironrdp(wasmLogLevel);
-    });
-  }
 
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
   // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
@@ -946,18 +926,19 @@ export default class Codec {
     return pngFrame;
   }
 
-  // decodePng2Frame decodes a raw tdp PNG frame message and returns it as a PngFrame
-  // | message type (29) | data_length uint32 | data []byte |
-  async decodeRemoteFxFrame(
-    buffer: ArrayBuffer,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _onload: (bmpFrame: BitmapFrame) => any
-  ) {
-    //: BitmapFrame {
-
-    console.log('decodeRemoteFxFrame');
-
-    process_buffer(buffer);
+  // | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+  decodeFastPathFrame(buffer: ArrayBuffer): FastPathFrame {
+    const dv = new DataView(buffer);
+    let offset = 0;
+    offset += byteLength; // eat message type
+    const rpcId = dv.getUint32(offset);
+    offset += uint32Length; // eat rpc_id
+    offset += uint32Length; // eat data_length
+    const data = buffer.slice(offset);
+    return {
+      rpcId,
+      data: new Uint8Array(data),
+    };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

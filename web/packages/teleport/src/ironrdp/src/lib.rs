@@ -1,26 +1,258 @@
+#![allow(clippy::new_without_default)] // default trait not supported in wasm
+
 #[macro_use]
 extern crate log;
+extern crate byteorder;
 extern crate bytes;
 extern crate console_log;
+extern crate ironrdp;
 extern crate js_sys;
 extern crate wasm_bindgen;
+extern crate web_sys;
 
-use bytes::Bytes;
+use std::io::Cursor;
+
+use byteorder::{LittleEndian, ReadBytesExt};
+use bytes::{BufMut, Bytes, BytesMut};
+use ironrdp::graphics::image_processing::PixelFormat;
+use ironrdp::pdu::fast_path::{EncryptionFlags, FastPathHeader};
+use ironrdp::pdu::geometry::Rectangle;
+use ironrdp::session::image::DecodedImage;
+use ironrdp::session::{
+    active_session::fast_path::Processor as IronRdpFastPathProcessor,
+    active_session::fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
+    ActiveStageOutput, ActiveStageProcessor, ConnectionSequenceResult, DesktopSize, ErasedWriter,
+    FramedReader, InputConfig, RdpError,
+};
 use js_sys::{ArrayBuffer, Uint8Array};
-use wasm_bindgen::prelude::*;
+use std::convert::TryFrom;
+use wasm_bindgen::{prelude::*, Clamped};
+use web_sys::ImageData;
 
 #[wasm_bindgen]
-pub fn init_ironrdp(log_level: &str) {
+pub fn init_wasm_log(log_level: &str) {
     if let Ok(level) = log_level.parse::<log::Level>() {
         console_log::init_with_level(level).unwrap();
     }
-
-    debug!("IronRDP initialized");
 }
 
 #[wasm_bindgen]
-pub fn process_buffer(buffer: ArrayBuffer) {
-    let byte_array = Uint8Array::new(&buffer);
-    let bytes = Bytes::from(byte_array.to_vec());
-    debug!("bytes: {:?}", bytes);
+pub struct FastPathFrame {
+    rpc_id: u32,
+    data: Uint8Array,
+}
+
+#[wasm_bindgen]
+impl FastPathFrame {
+    #[wasm_bindgen(constructor)]
+    pub fn new(rpc_id: u32, data: Uint8Array) -> Self {
+        Self { rpc_id, data }
+    }
+}
+
+struct RustFastPathFrame {
+    rpc_id: u32,
+    data: Vec<u8>,
+}
+
+impl From<FastPathFrame> for RustFastPathFrame {
+    fn from(js_frame: FastPathFrame) -> Self {
+        Self {
+            rpc_id: js_frame.rpc_id,
+            data: js_frame.data.to_vec(), // TODO(isaiah): is it possible to avoid copy?
+        }
+    }
+}
+
+#[wasm_bindgen]
+struct BitmapFrame {
+    top: u16,
+    left: u16,
+    image_data: ImageData,
+}
+
+fn create_image_data_from_image_and_region(
+    image_data: &[u8],
+    image_location: Rectangle,
+) -> Result<ImageData, JsValue> {
+    ImageData::new_with_u8_clamped_array_and_sh(
+        Clamped(image_data),
+        image_location.width().into(),
+        image_location.height().into(),
+    )
+}
+
+#[wasm_bindgen]
+pub struct FastPathProcessor {
+    fast_path_processor: IronRdpFastPathProcessor,
+    image: DecodedImage,
+}
+
+#[wasm_bindgen]
+impl FastPathProcessor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            fast_path_processor: IronRdpFastPathProcessorBuilder {
+                global_channel_id: 0, // todo(isaiah)
+                initiator_id: 0,      // todo(isaiah)
+            }
+            .build(),
+            image: DecodedImage::new(
+                PixelFormat::RgbA32,
+                1728, //todo(isaiah): hardcoded
+                932,  //todo(isaiah): hardcoded
+            ),
+        }
+    }
+
+    // tdp_fast_path_frame = | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+    pub fn process(
+        &mut self,
+        tdp_fast_path_frame: FastPathFrame,
+        callback_context: &JsValue,
+        callback: &js_sys::Function,
+    ) -> Result<(), JsValue> {
+        let mut output_writer = BytesMut::new().writer();
+        let tdp_fast_path_frame: RustFastPathFrame = tdp_fast_path_frame.into();
+
+        let graphics_update_region = self
+            .fast_path_processor
+            .process(
+                &mut self.image,
+                // TODO(isaiah): junk values here as this is only logged in fast_path_processor.process. should be refactored not to require this
+                &FastPathHeader {
+                    flags: EncryptionFlags::SECURE_CHECKSUM,
+                    data_length: 0,
+                    forced_long_length: false,
+                },
+                &tdp_fast_path_frame.data, // &frame[header.buffer_length()..], // TODO(isaiah): make sure this is all that's being passed on the backend
+                &mut output_writer,
+            )
+            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+        let output = output_writer.into_inner();
+
+        let mut fast_path_outputs = Vec::new();
+
+        if !output.is_empty() {
+            fast_path_outputs.push(ActiveStageOutput::ResponseFrame(output));
+        }
+
+        if let Some(update_region) = graphics_update_region {
+            fast_path_outputs.push(ActiveStageOutput::GraphicsUpdate(update_region));
+        }
+
+        for out in fast_path_outputs {
+            match out {
+                ActiveStageOutput::GraphicsUpdate(updated_region) => {
+                    let (image_location, image_data) =
+                        extract_partial_image(&self.image, updated_region);
+                    self.apply_image_to_canvas(
+                        image_data,
+                        image_location,
+                        callback_context,
+                        callback,
+                    )?;
+                }
+                ActiveStageOutput::ResponseFrame(_) => todo!(), // TODO(isaiah): must be sent back to server over TDP
+                ActiveStageOutput::Terminate => {
+                    return Err(JsValue::from_str("Terminate should never be returned"));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn apply_image_to_canvas(
+        &self,
+        image_data: Vec<u8>,
+        image_location: Rectangle,
+        callback_context: &JsValue,
+        callback: &js_sys::Function,
+    ) -> Result<(), JsValue> {
+        let top = image_location.top;
+        let left = image_location.left;
+
+        let image_data = create_image_data_from_image_and_region(&image_data, image_location)?;
+        let bitmap_frame = BitmapFrame {
+            top,
+            left,
+            image_data,
+        };
+
+        let bitmap_frame = &JsValue::from(bitmap_frame);
+
+        let _ret = callback.call1(callback_context, bitmap_frame)?;
+        Ok(())
+    }
+}
+
+pub fn extract_partial_image(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+    // PERF: needs actual benchmark to find a better heuristic
+    if region.height() > 64 || region.width() > 512 {
+        extract_whole_rows(image, region)
+    } else {
+        extract_smallest_rectangle(image, region)
+    }
+}
+
+// Faster for low-height and smaller images
+fn extract_smallest_rectangle(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
+
+    let image_width = usize::try_from(image.width()).unwrap();
+    let image_stride = image_width * pixel_size;
+
+    let region_top = usize::from(region.top);
+    let region_left = usize::from(region.left);
+    let region_width = usize::from(region.width());
+    let region_height = usize::from(region.height());
+    let region_stride = region_width * pixel_size;
+
+    let dst_buf_size = region_width * region_height * pixel_size;
+    let mut dst = vec![0; dst_buf_size];
+
+    let src = image.data();
+
+    for row in 0..region_height {
+        let src_begin = image_stride * (region_top + row) + region_left * pixel_size;
+        let src_end = src_begin + region_stride;
+        let src_slice = &src[src_begin..src_end];
+
+        let target_begin = region_stride * row;
+        let target_end = target_begin + region_stride;
+        let target_slice = &mut dst[target_begin..target_end];
+
+        target_slice.copy_from_slice(src_slice);
+    }
+
+    (region, dst)
+}
+
+// Faster for high-height and bigger images
+fn extract_whole_rows(image: &DecodedImage, region: Rectangle) -> (Rectangle, Vec<u8>) {
+    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
+
+    let image_width = usize::try_from(image.width()).unwrap();
+    let image_stride = image_width * pixel_size;
+
+    let region_top = usize::from(region.top);
+    let region_bottom = usize::from(region.bottom);
+
+    let src = image.data();
+
+    let src_begin = region_top * image_stride;
+    let src_end = (region_bottom + 1) * image_stride;
+
+    let dst = src[src_begin..src_end].to_vec();
+
+    let wider_region = Rectangle {
+        left: 0,
+        top: region.top,
+        right: u16::try_from(image.width() - 1).unwrap(),
+        bottom: region.bottom,
+    };
+
+    (wider_region, dst)
 }

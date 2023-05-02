@@ -52,7 +52,7 @@ extern crate num_derive;
 use bytes::{Bytes, BytesMut};
 use errors::try_error;
 use futures_util::io::{AsyncWrite, AsyncWriteExt};
-use futures_util::FutureExt;
+use futures_util::{Future, FutureExt};
 use ironrdp::input::fast_path::{FastPathInput, FastPathInputEvent};
 use ironrdp::input::mouse::PointerFlags;
 use ironrdp::input::MousePdu;
@@ -74,6 +74,7 @@ use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use sspi::{AuthIdentity, Secret};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -84,10 +85,12 @@ use std::io::{Cursor, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream as TokioTcpStream;
+use tokio::sync::Mutex as TokioMutex;
 use tokio_util::compat::TokioAsyncReadCompatExt as _;
 use x509_parser::prelude::{FromDer as _, X509Certificate};
 
@@ -143,6 +146,19 @@ impl IronRDPClient {
 
 type RpcId = u32;
 
+/// PinnedDynamicFuture is pinned so that it can handle self referential futures.
+/// See: https://rust-lang.github.io/async-book/04_pinning/01_chapter.html
+type PinnedDynamicFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
+type AsyncFn<Args, Return> = Box<dyn Fn(Args) -> PinnedDynamicFuture<Return> + Send>;
+type Cache<Key, Args, Return> = HashMap<Key, AsyncFn<Args, Return>>;
+
+type FastPathResponseArgs<'a> = (
+    &'a mut Client<'a>,
+    Result<Vec<ActiveStageOutput>, IronRdpError>,
+);
+type FastPathResponseReturn = Option<ReadRdpOutputReturns>;
+type FastPathResponseCache<'a> = Cache<RpcId, FastPathResponseArgs<'a>, FastPathResponseReturn>;
+
 /// Client has an unusual lifecycle:
 /// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
 /// - most other exported rdp functions take the raw pointer, convert it to a reference for use
@@ -152,23 +168,16 @@ type RpcId = u32;
 /// All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
 /// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
 /// synchronization.
-pub struct Client {
+pub struct Client<'a> {
     iron_rdp_client: IronRDPClient,
     tokio_rt: Option<tokio::runtime::Runtime>,
     go_ref: usize,
 
     next_id: RpcId,
-    pending_fp_resp_handlers: HashMap<RpcId, FastPathResponseHandler>,
+    pending_fp_resp_handlers: FastPathResponseCache<'a>,
 }
 
-type FastPathResponseHandler = Box<
-    dyn FnOnce(
-        &mut Client,
-        Result<Vec<ActiveStageOutput>, IronRdpError>,
-    ) -> Option<ReadRdpOutputReturns>,
->;
-
-impl Client {
+impl Client<'_> {
     fn new(iron_rdp_client: IronRDPClient, go_ref: usize) -> Self {
         Self {
             iron_rdp_client,
@@ -184,13 +193,19 @@ impl Client {
         Box::into_raw(self)
     }
 
-    unsafe fn from_ptr<'a>(ptr: *mut Self) -> Result<&'a mut Client, CGOErrCode> {
-        match ptr.as_ref() {
+    unsafe fn from_ptr(ptr: *mut Self) -> Result<&'static mut Client<'static>, CGOErrCode> {
+        // TODO(isaiah): This is absolutely a hack and makes the code unsafe. This is what
+        // lets us return the Client as a Client<'static>. That <'static> is passed through to
+        // FastPathResponseCache<'static> -> FastPathResponseArgs<'static> -> &'static mut Client<'static>.
+        // Calling everything static convinces the compiler to let us do this, but it's not safe. We
+        // should find a better way to do this.
+        let static_ptr: *mut Client<'static> = std::mem::transmute(ptr);
+        match static_ptr.as_ref() {
             None => {
                 error!("invalid Rust client pointer");
                 Err(CGOErrCode::ErrCodeClientPtr)
             }
-            Some(_) => Ok(Box::leak(Box::from_raw(ptr))),
+            Some(_) => Ok(Box::leak(Box::from_raw(static_ptr))),
         }
     }
 
@@ -224,7 +239,7 @@ impl Client {
         }
     }
 
-    fn process_active_stage_result(
+    async fn process_active_stage_result(
         &mut self,
         result: Result<Vec<ActiveStageOutput>, IronRdpError>,
     ) -> Option<ReadRdpOutputReturns> {
@@ -233,7 +248,7 @@ impl Client {
                 for output in outputs {
                     match output {
                         ActiveStageOutput::ResponseFrame(response) => {
-                            self.write_frame(&response);
+                            self.write_frame(&response).await;
                         }
                         ActiveStageOutput::Terminate => {
                             return Some(ReadRdpOutputReturns {
@@ -280,15 +295,14 @@ impl Client {
         id
     }
 
-    fn handle_tdp_fastpath_response(
-        &mut self,
+    async fn handle_tdp_fastpath_response(
+        &'static mut self,
         res: FastpathResponse,
     ) -> Option<ReadRdpOutputReturns> {
         if let Some(handler) = self.pending_fp_resp_handlers.remove(&res.rpc_id) {
-            // TODO(isaiah): this handler is effectively just self.process_active_stage_result,
-            // probably can refactor in a way that makes this more clear.
-            return handler(self, Ok(res.active_stage_outputs));
-        }
+            let args = (self, Ok(res.active_stage_outputs));
+            return handler(args).await;
+        };
 
         Some(ReadRdpOutputReturns {
             user_message: format!("received invalid rpc id: {}", res.rpc_id),
@@ -299,12 +313,12 @@ impl Client {
 }
 
 #[repr(C)]
-pub struct ClientOrError {
-    client: *mut Client,
+pub struct ClientOrError<'a> {
+    client: *mut Client<'a>,
     err: CGOErrCode,
 }
 
-impl ClientOrError {
+impl ClientOrError<'_> {
     fn from(r: Result<Client, ConnectError>) -> ClientOrError {
         match r {
             Ok(client) => ClientOrError {
@@ -331,7 +345,10 @@ impl ClientOrError {
 /// The caller mmust ensure that go_addr, go_username, cert_der, key_der point to valid buffers in respect
 /// to their corresponding parameters.
 #[no_mangle]
-pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) -> ClientOrError {
+pub unsafe extern "C" fn connect_rdp(
+    go_ref: usize,
+    params: CGOConnectParams,
+) -> ClientOrError<'static> {
     // Convert from C to Rust types.
     let addr = from_c_string(params.go_addr);
     let username = from_c_string(params.go_username);
@@ -427,7 +444,10 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
-async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
+async fn connect_rdp_inner(
+    go_ref: usize,
+    params: ConnectParams,
+) -> Result<Client<'static>, ConnectError> {
     // Connect and authenticate.
     let addr = params
         .addr
@@ -1325,8 +1345,16 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
         .block_on(async { read_rdp_output_inner(client).await.into() })
 }
 
-async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
+fn assert_returns_future<T, F, R>(_: &F)
+where
+    F: FnOnce() -> R,
+    R: Future<Output = T>,
+{
+}
+
+async fn read_rdp_output_inner(client: &mut Client<'static>) -> ReadRdpOutputReturns {
     loop {
+        debug!("reading frame"); //todo(isaiah): remove this
         let mut frame = match client.read_frame().await {
             Ok(it) => match it {
                 Some(frame) => frame,
@@ -1349,6 +1377,7 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                 };
             }
         };
+        debug!("read frame"); //todo(isaiah) remove this
 
         // TODO(isaiah): get rid of this clone
         let frozen = frame.clone().freeze();
@@ -1357,7 +1386,8 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                 match header {
                     ironrdp::pdu::PduHeader::X224(_header) => {
                         let result = client.process_x224_frame(_header, frame.into());
-                        if let Some(return_value) = client.process_active_stage_result(result) {
+                        if let Some(return_value) = client.process_active_stage_result(result).await
+                        {
                             return return_value;
                         }
                     }
@@ -1373,11 +1403,16 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                             )
                         } {
                             CGOErrCode::ErrCodeSuccess => {
-                                client
-                                    .pending_fp_resp_handlers
-                                    .insert(id, Box::new(|cli: &mut Client, resp: Result<Vec<ActiveStageOutput>, IronRdpError>| {
-                                        cli.process_active_stage_result(resp)
-                                    }));
+                                client.pending_fp_resp_handlers.insert(
+                                    id,
+                                    Box::new(|(cli, resp)| {
+                                        Box::pin(async move {
+                                            {
+                                                cli.process_active_stage_result(resp).await
+                                            }
+                                        })
+                                    }),
+                                );
                             }
                             err => {
                                 error!("failed to process fastpath frame: {:?}", err);
@@ -1590,7 +1625,15 @@ pub unsafe extern "C" fn handle_tdp_fastpath_response(
         }
     };
 
-    match client.handle_tdp_fastpath_response(res) {
+    if client.tokio_rt.is_none() {
+        error!("tokio runtime not initialized");
+        return CGOErrCode::ErrCodeFailure;
+    }
+
+    match tokio::runtime::Runtime::new()
+        .unwrap()
+        .block_on(Client::handle_tdp_fastpath_response(client, res))
+    {
         None => CGOErrCode::ErrCodeSuccess,
         Some(r) => {
             error!("failed to handle Fastpath Response: {:?}", r.user_message);

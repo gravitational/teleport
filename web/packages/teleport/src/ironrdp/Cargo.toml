@@ -10,9 +10,12 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bytes = "1.4.0"
+byteorder = "1.4.3"
+getrandom = { version = "0.2", features = ["js"] }
+ironrdp = { path = "/Users/ibeckermayer/Devolutions/IronRDP" } # commit a6b9d2becec7760e9b6a66cc0fd0bf8f57d0eb9d on branch isaiah/ironrdp-replacing-rdp-rs-poc
 js-sys = "0.3.61"
 log = "0.4.17"
 console_log = "0.2.2"
 wasm-bindgen = "0.2.84"
 wasm-logger = "0.2.0"
-web-sys = { version = "0.3.61" }
+web-sys = { version = "0.3.61", features = ["ImageData"] }

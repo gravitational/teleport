@@ -624,11 +624,11 @@ func handle_remote_fx_frame(handle C.uintptr_t, rpc_id C.uint32_t, data *C.uint8
 	// TODO(isaiah): check if C.GoBytes is a copy or not.
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
 	rpcId := uint32(rpc_id)
-	return cgo.Handle(handle).Value().(*Client).handleRemoteFxFrame(goData, rpcId)
+	return cgo.Handle(handle).Value().(*Client).handleFastPathFrame(goData, rpcId)
 }
 
-func (c *Client) handleRemoteFxFrame(data []byte, rpcId uint32) C.CGOErrCode {
-	if err := c.cfg.Conn.WriteMessage(tdp.RemoteFxFrame{RpcId: rpcId, Data: data}); err != nil {
+func (c *Client) handleFastPathFrame(data []byte, rpcId uint32) C.CGOErrCode {
+	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame{RpcId: rpcId, Data: data}); err != nil {
 		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
 		return C.ErrCodeFailure
 	}
