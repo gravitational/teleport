@@ -40,7 +40,7 @@ const cfg = {
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
-  isUsageBased: false,
+  isUsageBasedBilling: false,
 
   configDir: '$HOME/.config',
 
