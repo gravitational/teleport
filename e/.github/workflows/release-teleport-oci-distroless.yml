@@ -107,8 +107,12 @@ jobs:
     strategy:
       matrix:
         mode: ['debug', 'production']
-        release: ['oss', 'enterprise']
+        release: ['oss', 'enterprise', 'fips']
         include:
+          - architectures: |
+              amd64
+              arm
+              arm64
           - mode: 'production'
             base-image: 'gcr.io/distroless/cc-debian11:latest'
             repo-debug-suffix: ''
@@ -119,6 +123,11 @@ jobs:
             repo-enterprise-infix: ''
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'
+
+          # FIPS release is currently amd64-only
+          - release: 'fips'
+            repo-enterprise-infix: '-ent-fips'
+            architectures: amd64
     uses: ./.github/workflows/oci-image-build.yml
     with:
       teleport-release: ${{ matrix.release }}
@@ -134,10 +143,7 @@ jobs:
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
       build-role-arn: ${{ inputs.build-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
-      architectures: |
-        amd64
-        arm
-        arm64
+      architectures: ${{ matrix.architectures }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       allow-overwrites: false
@@ -157,7 +163,7 @@ jobs:
       matrix:
         arch: [amd64, arm64, arm]
         mode: ['debug', 'production']
-        release: ['oss', 'enterprise']
+        release: ['oss', 'enterprise', 'fips']
         include:
           - mode: 'production'
             repo-debug-suffix: ''
@@ -167,6 +173,13 @@ jobs:
             repo-enterprise-infix: ''
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'
+          - release: 'fips'
+            repo-enterprise-infix: '-ent-fips'
+        exclude:
+          - release: 'fips'
+            arch: 'arm'
+          - release: 'fips'
+            arch: 'arm64'
     name: "Smoke test ${{ matrix.arch }}/${{ matrix.release }}/${{ matrix.mode }}"
     steps:
       # Attempt to fetch a deploy token from the GitHub App we use to broker

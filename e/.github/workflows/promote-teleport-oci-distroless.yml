@@ -102,7 +102,7 @@ jobs:
     strategy:
       matrix:
         mode: ['debug', 'production']
-        release: ['oss', 'enterprise']
+        release: ['oss', 'enterprise', 'fips']
         include:
           - mode: 'production'
             repo-debug-suffix: ''
@@ -112,6 +112,8 @@ jobs:
             repo-enterprise-infix: ''
           - release: 'enterprise'
             repo-enterprise-infix: '-ent'
+          - release: 'fips'
+            repo-enterprise-infix: '-ent-fips'
     uses: ./.github/workflows/oci-image-promote.yml
     with:
       pending-registry: ${{ inputs.pending-registry }}

@@ -113,18 +113,31 @@ jobs:
     strategy:
       matrix:
         mode: ['debug', 'production']
-        release: ['oss', 'enterprise']
+        release: ['oss', 'enterprise', 'fips']
         include:
+          # This is the default architecture set for all matrix items unless
+          # specified.
+          - architectures: |
+              arm
+              arm64
+              amd64
+
           - mode: 'production'
             base-image: 'gcr.io/distroless/cc-debian11:latest'
             repo-debug-suffix: ''
           - mode: 'debug'
             base-image: 'gcr.io/distroless/cc-debian11:debug'
             repo-debug-suffix: '-debug'
+
           - release: 'oss'
             repo-enterprise-infix: ''
           - release: 'enterprise'
-            repo-enterprise-infix: '-ent'
+            repo-enterprise-infix: '-ent'            
+          # FIPS release is currently amd64-only
+          - release: 'fips'
+            repo-enterprise-infix: '-ent-fips'
+            architectures: amd64
+
     uses: ./.github/workflows/oci-image-build.yml
     with:
       teleport-release: ${{ matrix.release }}
@@ -137,17 +150,14 @@ jobs:
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
       dest-image-registry: ${{ inputs.dest-registry }}
       dest-image-registry-region: us-east-1
-      dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}      
+      dest-image-repo: gravitational/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
       dest-image-tags: ${{ needs.configure.outputs.image_tags }}
       build-role-arn: ${{ inputs.promote-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       scan-image: false
-      architectures: |
-        arm
-        arm64
-        amd64
+      architectures: ${{ matrix.architectures }}
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

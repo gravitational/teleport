@@ -46,7 +46,7 @@ on:
       teleport-release:
         description: | 
           The release of teleport to include on the image. Must be either `oss`
-          or `enterprise`
+          `enterprise`, or `fips`
         required: true
         type: string
 
@@ -163,9 +163,12 @@ jobs:
       image-built: ${{ steps.check.outputs.build_image }}
     steps:
       - name: Configure environment
+        env:
+          TELEPORT_RELEASE: ${{ inputs.teleport-release }}
         run: |
           DEB_RELEASE_INFIX=""
-          case "${{ inputs.teleport-release }}" in
+          DEB_FIPS_INFIX=""
+          case "$TELEPORT_RELEASE" in
             "oss")
               ;;
 
@@ -173,12 +176,18 @@ jobs:
               DEB_RELEASE_INFIX="-ent"
               ;;
 
+            "fips")
+              DEB_RELEASE_INFIX="-ent"
+              DEB_FIPS_INFIX="-fips"
+              ;;
+
             *)
-              echo "Unsupported release type: ${{ inputs.teleport-release }}"
+              echo "Unsupported release type: $TELEPORT_RELEASE"
               exit 1
               ;;
           esac
           echo "DEB_RELEASE_INFIX=$DEB_RELEASE_INFIX" >> $GITHUB_ENV
+          echo "DEB_FIPS_INFIX=$DEB_FIPS_INFIX" >> $GITHUB_ENV
 
       - name: Set up Docker QEMU integration
         uses: docker/setup-qemu-action@v2
@@ -264,7 +273,7 @@ jobs:
           DST_BUCKET: ${{ inputs.dronestorage-bucket-name }}
         run: |
           for arch in $ARCHITECTURES; do
-            export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}_${arch}.deb          
+            export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}${DEB_FIPS_INFIX}_${arch}.deb
             aws s3 cp s3://${DST_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TELEPORT_DEB_FILE_NAME} ./build/${TELEPORT_DEB_FILE_NAME}
           done
           tree ./build
@@ -352,6 +361,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}            
             TELEPORT_RELEASE_INFIX=${{ env.DEB_RELEASE_INFIX }}
+            TELEPORT_FIPS_INFIX=${{ env.DEB_FIPS_INFIX }}
             ${{ inputs.image-build-args }}
 
       - name: Sign image
