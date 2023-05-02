@@ -1276,7 +1276,14 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func applyPluginsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Plugins.Enabled = fc.Plugins.Enabled()
-	cfg.Plugins.OpsgenieAPIKeyFile = fc.Plugins.Opsgenie.APIKeyFile
+	reader, err := utils.OpenFile(fc.Plugins.Opsgenie.APIKeyFile)
+	if err != nil {
+		return trace.BadParameter("reading opsgenie api key file", err)
+	}
+	defer reader.Close()
+	apiKeyBytes := []byte{}
+	reader.Read(apiKeyBytes)
+	cfg.Plugins.OpsgenieAPIKey = string(apiKeyBytes)
 	cfg.Plugins.Plugins = fc.Plugins.Plugins
 	return nil
 }
