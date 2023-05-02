@@ -1903,7 +1903,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 				kubeCluster,
 			)
 
-			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 			tt.assertErrFunc(t, err)
 		})
 	}
