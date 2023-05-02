@@ -207,6 +207,32 @@ Values must be enclosed in double quotes. Parameter names and values must be
 separated by a `=` character, and the `=` character must not be surrounded by
 spaces. 
 
+### Relative link paths in partials
+
+When a partial contains a link with a relative path, the docs engine
+evaluates the path relative to the partial, not the including file.
+
+For example, let's say you have a file called `docs/pages/page.mdx` with the
+following content:
+
+{/*lint ignore includes*/} 
+```markdown
+This is a page.
+
+(!docs/pages/includes/include.mdx!)
+```
+
+The partial in `docs/pages/includes/include.mdx` looks like this:
+
+```markdown
+Here is an image:
+
+![Screenshot](../../img/screenshot.png)
+```
+
+When including the partial, the docs engine will rewrite the link path to load
+the image in `docs/img/screenshot.png`.
+
 ## Image pixel density markers
 
 Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.

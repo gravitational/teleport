@@ -117,16 +117,11 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -236,16 +231,11 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -359,16 +349,11 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -478,16 +463,11 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -505,84 +485,6 @@ volumes:
   temp: {}
 - name: dockerconfig
   temp: {}
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: push-build-darwin-amd64
-trigger:
-  event:
-    include:
-    - push
-    exclude:
-    - pull_request
-  repo:
-    include:
-    - gravitational/*
-  branch:
-    include:
-    - master
-    - branch/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  pull: if-not-exists
-  commands:
-  - mkdir -pv "/go/src/github.com/gravitational/teleport"
-  - cd "/go/src/github.com/gravitational/teleport"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
-    chmod 600 /root/.ssh/id_rsa
-  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-  - git submodule update --init e
-  - mkdir -pv /go/cache
-  - rm -f /root/.ssh/id_rsa
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-- name: Delegate build to GitHub
-  image: golang:1.18-alpine
-  pull: if-not-exists
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_BRANCH}
-    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
-    -input "build-packages=false" -input "release-artifacts=false" '
-  environment:
-    GHA_APP_KEY:
-      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Send Slack notification
-  image: plugins/slack
-  settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
-    webhook:
-      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  when:
-    status:
-    - failure
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -1216,16 +1118,11 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -1299,23 +1196,18 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -tag-workflow -timeout 2h30m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
     -input "upload-artifacts=false" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -1562,17 +1454,13 @@ steps:
       path: /root/.aws
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
       status: [failure]
 
@@ -4317,23 +4205,18 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
     "build-packages=true" -input "release-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
-    template: |
-      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-      `${DRONE_STAGE_NAME}` artifact build failed.
-      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-      <{{ build.link }}|Visit Drone build page ↗>
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
@@ -4600,7 +4483,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
     "upload-artifacts=true" '
   environment:
@@ -7153,7 +7036,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input "release-source-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
@@ -7212,7 +7095,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow promote-teleport-kube-agent-updater-oci.yml
+    -tag-workflow -timeout 2h30m0s -workflow promote-teleport-kube-agent-updater-oci.yml
     -workflow-ref=${DRONE_TAG} -input "release-source-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
@@ -8564,7 +8447,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -8622,7 +8505,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-updater-oci.yml
+    -tag-workflow -timeout 2h30m0s -workflow release-teleport-kube-agent-updater-oci.yml
     -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -17223,6 +17106,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c602ba5582ac6031f496a000b5b9ec25272c30fd0ecd880ab6163cf3fc916b1a
+hmac: d55fcf99887fe79edc4755565dbed4f33f341bbe22949307d5056401ceba6d70
 
 ...

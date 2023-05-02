@@ -62,6 +62,7 @@ const allAccessAcl: Acl = {
   plugins: fullAccess,
   integrations: { ...fullAccess, use: true },
   deviceTrust: fullAccess,
+  lock: fullAccess,
   assist: fullAccess,
 };
 

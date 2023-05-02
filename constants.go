@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
+	EnableNonInteractiveSessionRecording = "SSH_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -770,6 +773,9 @@ const (
 	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
 	// uses to get the home directory of a remote user.
 	GetHomeDirSubsystem = "gethomedir"
+
+	// SFTPSubsystem is the SFTP SSH subsystem.
+	SFTPSubsystem = "sftp"
 )
 
 // A principal name for use in SSH certificates.

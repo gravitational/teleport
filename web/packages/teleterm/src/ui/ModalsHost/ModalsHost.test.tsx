@@ -39,15 +39,14 @@ const documentsReopenDialog: DialogDocumentsReopen = {
   onCancel: () => {},
 };
 
-jest.mock('teleterm/ui/ClusterLogout/ClusterLogout', () => {
-  const MockClusterLogout = () => (
+jest.mock('teleterm/ui/ClusterLogout', () => ({
+  ClusterLogout: () => (
     <div
       data-testid="mocked-dialog"
       data-dialog-kind={clusterLogoutDialog.kind}
     ></div>
-  );
-  return MockClusterLogout;
-});
+  ),
+}));
 
 jest.mock('teleterm/ui/DocumentsReopen', () => ({
   DocumentsReopen: () => (

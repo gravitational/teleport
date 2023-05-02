@@ -17,6 +17,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
+import { useParams } from 'react-router';
+
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
@@ -68,15 +70,22 @@ interface RawPayload {
 
 export function RunCommand(props: RunCommandProps) {
   const { clusterId } = useStickyClusterId();
+  const urlParams = useParams<{ conversationId: string }>();
 
   const [state, setState] = useState(() => []);
 
   const params = convertContentToCommand(props.actions);
 
+  const execParams = {
+    ...params,
+    conversation_id: urlParams.conversationId,
+    execution_id: crypto.randomUUID(),
+  };
+
   const search = new URLSearchParams();
 
   search.set('access_token', getAccessToken());
-  search.set('params', JSON.stringify(params));
+  search.set('params', JSON.stringify(execParams));
 
   const url = `wss://${getHostName()}/v1/webapi/command/${clusterId}/execute?${search.toString()}`;
 

@@ -65,6 +65,34 @@ type CommandRequest struct {
 	Login string `json:"login"`
 	// Query is the predicate query to filter nodes where the command will be executed.
 	Query string `json:"query"`
+	// ConversationID is the conversation context that was used to execute the command.
+	ConversationID string `json:"conversation_id"`
+	// ExecutionID is a unique ID used to identify the command execution.
+	ExecutionID string `json:"execution_id"`
+}
+
+func (c *CommandRequest) Check() error {
+	if c.Command == "" {
+		return trace.Errorf("missing command")
+	}
+
+	if c.Login == "" {
+		return trace.Errorf("missing login")
+	}
+
+	if c.ConversationID == "" {
+		return trace.Errorf("missing conversation ID")
+	}
+
+	if c.ExecutionID == "" {
+		return trace.Errorf("missing execution ID")
+	}
+
+	return nil
+}
+
+type CommandExecutionResult struct {
+	SessionID string `json:"session_id"`
 }
 
 func (h *Handler) executeCommand(
@@ -82,6 +110,10 @@ func (h *Handler) executeCommand(
 	var req *CommandRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := req.Check(); err != nil {
+		return nil, trace.BadParameter("invalid payload: %v", err)
 	}
 
 	clt, err := sessionCtx.GetUserClient(r.Context(), site)
@@ -145,7 +177,7 @@ func (h *Handler) executeCommand(
 	}
 
 	if len(hosts) == 0 {
-		const errMsg = "no server founds"
+		const errMsg = "no servers found"
 		h.log.Error(errMsg)
 		return nil, trace.Errorf(errMsg)
 	}
@@ -190,7 +222,28 @@ func (h *Handler) executeCommand(
 			h.log.Infof("Executing command: %#v.", req)
 			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
-			return nil
+			msgPayload, err := json.Marshal(struct {
+				NodeID      string `json:"node_id"`
+				ExecutionID string `json:"execution_id"`
+				SessionID   string `json:"session_id"`
+			}{
+				NodeID:      host.id,
+				ExecutionID: req.ExecutionID,
+				SessionID:   string(sessionData.ID),
+			})
+
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			_, err = clt.InsertAssistantMessage(ctx, &authproto.AssistantMessage{
+				ConversationId: req.ConversationID,
+				Type:           "COMMAND_RESULT",
+				CreatedTime:    time.Now().UTC(),
+				Payload:        string(msgPayload),
+			})
+
+			return trace.Wrap(err)
 		}()
 
 		if err != nil {
@@ -502,6 +555,9 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		t.writeError(errors.New("MFA support is not implemented"))
 		return
 	}
+
+	// Enable session recording
+	nc.AddEnv(teleport.EnableNonInteractiveSessionRecording, "true")
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.

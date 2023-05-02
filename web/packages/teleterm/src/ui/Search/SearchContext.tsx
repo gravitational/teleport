@@ -37,13 +37,20 @@ export interface SearchContext {
   changeActivePicker(picker: SearchPicker): void;
   isOpen: boolean;
   open(fromElement?: Element): void;
-  lockOpen(action: Promise<any>): Promise<void>;
   close(): void;
   closeAndResetInput(): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
+  pauseUserInteraction(action: () => Promise<any>): Promise<void>;
+  addWindowEventListener: AddWindowEventListener;
 }
+
+export type AddWindowEventListener = (
+  ...args: Parameters<typeof window.addEventListener>
+) => {
+  cleanup: () => void;
+};
 
 const SearchContext = createContext<SearchContext>(null);
 
@@ -51,7 +58,6 @@ export const SearchContextProvider: FC = props => {
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLockedOpen, setIsLockedOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   // TODO(ravicious): Consider using another data structure for search filters as we know that we
@@ -69,25 +75,17 @@ export const SearchContextProvider: FC = props => {
   }
 
   const close = useCallback(() => {
-    if (isLockedOpen) {
-      return;
-    }
-
     setIsOpen(false);
     setActivePicker(actionPicker);
     if (previouslyActive.current instanceof HTMLElement) {
       previouslyActive.current.focus();
     }
-  }, [isLockedOpen]);
+  }, []);
 
   const closeAndResetInput = useCallback(() => {
-    if (isLockedOpen) {
-      return;
-    }
-
     close();
     setInputValue('');
-  }, [isLockedOpen, close]);
+  }, [close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
@@ -109,28 +107,61 @@ export const SearchContextProvider: FC = props => {
     setIsOpen(true);
   }
 
+  const [isUserInteractionPaused, setIsUserInteractionPaused] = useState(false);
   /**
-   * lockOpen forces the search bar to stay open for the duration of the action. It also restores
-   * focus on the search input after the action is done.
+   * pauseUserInteraction temporarily causes addWindowEventListener not to add listeners for the
+   * duration of the action. It also restores focus on the search input after the action is done.
    *
-   * This is useful in situations where want the search bar to not close when the user interacts
-   * with modals shown from the search bar.
+   * This is useful in situations where want the search bar to show some other element the user can
+   * interact with, for example a modal. When the user interacts with the modal, we don't want the
+   * search bar listeners to intercept those interactions, which could for example cause the search
+   * bar to close or make the user unable to press Enter in the modal as the search bar would
+   * swallow that event.
    */
-  async function lockOpen(action: Promise<any>): Promise<void> {
-    setIsLockedOpen(true);
+  const pauseUserInteraction = useCallback(
+    async (action: () => Promise<any>): Promise<void> => {
+      setIsUserInteractionPaused(true);
 
-    try {
-      await action;
-    } finally {
-      // By the time the action passes, the user might have caused the focus to be lost on the
-      // search input, so let's bring it back.
-      //
-      // focus needs to be executed before the state update, otherwise the search bar will close for
-      // some reason.
-      inputRef.current?.focus();
-      setIsLockedOpen(false);
-    }
-  }
+      try {
+        await action();
+      } finally {
+        // By the time the action passes, the user might have caused the focus to be lost on the
+        // search input, so let's bring it back.
+        //
+        // focus needs to be executed before the state update, otherwise the search bar will close
+        // for some reason.
+        inputRef.current?.focus();
+        setIsUserInteractionPaused(false);
+      }
+    },
+    []
+  );
+
+  /**
+   * addWindowEventListener is meant to be used in useEffect calls which register event listeners
+   * related to the search bar. It automatically removes the listener when the user interaction gets
+   * paused.
+   *
+   * pauseUserInteraction is supposed to be called in situations where the search bar is obstructed
+   * by another element (such as a modal) and we don't want interactions with that other element to
+   * have any effect on the search bar.
+   */
+  const addWindowEventListener = useCallback(
+    (...args: Parameters<typeof window.addEventListener>) => {
+      if (isUserInteractionPaused) {
+        return { cleanup: undefined };
+      }
+
+      window.addEventListener(...args);
+
+      return {
+        cleanup: () => {
+          window.removeEventListener(...args);
+        },
+      };
+    },
+    [isUserInteractionPaused]
+  );
 
   function setFilter(filter: SearchFilter) {
     // UI prevents adding more than one filter of the same type
@@ -165,9 +196,10 @@ export const SearchContextProvider: FC = props => {
         resetInput,
         isOpen,
         open,
-        lockOpen,
         close,
         closeAndResetInput,
+        pauseUserInteraction,
+        addWindowEventListener,
       }}
       children={props.children}
     />

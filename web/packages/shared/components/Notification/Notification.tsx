@@ -172,7 +172,7 @@ function getRenderedContent(
         <Text
           fontSize={13}
           lineHeight={20}
-          color="text.secondary"
+          color="text.slightlyMuted"
           css={longerTextCss}
         >
           {content.list && <List items={content.list} />}
@@ -236,7 +236,7 @@ const Container = styled(Flex)`
   min-height: 40px;
   width: 320px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   cursor: pointer;
 `;

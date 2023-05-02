@@ -49,3 +49,25 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
 
 export const makeLabelsList = (labels: Record<string, string>): tsh.Label[] =>
   Object.entries(labels).map(([name, value]) => ({ name, value }));
+
+export const makeRootCluster = (
+  props: Partial<tsh.Cluster> = {}
+): tsh.Cluster => ({
+  uri: '/clusters/teleport-local',
+  name: 'teleport-local',
+  connected: true,
+  leaf: false,
+  proxyHost: 'teleport-local:3080',
+  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  loggedInUser: {
+    activeRequestsList: [],
+    assumedRequests: {},
+    name: 'admin',
+    acl: {},
+    sshLoginsList: [],
+    rolesList: [],
+    requestableRolesList: [],
+    suggestedReviewersList: [],
+  },
+  ...props,
+});
