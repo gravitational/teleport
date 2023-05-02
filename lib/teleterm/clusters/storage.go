@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -159,6 +160,7 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
+	clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(webProxyAddress, s.InsecureSkipVerify)
 	if err := clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
 	}
