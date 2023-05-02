@@ -2252,13 +2252,13 @@ func (pluginsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets boo
 		resources []types.Plugin
 	)
 	for {
-		var assignments []types.Plugin
+		var plugins []types.Plugin
 		var err error
-		assignments, startKey, err = cache.Plugin.ListPlugins(ctx, 0, startKey, loadSecrets)
+		plugins, startKey, err = cache.Plugin.ListPlugins(ctx, 0, startKey, loadSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		resources = append(resources, assignments...)
+		resources = append(resources, plugins...)
 		if startKey == "" {
 			break
 		}
