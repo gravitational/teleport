@@ -128,7 +128,7 @@ async function convertServerMessage(
       node_id: string;
     };
 
-    const sessionUrl = cfg.getTerminalSessionUrl({
+    const sessionUrl = cfg.getSshPlaybackPrefixUrl({
       clusterId: clusterId,
       sid: payload.session_id,
     });
