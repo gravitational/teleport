@@ -74,7 +74,10 @@ func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) 
 	_, err = s.backend.Update(ctx, item)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("plugin %q doesn't exist", plugin.GetName())
+			_, err = s.backend.Create(ctx, item)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		return trace.Wrap(err)
 	}
