@@ -1414,9 +1414,22 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			logger, err := athena.New(ctx, cfg)
+			var logger events.AuditLogger
+			logger, err = athena.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if cfg.LimiterBurst > 0 {
+				// Wrap athena logger with rate limiter on search events.
+				logger, err = events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
+					RefillTime:   cfg.LimiterRefillTime,
+					RefillAmount: cfg.LimiterRefillAmount,
+					Burst:        cfg.LimiterBurst,
+					AuditLogger:  logger,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:
@@ -1714,7 +1727,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		PluginRegistry: process.PluginRegistry,
-		Emitter:        checkingEmitter,
+		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
 	}
 
@@ -3960,8 +3973,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.log.WithField(trace.Component, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),

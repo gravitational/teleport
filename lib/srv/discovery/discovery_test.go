@@ -1232,6 +1232,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)

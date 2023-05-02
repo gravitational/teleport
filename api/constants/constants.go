@@ -392,7 +392,7 @@ const (
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
-	TimeoutGetClusterAlerts = time.Millisecond * 500
+	TimeoutGetClusterAlerts = time.Millisecond * 750
 )
 
 const (
@@ -413,4 +413,11 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
 )

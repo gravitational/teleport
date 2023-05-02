@@ -197,9 +197,6 @@ teleport:
   auth_token: (=presets.tokens.first=)
 db_service:
   enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
   # Lists statically registered databases proxied by this agent.
   databases:
     - name: "example-dynamodb"

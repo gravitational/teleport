@@ -30,7 +30,7 @@ export const SupportEnterprise = () => (
   <Support {...props} isEnterprise={true} />
 );
 
-export const SupportEnterpriseWithCTA = () => (
+export const SupportWithCTA = () => (
   <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
 );
 

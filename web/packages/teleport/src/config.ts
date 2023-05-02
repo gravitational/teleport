@@ -100,8 +100,6 @@ const cfg = {
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
-    locks: '/web/cluster/:clusterId/locks',
-    newLock: '/web/cluster/:clusterId/locks/new',
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
     loginErrorLegacy: '/web/msg/error/login_failed',
@@ -116,6 +114,8 @@ const cfg = {
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
     integrationEnroll: '/web/integrations/new/:type?',
+    locks: '/web/locks',
+    newLock: '/web/locks/new',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -160,10 +160,10 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
-    terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -473,8 +473,12 @@ const cfg = {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
-  getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
+  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
+  },
+
+  getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
+    return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -511,19 +515,23 @@ const cfg = {
     });
   },
 
-  getLocksRoute(clusterId: string) {
-    return generatePath(cfg.routes.locks, { clusterId });
+  getLocksRoute() {
+    return cfg.routes.locks;
   },
 
-  getNewLocksRoute(clusterId: string) {
-    return generatePath(cfg.routes.newLock, { clusterId });
+  getNewLocksRoute() {
+    return cfg.routes.newLock;
   },
 
-  getLocksUrl(clusterId: string) {
+  getLocksUrl() {
+    // Currently only support get/create locks in root cluster.
+    const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.locksPath, { clusterId });
   },
 
-  getLocksUrlWithUuid(clusterId: string, uuid: string) {
+  getLocksUrlWithUuid(uuid: string) {
+    // Currently only support delete/lookup locks in root cluster.
+    const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
   },
 

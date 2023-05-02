@@ -1212,6 +1212,7 @@ func TestNewTerminalHandler(t *testing.T) {
 		AuthProvider: authProviderMock{
 			server: validNode,
 		},
+		LocalAuthProvider: authProviderMock{},
 		SessionData: session.Session{
 			ID:       session.NewID(),
 			Login:    "root",
@@ -2053,50 +2054,6 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	case err := <-errC:
 		require.ErrorIs(t, err, io.EOF)
 	}
-}
-
-func TestCreateSession(t *testing.T) {
-	t.Parallel()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	user := "test-user@example.com"
-	pack := proxy.authPack(t, user, nil /* roles */)
-
-	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
-	require.NoError(t, err)
-
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	node := nodes.Items[0]
-
-	sess := session.Session{
-		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          user,
-	}
-
-	// test using node UUID
-	sess.ServerID = node.Name
-	re, err = pack.clt.PostJSON(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
-		siteSessionGenerateReq{Session: sess},
-	)
-	require.NoError(t, err)
-
-	var created *siteSessionGenerateResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
-	require.NotEmpty(t, created.Session.ID)
-	require.Equal(t, node.Hostname, created.Session.ServerHostname)
-
-	// test empty serverID (older version does not supply serverID)
-	sess.ServerID = ""
-	_, err = pack.clt.PostJSON(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
-		siteSessionGenerateReq{Session: sess},
-	)
-	require.NoError(t, err)
 }
 
 func TestPlayback(t *testing.T) {
@@ -6807,6 +6764,14 @@ func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (au
 }
 
 func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GetUser(_ string, _ bool) (types.User, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, error) {
 	return nil, nil
 }
 
