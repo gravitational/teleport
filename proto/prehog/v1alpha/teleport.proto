@@ -387,6 +387,13 @@ message AgentMetadataEvent {
   string cloud_environment = 11;
 }
 
+message AssistCompletionEvent {
+  // anonymized
+  string user_name = 1;
+
+  int64 total_tokens = 2;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -448,6 +455,7 @@ message SubmitEventRequest {
 
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+    AssistCompletionEvent assist_completion = 42;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

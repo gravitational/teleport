@@ -1212,6 +1212,31 @@ export namespace AgentMetadataEvent {
     }
 }
 
+export class AssistCompletionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistCompletionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistCompletionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistCompletionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistCompletionEvent): AssistCompletionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistCompletionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistCompletionEvent;
+    static deserializeBinaryFromReader(message: AssistCompletionEvent, reader: jspb.BinaryReader): AssistCompletionEvent;
+}
+
+export namespace AssistCompletionEvent {
+    export type AsObject = {
+        userName: string,
+        totalTokens: number,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1451,6 +1476,12 @@ export class SubmitEventRequest extends jspb.Message {
     setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
 
 
+    hasAssistCompletion(): boolean;
+    clearAssistCompletion(): void;
+    getAssistCompletion(): AssistCompletionEvent | undefined;
+    setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1505,6 +1536,7 @@ export namespace SubmitEventRequest {
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
         uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
         uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
+        assistCompletion?: AssistCompletionEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1585,6 +1617,8 @@ export namespace SubmitEventRequest {
     UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
 
     UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
+
+    ASSIST_COMPLETION = 42,
 
     }
 

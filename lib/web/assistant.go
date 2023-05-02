@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
@@ -286,6 +287,19 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		if err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
 			return trace.Wrap(err)
+		}
+
+		usageEventReq := &proto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
+					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+						TotalTokens: 1337, // TODO
+					},
+				},
+			},
+		}
+		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
+			h.log.WithError(err).Error("Failed to emit usage event")
 		}
 	}
 

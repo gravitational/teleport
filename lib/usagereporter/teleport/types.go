@@ -407,6 +407,20 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitE
 	}
 }
 
+// AssistCompletionEvent is an event emitted after each completion by the Assistant
+type AssistCompletionEvent prehogv1a.AssistCompletionEvent
+
+func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistCompletion{
+			AssistCompletion: &prehogv1a.AssistCompletionEvent{
+				UserName:    a.AnonymizeString(e.UserName),
+				TotalTokens: e.TotalTokens,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -634,6 +648,12 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			return nil, trace.Wrap(err)
 		}
 
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistCompletion:
+		ret := &AssistCompletionEvent{
+			UserName:    userMD.Username,
+			TotalTokens: e.AssistCompletion.TotalTokens,
+		}
 		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
