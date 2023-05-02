@@ -596,19 +596,6 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS stsClient
-
-	// firstStart indicates if the auth service is starting for the first time.
-	firstStart bool
-}
-
-// Sets firstStart based on auth.isFirstStart() function which returns true
-// if CA is not found.
-func (a *Server) SetFirstStart(firstStart bool) {
-	a.firstStart = firstStart
-}
-
-func (a *Server) IsFirstStart() bool {
-	return a.firstStart
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
