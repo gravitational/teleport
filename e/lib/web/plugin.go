@@ -238,20 +238,20 @@ func (p *Plugin) withCloudAuth(fn CloudHandler) httprouter.Handle {
 func (p *Plugin) withSAMLAuth() httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 		p.samlIdPMu.RLock()
-		idpPresent := p.samlIdP == nil
+		samlIdP := p.samlIdP
 		p.samlIdPMu.RUnlock()
 
-		if !idpPresent {
+		if samlIdP == nil {
 			p.Log.Debug("SAML IdP not set")
 			return nil, trace.NotFound("SAML IdP not found")
 		}
 
 		// We need the middleware before we can continue
 		p.authMiddlewareMu.RLock()
-		authMiddlewarePresent := p.authMiddleware == nil
+		authMiddleware := p.authMiddleware
 		p.authMiddlewareMu.RUnlock()
 
-		if !authMiddlewarePresent {
+		if authMiddleware == nil {
 			return nil, trace.BadParameter("the middleware is not yet ready")
 		}
 
@@ -278,12 +278,12 @@ func (p *Plugin) withSAMLAuth() httprouter.Handle {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		newCtx, err := p.authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState, remoteAddr)
+		newCtx, err := authMiddleware.WrapContextWithUserFromTLSConnState(r.Context(), tlsConnState, remoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		p.samlIdP.ServeHTTP(w, r.WithContext(newCtx))
+		samlIdP.ServeHTTP(w, r.WithContext(newCtx))
 		return nil, nil
 	})
 }
