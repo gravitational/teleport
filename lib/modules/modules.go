@@ -66,6 +66,8 @@ type Features struct {
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
+	// IsUsageBased enables some usage-based billing features
+	IsUsageBased bool
 }
 
 // ToProto converts Features into proto.Features
@@ -84,6 +86,7 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:           f.RecoveryCodes,
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
+		IsUsageBased:            f.IsUsageBased,
 	}
 }
 

@@ -581,6 +581,8 @@ message Features {
   bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
   // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
+  // IsUsageBased enables some usage-based billing features
+  bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
