@@ -4967,7 +4967,11 @@ func (g *GRPCServer) CreatePlugin(ctx context.Context, plugin *types.PluginV1) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(auth.CreatePlugin(ctx, plugin))
+	err = auth.CreatePlugin(ctx, plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // UpdatePlugin updates a plugin resource.
@@ -4976,7 +4980,11 @@ func (g *GRPCServer) UpdatePlugin(ctx context.Context, plugin *types.PluginV1) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(auth.UpdatePlugin(ctx, plugin))
+	err = auth.UpdatePlugin(ctx, plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // DeletePlugin deletes a plugin resource.
@@ -4985,7 +4993,11 @@ func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceReques
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(auth.DeletePlugin(ctx, req.Name))
+	err = auth.DeletePlugin(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // DeleteAllPlugins deletes all plugin resources.
@@ -4994,7 +5006,11 @@ func (g *GRPCServer) DeleteAllPlugins(ctx context.Context, _ *emptypb.Empty) (*e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(auth.DeleteAllPlugins(ctx))
+	err = auth.DeleteAllPlugins(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // ListPlugins lists plugin resources.
