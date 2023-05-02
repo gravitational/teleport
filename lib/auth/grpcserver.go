@@ -4933,6 +4933,8 @@ func (g *GRPCServer) GetClusterMaintenanceConfig(ctx context.Context, _ *emptypb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cmc, err := auth.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

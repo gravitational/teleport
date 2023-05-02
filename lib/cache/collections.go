@@ -2284,7 +2284,7 @@ func (pluginsExecutor) getReader(cache *Cache, cacheOK bool) services.PluginGett
 	if cacheOK {
 		return cache.pluginCache
 	}
-	return cache.Config.Plugins
+	return cache.Config.Plugin
 }
 
 var _ executor[types.Plugin, services.PluginGetter] = pluginsExecutor{}

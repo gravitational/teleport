@@ -205,6 +205,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case *types.IntegrationV1:
 		out.Resource = &proto.Event_Integration{
 			Integration: r,
+		}
 	case *types.PluginV1:
 		out.Resource = &proto.Event_Plugin{
 			Plugin: r,

@@ -3637,7 +3637,7 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	if !ok {
 		return trace.BadParameter("unknown plugin type")
 	}
-	_, err := c.grpc.CreatePlugin(ctx, p, c.callOpts...)
+	_, err := c.grpc.CreatePlugin(ctx, p)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -3673,7 +3673,7 @@ func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, wi
 		StartKey: startKey,
 	}
 
-	response, err := c.grpc.ListPlugins(ctx, request, c.callOpts...)
+	response, err := c.grpc.ListPlugins(ctx, request)
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
