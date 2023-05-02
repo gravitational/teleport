@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -106,6 +108,8 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 
+		require.Equal(t, teleport.WebAPIConnUpgradeTypeALPN, resp.Header.Get(teleport.WebAPIConnUpgradeHeader))
+		require.Equal(t, teleport.WebAPIConnUpgradeConnectionType, resp.Header.Get(teleport.WebAPIConnUpgradeConnectionHeader))
 		require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 
 		// Verify clientConn receives data sent by Config.ALPNHandler.
