@@ -59,6 +59,29 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 	return nil
 }
 
+// UpdatePlugin implements services.Plugins
+func (s *PluginsService) UpdatePlugin(ctx context.Context, plugin types.Plugin) error {
+	value, err := services.MarshalPlugin(plugin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(pluginsPrefix, plugin.GetName()),
+		Value:   value,
+		Expires: plugin.Expiry(),
+		ID:      plugin.GetResourceID(),
+	}
+	_, err = s.backend.Update(ctx, item)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("plugin %q doesn't exist", plugin.GetName())
+		}
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // DeletePlugin implements service.Plugins
 func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 	err := s.backend.Delete(ctx, backend.Key(pluginsPrefix, name))

@@ -4970,6 +4970,15 @@ func (g *GRPCServer) CreatePlugin(ctx context.Context, plugin *types.PluginV1) (
 	return nil, trace.Wrap(auth.CreatePlugin(ctx, plugin))
 }
 
+// UpdatePlugin updates a plugin resource.
+func (g *GRPCServer) UpdatePlugin(ctx context.Context, plugin *types.PluginV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(auth.UpdatePlugin(ctx, plugin))
+}
+
 // DeletePlugin deletes a plugin resource.
 func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

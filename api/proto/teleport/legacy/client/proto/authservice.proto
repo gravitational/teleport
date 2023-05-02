@@ -2949,6 +2949,9 @@ service AuthService {
   // CreatePlugin creates a plugin resource.
   rpc CreatePlugin(types.PluginV1) returns (google.protobuf.Empty);
 
+  // UpdatePlugin updates a plugin resource.
+  rpc UpdatePlugin(types.PluginV1) returns (google.protobuf.Empty);
+
   // DeletePlugins deletes a plugin resource.
   rpc DeletePlugin(types.ResourceRequest) returns (google.protobuf.Empty);
 

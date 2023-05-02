@@ -1278,7 +1278,7 @@ func applyPluginsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Plugins.Enabled = fc.Plugins.Enabled()
 	reader, err := utils.OpenFile(fc.Plugins.Opsgenie.APIKeyFile)
 	if err != nil {
-		return trace.BadParameter("reading opsgenie api key file", err)
+		return trace.BadParameter("reading opsgenie api key file: %q: %v", fc.Plugins.Opsgenie.APIKeyFile, err)
 	}
 	defer reader.Close()
 	apiKeyBytes := []byte{}

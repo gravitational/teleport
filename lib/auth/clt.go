@@ -480,6 +480,11 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	return c.APIClient.CreatePlugin(ctx, plugin)
 }
 
+// UpdatePlugins updates a new plugin resource
+func (c *Client) UpdatePlugin(ctx context.Context, plugin types.Plugin) error {
+	return c.APIClient.UpdatePlugin(ctx, plugin)
+}
+
 // DeleteAllPlugins deletes all plugin resources
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 	return c.APIClient.DeleteAllPlugins(ctx)

@@ -927,6 +927,17 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client auth.ClientI
 		fmt.Println(err)
 		return trace.Wrap(err)
 	}
+	_, err = client.GetPlugin(ctx, plugin.GetName(), false)
+	exists := (err == nil)
+	if exists {
+		if !rc.force {
+			return trace.AlreadyExists("Plugin %q already exists", plugin.GetName())
+		}
+		if err := client.UpdatePlugin(ctx, plugin); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Plugin %q has been updated\n", plugin.GetName())
+	}
 	if err := client.CreatePlugin(ctx, plugin); err != nil {
 		return trace.Wrap(err)
 	}

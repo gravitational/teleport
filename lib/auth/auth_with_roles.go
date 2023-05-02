@@ -304,6 +304,11 @@ func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin)
 	return a.authServer.CreatePlugin(ctx, plugin)
 }
 
+// UpdatePlugin updates a new plugin resource.
+func (a *ServerWithRoles) UpdatePlugin(ctx context.Context, plugin types.Plugin) error {
+	return a.authServer.UpdatePlugin(ctx, plugin)
+}
+
 // DeleteAllPlugins deletes all plugin resources.
 func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
 	return a.authServer.DeleteAllPlugins(ctx)

@@ -30,6 +30,7 @@ import (
 // Plugins is the plugin service
 type Plugins interface {
 	CreatePlugin(ctx context.Context, plugin types.Plugin) error
+	UpdatePlugin(ctx context.Context, plugin types.Plugin) error
 	DeleteAllPlugins(ctx context.Context) error
 	DeletePlugin(ctx context.Context, name string) error
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)

@@ -3644,6 +3644,19 @@ func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	return nil
 }
 
+// UpdatePlugins updates a new plugin resource
+func (c *Client) UpdatePlugin(ctx context.Context, plugin types.Plugin) error {
+	p, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return trace.BadParameter("unknown plugin type")
+	}
+	_, err := c.grpc.UpdatePlugin(ctx, p)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
 // DeleteAllPlugins deletes all plugin resources
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllPlugins(ctx, &emptypb.Empty{})
