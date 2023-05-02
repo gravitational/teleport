@@ -2055,50 +2055,6 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	}
 }
 
-func TestCreateSession(t *testing.T) {
-	t.Parallel()
-	env := newWebPack(t, 1)
-	proxy := env.proxies[0]
-	user := "test-user@example.com"
-	pack := proxy.authPack(t, user, nil /* roles */)
-
-	// get site nodes
-	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "nodes"), url.Values{})
-	require.NoError(t, err)
-
-	nodes := clusterNodesGetResponse{}
-	require.NoError(t, json.Unmarshal(re.Bytes(), &nodes))
-	node := nodes.Items[0]
-
-	sess := session.Session{
-		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          user,
-	}
-
-	// test using node UUID
-	sess.ServerID = node.Name
-	re, err = pack.clt.PostJSON(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
-		siteSessionGenerateReq{Session: sess},
-	)
-	require.NoError(t, err)
-
-	var created *siteSessionGenerateResponse
-	require.NoError(t, json.Unmarshal(re.Bytes(), &created))
-	require.NotEmpty(t, created.Session.ID)
-	require.Equal(t, node.Hostname, created.Session.ServerHostname)
-
-	// test empty serverID (older version does not supply serverID)
-	sess.ServerID = ""
-	_, err = pack.clt.PostJSON(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "sessions"),
-		siteSessionGenerateReq{Session: sess},
-	)
-	require.NoError(t, err)
-}
-
 func TestPlayback(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
@@ -7254,6 +7210,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		regular.SetLockWatcher(proxyLockWatcher),
 		regular.SetNodeWatcher(proxyNodeWatcher),
 		regular.SetSessionController(sessionController),
+		regular.SetPublicAddrs([]utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyServer.Close()) })

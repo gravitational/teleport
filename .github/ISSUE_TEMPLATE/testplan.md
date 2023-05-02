@@ -100,8 +100,10 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
+    - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
+    - [ ] GCP integration tests are passing
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -123,6 +125,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Network request are blocked when a policy deny them.
 
 - [ ] Audit Log
+  - [ ] Audit log with dynamodb
+    - [ ] AWS integration tests are passing
+  - [ ] Audit log with Firestore
+    - [ ] GCP integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
@@ -423,6 +429,8 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
 - [ ] Login Rules work to transform traits from SSO provider
+- [ ] SAML IdP guide instructions work
+    - [ ] SAML IdP screenshots are up to date
 
 ### GitHub External SSO
 
@@ -1141,6 +1149,16 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Non-AD setup
+  - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
+  - [ ] Installer works correctly invoked from command line
+  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
+  - [ ] Non-AD can be added as dynamic resource and is visible in UI
+  - [ ] Non-AD instance has label `teleport.dev/ad: false`
+  - [ ] Connecting to non-AD instance works with Enterprise license
+  - [ ] Connecting to non-AD instance fails with OSS
+  - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
+  - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
 ## Binaries compatibility
 

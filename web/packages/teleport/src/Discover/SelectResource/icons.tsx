@@ -65,3 +65,5 @@ export const icons = {
   Windows: <Image src={windows} width="23.9px" height="24px" />,
   Unknown: <Icons.Question fontSize={22} />,
 };
+
+export type ResourceIconName = keyof typeof icons;

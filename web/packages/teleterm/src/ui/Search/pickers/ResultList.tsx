@@ -22,10 +22,11 @@ import React, {
   useState,
 } from 'react';
 import styled, { css } from 'styled-components';
-
 import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
+
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -41,10 +42,17 @@ type ResultListProps<T> = {
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraTopComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
 
@@ -98,9 +106,11 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
+  }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
 
   return (
     <>
@@ -144,7 +154,7 @@ export const NonInteractiveItem = styled.div`
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
+  color: ${props => props.theme.colors.text.main};
   background: ${props => props.theme.colors.levels.surface};
 `;
 

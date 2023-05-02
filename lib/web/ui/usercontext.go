@@ -100,6 +100,8 @@ type userACL struct {
 	Integrations access `json:"integrations"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust access `json:"deviceTrust"`
+	// Locks defines access to locking resources.
+	Locks access `json:"lock"`
 	// AssistTrust defines access to assist feature.
 	AssistTrust access `json:"assist"`
 }
@@ -215,6 +217,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	license := newAccess(userRoles, ctx, types.KindLicense)
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
+	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -242,6 +245,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
 		DeviceTrust:             deviceTrust,
+		Locks:                   lockAccess,
 		AssistTrust:             assistAccess,
 	}
 

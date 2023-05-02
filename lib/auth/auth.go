@@ -34,7 +34,6 @@ import (
 	"math"
 	"math/big"
 	insecurerand "math/rand"
-	"net"
 	"os"
 	"sort"
 	"strings"
@@ -215,7 +214,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
-		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Clock)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -593,6 +592,10 @@ type Server struct {
 	loginHooksMu sync.RWMutex
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
+
+	// httpClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests.
+	httpClientForAWSSTS stsClient
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1202,6 +1205,13 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
 
+// EmitAuditEvent implements [apievents.Emitter] by delegating to its dedicated
+// emitter rather than falling back to the implementation from [Services] (using
+// the audit log directly, which is almost never what you want).
+func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+}
+
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
 func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
@@ -1493,9 +1503,20 @@ func certRequestPinIP(pinIP bool) certRequestOption {
 	return func(r *certRequest) { r.pinIP = pinIP }
 }
 
+// GenerateUserTestCertsRequest is a request to generate test certificates.
+type GenerateUserTestCertsRequest struct {
+	Key            []byte
+	Username       string
+	TTL            time.Duration
+	Compatibility  string
+	RouteToCluster string
+	PinnedIP       string
+	MFAVerified    string
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1510,14 +1531,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		ttl:            ttl,
-		compatibility:  compatibility,
-		publicKey:      key,
-		routeToCluster: routeToCluster,
+		ttl:            req.TTL,
+		compatibility:  req.Compatibility,
+		publicKey:      req.Key,
+		routeToCluster: req.RouteToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		loginIP:        pinnedIP,
-		pinIP:          pinnedIP != "",
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
+		mfaVerified:    req.MFAVerified,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -4653,13 +4675,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			if !ok {
 				continue
 			}
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(srv.GetAddr())
-			if err != nil {
-				addr = srv.GetAddr()
-			}
+
 			// Filter out any matches on labels before checking access
-			if n.GetName() != t.Node.Node && srv.GetHostname() != t.Node.Node && addr != t.Node.Node {
+			fieldVals := append(srv.GetPublicAddrs(), srv.GetName(), srv.GetHostname(), srv.GetAddr())
+			if !types.MatchSearch(fieldVals, []string{t.Node.Node}, nil) {
 				continue
 			}
 
@@ -5118,7 +5137,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var usedKeys [][]byte
+	var activeKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
@@ -5127,17 +5146,23 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
 			for _, sshKeyPair := range keySet.SSH {
-				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
 			}
 			for _, tlsKeyPair := range keySet.TLS {
-				usedKeys = append(usedKeys, tlsKeyPair.Key)
+				activeKeys = append(activeKeys, tlsKeyPair.Key)
 			}
 			for _, jwtKeyPair := range keySet.JWT {
-				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+	}
+	return nil
 }
 
 // GetLicense return the license used the start the teleport enterprise auth server
@@ -5438,4 +5463,13 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
+}
+
+// WithHTTPClientForAWSSTS is a ServerOption that overwrites default HTTP
+// client used for STS requests.
+func WithHTTPClientForAWSSTS(client stsClient) ServerOption {
+	return func(s *Server) error {
+		s.httpClientForAWSSTS = client
+		return nil
+	}
 }

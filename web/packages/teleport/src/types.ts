@@ -94,5 +94,7 @@ export interface FeatureFlags {
   enrollIntegrationsOrPlugins: boolean;
   enrollIntegrations: boolean;
   deviceTrust: boolean;
+  locks: boolean;
+  newLocks: boolean;
   assist: boolean;
 }

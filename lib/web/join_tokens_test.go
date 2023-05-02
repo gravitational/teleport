@@ -353,7 +353,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -469,7 +469,7 @@ func TestGetAppJoinScript(t *testing.T) {
 		},
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -648,7 +648,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -873,7 +873,7 @@ func TestJoinScript(t *testing.T) {
 		mockGetProxyServers: func() ([]types.Server, error) {
 			return []types.Server{
 				&types.ServerV2{
-					Spec: types.ServerSpecV2{PublicAddr: "test-host:12345678"},
+					Spec: types.ServerSpecV2{PublicAddrs: []string{"test-host:12345678"}},
 				},
 			}, nil
 		},

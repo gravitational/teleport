@@ -54,13 +54,21 @@ class TeleportContext implements types.Context {
   databaseService = new DatabaseService();
   desktopService = desktopService;
   mfaService = new MfaService();
+
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-
   automaticUpgradesEnabled = false;
   assistEnabled = false;
-
   agentService = agentService;
+
+  // No CTA is currently shown
+  ctas = {
+    authConnectors: false,
+    activeSessions: false,
+    accessRequests: false,
+    premiumSupport: false,
+    trustedDevices: false,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
@@ -111,6 +119,8 @@ class TeleportContext implements types.Context {
         deviceTrust: false,
         enrollIntegrationsOrPlugins: false,
         enrollIntegrations: false,
+        locks: false,
+        newLocks: false,
         assist: false,
       };
     }
@@ -140,6 +150,9 @@ class TeleportContext implements types.Context {
         userContext.getPluginsAccess().create ||
         userContext.getIntegrationsAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
+      locks: userContext.getLockAccess().list,
+      newLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
     };
   }

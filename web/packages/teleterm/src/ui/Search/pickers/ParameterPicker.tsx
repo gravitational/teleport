@@ -35,8 +35,13 @@ interface ParameterPickerProps {
 }
 
 export function ParameterPicker(props: ParameterPickerProps) {
-  const { inputValue, closeAndResetInput, changeActivePicker, resetInput } =
-    useSearchContext();
+  const {
+    inputValue,
+    closeAndResetInput,
+    changeActivePicker,
+    resetInput,
+    addWindowEventListener,
+  } = useSearchContext();
   const [suggestionsAttempt, fetch] = useAsync(
     props.action.parameter.getSuggestions
   );
@@ -77,6 +82,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
         attempts={[inputSuggestionAttempt, attempt]}
         onPick={onPick}
         onBack={onBack}
+        addWindowEventListener={addWindowEventListener}
         render={item => ({
           key: item,
           Component: (

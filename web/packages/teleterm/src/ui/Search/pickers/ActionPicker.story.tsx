@@ -324,6 +324,7 @@ const SearchResultItems = () => {
       attempts={[attempt]}
       onPick={() => {}}
       onBack={() => {}}
+      addWindowEventListener={() => ({ cleanup: () => {} })}
       render={searchResult => {
         const Component = ComponentMap[searchResult.kind];
 
@@ -350,23 +351,20 @@ const AuxiliaryItems = () => (
     onBack={() => {}}
     render={() => null}
     attempts={[]}
+    addWindowEventListener={() => ({ cleanup: () => {} })}
     ExtraTopComponent={
       <>
         <NoResultsItem
-          clusters={[
-            {
-              uri: clusterUri,
-              name: 'teleport-12-ent.asteroid.earth',
-              connected: false,
-              leaf: false,
-              proxyHost: 'test:3030',
-              authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-            },
-          ]}
+          clustersWithExpiredCerts={new Set([clusterUri])}
+          getClusterName={routing.parseClusterName}
+        />
+        <NoResultsItem
+          clustersWithExpiredCerts={new Set([clusterUri, '/clusters/foobar'])}
+          getClusterName={routing.parseClusterName}
         />
         <ResourceSearchErrorsItem
           getClusterName={routing.parseClusterName}
-          onShowDetails={() => window.alert('Error details')}
+          showErrorsInModal={() => window.alert('Error details')}
           errors={[
             new ResourceSearchError(
               '/clusters/foo',
@@ -379,7 +377,7 @@ const AuxiliaryItems = () => (
         />
         <ResourceSearchErrorsItem
           getClusterName={routing.parseClusterName}
-          onShowDetails={() => window.alert('Error details')}
+          showErrorsInModal={() => window.alert('Error details')}
           errors={[
             new ResourceSearchError(
               '/clusters/bar',

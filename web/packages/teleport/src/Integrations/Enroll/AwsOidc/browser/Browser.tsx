@@ -97,7 +97,7 @@ export function Browser(props: React.PropsWithChildren<BrowserProps>) {
         <BrowserURLContainer>
           <BrowserURL>
             <BrowserURLIcon>
-              <LockIcon size={12} />
+              <LockIcon fill="white" size={12} />
             </BrowserURLIcon>
             console.aws.amazon.com
           </BrowserURL>

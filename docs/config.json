@@ -346,7 +346,7 @@
         {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
-          "forScopes": ["enterprise", "oss", "cloud"],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Set Up Login Rules",
@@ -362,6 +362,11 @@
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Kubernetes Operator",
+              "slug": "/access-controls/login-rules/kubernetes/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -1436,7 +1441,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.2.3",
+      "version": "12.2.4",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",

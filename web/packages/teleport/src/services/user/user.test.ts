@@ -93,6 +93,13 @@ test('undefined values in context response gives proper default values', async (
         create: false,
         remove: false,
       },
+      lock: {
+        list: false,
+        read: false,
+        edit: false,
+        create: false,
+        remove: false,
+      },
       recordedSessions: {
         list: false,
         read: false,
