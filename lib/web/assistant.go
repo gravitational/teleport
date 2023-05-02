@@ -26,15 +26,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
@@ -160,9 +161,9 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return conversationInfo, nil
 }
 
-func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
 	// moved into a separate function for error management/debug purposes
-	err := runAssistant(h, w, r, sctx)
+	err := runAssistant(h, w, r, sctx, site)
 	if err != nil {
 		h.log.Warn(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
@@ -187,7 +188,8 @@ type partialFinalizePayload struct {
 }
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
-func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
+func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext, site reversetunnel.RemoteSite,
+) error {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
@@ -209,7 +211,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	// Use the default interval as this handler doesn't have access to network config.
 	// Note: This time should be longer than OpenAI response time.
-	keepAliveInterval := defaults.KeepAliveInterval()
+	keepAliveInterval := 15 * time.Second //defaults.KeepAliveInterval()
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
@@ -219,13 +221,20 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
+		h.log.Warnf("received PONG AAAAA")
 		ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 		return nil
 	})
 
-	go startPingLoop(r.Context(), ws, keepAliveInterval, h.log, nil)
+	ws.SetCloseHandler(func(code int, text string) error {
+		h.log.Warnf("closing assistant websocket: %v %v", code, text)
+		return nil
+	})
 
-	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient,
+	ctx := context.Background() // r.Context()
+	go startPingLoop(ctx, ws, keepAliveInterval/2, h.log, nil)
+
+	chat, err := getAssistantClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
 		return trace.Wrap(err)
@@ -238,7 +247,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	}
 
 	// existing conversation, retrieve old messages
-	messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
+	messages, err := authClient.GetAssistantMessages(ctx, conversationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -253,7 +262,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	if len(messages.GetMessages()) == 0 {
 		// new conversation, generate hello message
-		if err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
+		if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -275,7 +284,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
-		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
+		//TODO(jakule): Close authClient before reopening
+		authClient, err = newRemoteClient(ctx, sctx, site)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := authClient.InsertAssistantMessage(ctx, &proto.AssistantMessage{
 			ConversationId: conversationID,
 			Type:           messageKindUserMessage,
 			Payload:        wsIncoming.Payload,
@@ -284,7 +299,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			return trace.Wrap(err)
 		}
 
-		if err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
+		if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -352,7 +367,7 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 	return chat, nil
 }
 
-func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversationID string,
+func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversationID string,
 	ws *websocket.Conn, authClient auth.ClientI,
 ) error {
 	// query the assistant and fetch an answer

@@ -281,7 +281,7 @@ export function MessagesContextProvider(
   const [responding, setResponding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = `wss://${getHostName()}/v1/webapi/assistant?access_token=${getAccessToken()}&conversation_id=${
+  const socketUrl = `wss://${getHostName()}/v1/webapi/sites/${clusterId}/assistant?access_token=${getAccessToken()}&conversation_id=${
     props.conversationId
   }`;
 
