@@ -542,7 +542,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 			if err := c.dstFS.Remove(ctx, dstPath); err != nil {
 				return trace.Wrap(err)
 			}
-			dstFile, err = c.dstFS.Create(ctx, dstPath, srcFileInfo.Mode())
+			dstFile, err = c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
 		} // Re-check error as it may be nil from the remove-create case above.
 		if err != nil {
 			return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)

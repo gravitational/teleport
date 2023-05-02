@@ -387,8 +387,7 @@ func TestUpload(t *testing.T) {
 					if !ok {
 						perms = 0o644
 					}
-					perms = 0o644
-					createFile(t, tempDir, file, perms)
+					createFile(t, filepath.Join(tempDir, file), perms)
 				}
 			}
 			for i := range tt.srcPaths {
@@ -580,7 +579,7 @@ func TestDownload(t *testing.T) {
 				if strings.HasSuffix(file, string(filepath.Separator)) {
 					createDir(t, filepath.Join(tempDir, file))
 				} else {
-					createFile(t, tempDir, file, 0o644)
+					createFile(t, filepath.Join(tempDir, file), 0o644)
 				}
 			}
 			tt.srcPath = filepath.Join(tempDir, tt.srcPath)
@@ -663,7 +662,7 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	createFile(t, filepath.Join(tempDir, "file"))
+	createFile(t, filepath.Join(tempDir, "file"), 0o654)
 	linkPath := filepath.Join(tempDir, "link")
 	err := os.Symlink(filepath.Join(tempDir, "file"), linkPath)
 	require.NoError(t, err)
@@ -690,7 +689,7 @@ func TestHTTPUpload(t *testing.T) {
 	src := filepath.Join(tempDir, "source")
 	dst := filepath.Join(tempDir, "destination")
 
-	createFile(t, src)
+	createFile(t, src, 0o654)
 	f, err := os.Open(src)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -730,7 +729,7 @@ func TestHTTPDownload(t *testing.T) {
 	tempDir := t.TempDir()
 	src := filepath.Join(tempDir, "source")
 
-	createFile(t, src)
+	createFile(t, src, 0o654)
 	f, err := os.Open(src)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -764,13 +763,13 @@ func TestHTTPDownload(t *testing.T) {
 	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
 }
 
-func createFile(t *testing.T, rootDir, path string, permissions fs.FileMode) {
+func createFile(t *testing.T, path string, permissions fs.FileMode) {
 	dir := filepath.Dir(path)
 	if dir != path {
 		createDir(t, dir)
 	}
 
-	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, permissions)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, permissions)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, f.Close())

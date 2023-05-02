@@ -136,6 +136,10 @@ func (h *httpFS) Chtimes(_ context.Context, _ string, _, _ time.Time) error {
 	return nil
 }
 
+func (h *httpFS) Remove(_ context.Context, _ string) error {
+	return nil
+}
+
 type nopWriteCloser struct {
 	io.Writer
 }
