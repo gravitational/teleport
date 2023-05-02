@@ -47,7 +47,7 @@ export function Step(props: StepProps) {
 }
 
 export const StepContainer = styled.div`
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
