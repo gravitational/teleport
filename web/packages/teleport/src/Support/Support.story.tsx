@@ -30,6 +30,10 @@ export const SupportEnterprise = () => (
   <Support {...props} isEnterprise={true} />
 );
 
+export const SupportWithCTA = () => (
+  <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
+);
+
 export const SupportWithTunnelAddress = () => (
   <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
 );
@@ -41,4 +45,5 @@ const props: Props = {
   isEnterprise: false,
   isCloud: false,
   tunnelPublicAddress: null,
+  showPremiumSupportCTA: false,
 };
