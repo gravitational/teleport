@@ -16,13 +16,13 @@ package servicecfg
 
 type PluginsConfig struct {
 	Enabled bool
-	// OpsgenieAPIKeyFile is a file containing an Opsgenie API key.
-	OpsgenieAPIKeyFile string
+	// OpsgenieAPI is an Opsgenie API key.
+	OpsgenieAPIKey string
 	// Plugins is a map of labels used to match plugin resources.
 	Plugins map[string]string
 }
 
 // IsEmpty validates if the Plugins Service config has no matchers.
 func (d PluginsConfig) IsEmpty() bool {
-	return false // TODO: fill this
+	return len(d.Plugins) == 0
 }
