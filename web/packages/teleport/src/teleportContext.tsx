@@ -55,12 +55,20 @@ class TeleportContext implements types.Context {
   databaseService = new DatabaseService();
   desktopService = desktopService;
   mfaService = new MfaService();
+
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-
   automaticUpgradesEnabled = false;
-
   agentService = agentService;
+
+  // No CTA is currently shown
+  ctas = {
+    authConnectors: false,
+    activeSessions: false,
+    accessRequests: false,
+    premiumSupport: false,
+    trustedDevices: false,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
