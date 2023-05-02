@@ -57,7 +57,7 @@ export const LinkContent = styled.div<LinkContentProps>`
 export const commonNavigationItemStyles = css`
   display: flex;
   position: relative;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   user-select: none;
   font-size: 14px;

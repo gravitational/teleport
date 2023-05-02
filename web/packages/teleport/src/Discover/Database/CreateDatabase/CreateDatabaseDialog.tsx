@@ -50,12 +50,9 @@ export function CreateDatabaseDialog({
   if (attempt.status === 'failed') {
     content = (
       <>
-        <Text bold caps mb={3}>
-          Database Register Failed
-        </Text>
         <Text mb={5}>
           <Icons.Warning ml={1} mr={2} color="error.main" />
-          Error: {attempt.statusText}
+          Register Failed: {attempt.statusText}
         </Text>
         <Flex>
           <ButtonPrimary mr={3} width="50%" onClick={retry}>
@@ -70,11 +67,9 @@ export function CreateDatabaseDialog({
   } else if (attempt.status === 'processing') {
     content = (
       <>
-        <Text bold caps mb={4}>
-          Registering Database
-        </Text>
-        <AnimatedProgressBar />
+        <AnimatedProgressBar mb={1} />
         <TextIcon
+          mb={3}
           css={`
             white-space: pre;
           `}
@@ -86,20 +81,20 @@ export function CreateDatabaseDialog({
             tailMessage={' seconds left'}
           />
         </TextIcon>
+        <ButtonPrimary width="100%" disabled>
+          Next
+        </ButtonPrimary>
       </>
     );
   } else {
     // success
     content = (
       <>
-        <Text bold caps mb={4}>
-          Successfully Registered Database
-        </Text>
         <Text mb={5}>
           <Icons.Check ml={1} mr={2} color="success" />
           Database "{dbName}" successfully registered
         </Text>
-        <ButtonPrimary mr={2} width="100%" onClick={next}>
+        <ButtonPrimary width="100%" onClick={next}>
           Next
         </ButtonPrimary>
       </>
@@ -114,6 +109,9 @@ export function CreateDatabaseDialog({
         mb={0}
         textAlign="center"
       >
+        <Text bold caps mb={4}>
+          Database Register
+        </Text>
         {content}
       </DialogContent>
     </Dialog>

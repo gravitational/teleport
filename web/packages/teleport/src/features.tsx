@@ -86,10 +86,10 @@ const AuthConnectors = React.lazy(
   () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
 );
 const Locks = React.lazy(
-  () => import(/* webpackChunkName: "locks" */ './Locks')
+  () => import(/* webpackChunkName: "locks" */ './LocksV2/Locks')
 );
 const NewLock = React.lazy(
-  () => import(/* webpackChunkName: "newLock" */ './Locks/NewLock')
+  () => import(/* webpackChunkName: "newLock" */ './LocksV2/NewLock')
 );
 const Databases = React.lazy(
   () => import(/* webpackChunkName: "databases" */ './Databases')
@@ -344,22 +344,22 @@ export class FeatureLocks implements TeleportFeature {
   section = ManagementSection.Access;
 
   route = {
-    title: 'Session & Identity Locks',
+    title: 'Manage Session & Identity Locks',
     path: cfg.routes.locks,
     exact: true,
     component: Locks,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return flags.locks;
   }
 
   navigationItem = {
     title: 'Session & Identity Locks',
     icon: <LockIcon />,
     exact: false,
-    getLink(clusterId: string) {
-      return cfg.getLocksRoute(clusterId);
+    getLink() {
+      return cfg.getLocksRoute();
     },
   };
 }
@@ -372,8 +372,14 @@ export class FeatureNewLock implements TeleportFeature {
     component: NewLock,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return flags.newLocks;
+  }
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
   }
 }
 

@@ -20,7 +20,7 @@ exports[`render clusters 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -32,7 +32,6 @@ exports[`render clusters 1`] = `
 .c21:hover,
 .c21:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c21:active {
@@ -64,7 +63,7 @@ exports[`render clusters 1`] = `
   color: #FFFFFF;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -330,7 +329,7 @@ exports[`render clusters 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -385,7 +384,7 @@ exports[`render clusters 1`] = `
         >
           <div
             class="c12"
-            color="text.primary"
+            color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
@@ -477,7 +476,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -501,7 +500,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -525,7 +524,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -549,7 +548,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -573,7 +572,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -597,7 +596,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -621,7 +620,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -645,7 +644,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -669,7 +668,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -693,7 +692,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -717,7 +716,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -741,7 +740,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -765,7 +764,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -789,7 +788,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -813,7 +812,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -837,7 +836,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -861,7 +860,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -885,7 +884,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -909,7 +908,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -933,7 +932,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -957,7 +956,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -981,7 +980,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1005,7 +1004,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1029,7 +1028,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1053,7 +1052,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1077,7 +1076,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1101,7 +1100,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1125,7 +1124,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1149,7 +1148,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1173,7 +1172,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1197,7 +1196,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1221,7 +1220,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1245,7 +1244,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1269,7 +1268,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1293,7 +1292,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1317,7 +1316,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1341,7 +1340,7 @@ exports[`render clusters 1`] = `
               OPTIONS
               <span
                 class="c15 c22 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>

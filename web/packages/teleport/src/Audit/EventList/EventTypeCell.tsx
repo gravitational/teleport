@@ -270,7 +270,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.levels.deep};
   border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.secondary};
+  color: ${props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -285,7 +285,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:active,
   &:focus {
     background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.primary};
+    color: ${props.theme.colors.text.main};
   }
 
   &:active {
