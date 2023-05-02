@@ -736,7 +736,7 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 // to connect to Agentless nodes.
 func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	// this limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(types.RoleProxy) {
+	if !a.hasBuiltinRole(types.RoleProxy) && !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
