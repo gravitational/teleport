@@ -704,9 +704,10 @@ message ServerSpecV2 {
   reserved 8;
   reserved 10;
 
-  // Addr is server host:port address
+  // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address this cluster can be reached at.
+  // PublicAddr is the public address where this server can be reached.
+  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
   string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
@@ -736,6 +737,8 @@ message ServerSpecV2 {
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // PublicAddrs is a list of public addresses where this server can be reached.
+  repeated string public_addrs = 13;
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -2377,6 +2380,13 @@ message RoleOptions {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // CreateDesktopUser allows users to be automatically created on a Windows desktop
+  BoolValue CreateDesktopUser = 26 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_desktop_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2552,6 +2562,9 @@ message RoleConditions {
     (gogoproto.jsontag) = "group_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+
+  // DesktopGroups is a list of groups for created desktop users to be added to
+  repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -2957,6 +2970,13 @@ message WebauthnDevice {
   // view of the registration process; the authenticator alone can determine
   // if a key is truly resident.)
   bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.

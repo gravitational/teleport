@@ -50,7 +50,7 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
     >
       <Flex
         mr="2"
-        color={shouldDisplayIsLoading ? 'text.secondary' : 'text.primary'}
+        color={shouldDisplayIsLoading ? 'text.slightlyMuted' : 'text.main'}
         width="100%"
         css={`
           overflow: auto;

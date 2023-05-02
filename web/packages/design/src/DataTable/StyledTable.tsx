@@ -51,7 +51,7 @@ export const StyledTable = styled.table(
 
   & > thead > tr > th {
     background: ${props.theme.colors.spotBackground[0]};
-    color: ${props.theme.colors.text.primary};
+    color: ${props.theme.colors.text.main};
     cursor: pointer;
     font-size: 10px;
     font-weight: 400;
@@ -70,7 +70,7 @@ export const StyledTable = styled.table(
   }
 
   & > tbody > tr > td {
-    color: ${props.theme.colors.text.primary};
+    color: ${props.theme.colors.text.main};
     line-height: 16px;
   }
 

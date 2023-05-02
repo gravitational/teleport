@@ -40,7 +40,7 @@ const Input = styled.input(props => {
   return {
     background: theme.colors.levels.surfaceSecondary,
     boxSizing: 'border-box',
-    color: theme.colors.text.primary,
+    color: theme.colors.text.main,
     width: '100%',
     minHeight: '24px',
     minWidth: '300px',
@@ -49,13 +49,13 @@ const Input = styled.input(props => {
     border: '1px solid transparent',
     padding: '2px 12px',
     '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
+      color: theme.colors.text.main,
       borderColor: theme.colors.levels.elevated,
       opacity: 1,
     },
     '::placeholder': {
       opacity: 1,
-      color: theme.colors.text.secondary,
+      color: theme.colors.text.slightlyMuted,
     },
 
     ...space(props),
