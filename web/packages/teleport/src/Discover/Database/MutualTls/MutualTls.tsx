@@ -78,7 +78,7 @@ export function MutualTlsView({
         <>
           <Box mb={3}>
             <Text bold>
-              Run the command below to download Teleport's CA and generate
+              Run the command below to download Teleport's CA and generated
               cert/key pair.
             </Text>
             <Box mt={2} mb={1}>
