@@ -380,7 +380,7 @@ func TestHandleSQLServerConfigureScript(t *testing.T) {
 		t.Run(tc.desc, func(t *testing.T) {
 			_, err := pack.clt.Get(
 				ctx,
-				pack.clt.Endpoint("webapi/scripts/database-access/configure/sqlserver", tc.tokenFunc(t), "configure-ad.ps1"),
+				pack.clt.Endpoint("webapi/scripts/databases/configure/sqlserver", tc.tokenFunc(t), "configure-ad.ps1"),
 				url.Values{"uri": []string{tc.uri}},
 			)
 			tc.assertError(t, err)
