@@ -79,6 +79,10 @@ type Server struct {
 	reconcileCh chan struct{}
 	// mu protects access to  plugins.
 	mu sync.RWMutex
+
+	// runningAccessPlugins contains currently registered plugins
+	// maps plugin type to RunningAccessPlugins
+	runningPlugins map[string]RunningAccessPlugin
 }
 
 // New initializes a plugins Server
@@ -144,9 +148,14 @@ func (s *Server) initTeleportAccessRequestWatcher(ctx context.Context) (err erro
 	return trace.Wrap(watcherJob.Err())
 }
 
-func (s *Server) onWatcherEvent(context.Context, types.Event) error {
-	// TODO: Pass access requests to plugins
-	return nil
+func (s *Server) onWatcherEvent(ctx context.Context, event types.Event) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	errs := []error{}
+	for _, plugin := range s.runningPlugins {
+		errs = append(errs, plugin.onWatcherEvent(ctx, event))
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // startReconciler starts reconciler that registers/unregisters
@@ -262,20 +271,45 @@ func (s *Server) matcher(resource types.ResourceWithLabels) bool {
 }
 
 func (s *Server) registerPlugin(ctx context.Context, resource types.ResourceWithLabels) error {
-	s.Log.Error("registering plugin")
-	// TODO: Start and register plugin
+	plugin, ok := resource.(types.Plugin)
+	if !ok {
+		return trace.BadParameter("expected types.Plugin, got %T", resource)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rap, err := newRunningAccessPlugin(plugin)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.runningPlugins[string(plugin.GetType())] = rap
 	return nil
 }
 
 func (s *Server) updatePlugin(ctx context.Context, resource types.ResourceWithLabels) error {
-	s.Log.Error("updating plugin")
-	// TODO: Update registered plugin
+	if err := s.unregisterPlugin(ctx, resource); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.registerPlugin(ctx, resource); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
 func (s *Server) unregisterPlugin(ctx context.Context, resource types.ResourceWithLabels) error {
-	s.Log.Error("unregistering plugin")
-	// TODO: Stop and unregister plugin
+	plugin, ok := resource.(types.Plugin)
+	if !ok {
+		return trace.BadParameter("expected types.Plugin, got %T", resource)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rap, ok := s.runningPlugins[string(plugin.GetType())]
+	if !ok {
+		return trace.BadParameter("plugin type %q is not registered", plugin.GetType())
+	}
+	if err := rap.Stop(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	delete(s.runningPlugins, string(plugin.GetType()))
 	return nil
 }
 
@@ -297,4 +331,22 @@ func (m *monitoredPlugins) get() types.ResourcesWithLabelsMap {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.resources.AsResources().ToMap()
+}
+
+// RunningAccessPlugin defines the methods access plugins must implement
+type RunningAccessPlugin interface {
+	// Start starts an access plugin
+	Start(context.Context) error
+	// Stop stops an access plugin
+	Stop(context.Context) error
+	// OnWatcherEvent is used to pass access request events to the plugin
+	onWatcherEvent(context.Context, types.Event) error
+}
+
+func newRunningAccessPlugin(plugin types.Plugin) (RunningAccessPlugin, error) {
+	// Each plugin type that is needs to add a case here.
+	switch plugin.GetType() {
+	default:
+	}
+	return nil, trace.BadParameter("unknown plugin type: %q", plugin.GetType())
 }
