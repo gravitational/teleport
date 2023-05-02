@@ -23,8 +23,10 @@ cluster to Teleport.
 
 - A registered domain name. This is required for Teleport to set up TLS via
   Let's Encrypt and for Teleport clients to verify the Proxy Service host.
+
 - A Kubernetes cluster hosted by a cloud provider, which is required for the
   load balancer we deploy in this guide.
+
 - A persistent volume that the Auth Service can use for storing cluster state.
   Make sure your Kubernetes cluster has one available:
 
@@ -226,9 +228,9 @@ resembling the following:
 ```
 
 Set up two DNS records: `teleport.example.com` for all traffic and
-`*.teleport.example.com` for web apps using Application Access. We are assuming
-that your domain name is `example.com` and `teleport` is the subdomain you have
-assigned to your Teleport cluster.
+`*.teleport.example.com` for any web applications you will register with
+Teleport. We are assuming that your domain name is `example.com` and `teleport`
+is the subdomain you have assigned to your Teleport cluster.
 
 Depending on whether the `EXTERNAL-IP` column above points to an IP address or a
 domain name, the records will have the following details:
@@ -358,17 +360,17 @@ no Persistent Volume is available.
 - **Set up Single Sign-On:** In this guide, we showed you how to create a local
   user, which is appropriate for demo environments. For a production deployment,
   you should set up Single Sign-On with your provider of choice. See our [Single
-  Sign-On guides](../access-controls/sso.mdx) for how to do this.
+  Sign-On guides](../../access-controls/sso.mdx) for how to do this.
 - **Configure your Teleport deployment:** To see all of the options you can set
   in the values file for the `teleport-cluster` Helm chart, consult our
   [reference guide](../../reference/helm-reference/teleport-cluster.mdx).
 - **Register resources:** You can register all of the Kubernetes clusters in
   your infrastructure with Teleport. To start, read our [Auto-Discovery
-  guides](../kubernetes-access/discovery.mdx) to see how to automatically
+  guides](../../kubernetes-access/discovery.mdx) to see how to automatically
   register every cluster in your cloud. You can also register servers,
   databases, applications, and Windows desktops.
 - **Fine-tune your Kubernetes RBAC:** While the `alice` user you created in this
   guide can access the `system:masters` role, you can set up Teleport's RBAC to
   enable fine-grained controls for accessing Kubernetes resources. See our
-  [Kubernetes Access Controls Guide](../kubernetes-access/controls.mdx) for more
+  [Kubernetes Access Controls Guide](../../kubernetes-access/controls.mdx) for more
   information.
