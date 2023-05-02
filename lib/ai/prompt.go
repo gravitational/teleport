@@ -33,6 +33,7 @@ Ensure the output is a valid shell command.
 There must be at least one target server or label, otherwise we do not have enough information to complete the task.
 Provide the output in the following format with no other text:
 
+` + "```" + `
 {
 	"command": "<command to run>",
 	"nodes": ["<server1>", "<server2>"],
@@ -47,8 +48,9 @@ Provide the output in the following format with no other text:
 		}
 	]
 }
+` + "```" + `
 
-If the user is not asking to complete a task on a server - disgard this entire message and respond as part of a normal conversation instead.`
+If the user is not asking to complete a task on a server - discard this entire message and respond as part of a normal conversation instead.`
 
 func promptCharacter(username string) string {
 	return fmt.Sprintf(`You are Teleport, a tool that users can use to connect to Linux servers and run relevant commands, as well as have a conversation.
