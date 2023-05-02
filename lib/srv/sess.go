@@ -1314,7 +1314,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		}
 
 		s.emitSessionEndEvent()
-		s.Close() //
+		s.Close()
 
 		s.io.Close()
 		close(s.doneCh)
