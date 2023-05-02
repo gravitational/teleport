@@ -18,7 +18,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.3
+GOLANG_VERSION ?= go1.20.4
 
 NODE_VERSION ?= 16.18.1
 
