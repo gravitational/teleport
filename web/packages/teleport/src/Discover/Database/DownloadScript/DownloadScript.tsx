@@ -312,7 +312,7 @@ function createBashCommand(tokenId: string) {
 //  - If agent labels was defined like this [`fruit: apple`, `fruit: banana`]
 //    it's translated as `fruit: [apple OR banana]`.
 //
-// Asteriks can be used for keys, values, or both key and value eg:
+// asterisks can be used for keys, values, or both key and value eg:
 //  - `fruit: *` match by key `fruit` with any value
 //  - `*: apple` match by value `apple` with any key
 //  - `*: *` match by any key and any value
