@@ -103,7 +103,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 	case *PluginSpecV1_Opsgenie:
 		if settings.Opsgenie == nil {
-			return trace.BadParameter("settings must be set")
+			return trace.BadParameter("opsgenie settings must be set")
 		}
 		if settings.Opsgenie.Addr == "" {
 			return trace.BadParameter("opsgenie addr must be set")
