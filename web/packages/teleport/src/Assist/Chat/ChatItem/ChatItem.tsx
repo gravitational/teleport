@@ -113,6 +113,31 @@ const ChatItemAvatarImage = styled.div<{ backgroundImage: string }>`
   background-size: cover;
 `;
 
+// TODO(jakule || ryan): Remove duplicated styles.
+const CommandOutput = styled.div`
+  margin-bottom: 15px;
+  min-width: 100%;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+`;
+
+const MachineName = styled.div`
+  font-size: 15px;
+  margin-bottom: 5px;
+`;
+
+const Output = styled.div`
+  white-space: pre-wrap;
+  background: #0c143d;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
+    monospace;
+  font-size: 16px;
+`;
+
 marked.setOptions({
   renderer: new marked.Renderer(),
   highlight: function (code, lang) {
@@ -159,6 +184,20 @@ export function ChatItem(props: ChatItemProps) {
       );
 
       break;
+    case Type.ExecuteCommandOutput:
+      return (
+        <Container>
+          <CommandOutput
+            key={
+              props.message.content.nodeId?.toString() +
+              props.message.content.executionId
+            }
+          >
+            <MachineName>Node: {props.message.content.nodeId}</MachineName>
+            <Output>{props.message.content.payload}</Output>
+          </CommandOutput>
+        </Container>
+      );
   }
 
   let avatar = (

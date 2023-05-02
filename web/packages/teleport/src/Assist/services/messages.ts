@@ -22,6 +22,7 @@ export enum Author {
 export enum Type {
   Message = 'message',
   ExecuteRemoteCommand = 'connect',
+  ExecuteCommandOutput = 'execution_output',
 }
 
 export interface Label {
@@ -50,7 +51,17 @@ export interface TextMessageContent {
   value: string;
 }
 
-export type MessageContent = TextMessageContent | ExecuteRemoteCommandContent;
+export interface CommandExecutionOutput {
+  type: Type.ExecuteCommandOutput;
+  nodeId: string;
+  executionId: string;
+  payload: string;
+}
+
+export type MessageContent =
+  | TextMessageContent
+  | ExecuteRemoteCommandContent
+  | CommandExecutionOutput;
 
 export interface Message {
   isNew?: boolean;

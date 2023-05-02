@@ -40,6 +40,7 @@ import (
 
 const (
 	messageKindCommand                  = "COMMAND"
+	messageKindCommandResult            = "COMMAND_RESULT"
 	messageKindUserMessage              = "CHAT_MESSAGE_USER"
 	messageKindAssistantMessage         = "CHAT_MESSAGE_ASSISTANT"
 	messageKindAssistantPartialMessage  = "CHAT_PARTIAL_MESSAGE_ASSISTANT"

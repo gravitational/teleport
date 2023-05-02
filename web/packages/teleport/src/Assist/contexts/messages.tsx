@@ -31,6 +31,8 @@ import api, { getAccessToken, getHostName } from 'teleport/services/api';
 import NodeService from 'teleport/services/nodes';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
+import cfg from 'teleport/config';
+
 import {
   Author,
   ExecuteRemoteCommandPayload,
@@ -119,6 +121,39 @@ async function convertServerMessage(
     return (/*_messages: Message[]*/) => {};
   }
 
+  if (message.type == 'COMMAND_RESULT') {
+    const payload = JSON.parse(message.payload) as {
+      session_id: string;
+      execution_id: string;
+      node_id: string;
+    };
+
+    const sessionUrl = cfg.getTerminalSessionUrl({
+      clusterId: clusterId,
+      sid: payload.session_id,
+    });
+
+    // The offset here is set base on A/B test that was run between me, myself and I.
+    const resp = await api
+      .fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
+        Accept: 'text/plain',
+        'Content-Type': 'text/plain; charset=utf-8',
+      })
+      .then(response => response.text());
+
+    const newMessage: Message = {
+      author: Author.Teleport,
+      content: {
+        type: Type.ExecuteCommandOutput,
+        nodeId: payload.node_id,
+        executionId: payload.execution_id,
+        payload: resp,
+      },
+    };
+
+    return (messages: Message[]) => messages.push(newMessage);
+  }
+
   if (message.type === 'CHAT_MESSAGE_USER') {
     const newMessage: Message = {
       author: Author.User,
@@ -135,21 +170,13 @@ async function convertServerMessage(
     let query = '';
 
     if (cmd.nodes) {
-      for (const node of cmd.nodes) {
-        if (query) {
-          query += ' || ';
-        }
-        query += `name == "${node}"`;
-      }
+      query += cmd.nodes.map(node => `name == "${node}"`).join(' || ');
     }
 
     if (cmd.labels) {
-      for (const label of cmd.labels) {
-        if (query) {
-          query += ' || ';
-        }
-        query += `labels["${label.key}"] == "${label.value}"`;
-      }
+      query += cmd.labels
+        .map(label => `labels["${label.key}"] == "${label.value}"`)
+        .join(' || ');
     }
 
     return query;
@@ -164,7 +191,7 @@ async function convertServerMessage(
     // TODO: fetch users after the query is edited in the UI.
     const nodes = await ns.fetchNodes(clusterId, {
       query: searchQuery,
-      limit: 100, // TODO: What is there is mode nodes?
+      limit: 100, // TODO: What if there is more nodes?
     });
     const availableLogins = findIntersection(
       nodes.agents.map(e => e.sshLogins)
