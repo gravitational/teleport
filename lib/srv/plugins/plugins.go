@@ -47,13 +47,6 @@ type Config struct {
 	// ResourceMatchers are the labels to match against plugin resources
 	ResourceMatchers []services.ResourceMatcher
 
-	// monitoredPlugins contains all plugins
-	monitoredPlugins monitoredPlugins
-	// reconcileCh triggers reconciliation of plugins.
-	reconcileCh chan struct{}
-	// mu protects access to  plugins.
-	mu sync.RWMutex
-
 	*lib.Process
 }
 
@@ -79,6 +72,9 @@ type Server struct {
 	accessRequestWatcher *services.AccessRequestWatcher
 	// pluginWatcher watches plugin resources.
 	pluginWatcher *services.PluginWatcher
+
+	// monitoredPlugins contains all plugins
+	monitoredPlugins monitoredPlugins
 	// reconcileCh triggers reconciliation of plugins.
 	reconcileCh chan struct{}
 	// mu protects access to  plugins.
@@ -93,9 +89,11 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 	localCtx, cancelfn := context.WithCancel(ctx)
 	s := &Server{
-		Config:   cfg,
-		ctx:      localCtx,
-		cancelfn: cancelfn,
+		Config:           cfg,
+		ctx:              localCtx,
+		cancelfn:         cancelfn,
+		reconcileCh:      make(chan struct{}),
+		monitoredPlugins: monitoredPlugins{},
 	}
 	return s, nil
 }
@@ -107,6 +105,9 @@ func (s *Server) Start(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	s.pluginWatcher = watcher
+	if err := s.startReconciler(ctx); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 
