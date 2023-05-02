@@ -396,8 +396,8 @@ type ServerContext struct {
 	// multiWriter is used by to stream non-interactive session output
 	// to audit log.
 	multiWriter io.Writer
-	// recordSession forces non-interactive session recording. Used by Assist.
-	recordSession bool
+	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
+	recordNonInteractiveSession bool
 
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.

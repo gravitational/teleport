@@ -288,9 +288,9 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		sessionID = rsession.ID(sid)
 	}
 
-	_, found = scx.GetEnv(teleport.ForceSessionRecording)
+	_, found = scx.GetEnv(teleport.EnableNonInteractiveSessionRecording)
 	if found {
-		scx.recordSession = true
+		scx.recordNonInteractiveSession = true
 	}
 
 	// This logic allows concurrent request to create a new session
@@ -1234,7 +1234,7 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	if scx.recordSession {
+	if scx.recordNonInteractiveSession {
 		// enable recording.
 		s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
 		s.scx.multiWriter = s.io
@@ -1289,7 +1289,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
 
-	if scx.recordSession {
+	if scx.recordNonInteractiveSession {
 		s.io.On()
 	}
 
