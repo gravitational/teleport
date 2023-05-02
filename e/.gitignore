@@ -1,5 +1,6 @@
 build
 build-fips
+/teleport-ent
 
 # usually release tarballs get in the way
 *.gz

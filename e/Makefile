@@ -4,12 +4,14 @@ ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
 endif
 BUILDDIR ?= build
+RELEASE_DIR ?= $(BUILDDIR)/artifacts
 TELEPORT_DEBUG ?= false
 CGOFLAG ?= CGO_ENABLED=1
 GITTAG ?= v$(VERSION)
 DOCKER_IMAGE ?= teleport-ent
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
-BINARIES ?= $(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
+BINS = teleport tctl tsh tbot
+BINARIES ?= $(addprefix $(BUILDDIR)/,$(BINS))
 
 # When TELEPORT_DEBUG is true, set flags so produce
 # debugger-friendly builds.
@@ -41,6 +43,14 @@ ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG = pam
 PAM_ENT_MESSAGE := "with-PAM-support"
 endif
+
+# darwin universal (Intel + Apple Silicon combined) binary vars
+RELEASE_darwin_arm64 = $(RELEASE_DIR)/teleport-ent-$(GITTAG)-darwin-arm64-bin.tar.gz
+RELEASE_darwin_amd64 = $(RELEASE_DIR)/teleport-ent-$(GITTAG)-darwin-amd64-bin.tar.gz
+BUILDDIR_arm64 = $(BUILDDIR)/arm64
+BUILDDIR_amd64 = $(BUILDDIR)/amd64
+# TARBINS in the path of the binaries in the release tarballs
+TARBINS = $(addprefix teleport-ent/,$(BINS))
 
 # Include common setting from OSS repo.
 include ../common.mk
@@ -277,6 +287,10 @@ deploy-cloud-login:
 #
 # make release - Produces a binary release tarball.
 #
+
+$(RELEASE_DIR):
+	mkdir $@
+
 .PHONY:
 export
 release:
@@ -313,28 +327,42 @@ include ../darwin-signing.mk
 
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
-release-darwin-unsigned: clean full build-archive
+release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
+ifneq ($(ARCH),universal)
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	cd .. && $(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
+else
+release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
+	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
+	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
+	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
+	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
+	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
+	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	$(MAKE) ARCH=universal build-archive
+endif
 
 #
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
-build-archive:
+build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating Enterprise release archive."
-	mkdir -p $(BUILDDIR)/
-	cp ../README.md $(BUILDDIR)/
-	cp ../CHANGELOG.md $(BUILDDIR)/
-	cp ../build.assets/install $(BUILDDIR)/
-	echo $(GITTAG) > $(BUILDDIR)/VERSION
-	cp -rf $(BUILDDIR) teleport-ent
-	cp -rf ../examples teleport-ent/
+	mkdir teleport-ent
+	cp -rf $(BINARIES) \
+		../examples \
+		../build.assets/install \
+		../README.md \
+		../CHANGELOG.md \
+		teleport-ent/
+	echo $(GITTAG) > teleport-ent/VERSION
 	tar $(TAR_FLAGS) -c teleport-ent | gzip -n > $(RELEASE_ENT).tar.gz
+	cp $(RELEASE_ENT).tar.gz $(RELEASE_DIR)
 	rm -rf teleport-ent
 	@echo "---> Created $(RELEASE_ENT).tar.gz."
 
@@ -423,7 +451,7 @@ endif
 
 # build .pkg
 .PHONY: pkg
-pkg:
+pkg: | $(RELEASE_DIR)
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh ../build.assets/build-common.sh $(BUILDDIR)/
@@ -431,6 +459,7 @@ pkg:
 	# arch and runtime are currently ignored on OS X
 	# we pass them through for consistency - they will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-ent-*.pkg $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
