@@ -598,6 +598,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				cache: c,
 				watch: watch,
 			}
+			collections.byKind[resourceKind] = collections.plugins
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2267,7 +2268,11 @@ func (pluginsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets boo
 }
 
 func (pluginsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Plugin) error {
-	return trace.Wrap(cache.pluginCache.CreatePlugin(ctx, resource))
+	err := cache.pluginCache.CreatePlugin(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		return trace.Wrap(cache.pluginCache.UpdatePlugin(ctx, resource))
+	}
+	return trace.Wrap(err)
 }
 
 func (pluginsExecutor) deleteAll(ctx context.Context, cache *Cache) error {

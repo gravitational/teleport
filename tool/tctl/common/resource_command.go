@@ -937,6 +937,7 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client auth.ClientI
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Plugin %q has been updated\n", plugin.GetName())
+		return nil
 	}
 	if err := client.CreatePlugin(ctx, plugin); err != nil {
 		return trace.Wrap(err)
