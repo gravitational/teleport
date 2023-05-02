@@ -2,8 +2,10 @@
 
 ## 12.3.1 (05/02/23)
 
-This release of Teleport contains multiple improvements and bug fixes.
+This release of Teleport contains a security Go upgrade as well as multiple improvements and bug fixes.
 
+* Security
+  * Updated Go to `1.20.4` to fix `CVE-2023-24539`, `CVE-2023-24540` and `CVE-2023-29400`. [#25506](https://github.com/gravitational/teleport/pull/25506)
 * CLI
   * Follow up fix for MFA permission denied error from `tsh` for non-SSH protocols. [#25486](https://github.com/gravitational/teleport/pull/25486)
   * Improved `tsh ssh` error when session fails due to active lock. [#25482](https://github.com/gravitational/teleport/pull/25482)
