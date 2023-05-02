@@ -223,11 +223,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
-	case DeviceEvent, // Keep DeviceEvent here for backwards compatibility.
-		DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
+	case DeviceEvent: // Kept for backwards compatibility.
+		e = &events.DeviceEvent{}
+	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
 		DeviceEnrollEvent, DeviceAuthenticateCode,
 		DeviceEnrollTokenCreateEvent:
-		e = &events.DeviceEvent{}
+		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
