@@ -32,6 +32,8 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	// PluginTypeOpsgenie is the Opsgenie access request plugin
+	PluginTypeOpsgenie = "opsgenie"
 )
 
 type Plugins []Plugin
@@ -238,6 +240,8 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_Opsgenie:
+		return PluginTypeOpsgenie
 	default:
 		return PluginTypeUnknown
 	}
@@ -285,7 +289,7 @@ func (c PluginStatusV1) GetCode() PluginStatusCode {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (p *PluginV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(p.GetAllLabels()), p.GetName())
+	fieldVals := append(utils.MapToStrings(p.GetAllLabels()), p.GetName(), string(p.GetType()))
 	return MatchSearch(fieldVals, values, nil)
 }
 
