@@ -1,5 +1,17 @@
 # Changelog
 
+## 12.3.1 (05/02/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* CLI
+  * Follow up fix for MFA permission denied error from `tsh` for non-SSH protocols. [#25486](https://github.com/gravitational/teleport/pull/25486)
+  * Improved `tsh ssh` error when session fails due to active lock. [#25482](https://github.com/gravitational/teleport/pull/25482)
+* SAML IdP
+  * Fixed issue with SAML IdP routes not working. [#25474](https://github.com/gravitational/teleport/pull/25474)
+* Proxy
+  * Fixed issue with missing `Connection` header for ALPN connection upgrade. [#25411](https://github.com/gravitational/teleport/pull/25411)
+
 ## 12.3.0 (05/01/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
