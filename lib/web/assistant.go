@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -32,6 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
@@ -290,6 +293,32 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 }
 
 func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+	// Try retrieving credentials from the plugin resource first
+	openaiPlugin, err := proxyClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		Name:        "openai-default",
+		WithSecrets: true,
+	})
+	if err == nil {
+		creds := openaiPlugin.Credentials.GetBearerToken()
+		if creds == nil {
+			return nil, trace.BadParameter("malformed credentials")
+		}
+		var token string
+		if creds.TokenFile != "" {
+			tokenBytes, err := os.ReadFile(creds.TokenFile)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			token = strings.TrimSpace(string(tokenBytes))
+		} else {
+			token = creds.Token
+		}
+		client := ai.NewClient(token)
+		chat := client.NewChat(sctx.cfg.User)
+		return chat, nil
+	}
+	log.WithError(err).Debug("Failed to retrieve OpenAI credentials from a plugin resource, will use static config")
+
 	prefs, err := proxyClient.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
