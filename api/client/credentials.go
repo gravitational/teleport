@@ -25,7 +25,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils"
@@ -49,7 +48,7 @@ type Credentials interface {
 // LoadTLS is used to load Credentials directly from a *tls.Config.
 //
 // TLS creds can only be used to connect directly to a Teleport Auth server.
-func LoadTLS(tlsConfig *tls.Config) Credentials {
+func LoadTLS(tlsConfig *tls.Config, clusterName string) Credentials {
 	return &tlsConfigCreds{
 		tlsConfig: tlsConfig,
 	}
@@ -57,7 +56,8 @@ func LoadTLS(tlsConfig *tls.Config) Credentials {
 
 // tlsConfigCreds use a defined *tls.Config to provide client credentials.
 type tlsConfigCreds struct {
-	tlsConfig *tls.Config
+	tlsConfig   *tls.Config
+	clusterName string
 }
 
 // Dialer is used to dial a connection to an Auth server.
@@ -70,7 +70,7 @@ func (c *tlsConfigCreds) TLSConfig() (*tls.Config, error) {
 	if c.tlsConfig == nil {
 		return nil, trace.BadParameter("tls config is nil")
 	}
-	return configureTLS(c.tlsConfig), nil
+	return configureTLS(c.tlsConfig, c.clusterName), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -89,19 +89,21 @@ func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 // The certificates' time to live can be specified with --ttl.
 //
 // See the example below for usage.
-func LoadKeyPair(certFile, keyFile, caFile string) Credentials {
+func LoadKeyPair(certFile, keyFile, caFile string, clusterName string) Credentials {
 	return &keypairCreds{
-		certFile: certFile,
-		keyFile:  keyFile,
-		caFile:   caFile,
+		certFile:    certFile,
+		keyFile:     keyFile,
+		caFile:      caFile,
+		clusterName: clusterName,
 	}
 }
 
 // keypairCreds use keypair certificates to provide client credentials.
 type keypairCreds struct {
-	certFile string
-	keyFile  string
-	caFile   string
+	certFile    string
+	keyFile     string
+	caFile      string
+	clusterName string
 }
 
 // Dialer is used to dial a connection to an Auth server.
@@ -129,7 +131,7 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 	return configureTLS(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      pool,
-	}), nil
+	}, c.clusterName), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -150,9 +152,10 @@ func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 // The identity file's time to live can be specified with --ttl.
 //
 // See the example below for usage.
-func LoadIdentityFile(path string) Credentials {
+func LoadIdentityFile(path string, clusterName string) Credentials {
 	return &identityCredsFile{
-		path: path,
+		path:        path,
+		clusterName: clusterName,
 	}
 }
 
@@ -160,6 +163,7 @@ func LoadIdentityFile(path string) Credentials {
 type identityCredsFile struct {
 	identityFile *identityfile.IdentityFile
 	path         string
+	clusterName  string
 }
 
 // Dialer is used to dial a connection to an Auth server.
@@ -178,7 +182,7 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return configureTLS(tlsConfig), nil
+	return configureTLS(tlsConfig, c.clusterName), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -221,9 +225,10 @@ func (c *identityCredsFile) load() error {
 // The identity file's time to live can be specified with --ttl.
 //
 // See the example below for usage.
-func LoadIdentityFileFromString(content string) Credentials {
+func LoadIdentityFileFromString(content string, clusterName string) Credentials {
 	return &identityCredsString{
-		content: content,
+		content:     content,
+		clusterName: clusterName,
 	}
 }
 
@@ -231,6 +236,7 @@ func LoadIdentityFileFromString(content string) Credentials {
 type identityCredsString struct {
 	identityFile *identityfile.IdentityFile
 	content      string
+	clusterName  string
 }
 
 // Dialer is used to dial a connection to an Auth server.
@@ -249,7 +255,7 @@ func (c *identityCredsString) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return configureTLS(tlsConfig), nil
+	return configureTLS(tlsConfig, c.clusterName), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -340,7 +346,7 @@ func (c *profileCreds) TLSConfig() (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return configureTLS(tlsConfig), nil
+	return configureTLS(tlsConfig, c.profile.SiteName), nil
 }
 
 // SSHClientConfig returns SSH configuration.
@@ -370,7 +376,7 @@ func (c *profileCreds) load() error {
 	return nil
 }
 
-func configureTLS(c *tls.Config) *tls.Config {
+func configureTLS(c *tls.Config, clusterName string) *tls.Config {
 	tlsConfig := c.Clone()
 	tlsConfig.NextProtos = utils.Deduplicate(append(tlsConfig.NextProtos, http2.NextProtoTLS))
 
@@ -378,7 +384,7 @@ func configureTLS(c *tls.Config) *tls.Config {
 	// on all Teleport issued certificates. This is needed because we
 	// don't always know which host we will be connecting to.
 	if tlsConfig.ServerName == "" {
-		tlsConfig.ServerName = constants.APIDomain
+		tlsConfig.ServerName = utils.EncodeClusterName(clusterName)
 	}
 
 	// This logic still appears to be necessary to force client to always send
