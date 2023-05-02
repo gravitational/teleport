@@ -713,7 +713,9 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 }
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
+	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.
