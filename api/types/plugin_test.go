@@ -72,7 +72,7 @@ func TestPluginOpenAIValidation(t *testing.T) {
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "credentials must be set")
+				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
 			},
 		},
 		{
