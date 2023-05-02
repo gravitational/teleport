@@ -2410,7 +2410,8 @@ func (h *Handler) getClusterLocks(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2436,7 +2437,8 @@ func (h *Handler) createClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	var req *createLockReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2483,7 +2485,8 @@ func (h *Handler) deleteClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2588,6 +2591,7 @@ func (h *Handler) siteNodeConnect(
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		AuthProvider:       clt,
+		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
