@@ -11982,7 +11982,8 @@ proto.prehog.v1alpha.CTA = {
   CTA_ACTIVE_SESSIONS: 2,
   CTA_ACCESS_REQUESTS: 3,
   CTA_PREMIUM_SUPPORT: 4,
-  CTA_TRUSTED_DEVICES: 5
+  CTA_TRUSTED_DEVICES: 5,
+  CTA_UPGRADE_BANNER: 6
 };
 
 goog.object.extend(exports, proto.prehog.v1alpha);
