@@ -40,7 +40,7 @@ cluster to Teleport.
   add-on](https://docs.aws.amazon.com/eks/latest/userguide/managing-ebs-csi.html).
 
   To tell whether you have dynamic volume provisioning enabled, check for the
-  presence of a `StorageClass`:
+  presence of a default `StorageClass`:
 
   ```code
   $ kubectl get storageclasses
@@ -48,10 +48,19 @@ cluster to Teleport.
 
   <Details title="Launching a fresh EKS cluster with eksctl?" open="false">
 
-  If you are using [eksctl](https://eksctl.io/) to launch a fresh Amazon Elastic
-  Kubernetes Service cluster in order to follow this guide, the following
-  example configuration sets up the EBS CSI driver add-on. Update the cluster
-  name, version, node group size, and region as required:
+  If you are using `eksctl` to launch a fresh Amazon Elastic Kubernetes Service
+  cluster in order to follow this guide, the following example configuration
+  sets up the EBS CSI driver add-on. 
+
+  <Notice type="danger">
+
+  The example configuration below assumes that you are familiar with how `eksctl`
+  works, are not using your EKS cluster in production, and understand that you
+  are proceeding at your own risk.
+
+  </Notice>
+
+  Update the cluster name, version, node group size, and region as required:
 
   ```yaml
     apiVersion: eksctl.io/v1alpha5
