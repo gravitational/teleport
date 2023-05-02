@@ -15,9 +15,13 @@
 package types_test
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -103,4 +107,35 @@ func TestMFADevice_CheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMFADevice_Unmarshal(t *testing.T) {
+	const raw = `{"kind":"mfa_device","version":"v1","metadata":{"Name":"fake","Namespace":"default"},"id":"123","addedAt":"2023-05-01T19:37:20Z","lastUsed":"2023-05-01T19:37:20Z","webauthn":{"credentialId":"bGxhbWE=","publicKeyCbor":"bGxhbWE=","attestationType":"none","aaguid":"bGxhbWE=","attestationObject":"bGxhbWE=","credentialRpId":"llama.com","fakeField":"this-does-exist"}}`
+	var d types.MFADevice
+	require.NoError(t, json.Unmarshal([]byte(raw), &d))
+
+	expectedTime, err := time.Parse(time.RFC3339, "2023-05-01T19:37:20Z")
+	require.NoError(t, err)
+	expected := types.MFADevice{
+		Kind:     types.KindMFADevice,
+		Version:  types.V1,
+		Id:       "123",
+		AddedAt:  expectedTime,
+		LastUsed: expectedTime,
+		Metadata: types.Metadata{
+			Name:      "fake",
+			Namespace: defaults.Namespace,
+		},
+		Device: &types.MFADevice_Webauthn{
+			Webauthn: &types.WebauthnDevice{
+				CredentialId:      []byte("llama"),
+				PublicKeyCbor:     []byte("llama"),
+				AttestationType:   "none",
+				AttestationObject: []byte("llama"),
+				Aaguid:            []byte("llama"),
+				CredentialRpId:    "llama.com",
+			},
+		},
+	}
+	require.Equal(t, expected, d)
 }
