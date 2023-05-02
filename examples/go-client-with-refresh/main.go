@@ -7,14 +7,15 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
-	utils2 "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/utils"
+	teleUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/net/http2"
 	"golang.org/x/sys/unix"
+	"google.golang.org/grpc"
 	"os"
 	"os/signal"
 	"sync"
@@ -60,7 +61,9 @@ func (d *dynamicCredential) TLSConfig() (*tls.Config, error) {
 		// GetClientCertificate is used instead of Certificates so we can
 		// dynamically update this.
 		Certificates: nil,
-		ServerName:   utils2.EncodeClusterName(d.clusterName),
+		// Encoded cluster name required to ensure requests are routed to the
+		// correct cloud tenants.
+		ServerName: utils.EncodeClusterName(d.clusterName),
 		GetClientCertificate: func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			d.log.Info("GetClientCertificate() called")
 			d.mu.RLock()
@@ -111,7 +114,7 @@ func main() {
 	)
 	defer cancel()
 
-	log := utils.NewLogger()
+	log := teleUtils.NewLogger()
 	if err := run(ctx, log); err != nil {
 		log.Fatal(err)
 	}
@@ -137,6 +140,9 @@ func run(ctx context.Context, log logrus.FieldLogger) error {
 		Addrs: []string{proxyAddr},
 		Credentials: []client.Credentials{
 			cred,
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithReturnConnectionError(),
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		DialInBackground:           true,
