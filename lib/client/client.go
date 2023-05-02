@@ -543,7 +543,15 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 		if !check.Required {
-			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			log.Debug("MFA not required for access.")
+			// MFA is not required.
+			// SSH certs can be used without embedding the node name.
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+				return key, nil
+			}
+			// All other targets need their name embedded in the cert for routing,
+			// fall back to non-MFA reissue.
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 		}
 	case proto.MFARequired_MFA_REQUIRED_YES:
 		// Proceed with the prompt for MFA below.

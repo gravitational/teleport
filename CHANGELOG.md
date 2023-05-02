@@ -1,5 +1,18 @@
 # Changelog
 
+## 12.3.0 (05/01/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Desktop Access
+  * Added support for automatic Windows user creation. [#25348](https://github.com/gravitational/teleport/pull/25348)
+* CLI
+  * Fixed MFA permission denied error from `tsh` for non-SSH protocols. [#25430](https://github.com/gravitational/teleport/pull/25430)
+* Terraform
+  * Fixed `AccessControlListNotSupported` error in HA terraform. [#25335](https://github.com/gravitational/teleport/pull/25335)
+* Device Trust
+  * Updated device trust audit events to have descriptive types. [#25320](https://github.com/gravitational/teleport/pull/25320)
+
 ## 12.2.5 (04/28/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
