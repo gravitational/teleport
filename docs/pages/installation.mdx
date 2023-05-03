@@ -14,9 +14,12 @@ If you are new to Teleport, we recommend following our
 
 <Admonition type="warning" title="Teleport client compatibility">
 
-When installing Teleport clients - `tsh`, `tctl`, and `tbot` - ensure to
-install the same major version as the Teleport cluster. For example, if the cluster is
-running Teleport 12, you should install a Teleport 12 client.
+For best results, Teleport clients (`tsh`, `tctl`, `tbot`)
+should be the same major version as the cluster they are
+connecting to. Teleport servers are compatible with clients
+that are on the same major version or one major version older.
+Teleport servers do not support clients that are on a newer
+major version.
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
