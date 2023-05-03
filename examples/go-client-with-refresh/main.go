@@ -2,124 +2,19 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
+	"fmt"
 	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/examples/go-client-with-refresh/dynamic"
 	teleUtils "github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/net/http2"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"os"
 	"os/signal"
-	"sync"
 	"time"
 )
-
-type dynamicIdentityFile struct {
-	mu      sync.RWMutex
-	tlsCert *tls.Certificate
-	pool    *x509.CertPool
-
-	log         logrus.FieldLogger
-	clusterName string
-}
-
-func NewDynamicIdentityFile(path string) (*dyanamicIdentityFile, error) {
-
-	return &dyanamicIdentityFile{}, nil
-}
-
-func (d *dynamicIdentityFile) LoadFromIdentityFile(id *identityfile.IdentityFile) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	cert, err := keys.X509KeyPair(id.Certs.TLS, id.PrivateKey)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	d.tlsCert = &cert
-
-	pool := x509.NewCertPool()
-	for _, caCerts := range id.CACerts.TLS {
-		if !pool.AppendCertsFromPEM(caCerts) {
-			return trace.BadParameter("invalid CA cert PEM")
-		}
-	}
-	d.pool = pool
-	return nil
-}
-
-func (d *dynamicIdentityFile) Dialer(cfg client.Config) (client.ContextDialer, error) {
-	// Returning a dialer isn't necessary for this credential.
-	return nil, trace.NotImplemented("no dialer")
-}
-
-func (d *dynamicIdentityFile) TLSConfig() (*tls.Config, error) {
-	cfg := &tls.Config{
-		// GetClientCertificate is used instead of the static Certificates
-		// field.
-		Certificates: nil,
-		// Encoded cluster name required to ensure requests are routed to the
-		// correct cloud tenants.
-		ServerName: utils.EncodeClusterName(d.clusterName),
-		GetClientCertificate: func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			// We
-			d.log.Debug("GetClientCertificate called")
-			d.mu.RLock()
-			defer d.mu.RUnlock()
-			return d.tlsCert, nil
-		},
-		// InsecureSkipVerify is forced true to ensure that only our
-		// VerifyConnection callback is used to verify the server's presented
-		// certificate.
-		InsecureSkipVerify: true,
-		VerifyConnection: func(state tls.ConnectionState) error {
-			// This VerifyConnection callback is based on the standard library
-			// implementation of verifyServerCertificate in the tls package.
-			// We provide our own implementation so we can dynamically handle
-			// a changing CA Roots pool.
-			d.log.WithFields(logrus.Fields{
-				"negotiated_protocol": state.NegotiatedProtocol,
-				"server_name":         state.ServerName,
-			}).Debug("VerifyConnection called")
-			d.mu.RLock()
-			rootPool := d.pool.Clone()
-			d.mu.RUnlock()
-
-			opts := x509.VerifyOptions{
-				DNSName:       state.ServerName,
-				Intermediates: x509.NewCertPool(),
-				Roots:         rootPool,
-			}
-			for _, cert := range state.PeerCertificates[1:] {
-				// Whilst we don't currently use intermediate certs at
-				// Teleport, including this here means that we are
-				// future-proofed in case we do.
-				opts.Intermediates.AddCert(cert)
-			}
-			_, err := state.PeerCertificates[0].Verify(opts)
-			return err
-		},
-		NextProtos: []string{http2.NextProtoTLS},
-	}
-
-	return cfg, nil
-}
-
-func (d *dyanamicIdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
-	// For now, SSH Client Config is disabled until I can wrap my head around
-	// the complexities introduced by TLS over SSH.
-	// This means the auth server must be available directly or using
-	// the ALPN/SNI.
-	return nil, trace.NotImplemented("no ssh config")
-}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(
@@ -131,72 +26,53 @@ func main() {
 
 	log := teleUtils.NewLogger()
 	if err := run(ctx, log); err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
 
-const dynamicCred = true
-
 func run(ctx context.Context, log logrus.FieldLogger) error {
-	proxyAddr := os.Getenv("PROXY_ADDR")
-	identityFilePath := os.Getenv("TELEPORT_IDENTITY_FILE")
-	clusterName := os.Getenv("CLUSTER_NAME")
+	proxyAddr := os.Getenv("PROXY_ADDR")                    // e.g noah.teleport.sh:443
+	identityFilePath := os.Getenv("TELEPORT_IDENTITY_FILE") // e.g ./identity-file
+	clusterName := os.Getenv("CLUSTER_NAME")                // e.g noah.teleport.sh
 
-	var credential client.Credentials
-	if dynamicCred == true {
-		cred := &dyanamicIdentityFile{
-			log:         log,
-			clusterName: clusterName,
-		}
-		idFile, err := identityfile.ReadFile(identityFilePath)
-		if err != nil {
-			return trace.Wrap(err, "reading identity file")
-		}
-		if err := cred.LoadFromIdentityFile(idFile); err != nil {
-			return trace.Wrap(err, "loading identity file")
-		}
-		go func() {
-			// This goroutine loop could be replaced with a file watcher.
-			for {
-				time.Sleep(time.Second * 30)
-				idFile, err := identityfile.ReadFile(identityFilePath)
-				if err != nil {
-					log.WithError(err).Warn("Failed to re-read identity file")
-					continue
-				}
-				if err := cred.LoadFromIdentityFile(idFile); err != nil {
-					log.WithError(err).Warn("Failed to re-load identity file")
-					continue
-				}
-				log.Info("Succeeded in re-reading and re-loading identity file from disk. New client connections will use this identity.")
+	cred, err := dynamic.NewDynamicIdentityFile(identityFilePath, clusterName)
+	go func() {
+		// This goroutine loop could be replaced with a file watcher.
+		for {
+			time.Sleep(time.Second * 30)
+			if err := cred.Reload(); err != nil {
+				log.WithError(err).Warn("Failed to reload identity file")
+				continue
 			}
-		}()
-		credential = cred
-	} else {
-		credential = client.LoadIdentityFile(identityFilePath)
-		credential = client.LoadProfile("", "")
-	}
+			log.Info("Successfully reloaded identity file from disk. New client connections will use this identity.")
+		}
+	}()
 
 	cfg := client.Config{
 		Addrs: []string{proxyAddr},
 		Credentials: []client.Credentials{
-			credential,
+			cred,
 		},
 		DialOpts: []grpc.DialOption{
-			// grpc.WithReturnConnectionError(),
+			// Provides better feedback on connection errors
+			grpc.WithReturnConnectionError(),
 		},
+		// ALPNSNIAuthDialClusterName allows the client to connect to the
+		// auth server through the proxy.
 		ALPNSNIAuthDialClusterName: clusterName,
-		DialInBackground:           true,
 	}
 	clt, err := client.New(ctx, cfg)
 	if err != nil {
-		return trace.Wrap(err, "creating client")
+		return trace.Wrap(err)
 	}
 	defer clt.Close()
 
 	return monitorLoop(ctx, log, clt)
 }
 
+// This loop replicates some work that needs to run continously against the
+// Teleport API and have access to an up to date client.
 func monitorLoop(
 	ctx context.Context,
 	log logrus.FieldLogger,
