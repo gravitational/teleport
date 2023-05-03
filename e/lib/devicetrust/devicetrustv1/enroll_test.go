@@ -143,14 +143,14 @@ func TestService_EnrollDevice(t *testing.T) {
 
 	wantEnrollFailure := []wantEvent{
 		{
-			Type:     events.DeviceEvent,
+			Type:     events.DeviceEnrollEvent,
 			Code:     events.DeviceEnrollCode,
 			WantFail: true,
 		},
 	}
 	wantEnrollSuccess := []wantEvent{
 		{
-			Type: events.DeviceEvent,
+			Type: events.DeviceEnrollEvent,
 			Code: events.DeviceEnrollCode,
 		},
 	}
@@ -421,6 +421,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			defer func() {
 				if assertAudit {
 					assertEvents(t, emitter.Events(), test.wantAuditEvents)
+					verifyUserTrustedDevice(t, emitter.Events())
 				}
 			}()
 

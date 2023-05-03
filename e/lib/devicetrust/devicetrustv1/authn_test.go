@@ -169,10 +169,11 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
 				{
-					Type: events.DeviceEvent,
+					Type: events.DeviceAuthenticateEvent,
 					Code: events.DeviceAuthenticateCode,
 				},
 			})
+			verifyUserTrustedDevice(t, emitter.Events())
 		})
 	}
 }
@@ -378,7 +379,7 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
 				{
-					Type:     events.DeviceEvent,
+					Type:     events.DeviceAuthenticateEvent,
 					Code:     events.DeviceAuthenticateCode,
 					WantFail: true,
 				},

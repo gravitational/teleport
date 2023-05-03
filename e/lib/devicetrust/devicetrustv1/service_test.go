@@ -9,9 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -436,13 +438,13 @@ func TestService_CreateDevice(t *testing.T) {
 			// Verify audit log.
 			wantEvents := []wantEvent{
 				{
-					Type: events.DeviceEvent,
+					Type: events.DeviceCreateEvent,
 					Code: events.DeviceCreateCode,
 				},
 			}
 			if test.req.CreateEnrollToken {
 				wantEvents = append(wantEvents, wantEvent{
-					Type: events.DeviceEvent,
+					Type: events.DeviceEnrollTokenCreateEvent,
 					Code: events.DeviceEnrollTokenCreateCode,
 				})
 			}
@@ -794,7 +796,7 @@ func TestService_UpdateDevice(t *testing.T) {
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
 				{
-					Type: events.DeviceEvent,
+					Type: events.DeviceUpdateEvent,
 					Code: events.DeviceUpdateCode,
 				},
 			})
@@ -976,7 +978,7 @@ func TestService_UpsertDevice(t *testing.T) {
 				}
 			},
 			wantEvents: []wantEvent{
-				{Type: events.DeviceEvent, Code: events.DeviceCreateCode},
+				{Type: events.DeviceCreateEvent, Code: events.DeviceCreateCode},
 			},
 		},
 		{
@@ -1000,7 +1002,7 @@ func TestService_UpsertDevice(t *testing.T) {
 				}
 			},
 			wantEvents: []wantEvent{
-				{Type: events.DeviceEvent, Code: events.DeviceCreateCode},
+				{Type: events.DeviceCreateEvent, Code: events.DeviceCreateCode},
 			},
 		},
 		{
@@ -1017,7 +1019,7 @@ func TestService_UpsertDevice(t *testing.T) {
 				}
 			},
 			wantEvents: []wantEvent{
-				{Type: events.DeviceEvent, Code: events.DeviceUpdateCode},
+				{Type: events.DeviceUpdateEvent, Code: events.DeviceUpdateCode},
 			},
 		},
 		{
@@ -1039,7 +1041,7 @@ func TestService_UpsertDevice(t *testing.T) {
 				}
 			},
 			wantEvents: []wantEvent{
-				{Type: events.DeviceEvent, Code: events.DeviceUpdateCode},
+				{Type: events.DeviceUpdateEvent, Code: events.DeviceUpdateCode},
 			},
 		},
 	}
@@ -1224,7 +1226,7 @@ func TestService_DeleteDevice(t *testing.T) {
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
 				{
-					Type: events.DeviceEvent,
+					Type: events.DeviceDeleteEvent,
 					Code: events.DeviceDeleteCode,
 				},
 			})
@@ -1540,17 +1542,17 @@ func TestService_BulkCreateDevices(t *testing.T) {
 	wantEvents := []wantEvent{
 		// llama
 		{
-			Type: events.DeviceEvent,
+			Type: events.DeviceCreateEvent,
 			Code: events.DeviceCreateCode,
 		},
 		// alpaca
 		{
-			Type: events.DeviceEvent,
+			Type: events.DeviceCreateEvent,
 			Code: events.DeviceCreateCode,
 		},
 		// camel
 		{
-			Type: events.DeviceEvent,
+			Type: events.DeviceCreateEvent,
 			Code: events.DeviceCreateCode,
 		},
 	}
@@ -1623,7 +1625,7 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
 				{
-					Type: events.DeviceEvent,
+					Type: events.DeviceEnrollTokenCreateEvent,
 					Code: events.DeviceEnrollTokenCreateCode,
 				},
 			})
@@ -1646,9 +1648,11 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		authorizedUsers: []string{adminUser},
 	}
 
+	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithAuthorizer(authorizer),
+		testenv.WithEmitter(emitter),
 	)
 	defer env.Close()
 	devices := env.DevicesClient
@@ -1697,6 +1701,8 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	runTests := func(t *testing.T, tests []testCase) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				emitter.Reset()
+
 				token, err := devices.CreateDeviceEnrollToken(withUser(ctx, test.user), test.req)
 				if !test.assertErr(err) {
 					t.Errorf("CreateDeviceEnrollToken: assertErr failed, err=%v (%T)", err, err)
@@ -1710,6 +1716,14 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 				if token.GetToken() == "" {
 					t.Errorf("CreateDeviceEnrollToken got=%v, want non-empty", token)
 				}
+
+				// Verify audit events.
+				assertEvents(t, emitter.Events(), []wantEvent{
+					{
+						Type: events.DeviceEnrollTokenCreateEvent,
+						Code: events.DeviceEnrollTokenCreateCode,
+					},
+				})
 			})
 		}
 	}
@@ -2052,24 +2066,40 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 
 	for i, g := range got {
 		w := want[i]
+
+		// Sanity check type/code.
+		switch {
+		case g.GetType() == "device":
+			t.Errorf("Audit: got[%v].Type = %v is the legacy, catch-all event type", i, g.GetType())
+		case !strings.HasPrefix(g.GetType(), "device."):
+			t.Errorf(`Audit: got[%v].Type = %v does not begin with "device.", it could be an event code instead`, i, g.GetType())
+		}
+		if !strings.HasPrefix(g.GetCode(), "TV") {
+			t.Errorf(`Audit: got[%v].Code = %v does not begin with "TV", is it a device event?`, i, g.GetType())
+		}
+
 		if g.GetType() != w.Type {
 			t.Errorf("Audit: event mismatch: got[%v].Type = %v, want %v", i, g.GetType(), w.Type)
 		}
 		if g.GetCode() != w.Code {
 			t.Errorf("Audit: event mismatch: got[%v].Code = %v, want %v", i, g.GetCode(), w.Code)
 		}
-		if g.GetType() != events.DeviceEvent {
-			continue
-		}
 
-		devEvent, ok := g.(*apievents.DeviceEvent)
+		devEvent, ok := g.(*apievents.DeviceEvent2)
 		switch {
 		case !ok:
 			t.Errorf("Audit: event mismatch: got[%v] is not a DeviceEvent: %T", i, devEvent)
-		case devEvent.Status == nil:
-			t.Errorf("Audit: event mismatch: got[%v].Status is nil, want non-nil", i)
-		case devEvent.Status.Success == w.WantFail:
+		case devEvent.Success == w.WantFail:
 			t.Errorf("Audit: event mismatch: got[%v].Status.Success = %v, want %v", i, devEvent.Status.Success, !w.WantFail)
+		case gogoproto.Equal(&devEvent.UserMetadata, &apievents.UserMetadata{}):
+			t.Errorf("Audit: event mismatch: got[%v].User has no fields set", i)
+		case !devEvent.Success:
+			// Abort here, failures can't always inform the device.
+			return
+		case devEvent.Device == nil:
+			t.Errorf("Audit: event mismatch: got[%v].Device is nil, want non-nil", i)
+		case devEvent.Device.DeviceId == "":
+			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId is "", want non-empty`, i)
 		}
 	}
 }

@@ -101,30 +101,30 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
+			Type: events.DeviceCreateEvent,
 			Code: events.DeviceCreateCode,
 		},
-		Status: &apievents.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
-		Device: getDeviceMetadata(dev),
-		User:   getUserMetadata(ctx),
+		Device:       getDeviceMetadata(dev),
+		UserMetadata: getUserMetadata(ctx),
 	})
 
 	if req.CreateEnrollToken {
 		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.Id)
-		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
-				Type: events.DeviceEvent,
+				Type: events.DeviceEnrollTokenCreateEvent,
 				Code: events.DeviceEnrollTokenCreateCode,
 			},
-			Status: &apievents.Status{
+			Status: apievents.Status{
 				Success: err == nil,
 			},
-			Device: getDeviceMetadata(dev),
-			User:   getUserMetadata(ctx),
+			Device:       getDeviceMetadata(dev),
+			UserMetadata: getUserMetadata(ctx),
 		})
 		if err != nil {
 			s.logger.
@@ -167,16 +167,16 @@ func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
+			Type: events.DeviceUpdateEvent,
 			Code: events.DeviceUpdateCode,
 		},
-		Status: &apievents.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
-		Device: getDeviceMetadata(updated),
-		User:   getUserMetadata(ctx),
+		Device:       getDeviceMetadata(updated),
+		UserMetadata: getUserMetadata(ctx),
 	})
 
 	return updated, nil
@@ -213,17 +213,17 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 	}
 	dev := req.Device
 
-	emitEvent := func(code string, dev *devicepb.Device) {
-		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+	emitEvent := func(eventType, eventCode string, dev *devicepb.Device) {
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
-				Type: events.DeviceEvent,
-				Code: code,
+				Type: eventType,
+				Code: eventCode,
 			},
-			Status: &apievents.Status{
+			Status: apievents.Status{
 				Success: true,
 			},
-			Device: getDeviceMetadata(dev),
-			User:   getUserMetadata(ctx),
+			Device:       getDeviceMetadata(dev),
+			UserMetadata: getUserMetadata(ctx),
 		})
 	}
 
@@ -246,7 +246,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 		})
 		switch {
 		case err == nil:
-			emitEvent(events.DeviceUpdateCode, updated)
+			emitEvent(events.DeviceUpdateEvent, events.DeviceUpdateCode, updated)
 			return updated, nil
 		case !trace.IsNotFound(err):
 			return nil, trace.Wrap(err)
@@ -258,7 +258,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	emitEvent(events.DeviceCreateCode, created)
+	emitEvent(events.DeviceCreateEvent, events.DeviceCreateCode, created)
 
 	return created, nil
 }
@@ -271,19 +271,19 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 	if err := s.storage.DeleteDevice(ctx, req.DeviceId); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
+			Type: events.DeviceDeleteEvent,
 			Code: events.DeviceDeleteCode,
 		},
-		Status: &apievents.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
 		Device: &apievents.DeviceMetadata{
 			// Without extra queries, the device ID is all we got here.
 			DeviceId: req.DeviceId,
 		},
-		User: getUserMetadata(ctx),
+		UserMetadata: getUserMetadata(ctx),
 	})
 
 	return &emptypb.Empty{}, nil
@@ -386,18 +386,18 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 		if created.GetId() == "" {
 			continue
 		}
-		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
-				Type: events.DeviceEvent,
+				Type: events.DeviceCreateEvent,
 				Code: events.DeviceCreateCode,
 			},
-			Status: &apievents.Status{
+			Status: apievents.Status{
 				Success: true,
 			},
 			Device: &apievents.DeviceMetadata{
 				DeviceId: created.Id,
 			},
-			User: getUserMetadata(ctx),
+			UserMetadata: getUserMetadata(ctx),
 		})
 	}
 
@@ -428,6 +428,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	// - User failed verb check
 	// - User succeeded verb check, but only supplied auto-enroll information.
 	//   (Otherwise, favor legacy behavior.)
+	var devMetadata *apievents.DeviceMetadata
 	var token *devicepb.DeviceEnrollToken
 	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && dtent.AutoEnrollEnabled) {
 		var dev *devicepb.Device
@@ -435,25 +436,33 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		// err verified below
 		token = dev.GetEnrollToken() // This is safe even if `dev` is nil, proto getters don't panic.
 		err = s.redactTokenErr(dev, authCtx.User.GetName(), checkErr, err)
+
+		// Audit information.
+		devMetadata = getDeviceMetadata(dev)
 	} else {
 		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
 		// err verified below
+
+		// Audit information.
+		devMetadata = &apievents.DeviceMetadata{
+			DeviceId: req.DeviceId,
+		}
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
+			Type: events.DeviceEnrollTokenCreateEvent,
 			Code: events.DeviceEnrollTokenCreateCode,
 		},
-		Status: &apievents.Status{
+		Status: apievents.Status{
 			Success: true,
 		},
-		Device: &apievents.DeviceMetadata{
-			DeviceId: req.DeviceId,
-		},
-		User: getUserMetadata(ctx),
+		Device: devMetadata,
+		// Don't log the user TrustedDevice here, they didn't pass a device
+		// challenge yet.
+		UserMetadata: getUserMetadata(ctx),
 	})
 
 	return token, nil
@@ -500,16 +509,26 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		logger:  s.logger,
 		storage: s.storage,
 		auditCallback: func(dev *devicepb.Device, err error) {
-			s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+			success := err == nil
+			devMetadata := getDeviceMetadata(dev)
+			userMetadata := getUserMetadata(ctx)
+
+			// Manually assign the device in use, if successful.
+			// At this stage the device is not in the user certificate.
+			if success {
+				userMetadata.TrustedDevice = devMetadata
+			}
+
+			s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 				Metadata: apievents.Metadata{
-					Type: events.DeviceEvent,
+					Type: events.DeviceEnrollEvent,
 					Code: events.DeviceEnrollCode,
 				},
-				Status: &apievents.Status{
-					Success: err == nil,
+				Status: apievents.Status{
+					Success: success,
 				},
-				Device: getDeviceMetadata(dev),
-				User:   getUserMetadata(ctx),
+				Device:       devMetadata,
+				UserMetadata: userMetadata,
 			})
 		},
 	}
@@ -565,16 +584,26 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			return certs, trace.Wrap(err)
 		},
 		auditCallback: func(dev *devicepb.Device, err error) {
-			s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+			success := err == nil
+			devMetadata := getDeviceMetadata(dev)
+			userMetadata := getUserMetadata(ctx)
+
+			// Manually assign the device in use, if successful.
+			// At this stage the device is not in the user certificate.
+			if success {
+				userMetadata.TrustedDevice = devMetadata
+			}
+
+			s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 				Metadata: apievents.Metadata{
-					Type: events.DeviceEvent,
+					Type: events.DeviceAuthenticateEvent,
 					Code: events.DeviceAuthenticateCode,
 				},
-				Status: &apievents.Status{
-					Success: err == nil,
+				Status: apievents.Status{
+					Success: success,
 				},
-				Device: getDeviceMetadata(dev),
-				User:   getUserMetadata(ctx),
+				Device:       devMetadata,
+				UserMetadata: userMetadata,
 			})
 		},
 	}
@@ -650,7 +679,6 @@ func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
 	}
 }
 
-func getUserMetadata(ctx context.Context) *apievents.UserMetadata {
-	m := authz.ClientUserMetadata(ctx)
-	return &m
+func getUserMetadata(ctx context.Context) apievents.UserMetadata {
+	return authz.ClientUserMetadata(ctx)
 }
