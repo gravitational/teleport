@@ -116,3 +116,8 @@ func GetAnyHeader(header http.Header, keys ...string) string {
 	}
 	return ""
 }
+
+// HTTPDoClient is an interface that defines the Do function of http.Client.
+type HTTPDoClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
