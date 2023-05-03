@@ -18,8 +18,9 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"strings"
 
@@ -170,7 +171,8 @@ top:
 
 		// if we can parse it, return the parsed payload, otherwise return a non-streaming message
 		var c CompletionCommand
-		err = json.Unmarshal([]byte(payload), &c)
+		fmt.Printf("Command payload: %s", payload)
+		err = yaml.Unmarshal([]byte(payload), &c)
 		switch err {
 		case nil:
 			return &c, nil
