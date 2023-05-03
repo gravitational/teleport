@@ -37,6 +37,11 @@ const cfg = {
 
     // device trust
     deviceTrust: `/web/devices`,
+
+    // billing
+    billingSummary: '/web/cluster/:clusterId/billing-summary',
+    paymentsInvoices: '/web/cluster/:clusterId/payments-invoices',
+    invoiceSettings: '/web/cluster/:clusterId/invoice-settings',
   },
 
   api: {
@@ -48,12 +53,17 @@ const cfg = {
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
-    billingPath: '/v1/enterprise/cloud/billing',
     cyclesPath: '/v1/enterprise/cloud/cycles',
     invoicesPath: '/v1/enterprise/cloud/invoices',
     cardPath: '/v1/enterprise/cloud/card',
     accountPath: '/v1/enterprise/cloud/account',
+    addressPath: '/v1/enterprise/cloud/address',
+
     setupIntentPath: '/v1/enterprise/cloud/setupintent',
+    billingPath: '/v1/enterprise/cloud/billing',
+    billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
+    paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
+    invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',
@@ -76,6 +86,18 @@ const cfg = {
 
   getTrustedDevicesUrl(params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.devices, { ...params });
+  },
+
+  getBillingSummaryRoute(clusterId: string) {
+    return generatePath(cfg.routes.billingSummary, { clusterId });
+  },
+
+  getPaymentsInvoicesRoute(clusterId: string) {
+    return generatePath(cfg.routes.paymentsInvoices, { clusterId });
+  },
+
+  getInvoiceSettingsRoute(clusterId: string) {
+    return generatePath(cfg.routes.invoiceSettings, { clusterId });
   },
 
   getAccessRequestRoute(requestId?: string) {

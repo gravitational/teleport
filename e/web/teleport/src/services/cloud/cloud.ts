@@ -6,16 +6,24 @@ import {
   AddCardRequest,
   BillingCycle,
   BillingInformation,
+  BillingSummaryInformation,
   Invoice,
+  InvoiceSettingsInformation,
+  PaymentsInvoicesInformation,
   RemoveCardRequest,
   SetupIntent,
   UpdateAccountRequest,
+  StripeBillingAddressRequest,
   UpdateCardRequest,
 } from './types';
 
 class CloudService {
   updateAccount(req: UpdateAccountRequest) {
     return api.put(cfg.api.accountPath, req);
+  }
+
+  updateAddress(req: StripeBillingAddressRequest) {
+    return api.put(cfg.api.addressPath, req);
   }
 
   addCard(req: AddCardRequest) {
@@ -30,10 +38,6 @@ class CloudService {
     return api.put(cfg.api.cardPath, req);
   }
 
-  fetchBillingInformation(): Promise<BillingInformation> {
-    return api.get(cfg.api.billingPath).then(makeBillingInformation);
-  }
-
   fetchInvoices(): Promise<Invoice[]> {
     return api.get(cfg.api.invoicesPath).then((json: Invoice[]) => json || []);
   }
@@ -44,6 +48,28 @@ class CloudService {
 
   createSetupIntent(): Promise<SetupIntent> {
     return api.post(cfg.api.setupIntentPath).then(makeSetupIntentResponse);
+  }
+
+  fetchBillingInformation(): Promise<BillingInformation> {
+    return api.get(cfg.api.billingPath).then(makeBillingInformation);
+  }
+
+  fetchBillingSummaryInformation(): Promise<BillingSummaryInformation> {
+    return api
+      .get(cfg.api.billingSummaryPath)
+      .then(makeBillingSummaryInformation);
+  }
+
+  fetchPaymentsAndInvoices(): Promise<PaymentsInvoicesInformation> {
+    return api
+      .get(cfg.api.paymentsInvoicesPath)
+      .then(makePaymentsInvoicesInformation);
+  }
+
+  fetchInvoiceSettings(): Promise<InvoiceSettingsInformation> {
+    return api
+      .get(cfg.api.invoiceSettingsPath)
+      .then(makeInvoiceSettingsInformation);
   }
 }
 
@@ -62,6 +88,21 @@ function makeBillingInformation(json: any) {
   json.cardsList = json.cardsList || [];
 
   return json as BillingInformation;
+}
+
+function makeBillingSummaryInformation(json: any) {
+  return json as BillingSummaryInformation;
+}
+
+function makePaymentsInvoicesInformation(json: any) {
+  json.stripeInvoicesList = json.stripeInvoices || [];
+  json.stripeCardsList = json.stripeCards || [];
+
+  return json as PaymentsInvoicesInformation;
+}
+
+function makeInvoiceSettingsInformation(json: any) {
+  return json as InvoiceSettingsInformation;
 }
 
 function makeSetupIntentResponse(json: any) {

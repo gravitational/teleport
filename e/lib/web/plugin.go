@@ -186,9 +186,13 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
 		h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
 		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
+		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
+		h.GET("/enterprise/cloud/payments-invoices", p.withCloudAuth(p.getPaymentsInvoicesInformationHandle))
+		h.GET("/enterprise/cloud/invoice-settings", p.withCloudAuth(p.getInvoiceSettingsInformationHandle))
 		h.GET("/enterprise/cloud/cycles", p.withCloudAuth(p.listBillingCyclesHandle))
 		h.GET("/enterprise/cloud/invoices", p.withCloudAuth(p.listInvoicesHandle))
 		h.PUT("/enterprise/cloud/account", p.withCloudAuth(p.updateAccountHandle))
+		h.PUT("/enterprise/cloud/address", p.withCloudAuth(p.updateStripeAddressHandle))
 		h.POST("/enterprise/cloud/setupintent", p.withCloudAuth(p.createSetupIntentHandle))
 
 		// Upgrade window related endpoints.

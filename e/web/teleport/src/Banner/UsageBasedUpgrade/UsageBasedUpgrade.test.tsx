@@ -1,11 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from 'design/utils/testing';
-
-import { Elements } from '@stripe/react-stripe-js';
-import { loadStripe } from '@stripe/stripe-js';
-
-import TeleportContextProvider from 'teleport/TeleportContextProvider';
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { fireEvent, screen } from 'design/utils/testing';
 
 import { add, getUnixTime } from 'date-fns';
 
@@ -14,6 +8,7 @@ import { displayShortDate } from 'shared/services/loc/loc';
 import { BillingInformation } from 'e-teleport/services/cloud';
 import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
+import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 
 describe('usageBasedUpgrade', () => {
   let props: UsageBasedUpgradeProps;
@@ -154,14 +149,3 @@ const makeBillingInfo = (
     overrides
   );
 };
-
-function renderWithElementsAndContext(ui: React.ReactElement<any>) {
-  const sp = loadStripe('');
-  const ctx = createTeleportContext();
-
-  return render(
-    <Elements stripe={sp}>
-      <TeleportContextProvider ctx={ctx}>{ui}</TeleportContextProvider>
-    </Elements>
-  );
-}

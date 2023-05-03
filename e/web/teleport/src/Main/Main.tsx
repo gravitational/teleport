@@ -8,7 +8,7 @@ import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 import { getEnterpriseFeatures } from 'e-teleport/features';
-import { StripeLoader } from 'e-teleport/Billing/StripeLoader';
+import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
 import { BillingInformation } from 'e-teleport/services/cloud';
 
 export function MainE() {
@@ -47,6 +47,9 @@ export function MainE() {
     () => (
       <StripeLoader
         key={'stripe-upgrade'}
+        dataSource={(CloudService): Promise<BillingInformation> =>
+          CloudService.fetchBillingInformation()
+        }
         render={(
           data: BillingInformation,
           reload: () => void

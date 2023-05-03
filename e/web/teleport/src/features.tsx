@@ -1,23 +1,24 @@
 import React from 'react';
 import * as Icons from 'design/Icon';
+import { Profile, Chart } from 'design/Icon';
 import * as OSS from 'teleport/features';
 import {
-  NavigationCategory,
   ManagementSection,
+  NavigationCategory,
 } from 'teleport/Navigation/categories';
 import {
   AccessRequestsIcon,
+  DevicesIcon,
   DownloadsIcon,
   SupportIcon,
-  DevicesIcon,
 } from 'design/SVGIcon';
 
 import cfg from 'e-teleport/config';
-import { ReviewRequests, NewRequest } from 'e-teleport/Workflow';
+import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
 
-import type { TeleportFeature, FeatureFlags } from 'teleport/types';
+import type { FeatureFlags, TeleportFeature } from 'teleport/types';
 
 const AuthConnectors = React.lazy(
   () =>
@@ -47,6 +48,20 @@ const NewLock = React.lazy(
 
 const DeviceTrust = React.lazy(
   () => import(/* webpackChunkName: "e-devices" */ 'e-teleport/DeviceTrust')
+);
+
+const BillingSummaryE = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-billing-summary" */ 'e-teleport/Billing/Summary'
+    )
+);
+
+const PaymentsInvoicesE = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-payments-invoices" */ 'e-teleport/Billing/PaymentsAndInvoices'
+    )
 );
 
 // ****************************
@@ -119,6 +134,58 @@ class FeatureNewLock extends OSS.FeatureNewLock {
     // Enterprise version allows resources access requests
     // and device trusts to be locked.
     component: NewLock,
+  };
+}
+
+// ****************************
+//  Billing Features
+// ****************************
+
+export class FeatureSummary implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Billing;
+
+  route = {
+    title: 'Summary',
+    path: cfg.routes.billingSummary,
+    component: BillingSummaryE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
+    return flags.billing;
+  }
+
+  navigationItem = {
+    title: 'Summary',
+    icon: <Chart />,
+    getLink(clusterId: string) {
+      return cfg.getBillingSummaryRoute(clusterId);
+    },
+  };
+}
+
+export class FeaturePaymentsAndInvoices implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Billing;
+
+  route = {
+    title: 'Payments and Invoices',
+    path: cfg.routes.paymentsInvoices,
+    component: PaymentsInvoicesE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
+    return flags.billing;
+  }
+
+  navigationItem = {
+    title: 'Payments and Invoices',
+    icon: <Profile />,
+    getLink(clusterId: string) {
+      return cfg.getPaymentsInvoicesRoute(clusterId);
+    },
   };
 }
 
@@ -284,6 +351,10 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Activity
     new OSS.FeatureRecordings(),
     new OSS.FeatureAudit(),
+
+    // - Billing
+    new FeatureSummary(),
+    new FeaturePaymentsAndInvoices(),
 
     // - Clusters
     new OSS.FeatureClusters(),

@@ -1,40 +1,25 @@
 import React, { useState } from 'react';
-import { ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
-import Dialog, {
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from 'design/Dialog';
-import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
-
-import * as setupIntents from '@stripe/stripe-js/types/stripe-js/setup-intents';
+import { ButtonPrimary, Flex, Text } from 'design';
 
 import { displayShortDate } from 'shared/services/loc/loc';
+
 import { add, differenceInDays, fromUnixTime } from 'date-fns';
 
-import { CreditCard } from 'e-teleport/Banner/UsageBasedUpgrade/CreditCard';
-import { SetupIntent } from 'e-teleport/services/cloud';
-import useTeleport from 'e-teleport/useTeleportE';
-import {
-  NetworkState,
-  UsageBasedUpgradeProps,
-} from 'e-teleport/Banner/UsageBasedUpgrade/types';
+import { PaymentAddDialog } from 'e-teleport/Billing/Payment/PaymentAddDialog';
 
+import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
+
+// todo (michellescripts) we need to listen for payment methods being added, otherwise the banner won't reload; part of https://github.com/gravitational/cloud/issues/3536
 export const UsageBasedUpgrade = ({
   billingInfo: {
     productName,
-    usageBasedBilling,
+    stripeMissingPaymentMethod,
     stripeTrial,
     stripeTrialEnd,
-    stripeMissingPaymentMethod,
+    usageBasedBilling,
   },
   reload,
 }: UsageBasedUpgradeProps) => {
-  const ctx = useTeleport();
-  const stripe = useStripe();
-  const elements = useElements();
-
   const trialEndDate = fromUnixTime(stripeTrialEnd);
   const dayAfterTrial = displayShortDate(add(trialEndDate, { days: 1 }));
   // remaining days should include the final day in addition to the days between
@@ -45,46 +30,6 @@ export const UsageBasedUpgrade = ({
       : `Your trial expires in ${remainingDays} days`;
 
   const [open, setOpen] = useState<boolean>(false);
-  const [valid, setValid] = useState<boolean>(false);
-  const [networkState, setNetworkState] = useState<NetworkState>({});
-
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    setNetworkState({ status: 'loading', error: undefined });
-
-    // https://stripe.com/docs/api/setup_intents/create
-    ctx.cloudService
-      .createSetupIntent()
-      .then((data: SetupIntent) => {
-        addCard(data.clientSecret);
-      })
-      .catch((error: Error) => {
-        setNetworkState({ status: 'error', error: error });
-      });
-  };
-
-  const addCard = (clientSecret: string) => {
-    const data: setupIntents.ConfirmCardSetupData = {
-      payment_method: { card: elements.getElement(CardElement) },
-    };
-
-    // https://stripe.com/docs/js/setup_intents/confirm_card_setup
-    stripe
-      .confirmCardSetup(clientSecret, data)
-      .then(result => {
-        if (result.setupIntent != undefined) {
-          setOpen(false);
-          setNetworkState({ status: undefined });
-          reload();
-        }
-        if (result.error != undefined) {
-          setNetworkState({ status: 'error', error: result.error });
-        }
-      })
-      .catch(error => {
-        setNetworkState({ status: 'error', error: error });
-      });
-  };
 
   if (usageBasedBilling === false || stripeTrial === false) {
     return null;
@@ -112,34 +57,17 @@ export const UsageBasedUpgrade = ({
         </Text>
       )}
       {open && (
-        <Dialog open={open}>
-          <DialogHeader>
-            <DialogTitle>Upgrade to {productName}</DialogTitle>
-          </DialogHeader>
-          <DialogContent width="400px">
-            <p>
-              Add a payment method to automatically upgrade your account to the{' '}
-              {productName} plan when your trial ends on{' '}
-              {displayShortDate(trialEndDate)}
-            </p>
-            <CreditCard setValid={setValid} />
-          </DialogContent>
-          {networkState.error != undefined && <Text>{networkState.error}</Text>}
-          <DialogFooter>
-            <ButtonPrimary
-              disabled={!stripe || !valid || networkState.status == 'loading'}
-              onClick={handleClick}
-            >
-              Save And Close
-            </ButtonPrimary>
-            <ButtonSecondary
-              disabled={networkState.status == 'loading'}
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </ButtonSecondary>
-          </DialogFooter>
-        </Dialog>
+        <PaymentAddDialog
+          open={open}
+          reload={reload}
+          setOpen={setOpen}
+          makeDefault={stripeMissingPaymentMethod}
+          title={`Upgrade to ${productName}`}
+          description={`Add a payment method to automatically upgrade your account to the 
+          ${productName} plan when your trial ends on ${displayShortDate(
+            trialEndDate
+          )}`}
+        />
       )}
     </Flex>
   );

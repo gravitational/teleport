@@ -4,15 +4,9 @@ import cloud from './v1/tenants_pb';
 
 export type Account = cloud.Account.AsObject;
 
-export type BillingInformation = cloud.GetBillingInformationResponse.AsObject;
-
-export type SetupIntent = cloud.CreateSetupIntentResponse.AsObject;
-
 export type Status = 'PENDING' | 'PAID';
 
 export type Invoice = cloud.Invoice.AsObject;
-
-export type CreditCard = cloud.Card.AsObject;
 
 export type AddCardRequest = cloud.AddCardRequest.AsObject;
 
@@ -22,6 +16,29 @@ export type UpdateCardRequest = cloud.UpdateCardRequest.AsObject;
 
 export type UpdateAccountRequest = cloud.UpdateAccountRequest.AsObject;
 
+export type StripeBillingAddressRequest = cloud.StripeBillingAddress.AsObject;
+
 export type BillingCycle = cloud.BillingCycle.AsObject;
 
-export type BillingCycleStatus = 'started' | 'ended';
+export type SetupIntent = cloud.CreateSetupIntentResponse.AsObject;
+
+export type BillingInformation = cloud.GetBillingInformationResponse.AsObject;
+
+export type BillingSummaryInformation =
+  cloud.GetBillingSummaryInformationResponse.AsObject;
+
+export type PaymentsInvoicesInformation =
+  cloud.GetPaymentsInvoicesInformationResponse.AsObject;
+
+export type InvoiceSettingsInformation =
+  cloud.GetInvoiceSettingsInformationResponse.AsObject;
+
+export type StripeCard = cloud.Card.AsObject;
+
+export type StripeCardList = StripeCard[];
+
+export type StripeInvoiceList = cloud.Invoice.AsObject[];
+
+export type StripeInvoiceBillingAddress = cloud.StripeBillingAddress.AsObject;
+
+export type StripeUsage = cloud.StripeUsage.AsObject;

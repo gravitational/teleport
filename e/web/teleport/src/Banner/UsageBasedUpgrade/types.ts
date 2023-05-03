@@ -2,7 +2,7 @@ import { StripeError } from '@stripe/stripe-js';
 
 import { Dispatch, SetStateAction } from 'react';
 
-import { BillingInformation } from 'e-teleport/services/cloud';
+import { BillingInformation, StripeCard } from 'e-teleport/services/cloud';
 
 export type NetworkStatus = 'loading' | 'error' | 'success';
 
@@ -17,5 +17,6 @@ export interface UsageBasedUpgradeProps {
 }
 
 export interface CreditCardProps {
+  card?: StripeCard;
   setValid: Dispatch<SetStateAction<boolean>>;
 }

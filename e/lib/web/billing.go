@@ -86,8 +86,49 @@ func (p *Plugin) updateAccountHandle(w http.ResponseWriter, r *http.Request, ctx
 	return response, nil
 }
 
+func (p *Plugin) updateStripeAddressHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	var req *cloudapi.StripeBillingAddressRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := client.UpdateStripeAddress(r.Context(), req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return response, nil
+}
+
 func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
 	res, err := client.GetBillingInformation(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	res, err := client.GetBillingSummaryInformation(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) getPaymentsInvoicesInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	res, err := client.GetPaymentsInvoicesInformation(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) getInvoiceSettingsInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	res, err := client.GetInvoiceSettingsInformation(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

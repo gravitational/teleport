@@ -4,24 +4,37 @@ import { Elements } from '@stripe/react-stripe-js';
 
 import { loadStripe } from '@stripe/stripe-js';
 
-import { BillingInformation } from 'e-teleport/services/cloud';
+import CloudService, {
+  BillingInformation,
+  BillingSummaryInformation,
+  InvoiceSettingsInformation,
+  PaymentsInvoicesInformation,
+} from 'e-teleport/services/cloud';
 import useTeleport from 'e-teleport/useTeleportE';
 
 type DataSourceStatus = 'loading' | 'success' | 'error';
 
 interface StripeLoaderState {
   dataSourceStatus: DataSourceStatus;
-  data: BillingInformation;
+  data: Response;
   error?: Error;
 }
 
-type ChildRenderer = (
-  data: BillingInformation,
-  reload: () => void
-) => React.ReactNode;
+type Response =
+  | BillingInformation
+  | BillingSummaryInformation
+  | PaymentsInvoicesInformation
+  | InvoiceSettingsInformation;
+
+type ChildRenderer = (data: Response, reload: () => void) => React.ReactNode;
+
+type DataSource = (CloudService: CloudService) => Promise<Response>;
 
 interface StripeLoaderProps {
+  dataSource: DataSource;
   render: ChildRenderer;
+  errorRender?: (error: Error) => React.ReactNode;
+  loadingRender?: () => React.ReactNode;
 }
 
 const initialState: StripeLoaderState = {
@@ -32,10 +45,16 @@ const initialState: StripeLoaderState = {
 
 /**
  * StripeLoader retrieves billing information including the Stripe public key, and renders wrapped in a Stripe provider
+ * @param {DataSource} dataSource - is the cloud service endpoint to request data from
  * @param {ChildRenderer} render - renders the child with the billing information and reload props
+ * @param {() => React.ReactNode} errorRender - renders the error view
+ * @param {() => React.ReactNode} loadingRender - renders the loading view
  */
 export const StripeLoader = ({
+  dataSource,
   render,
+  errorRender,
+  loadingRender,
 }: StripeLoaderProps): React.ReactElement | null => {
   const ctx = useTeleport();
   const [loaderState, setLoaderState] = useState(initialState);
@@ -43,9 +62,8 @@ export const StripeLoader = ({
   const loadData = (): void => {
     setLoaderState(initialState);
 
-    ctx.cloudService
-      .fetchBillingInformation()
-      .then((data: BillingInformation) => {
+    dataSource(ctx.cloudService)
+      .then((data: Response) => {
         setLoaderState({
           dataSourceStatus: 'success',
           data: data,
@@ -60,12 +78,20 @@ export const StripeLoader = ({
       });
   };
 
-  useEffect(loadData, [render, ctx]);
+  useEffect(loadData, [render, ctx, dataSource]);
 
   switch (loaderState.dataSourceStatus) {
     case 'loading':
+      if (loadingRender) {
+        return <>{loadingRender()}</>;
+      }
+      // if no loading child is provided, don't expose to user
+      return null;
     case 'error':
-      // don't display loading or error states to the user
+      if (errorRender) {
+        return <>{errorRender(loaderState.error)}</>;
+      }
+      // if no error child is provided, don't expose to user
       return null;
     case 'success':
       return (
