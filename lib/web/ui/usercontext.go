@@ -102,8 +102,8 @@ type userACL struct {
 	DeviceTrust access `json:"deviceTrust"`
 	// Locks defines access to locking resources.
 	Locks access `json:"lock"`
-	// AssistTrust defines access to assist feature.
-	AssistTrust access `json:"assist"`
+	// Assist defines access to assist feature.
+	Assist access `json:"assist"`
 }
 
 type authType string
@@ -246,7 +246,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Integrations:            integrationsAccess,
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
-		AssistTrust:             assistAccess,
+		Assist:                  assistAccess,
 	}
 
 	// local user
