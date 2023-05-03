@@ -995,6 +995,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels,
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
+		r.Spec.Allow.GroupLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
