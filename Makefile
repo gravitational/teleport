@@ -452,7 +452,7 @@ release-darwin: release-darwin-unsigned
 # teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
 #
 .PHONY: release-unix-only
-release-unix-only: clean
+release-unix-only: clean version
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
