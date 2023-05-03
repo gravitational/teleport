@@ -1362,8 +1362,8 @@ func (k *kubeServerCollector) notifyStale() {
 }
 
 // refreshStaleKubeServers attempts to reload kube servers from the cache if
-// the collecter is stale. This ensures that no matter the health of
-// the collecter callers will be returned the most up to date node
+// the collector is stale. This ensures that no matter the health of
+// the collector callers will be returned the most up to date node
 // set as possible.
 func (k *kubeServerCollector) refreshStaleKubeServers(ctx context.Context) error {
 	if !k.stale.Load() {
