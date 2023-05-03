@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,18 +16,16 @@ package enroll_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestRunCeremony(t *testing.T) {
+func TestAutoEnroll(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
 	t.Cleanup(resetNative())
@@ -50,39 +48,13 @@ func TestRunCeremony(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			*enroll.GetOSType = test.dev.GetOSType
+			*enroll.CollectDeviceData = test.dev.CollectDeviceData
 			*enroll.EnrollInit = test.dev.EnrollDeviceInit
 			*enroll.SignChallenge = test.dev.SignChallenge
 
-			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
-			require.NoError(t, err, "RunCeremony failed")
-			assert.NotNil(t, got, "RunCeremony returned nil device")
+			dev, err := enroll.AutoEnroll(ctx, devices)
+			require.NoError(t, err, "AutoEnroll failed")
+			assert.NotNil(t, dev, "AutoEnroll returned nil device")
 		})
 	}
-}
-
-func resetNative() func() {
-	const guardKey = "_dt_reset_native"
-	if os.Getenv(guardKey) != "" {
-		panic("Tests that rely on resetNative cannot run in parallel.")
-	}
-	os.Setenv(guardKey, "1")
-
-	collectDeviceData := *enroll.CollectDeviceData
-	enrollDeviceInit := *enroll.EnrollInit
-	getOSType := *enroll.GetOSType
-	signChallenge := *enroll.SignChallenge
-	return func() {
-		*enroll.CollectDeviceData = collectDeviceData
-		*enroll.EnrollInit = enrollDeviceInit
-		*enroll.GetOSType = getOSType
-		*enroll.SignChallenge = signChallenge
-		os.Unsetenv(guardKey)
-	}
-}
-
-type fakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
-	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
-	GetOSType() devicepb.OSType
-	SignChallenge(chal []byte) (sig []byte, err error)
 }

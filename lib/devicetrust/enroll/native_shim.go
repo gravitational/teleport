@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,9 +14,12 @@
 
 package enroll
 
+import "github.com/gravitational/teleport/lib/devicetrust/native"
+
+// vars below are used to fake OSes and switch implementations for tests.
 var (
-	CollectDeviceData = &collectDeviceData
-	EnrollInit        = &enrollInit
-	GetOSType         = &getOSType
-	SignChallenge     = &signChallenge
+	collectDeviceData = native.CollectDeviceData
+	enrollInit        = native.EnrollDeviceInit
+	getOSType         = getDeviceOSType
+	signChallenge     = native.SignChallenge
 )
