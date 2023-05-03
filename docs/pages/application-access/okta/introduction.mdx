@@ -1,0 +1,45 @@
+---
+title: Okta integration with Application Access
+description: How to set up Okta integration with Teleport Application Access.
+---
+
+Teleport allows applications housed within Okta to be integrated with the
+Application Access service. This will result in Okta applications showing up
+in Teleport's applications list in the UI and CLI, and it will further allow
+for the user of Teleport's role based access control to control access within
+Okta.
+
+Users will be able request and be granted access to applications and groups
+within Okta by requesting access to them within Teleport.
+
+## How does the Okta integration work?
+
+Teleport provides an Okta service that is responsible for dealing with all
+interactions with Okta. There are three main components of the Okta service:
+
+* Synchronization
+* User access
+* Access requests
+
+### Synchronization
+
+Teleport's Okta integration uses an Okta API token and endpoint in order to interact
+with Okta's API. Teleport will then synchronize Okta's applcations and user groups
+with Teleport. Labels for these groups and applications can be customized through the
+use of Okta Import Rule objects within Teleport.
+
+### User access
+
+Upon logging into Teleport, users will be granted access to the Okta applications
+and user groups that they have access to within Teleport. If a user has RBAC access to
+an application or user group, it will be reflected within Okta.
+
+### Access requests
+
+Users can use Teleport's native access request functionality in order to
+request temporary access to Okta applications and user groups. Upon expiration of the
+access request, the access granted will be revoked within Okta.
+
+## Guide
+
+A guide for setting up a simple Okta service can be found [here](./guide.mdx).
