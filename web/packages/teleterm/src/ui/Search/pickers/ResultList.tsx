@@ -154,7 +154,7 @@ export const NonInteractiveItem = styled.div`
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
+  color: ${props => props.theme.colors.text.main};
   background: ${props => props.theme.colors.levels.surface};
 `;
 

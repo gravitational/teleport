@@ -347,7 +347,7 @@ const StyledLabel = styled.div`
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
-  color: ${({ theme }) => theme.colors.text.primary};
+  color: ${({ theme }) => theme.colors.text.main};
   background-color: ${props => props.theme.colors.levels.sunken};
   font-weight: regular;
   font-size: 12px;
@@ -365,7 +365,7 @@ const StyledLabel = styled.div`
   }
 
   button {
-    color: ${({ theme }) => theme.colors.text.primary};
+    color: ${({ theme }) => theme.colors.text.main};
     border-radius: 0;
     font-size: 14px;
     min-width: 10px;
