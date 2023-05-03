@@ -1622,7 +1622,8 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
+		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1640,7 +1641,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})...)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -281,24 +281,25 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:              cfg.Backend,
-		clock:           cfg.Clock,
-		limiter:         limiter,
-		Authority:       cfg.Authority,
-		AuthServiceName: cfg.AuthServiceName,
-		ServerID:        cfg.HostUUID,
-		githubClients:   make(map[string]*githubClient),
-		cancelFunc:      cancelFunc,
-		closeCtx:        closeCtx,
-		emitter:         cfg.Emitter,
-		streamer:        cfg.Streamer,
-		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:        services,
-		Cache:           services,
-		keyStore:        keyStore,
-		traceClient:     cfg.TraceClient,
-		fips:            cfg.FIPS,
-		loadAllCAs:      cfg.LoadAllCAs,
+		bk:                  cfg.Backend,
+		clock:               cfg.Clock,
+		limiter:             limiter,
+		Authority:           cfg.Authority,
+		AuthServiceName:     cfg.AuthServiceName,
+		ServerID:            cfg.HostUUID,
+		githubClients:       make(map[string]*githubClient),
+		cancelFunc:          cancelFunc,
+		closeCtx:            closeCtx,
+		emitter:             cfg.Emitter,
+		streamer:            cfg.Streamer,
+		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:            services,
+		Cache:               services,
+		keyStore:            keyStore,
+		traceClient:         cfg.TraceClient,
+		fips:                cfg.FIPS,
+		loadAllCAs:          cfg.LoadAllCAs,
+		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -595,7 +596,7 @@ type Server struct {
 
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
-	httpClientForAWSSTS stsClient
+	httpClientForAWSSTS utils.HTTPDoClient
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -5404,13 +5405,4 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
-}
-
-// WithHTTPClientForAWSSTS is a ServerOption that overwrites default HTTP
-// client used for STS requests.
-func WithHTTPClientForAWSSTS(client stsClient) ServerOption {
-	return func(s *Server) error {
-		s.httpClientForAWSSTS = client
-		return nil
-	}
 }
