@@ -136,7 +136,7 @@ const cfg = {
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     webSessionPath: '/v1/webapi/sessions/web',
@@ -568,20 +568,10 @@ const cfg = {
     });
   },
 
-  getScpUrl({
-    webauthn,
-    moderatedSessonId,
-    fileTransferRequestId,
-    ...params
-  }: UrlScpParams) {
+  getScpUrl({ webauthn, ...params }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
-
-    // only set if both are params are present
-    if (moderatedSessonId && fileTransferRequestId) {
-      path = `${path}&file_transfer_request_id=${fileTransferRequestId}&moderated_session_id=${moderatedSessonId}`;
-    }
 
     if (!webauthn) {
       return path;
@@ -684,7 +674,7 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
-  moderatedSessonId?: string;
+  moderatedSessionId?: string;
   fileTransferRequestId?: string;
   webauthn?: WebauthnAssertionResponse;
 }

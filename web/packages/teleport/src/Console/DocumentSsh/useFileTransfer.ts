@@ -73,7 +73,7 @@ export const useFileTransfer = (
         serverId,
         login,
         filename: location,
-        moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
+        moderatedSessionId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
       });
       if (!url) {
@@ -101,7 +101,7 @@ export const useFileTransfer = (
         serverId,
         login,
         filename: file.name,
-        moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
+        moderatedSessionId: moderatedSessionParams?.moderatedSessionId,
         fileTransferRequestId: moderatedSessionParams?.fileRequestId,
       });
       if (!url) {
