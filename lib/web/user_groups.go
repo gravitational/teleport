@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -39,12 +38,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindUserGroup)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	page, err := apiclient.GetResourcePage[types.UserGroup](r.Context(), clt, req)
+	page, err := listResources(clt, r, types.KindUserGroup)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,14 +48,19 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	userGroups, err := ui.MakeUserGroups(site.GetName(), page.Resources, accessChecker.Roles())
+	userGroups, err := types.ResourcesWithLabels(page.Resources).AsUserGroups()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiUserGroups, err := ui.MakeUserGroups(site.GetName(), userGroups, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      userGroups,
+		Items:      uiUserGroups,
 		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+		TotalCount: page.TotalCount,
 	}, nil
 }
