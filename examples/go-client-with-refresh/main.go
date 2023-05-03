@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-type dynamicCredential struct {
+type dynamicIdentityFile struct {
 	mu      sync.RWMutex
 	tlsCert *tls.Certificate
 	pool    *x509.CertPool
@@ -31,7 +31,12 @@ type dynamicCredential struct {
 	clusterName string
 }
 
-func (d *dynamicCredential) LoadFromIdentityFile(id *identityfile.IdentityFile) error {
+func NewDynamicIdentityFile(path string) (*dyanamicIdentityFile, error) {
+
+	return &dyanamicIdentityFile{}, nil
+}
+
+func (d *dynamicIdentityFile) LoadFromIdentityFile(id *identityfile.IdentityFile) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -51,32 +56,39 @@ func (d *dynamicCredential) LoadFromIdentityFile(id *identityfile.IdentityFile) 
 	return nil
 }
 
-func (d *dynamicCredential) Dialer(cfg client.Config) (client.ContextDialer, error) {
+func (d *dynamicIdentityFile) Dialer(cfg client.Config) (client.ContextDialer, error) {
 	// Returning a dialer isn't necessary for this credential.
 	return nil, trace.NotImplemented("no dialer")
 }
 
-func (d *dynamicCredential) TLSConfig() (*tls.Config, error) {
+func (d *dynamicIdentityFile) TLSConfig() (*tls.Config, error) {
 	cfg := &tls.Config{
-		// GetClientCertificate is used instead of Certificates so we can
-		// dynamically update this.
+		// GetClientCertificate is used instead of the static Certificates
+		// field.
 		Certificates: nil,
 		// Encoded cluster name required to ensure requests are routed to the
 		// correct cloud tenants.
 		ServerName: utils.EncodeClusterName(d.clusterName),
 		GetClientCertificate: func(info *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			d.log.Info("GetClientCertificate() called")
+			// We
+			d.log.Debug("GetClientCertificate called")
 			d.mu.RLock()
 			defer d.mu.RUnlock()
 			return d.tlsCert, nil
 		},
-		// InsecureSkipVerify just means that only our VerifyConnection runs.
+		// InsecureSkipVerify is forced true to ensure that only our
+		// VerifyConnection callback is used to verify the server's presented
+		// certificate.
 		InsecureSkipVerify: true,
 		VerifyConnection: func(state tls.ConnectionState) error {
+			// This VerifyConnection callback is based on the standard library
+			// implementation of verifyServerCertificate in the tls package.
+			// We provide our own implementation so we can dynamically handle
+			// a changing CA Roots pool.
 			d.log.WithFields(logrus.Fields{
 				"negotiated_protocol": state.NegotiatedProtocol,
 				"server_name":         state.ServerName,
-			}).Info("VerifyConnection() called")
+			}).Debug("VerifyConnection called")
 			d.mu.RLock()
 			rootPool := d.pool.Clone()
 			d.mu.RUnlock()
@@ -87,6 +99,9 @@ func (d *dynamicCredential) TLSConfig() (*tls.Config, error) {
 				Roots:         rootPool,
 			}
 			for _, cert := range state.PeerCertificates[1:] {
+				// Whilst we don't currently use intermediate certs at
+				// Teleport, including this here means that we are
+				// future-proofed in case we do.
 				opts.Intermediates.AddCert(cert)
 			}
 			_, err := state.PeerCertificates[0].Verify(opts)
@@ -98,7 +113,7 @@ func (d *dynamicCredential) TLSConfig() (*tls.Config, error) {
 	return cfg, nil
 }
 
-func (d *dynamicCredential) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (d *dyanamicIdentityFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	// For now, SSH Client Config is disabled until I can wrap my head around
 	// the complexities introduced by TLS over SSH.
 	// This means the auth server must be available directly or using
@@ -120,29 +135,55 @@ func main() {
 	}
 }
 
+const dynamicCred = true
+
 func run(ctx context.Context, log logrus.FieldLogger) error {
 	proxyAddr := os.Getenv("PROXY_ADDR")
 	identityFilePath := os.Getenv("TELEPORT_IDENTITY_FILE")
 	clusterName := os.Getenv("CLUSTER_NAME")
 
-	cred := &dynamicCredential{
-		log:         log,
-		clusterName: clusterName,
+	var credential client.Credentials
+	if dynamicCred == true {
+		cred := &dyanamicIdentityFile{
+			log:         log,
+			clusterName: clusterName,
+		}
+		idFile, err := identityfile.ReadFile(identityFilePath)
+		if err != nil {
+			return trace.Wrap(err, "reading identity file")
+		}
+		if err := cred.LoadFromIdentityFile(idFile); err != nil {
+			return trace.Wrap(err, "loading identity file")
+		}
+		go func() {
+			// This goroutine loop could be replaced with a file watcher.
+			for {
+				time.Sleep(time.Second * 30)
+				idFile, err := identityfile.ReadFile(identityFilePath)
+				if err != nil {
+					log.WithError(err).Warn("Failed to re-read identity file")
+					continue
+				}
+				if err := cred.LoadFromIdentityFile(idFile); err != nil {
+					log.WithError(err).Warn("Failed to re-load identity file")
+					continue
+				}
+				log.Info("Succeeded in re-reading and re-loading identity file from disk. New client connections will use this identity.")
+			}
+		}()
+		credential = cred
+	} else {
+		credential = client.LoadIdentityFile(identityFilePath)
+		credential = client.LoadProfile("", "")
 	}
-	idFile, err := identityfile.ReadFile(identityFilePath)
-	if err != nil {
-		return trace.Wrap(err, "reading identity file")
-	}
-	if err := cred.LoadFromIdentityFile(idFile); err != nil {
-		return trace.Wrap(err, "loading identity file")
-	}
+
 	cfg := client.Config{
 		Addrs: []string{proxyAddr},
 		Credentials: []client.Credentials{
-			cred,
+			credential,
 		},
 		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
+			// grpc.WithReturnConnectionError(),
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		DialInBackground:           true,
@@ -152,23 +193,6 @@ func run(ctx context.Context, log logrus.FieldLogger) error {
 		return trace.Wrap(err, "creating client")
 	}
 	defer clt.Close()
-
-	// This goroutine loop could be replaced with a file watcher.
-	go func() {
-		for {
-			time.Sleep(time.Second * 30)
-			idFile, err := identityfile.ReadFile(identityFilePath)
-			if err != nil {
-				log.WithError(err).Warn("Failed to re-read identity file")
-				continue
-			}
-			if err := cred.LoadFromIdentityFile(idFile); err != nil {
-				log.WithError(err).Warn("Failed to re-load identity file")
-				continue
-			}
-			log.Info("Succeeded in re-reading and re-loading identity file from disk. New client connections will use this identity.")
-		}
-	}()
 
 	return monitorLoop(ctx, log, clt)
 }
