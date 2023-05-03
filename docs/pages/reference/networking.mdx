@@ -8,7 +8,7 @@ description: This reference explains the networking requirements of a Teleport c
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-All Teleport services (e.g., the Proxy Service, Auth Service, and Nodes) have an
+All Teleport services (e.g., the Proxy Service, Auth Service, and agents) have an
 optional `public_addr` property that you can modify in each service's
 configuration file. The public address can take an IP or a DNS name. It can also
 be a list of values:
@@ -36,7 +36,7 @@ be a list of values:
 public_addr: ["service-one.example.com", "service-two.example.com"]
 ```
 
-Specifying a public address for a Teleport Node may be useful in the
+Specifying a public address for a Teleport agent may be useful in the
 following use cases:
 
 - You have multiple identical services behind a load balancer.
@@ -100,11 +100,12 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
 
 ## Ports
 
+This section describes the ports you should open on your Teleport instances.
+
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Teleport services listen on several ports. This table shows the default port
-numbers for each service.
+### Proxy Service ports
 
 <Admonition
   type="tip"
@@ -124,45 +125,53 @@ numbers for each service.
 
 </Admonition>
 
-### Ports with TLS routing
+#### Ports with TLS routing
 
-TLS routing is enabled by default. In this mode, all connections to a Teleport service (e.g., the Teleport
-SSH Service or Kubernetes) are routed through the Proxy Service's public web address.
+TLS routing is enabled by default. In this mode, all connections to a Teleport
+service (e.g., the Teleport SSH Service or Kubernetes) are routed through the
+Proxy Service's public web address.
 
 Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 
-| Port | Service | Description |
+| Port | Downstream Service | Description |
 | - | - | - |
-| 443 | Proxy | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
-| 3021 | Proxy | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport Node is replacing SSH.|
-| 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster.|
-| 3028 | Desktop | When using Desktop Service `windows_desktop_service.listen_addr` |
+| 443 | Proxy Service | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
+| 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+| 3022 | SSH Service | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport agent is replacing SSH.|
+| 3028 | Desktop Service | When using Desktop Service `windows_desktop_service.listen_addr` |
 
-### Ports without TLS routing
+#### Ports without TLS routing
 
 In some cases, administrators may want to use separate ports for different services.
 In those cases, they can set up separate listeners in the config file.
 
-| Port | Service | Description |
+| Port | Downstream Service | Description |
 | - | - | - |
-| 3021 | Proxy | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3022 | Node | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
-| 3023 | Proxy | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
-| 3024 | Proxy | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. |
-| 3025 | Auth | TLS port used by the Auth Service to serve its API to other Nodes in a cluster. |
-| 3080 or 443 | Proxy | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
-| 3026 | Kubernetes | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
-| 3027 | Kubernetes | Kubernetes Service `kubernetes_service.listen_addr` |
-| 3028 | Desktop | Desktop Service `windows_desktop_service.listen_addr` |
+| 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+| 3022 | SSH Service | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
+| 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. |
+| 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. |
+| 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3026 | Kubernetes Service | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
+| 3027 | Kubernetes Service | Kubernetes Service `kubernetes_service.listen_addr` |
+| 3028 | Desktop Service | Desktop Service `windows_desktop_service.listen_addr` |
 | 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
 
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+### Auth Service ports
 
-Teleport Cloud allocates a different set of ports to each tenant. To see which
-ports are available for your Teleport Cloud tenant, run a command similar to the
-following, replacing `mytenant.teleport.sh` with your tenant domain:
+| Port | Downstream Service | Description |
+| - | - | - |
+| 3025 | All Teleport services | TLS port used by the Auth Service to serve its gRPC API to other Teleport services in a cluster.|
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+
+### Proxy Service ports
+
+Teleport Enterprise Cloud allocates a different set of ports to each tenant's
+Proxy Service. To see which ports are available for your Teleport Enterprise
+Cloud tenant, run a command similar to the following, replacing
+`mytenant.teleport.sh` with your tenant domain:
 
 ```code
 $ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
@@ -206,3 +215,14 @@ Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 
 </TabItem>
 </Tabs>
+
+### Agent ports
+
+For Teleport processes running agents, e.g., instances of the SSH Service,
+Kubernetes Service, and other services that protect resources in your
+infrastructure, there is no need to open ports on the instance to the public
+internet. 
+
+Teleport agents dial the Teleport Proxy Service to establish a reverse tunnel.
+Client traffic flows via the Proxy Service to the agent, and the agent forwards
+traffic to resources in your infrastructure.
