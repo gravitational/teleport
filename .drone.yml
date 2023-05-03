@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
   UID: "1000"
 trigger:
   event:
@@ -155,7 +155,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
   UID: "1000"
 trigger:
   event:
@@ -269,7 +269,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
   UID: "1000"
 trigger:
   event:
@@ -387,7 +387,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
   UID: "1000"
 trigger:
   event:
@@ -1042,7 +1042,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
   UID: "1000"
 trigger:
   event:
@@ -1479,7 +1479,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -1688,7 +1688,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -1896,7 +1896,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -2111,7 +2111,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -3411,7 +3411,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -4237,7 +4237,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -5566,7 +5566,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.3
+  RUNTIME: go1.20.4
 trigger:
   event:
     include:
@@ -17106,6 +17106,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: d55fcf99887fe79edc4755565dbed4f33f341bbe22949307d5056401ceba6d70
+hmac: 4ac203ede1252a20f61b5859471d03f65a4ab335d960a5c854bfa4b5d1ac223d
 
 ...

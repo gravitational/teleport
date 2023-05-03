@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -118,7 +119,9 @@ func checkKubeLocalProxyConfigPaths(t *testing.T, s *suite, config *clientcmdapi
 	t.Helper()
 
 	tshHome := os.Getenv(types.HomeEnvVar)
-	proxy := s.root.Config.Auth.ClusterName.GetClusterName()
+	proxy, _, err := net.SplitHostPort(s.root.Config.Proxy.WebAddr.String())
+	require.NoError(t, err)
+
 	user := s.user.GetName()
 	wantCAPath := keypaths.KubeLocalCAPath(tshHome, proxy, user, teleportCluster)
 	wantKeyPath := keypaths.UserKeyPath(tshHome, proxy, user)
