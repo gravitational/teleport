@@ -64,7 +64,7 @@ class TeleportContext implements types.Context {
   agentService = agentService;
 
   // No CTA is currently shown
-  ctas = {
+  lockedFeatures = {
     authConnectors: false,
     activeSessions: false,
     accessRequests: false,

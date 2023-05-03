@@ -43,6 +43,8 @@ import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
+import TeleportContext from 'teleport/teleportContext';
+
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
@@ -156,7 +158,7 @@ export function Main(props: MainProps) {
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />
-                <FeatureRoutes />
+                <FeatureRoutes ctx={ctx} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
@@ -169,13 +171,32 @@ export function Main(props: MainProps) {
   );
 }
 
-function renderRoutes(features: TeleportFeature[]) {
+function renderRoutes(features: TeleportFeature[], ctx: TeleportContext) {
   const routes = [];
 
   for (const [index, feature] of features.entries()) {
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
 
+      // add regular feature routes
+      routes.push(
+        <Route title={title} key={index} path={path} exact={exact}>
+          <CatchError>
+            <Suspense fallback={null}>
+              <Component />
+            </Suspense>
+          </CatchError>
+        </Route>
+      );
+    }
+
+    // add the route of the 'locked' variants of the features
+    if (feature.isLocked !== undefined && feature.isLocked(ctx)) {
+      if (!feature.lockedRoute) {
+        continue;
+      }
+
+      const { path, title, exact, component: Component } = feature.lockedRoute;
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
@@ -191,9 +212,9 @@ function renderRoutes(features: TeleportFeature[]) {
   return routes;
 }
 
-function FeatureRoutes() {
+function FeatureRoutes({ ctx }: { ctx: TeleportContext }) {
   const features = useFeatures();
-  const routes = renderRoutes(features);
+  const routes = renderRoutes(features, ctx);
 
   return <Switch>{routes}</Switch>;
 }
