@@ -1,15 +1,15 @@
 ---
 title: Amazon Athena Access
-description: How to access Amazon Athena with Teleport Application Access
+description: How to access Amazon Athena with Teleport
 ---
 
-Access to Amazon Athena is provided by Teleport Application Access for [AWS CLI
-and Console](../cloud-apis/aws-console.mdx).
+You can set up secure access to Amazon Athena using Teleport's support for the
+[AWS CLI and Console](../cloud-apis/aws-console.mdx).
 
 This guide will help you to:
 
 - Install the Teleport Application Service.
-- Set up the AWS CLI and Console access.
+- Set up AWS CLI and Console access.
 - Connect to your Athena databases.
 
 ## Prerequisites
@@ -18,7 +18,7 @@ This guide will help you to:
 
 ## Step 1/5. Create an IAM role for Athena access
 
-(!docs/pages/includes/application-access/aws-database-create-iam-role.mdx iam-role="ExampleTeleportAthenaRole" managed-policy="AmazonAthenaFullAccess" !)
+(!docs/pages/includes/application-access/aws-database-create-iam-role.mdx database="Athena" iam-role="ExampleTeleportAthenaRole" managed-policy="AmazonAthenaFullAccess" !)
 
 <Admonition type="note" title="Apply least-privilege permissions">
 `AmazonAthenaFullAccess` may provide too much access for your intentions. To
@@ -62,7 +62,7 @@ so:
 $ tsh apps login --aws-role ExampleTeleportAthenaRole aws
 ```
 
-Connect to Athena with ODBC or JDBC driver:
+Connect to Athena with the ODBC or JDBC driver:
 
 <Tabs>
   <TabItem label="Connect with ODBC">

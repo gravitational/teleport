@@ -1,4 +1,9 @@
-The first step is to create an IAM role for your Teleport users to assume.
+The first step is to create an IAM role that provides access to your
+{{ database }} resources. Teleport Application Service will assume this IAM
+role on behalf of the Teleport user that accesses these {{ database }}
+resources.
+
+There are several methods to create an IAM role:
 
 <Tabs>
 <TabItem label="Using AWS Console">

@@ -20,10 +20,69 @@ spec:
 EOF
 ```
 
-<Details title="Templating aws_role_arns" opened={false}>
+<Details title="Templating &quot;aws_role_arns&quot; in role definitions">
 The `aws_role_arns` field supports template variables so they can be populated
-dynamically based on your users' identity provider attributes. See [Role
-Templates](docs/pages/access-controls/guides/role-templates.mdx) for details.
+dynamically based on your users' identity provider attributes. Here are some
+examples:
+
+<Tabs>
+  <TabItem label="local users">
+  Use `{{internal.aws_role_arns}}` in the role definition:
+  ```yaml
+  kind: role
+  version: v5
+  metadata:
+    name: {{ role }}
+  spec:
+    allow:
+      app_labels:
+        '*': '*'
+      aws_role_arns: ['{{internal.aws_role_arns}}']
+  ```
+  Then specify the IAM roles through user traits:
+  ```yaml
+  kind: user
+  version: v2
+  metadata:
+    name: alice
+  spec:
+    roles: ['{{ role }}']
+    traits:
+      aws_role_arns: ['arn:aws:iam:123456789000:role/role_for_alice']
+  ---
+  kind: user
+  version: v2
+  metadata:
+    name: bob
+  spec:
+    roles: ['{{ role }}']
+    traits:
+      aws_role_arns: ['arn:aws:iam:123456789000:role/role_for_bob']
+    ```
+  </TabItem>
+  <TabItem label="SSO users">
+  Let's assume that an IAM role has been created for each Teleport user, and
+  the name of the IAM role corresponds to their Email addresses without the
+  Email domain suffix.
+
+
+  Then `aws_role_arns` can be templated with `external.email`:
+  ```yaml
+  kind: role
+  version: v5
+  metadata:
+    name: {{ role }}
+  spec:
+    allow:
+      app_labels:
+        '*': '*'
+      aws_role_arns: ['arn:aws:iam:123456789000:role/{{email.local(external.email)}}']
+  ```
+  </TabItem>
+</Tabs>
+
+See [Role Templates](docs/pages/access-controls/guides/role-templates.mdx) for
+details.
 </Details>
 
 Create the new role:
