@@ -32,32 +32,6 @@ var _ = time.Kitchen
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// FileTransferDirection is the direction for a requested file transfer
-type FileTransferDirection int32
-
-const (
-	FileTransferDirection_DOWNLOAD FileTransferDirection = 0
-	FileTransferDirection_UPLOAD   FileTransferDirection = 1
-)
-
-var FileTransferDirection_name = map[int32]string{
-	0: "DOWNLOAD",
-	1: "UPLOAD",
-}
-
-var FileTransferDirection_value = map[string]int32{
-	"DOWNLOAD": 0,
-	"UPLOAD":   1,
-}
-
-func (x FileTransferDirection) String() string {
-	return proto.EnumName(FileTransferDirection_name, int32(x))
-}
-
-func (FileTransferDirection) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{0}
-}
-
 // Action communicates what was done in response to the event
 type EventAction int32
 
@@ -81,7 +55,7 @@ func (x EventAction) String() string {
 }
 
 func (EventAction) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{1}
+	return fileDescriptor_007ba1c3d6266d56, []int{0}
 }
 
 // SFTPAction denotes what type of SFTP request was made.
@@ -162,7 +136,7 @@ func (x SFTPAction) String() string {
 }
 
 func (SFTPAction) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{2}
+	return fileDescriptor_007ba1c3d6266d56, []int{1}
 }
 
 // OSType is the same as teleport.devicetrust.v1.OSType.
@@ -198,7 +172,7 @@ func (x OSType) String() string {
 }
 
 func (OSType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{3}
+	return fileDescriptor_007ba1c3d6266d56, []int{2}
 }
 
 // ElasticsearchCategory specifies Elasticsearch request category.
@@ -234,7 +208,7 @@ func (x ElasticsearchCategory) String() string {
 }
 
 func (ElasticsearchCategory) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{4}
+	return fileDescriptor_007ba1c3d6266d56, []int{3}
 }
 
 // OpenSearchCategory specifies OpenSearch request category.
@@ -270,7 +244,7 @@ func (x OpenSearchCategory) String() string {
 }
 
 func (OpenSearchCategory) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_007ba1c3d6266d56, []int{5}
+	return fileDescriptor_007ba1c3d6266d56, []int{4}
 }
 
 // Operation is the network operation that was performed or attempted
@@ -1362,8 +1336,8 @@ type FileTransferRequestEvent struct {
 	Requester string `protobuf:"bytes,5,opt,name=Requester,proto3" json:"requester"`
 	// Location is the location of the file to be downloaded, or the directory of the upload
 	Location string `protobuf:"bytes,6,opt,name=Location,proto3" json:"location"`
-	// Direction is "upload" or "download" for the requested file transfer
-	Direction FileTransferDirection `protobuf:"varint,7,opt,name=Direction,proto3,enum=events.FileTransferDirection" json:"direction"`
+	// Download is true if the requested file transfer is a download, false if an upload
+	Download bool `protobuf:"varint,7,opt,name=Download,proto3" json:"download"`
 	// Filename is the name of the file to be uploaded to the Location. Only present in uploads.
 	Filename             string   `protobuf:"bytes,8,opt,name=Filename,proto3" json:"filename"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -9525,7 +9499,6 @@ func (m *SAMLIdPServiceProviderDeleteAll) XXX_DiscardUnknown() {
 var xxx_messageInfo_SAMLIdPServiceProviderDeleteAll proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterEnum("events.FileTransferDirection", FileTransferDirection_name, FileTransferDirection_value)
 	proto.RegisterEnum("events.EventAction", EventAction_name, EventAction_value)
 	proto.RegisterEnum("events.SFTPAction", SFTPAction_name, SFTPAction_value)
 	proto.RegisterEnum("events.OSType", OSType_name, OSType_value)
@@ -11885,8 +11858,13 @@ func (m *FileTransferRequestEvent) MarshalToSizedBuffer(dAtA []byte) (int, error
 		i--
 		dAtA[i] = 0x42
 	}
-	if m.Direction != 0 {
-		i = encodeVarintEvents(dAtA, i, uint64(m.Direction))
+	if m.Download {
+		i--
+		if m.Download {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
 		i--
 		dAtA[i] = 0x38
 	}
@@ -24875,8 +24853,8 @@ func (m *FileTransferRequestEvent) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovEvents(uint64(l))
 	}
-	if m.Direction != 0 {
-		n += 1 + sovEvents(uint64(m.Direction))
+	if m.Download {
+		n += 2
 	}
 	l = len(m.Filename)
 	if l > 0 {
@@ -34710,9 +34688,9 @@ func (m *FileTransferRequestEvent) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 7:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Direction", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Download", wireType)
 			}
-			m.Direction = 0
+			var v int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowEvents
@@ -34722,11 +34700,12 @@ func (m *FileTransferRequestEvent) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Direction |= FileTransferDirection(b&0x7F) << shift
+				v |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			m.Download = bool(v != 0)
 		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Filename", wireType)
