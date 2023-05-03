@@ -28,15 +28,17 @@ class UserGroupService {
     params: UrlResourcesParams,
     signal?: AbortSignal
   ): Promise<AgentResponse<UserGroup>> {
-    return api.get(cfg.getUserGroupsListUrl(clusterId, params), signal).then(json => {
-      const items = json?.items || [];
+    return api
+      .get(cfg.getUserGroupsListUrl(clusterId, params), signal)
+      .then(json => {
+        const items = json?.items || [];
 
-      return {
-        agents: items.map(makeUserGroup),
-        startKey: json?.startKey,
-        totalCount: json?.totalCount,
-      };
-    });
+        return {
+          agents: items.map(makeUserGroup),
+          startKey: json?.startKey,
+          totalCount: json?.totalCount,
+        };
+      });
   }
 }
 
