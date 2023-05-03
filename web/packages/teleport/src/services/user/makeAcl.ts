@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Acl } from './types';
 
-export default function makeAcl(json): Acl {
+export function makeAcl(json): Acl {
   json = json || {};
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
