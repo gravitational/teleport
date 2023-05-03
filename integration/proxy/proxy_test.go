@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -1504,4 +1505,40 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
+}
+
+// TestALPNSNIProxyGRPCInsecure tests ALPN protocol ProtocolProxyGRPCInsecure
+// by registering a node with IAM join method.
+func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	nodeAccount := "123456789012"
+	nodeRoleARN := "arn:aws:iam::123456789012:role/test"
+	nodeCredentials := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", nodeAccount, nodeRoleARN)
+
+	suite := newSuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
+			config.Auth.BootstrapResources = []types.Resource{provisionToken}
+			config.Auth.HTTPClientForAWSSTS = fakeSTSClient{
+				accountID:   nodeAccount,
+				arn:         nodeRoleARN,
+				credentials: nodeCredentials,
+			}
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+	)
+
+	// Test register through Proxy.
+	mustRegisterUsingIAMMethod(t, suite.root.Config.Proxy.WebAddr, provisionToken.GetName(), nodeCredentials)
+
+	// Test register through Proxy behind a L7 load balancer.
+	t.Run("ALPN conn upgrade", func(t *testing.T) {
+		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
+		require.NoError(t, err)
+
+		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName(), nodeCredentials)
+	})
 }

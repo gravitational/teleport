@@ -287,10 +287,12 @@ func ResourceDeviceAttestationTypeToString(
 	switch attestationType {
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
 		return "unspecified"
-	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM:
-		return "tpm"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
+		return "tpm_ekpub"
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:
 		return "tpm_ekcert"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED:
+		return "tpm_ekcert_trusted"
 	default:
 		return attestationType.String()
 	}
@@ -302,10 +304,12 @@ func ResourceDeviceAttestationTypeFromString(
 	switch attestationType {
 	case "unspecified", "":
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, nil
-	case "tpm":
-		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM, nil
+	case "tpm_ekpub":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB, nil
 	case "tpm_ekcert":
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT, nil
+	case "tpm_ekcert_trusted":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED, nil
 	default:
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, trace.BadParameter("unknown attestation type %q", attestationType)
 	}

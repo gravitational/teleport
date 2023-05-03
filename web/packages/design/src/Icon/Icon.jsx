@@ -22,7 +22,7 @@ import '../assets/icomoon/style.css';
 const Icon = styled.span`
   display: inline-block;
   transition: color 0.3s;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   ${space} ${width} ${color} ${fontSize} ${lineHeight};
 `;
 
@@ -75,6 +75,7 @@ export const ChatBubble = makeFontIcon(
   'ChatBubble',
   'icon-chat_bubble_outline'
 );
+export const Chart = makeFontIcon('Chart', 'icon-chart-bars');
 export const Check = makeFontIcon('Check', 'icon-check');
 export const ChevronCircleDown = makeFontIcon(
   'ChevronCircleDown',
@@ -233,7 +234,6 @@ export const SettingsOverscan = makeFontIcon(
   'icon-settings_overscan'
 );
 export const Share = makeFontIcon('Share', 'icon-share');
-export const Shart = makeFontIcon('Shart', 'icon-chart-bars');
 export const ShieldCheck = makeFontIcon('ShieldCheck', 'icon-shield-check');
 export const Shrink = makeFontIcon('Shrink', 'icon-shrink');
 export const SmallArrowDown = makeFontIcon(

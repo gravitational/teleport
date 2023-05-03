@@ -1,0 +1,122 @@
+{{ dbName="test" }}
+<Tabs>
+<TabItem label="Using a config file">
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
+
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:443 \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev 
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh:443 \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+</ScopedBlock>
+
+Configure the Database Service to start automatically when the host boots up by
+creating a systemd service for it. The instructions depend on how you installed
+the Database Service.
+
+<Tabs>
+<TabItem label="Package Manager">
+
+On the host where you will run {{ service }}, start Teleport:
+
+```code
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+<TabItem label="TAR Archive">
+
+On the host where you will run {{ service }}, create a systemd service
+configuration for Teleport, enable the Teleport service, and start Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+</Tabs>
+
+</TabItem>
+<TabItem label="With CLI flags">
+
+You can start the Teleport Database Service without configuration file using a
+CLI command:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=teleport.example.com:443 \
+   --name={{ dbName }}  \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
+Service endpoint because the Database Service always connects back to the
+cluster over a reverse tunnel.
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=mytenant.teleport.sh:443 \
+   --name={{ dbName }} \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to your Teleport Cloud tenant
+address.
+
+</ScopedBlock>
+
+</TabItem>
+</Tabs>
+
+<Admonition type="note">
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
+</Admonition>

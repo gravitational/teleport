@@ -8,6 +8,10 @@
           "title": "Introduction",
           "slug": "/"
         },
+	{
+          "title": "Get Started with Teleport",
+          "slug": "/get-started/"
+	},
         {
           "title": "Core Concepts",
           "slug": "/core-concepts/"
@@ -27,36 +31,6 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-      "icon": "play",
-      "title": "Try out Teleport",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/try-out-teleport/introduction/"
-        },
-        {
-          "title": "Linux Server",
-          "slug": "/try-out-teleport/linux-server/"
-        },
-        {
-          "title": "Digital Ocean",
-          "slug": "/try-out-teleport/digitalocean/"
-        },
-        {
-          "title": "Browser Labs",
-          "slug": "/try-out-teleport/browser-labs/"
-        },
-        {
-          "title": "Docker Compose",
-          "slug": "/try-out-teleport/docker-compose/"
-        },
-        {
-          "title": "Local Kubernetes Lab",
-          "slug": "/try-out-teleport/local-kubernetes/"
         }
       ]
     },
@@ -100,11 +74,6 @@
           "slug": "/choose-an-edition/teleport-enterprise/introduction/",
           "forScopes": ["enterprise"],
           "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/choose-an-edition/teleport-enterprise/getting-started/",
-              "forScopes": ["enterprise"]
-            },
             {
               "title": "HSM",
               "slug": "/choose-an-edition/teleport-enterprise/hsm/",
@@ -346,7 +315,7 @@
         {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
-          "forScopes": ["enterprise", "oss", "cloud"],
+          "forScopes": ["enterprise", "cloud"],
           "entries": [
             {
               "title": "Set Up Login Rules",
@@ -362,6 +331,11 @@
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Kubernetes Operator",
+              "slug": "/access-controls/login-rules/kubernetes/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
@@ -461,13 +435,38 @@
       	  "slug": "/management/introduction/"
 	},
         {
+          "title": "Joining Teleport Services",
+          "slug": "/management/join-services-to-your-cluster/",
+          "entries": [
+            {
+              "title": "Via AWS EC2",
+              "slug": "/management/join-services-to-your-cluster/aws-ec2/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
+              "title": "Via AWS IAM",
+              "slug": "/management/join-services-to-your-cluster/aws-iam/"
+            },
+            {
+              "title": "Via Azure",
+              "slug": "/management/join-services-to-your-cluster/azure/"
+            },            
+            {
+              "title": "Joining Services via Kubernetes ServiceAccount",
+              "slug": "/management/join-services-to-your-cluster/kubernetes/",
+              "forScopes": ["oss", "enterprise"]
+            },
+
+            {
+              "title": "Via a Join Token",
+              "slug": "/management/join-services-to-your-cluster/join-token/"
+            }
+          ]
+        },
+        {
           "title": "Admin Guides",
           "slug": "/management/admin/",
           "entries": [
-            {
-              "title": "Adding Nodes",
-              "slug": "/management/admin/adding-nodes/"
-            },
             {
               "title": "Trusted Clusters",
               "slug": "/management/admin/trustedclusters/"
@@ -560,30 +559,8 @@
               "slug": "/management/guides/terraform-provider/"
             },
             {
-              "title": "Docker",
-              "slug": "/management/guides/docker/"
-            },
-            {
               "title": "EC2 Tags",
               "slug": "/management/guides/ec2-tags/"
-            },
-            {
-              "title": "Joining Nodes via AWS IAM",
-              "slug": "/management/guides/joining-nodes-aws-iam/"
-            },
-            {
-              "title": "Joining Nodes via AWS EC2",
-              "slug": "/management/guides/joining-nodes-aws-ec2/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Joining Nodes via Azure",
-              "slug": "/management/guides/joining-nodes-azure/"
-            },
-            {
-              "title": "Joining Services via Kubernetes ServiceAccount",
-              "slug": "/management/guides/joining-services-kubernetes-serviceaccount/",
-              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Using Teleport's CA with GitHub",
@@ -980,6 +957,10 @@
             {
                "title": "SQL Server (Preview)",
                "slug": "/database-access/guides/sql-server-ad/"
+            },
+            {
+               "title": "SQL Server with PKINIT (Preview)",
+               "slug": "/database-access/guides/sql-server-ad-pkinit/"
             },
             {
                "title": "Self-Hosted Cassandra & ScyllaDB",
@@ -1425,7 +1406,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.2.1",
+      "version": "12.2.4",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1580,7 +1561,7 @@
     },
     {
       "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -1600,7 +1581,7 @@
     },
     {
       "source": "/setup/guides/docker-compose/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -1630,7 +1611,7 @@
     },
     {
       "source": "/quickstart/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -1665,7 +1646,7 @@
     },
     {
       "source": "/quickstart-docker/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -1695,7 +1676,7 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
@@ -1730,7 +1711,7 @@
     },
     {
       "source": "/getting-started/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -1745,7 +1726,7 @@
     },
     {
       "source": "/kubernetes-access/getting-started/local/",
-      "destination": "/try-out-teleport/local-kubernetes/",
+      "destination": "/kubernetes-access/",
       "permanent": true
     },
     {
@@ -1935,7 +1916,7 @@
     },
     {
       "source": "/setup/deployments/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -1985,7 +1966,7 @@
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/try-out-teleport/linux-server/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2015,7 +1996,7 @@
     },
     {
       "source": "/enterprise/getting-started/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -2045,7 +2026,7 @@
     },
     {
       "source": "/setup/admin/adding-nodes/",
-      "destination": "/management/admin/adding-nodes/",
+      "destination": "/management/join-services-to-your-cluster/join-token/",
       "permanent": true
     },
     {
@@ -2085,7 +2066,7 @@
     },
     {
       "source": "/setup/guides/docker/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -2100,12 +2081,12 @@
     },
     {
       "source": "/setup/guides/joining-nodes-aws-ec2/",
-      "destination": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/join-services-to-your-cluster/aws-ec2/",
       "permanent": true
     },
     {
       "source": "/setup/guides/joining-nodes-aws-iam/",
-      "destination": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
       "permanent": true
     },
     {
@@ -2240,12 +2221,12 @@
     },
     {
       "source": "/getting-started/docker-compose/",
-      "destination": "/try-out-teleport/docker-compose/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/getting-started/local-kubernetes/",
-      "destination": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2290,7 +2271,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-enterprise/getting-started/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -2310,17 +2291,17 @@
     },
     {
       "source": "/deploy-a-cluster/deployments/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/deploy-a-cluster/open-source/",
-      "destination": "/try-out-teleport/linux-server/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/getting-started/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2380,7 +2361,7 @@
     },
     {
       "source": "/try-out-teleport/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2441,6 +2422,66 @@
     {
       "source": "/contributing/",
       "destination": "/contributing/documentation/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-ec2/",
+      "destination": "/management/join-services-to-your-cluster/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-aws-iam/",
+      "destination": "/management/join-services-to-your-cluster/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/management/admin/adding-nodes/",
+      "destination": "/management/join-services-to-your-cluster/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-nodes-azure/",
+      "destination": "/management/join-services-to-your-cluster/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/joining-services-kubernetes-serviceaccount/",
+      "destination": "/management/join-services-to-your-cluster/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/browser-labs/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/docker-compose/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/docker/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     }
   ]

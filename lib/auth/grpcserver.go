@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -2565,6 +2566,10 @@ func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
 		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
+// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+// complete the challenge with.
+var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer, mfaRequired proto.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
@@ -2576,7 +2581,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+		return nil, ErrNoMFADevices
 	}
 
 	challenge.MFARequired = mfaRequired
@@ -2613,14 +2618,19 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
-	// Generate the cert.
-	certs, err := actx.generateUserCerts(
-		ctx, req,
+	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
-	)
+	}
+
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		opts = append(opts, certRequestPinIP(true)) // We always want to pin single use certs to client's IP, regardless of roles)
+	}
+
+	// Generate the cert.
+	certs, err := actx.generateUserCerts(ctx, req, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4210,6 +4220,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("user group has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
@@ -5078,6 +5095,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		Clock:      cfg.AuthServer.clock,
+		CAGetter:   cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

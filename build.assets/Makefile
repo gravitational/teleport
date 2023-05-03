@@ -19,7 +19,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.3
+GOLANG_VERSION ?= go1.20.4
 
 NODE_VERSION ?= 16.18.1
 
@@ -244,7 +244,7 @@ ui: buildbox
 .PHONY: grpc
 grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		$(DOCKERFLAGS) -u $(UID):$(GID) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox

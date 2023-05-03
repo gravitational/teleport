@@ -190,43 +190,55 @@ func tagPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", arch: "arm64", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-linux-arm64",
-		ghaWorkflow:       "release-linux-arm64.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		dependsOn:         []string{tagCleanupPipelineName},
-		shouldTagWorkflow: true,
-		inputs:            map[string]string{"upload-artifacts": "true"},
+		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-linux-arm64",
+		dependsOn:    []string{tagCleanupPipelineName},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "true"},
+			},
+		},
 	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-teleport-oci-distroless-images",
-		ghaWorkflow:       "release-teleport-oci-distroless.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		shouldTagWorkflow: true,
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-oci-distroless-images",
 		dependsOn: []string{
 			tagCleanupPipelineName,
 			"build-linux-amd64-deb",
 			"build-linux-arm64-deb",
 		},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-oci-distroless.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
 	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-teleport-kube-agent-updater-oci-images",
-		ghaWorkflow:       "release-teleport-kube-agent-updater-oci.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		shouldTagWorkflow: true,
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-kube-agent-updater-oci-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-kube-agent-updater-oci.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
 	}))
 
 	// Only amd64 Windows is supported for now.

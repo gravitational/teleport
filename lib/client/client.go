@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -47,6 +49,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -569,6 +572,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	resp, err := stream.Recv()
 	if err != nil {
+		// Older versions will NOT reply with a MFARequired response in the
+		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
+		// In this case for all protocols other than SSH fall back to reissuing
+		// certs without MFA.
+		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+			if params.usage() != proto.UserCertsRequest_SSH {
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
@@ -636,6 +649,11 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -651,6 +669,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
 		RequesterName:         params.RequesterName,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 
@@ -1115,6 +1134,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
+		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

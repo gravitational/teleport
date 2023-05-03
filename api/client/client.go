@@ -338,6 +338,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
 		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
 		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		WithPROXYHeaderGetter(params.cfg.PROXYHeaderGetter),
 	)
 
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
@@ -562,6 +563,9 @@ type Config struct {
 	// will perform necessary tests to decide if connection upgrade is
 	// required.
 	ALPNConnUpgradeRequired bool
+	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
+	// auth server from the Proxy's web server, when we create user's client for the web session.
+	PROXYHeaderGetter PROXYHeaderGetter
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -593,7 +597,16 @@ func (c *Config) CheckAndSetDefaults() error {
 		PermitWithoutStream: true,
 	}))
 	if !c.DialInBackground {
-		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+		c.DialOpts = append(
+			c.DialOpts,
+			// Provides additional feedback on connection failure, otherwise,
+			// users will only receive a `context deadline exceeded` error when
+			// c.DialInBackground == false.
+			//
+			// grpc.WithReturnConnectionError implies grpc.WithBlock which is
+			// necessary for connection route selection to work properly.
+			grpc.WithReturnConnectionError(),
+		)
 	}
 	return nil
 }
@@ -2773,6 +2786,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
+		case types.KindUserGroup:
+			resources[i] = respResource.GetUserGroup()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2863,6 +2878,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubeCluster()
 			case types.KindKubeServer:
 				resource = respResource.GetKubernetesServer()
+			case types.KindUserGroup:
+				resource = respResource.GetUserGroup()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3493,6 +3510,18 @@ func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
 func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 	_, err := c.integrationsClient().DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
 	return trail.FromGRPC(err)
+}
+
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
 }
 
 // PluginsClient returns an unadorned Plugins client, using the underlying
