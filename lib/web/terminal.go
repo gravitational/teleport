@@ -116,6 +116,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		}),
 		ctx:                cfg.SessionCtx,
 		authProvider:       cfg.AuthProvider,
+		localAuthProvider:  cfg.LocalAuthProvider,
 		displayLogin:       cfg.DisplayLogin,
 		sessionData:        cfg.SessionData,
 		keepAliveInterval:  cfg.KeepAliveInterval,
@@ -132,29 +133,32 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 // TerminalHandlerConfig contains the configuration options necessary to
 // correctly setup the TerminalHandler
 type TerminalHandlerConfig struct {
-	// term is the initial PTY size.
+	// Term is the initial PTY size.
 	Term session.TerminalParams
-	// sctx is the context for the users web session.
+	// SessionCtx is the context for the users web session.
 	SessionCtx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
+	// AuthProvider is used to fetch nodes and sessions from the backend.
 	AuthProvider AuthProvider
-	// displayLogin is the login name to display in the UI.
+	// LocalAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	LocalAuthProvider agentless.AuthProvider
+	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
-	// sessionData is the data to send to the client on the initial session creation.
+	// SessionData is the data to send to the client on the initial session creation.
 	SessionData session.Session
-	// keepAliveInterval is the interval for sending ping frames to web client.
+	// KeepAliveInterval is the interval for sending ping frames to web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
-	// proxyHostPort is the address of the server to connect to.
+	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
-	// interactiveCommand is a command to execute.
+	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
-	// ProxySigner is used to sign PROXY header and securely propagate client IP information
+	// PROXYSigner is used to sign PROXY header and securely propagate client IP information
 	PROXYSigner multiplexer.PROXYHeaderSigner
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
@@ -184,6 +188,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.AuthProvider == nil {
 		return trace.BadParameter("AuthProvider must be provided")
+	}
+
+	if t.LocalAuthProvider == nil {
+		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
 	if t.SessionCtx == nil {
@@ -226,6 +234,10 @@ type TerminalHandler struct {
 
 	// authProvider is used to fetch nodes and sessions from the backend.
 	authProvider AuthProvider
+
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
 
 	closeOnce sync.Once
 
@@ -658,12 +670,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
+	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -723,7 +730,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -765,7 +772,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
@@ -797,7 +804,7 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc)
 	if err != nil {

@@ -30,6 +30,7 @@ export function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const lock = json.lock || defaultAccess;
   const plugins = json.plugins || defaultAccess;
   const integrations = json.integrations || defaultAccessWithUse;
   const dbServers = json.dbServers || defaultAccess;
@@ -83,6 +84,7 @@ export function makeAcl(json): Acl {
     license,
     download,
     deviceTrust,
+    lock,
   };
 }
 

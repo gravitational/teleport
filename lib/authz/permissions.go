@@ -1228,6 +1228,12 @@ func (r RemoteBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// IsRemoteServer returns true if the primary role is either RoleRemoteProxy, or one of
+// the local service roles (e.g. proxy) from the remote cluster.
+func (r RemoteBuiltinRole) IsRemoteServer() bool {
+	return r.Role == types.RoleInstance || r.Role == types.RoleRemoteProxy || r.Role.IsLocalService()
+}
+
 // RemoteUser defines encoded remote user.
 type RemoteUser struct {
 	// Username is a name of the remote user
