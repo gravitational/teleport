@@ -188,6 +188,13 @@ spec:
       # 'region': '^us-west-1|eu-central-1$'
       'cluster_name': '^us.*\.example\.com$'
 
+    # group_labels: a user with this role will be given permissions to the
+    # underlying user_groups. Services such as the Okta service may use these
+    # permissions to grant access to external services.
+    group_labels:
+      # A user is given group membership to production related groups.
+      'env': 'prod'
+
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI
     aws_role_arns:

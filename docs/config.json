@@ -759,6 +759,24 @@
           ]
         },
         {
+          "title": "Integrating with Okta",
+          "slug": "/application-access/okta/",
+          "entries": [
+            {
+              "title": "Introduction",
+              "slug": "/application-access/okta/introduction/"
+            },
+            {
+              "title": "Guide",
+              "slug": "/application-access/okta/guide/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/application-access/okta/reference/"
+            }
+          ]
+        },
+        {
           "title": "Access Controls",
           "slug": "/application-access/controls/"
         },
