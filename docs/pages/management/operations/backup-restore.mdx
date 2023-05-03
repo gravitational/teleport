@@ -239,3 +239,33 @@ of storage backend.
 </TabItem>
 </Tabs>
 
+### Active-passive Multi-region architecture example
+
+For mission-critical Teleport use cases, it is recommended to use an active-passive 
+deployment architecture that is highly available across multiple regions.
+Active-passive architecture keeps Teleport accessible with minimal disruption during the event 
+of a a cloud provider regional outage.  This example uses AWS, but the 
+general architecture can be applied to various cloud providers and self-hosted infrastructures.
+
+In this example, the Auth and Proxy cluster components, along with their networking components 
+run parallell to each other in two different AWS regions. These seperate Teleport clusters share 
+a storage backend for the  cluster state, audit logs, and share storage for session recordings. 
+A DNS failover is the control point to switch between the active and passive clusters during the 
+event of a regional outage. 
+
+Key components of an Active-Passive Multi-region: 
+
+- Two  Teleport clusters deployed in seperate regions. For example regions us-west-1 and us-east-1. 
+- All Teleport cluster components deployed as autoscaling groups in both regions. 
+- For this example the us-west-1 region Teleport cluster is the active cluster, and the us-east-1 
+  region is the passive cluster. 
+- DynamoDB for cluster state and audit log storage, and S3 buckets for session recording storage.
+    - Enable the us-west-1 DynamoDB table with global replication in the us-east-1 passive region
+      to ensure cluster state and audit logs are maintained in both regions.
+    - Enable cross region replication on the S3 bucket to ensure objects are replicated between 
+      both the active and passive regions.
+- Configure the Teleport cluster Route53 records to use the [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) with the active cluster end 
+  point as primary record and the passive cluster endpoint as the secondary record.
+    - Using health checks to determine Teleport cluster availability, Route53 will automatically send the traffic to the passive 
+      cluster during the event of a regional outage and automatically shifts the traffic back to the active 
+      cluster when health checks report a normal state.
