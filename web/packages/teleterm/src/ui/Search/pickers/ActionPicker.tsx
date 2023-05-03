@@ -495,7 +495,7 @@ export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
 export function TypeToSearchItem() {
   return (
     <NonInteractiveItem>
-      <Text typography="body1" color="text.primary">
+      <Text typography="body1" color="text.main">
         Type something to search.
       </Text>
     </NonInteractiveItem>
@@ -618,7 +618,7 @@ const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
 `;
 
 const ResourceFields = styled(Flex).attrs({ gap: 1 })`
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   font-size: ${props => props.theme.fontSizes[0]}px;
 `;
 

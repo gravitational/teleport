@@ -84,9 +84,9 @@ export function Cluster() {
   return (
     <Layout mx="auto" px={5} pt={3} height="100%">
       <Flex justifyContent="space-between">
-        <Text typography="body1" color="text.secondary">
+        <Text typography="body1" color="text.slightlyMuted">
           {`clusters / `}
-          <Text as="span" typography="h6" color="text.primary">
+          <Text as="span" typography="h6" color="text.main">
             {`${clusterCtx.state.clusterName}`}
           </Text>
         </Text>
@@ -104,7 +104,7 @@ function RequiresLogin(props: { clusterUri: string; onLogin(): void }) {
       justifyContent="center"
       alignItems="center"
     >
-      <Text typography="h4" color="text.primary" bold>
+      <Text typography="h4" color="text.main" bold>
         {props.clusterUri}
         <Text as="span" typography="h5">
           {` cluster is offline`}
