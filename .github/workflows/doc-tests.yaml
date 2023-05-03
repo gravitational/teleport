@@ -45,9 +45,9 @@ jobs:
           echo "" > .gitmodules
           rm -rf content/*
           cd content
-          git submodule add --force -b $GITHUB_HEAD_REF -- https://github.com/gravitational/teleport
+          git submodule add --force -b $GITHUB_SHA -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_HEAD_REF\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_SHA\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
           yarn install
           yarn build-node
 
