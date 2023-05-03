@@ -75,7 +75,7 @@ export function AppLauncher() {
 
       if (err instanceof TypeError) {
         // `fetch` returns `TypeError` when there is a network error.
-        statusText = `Unable to access "${params.fqdn}" due to a network issue. Please ensure the domain is configured correctly, and your browser trusts the SSL certificate.`
+        statusText = `Unable to access "${params.fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (<give URL here>) and accept the certificate exception from your browser.`
       } else if (err instanceof Error) {
         statusText = err.message;
       }
