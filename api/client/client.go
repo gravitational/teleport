@@ -604,7 +604,7 @@ func (c *Config) CheckAndSetDefaults() error {
 			// c.DialInBackground == false.
 			//
 			// grpc.WithReturnConnectionError implies grpc.WithBlock which is
-			// necessary connection route selection to work properly.
+			// necessary for connection route selection to work properly.
 			grpc.WithReturnConnectionError(),
 		)
 	}
