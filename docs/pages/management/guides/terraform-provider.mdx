@@ -34,6 +34,14 @@ $ cd teleport-terraform
 Terraform needs a signed identity file from your Teleport cluster's certificate
 authority in order to manage resources in the cluster.
 
+<Admonition type="tip" title="Running Terraform from a CI/CD platform?">
+If you intend to run Terraform from a CI/CD platform,
+[Machine ID](../../machine-id/introduction.mdx) is often a better option for
+generating credentials. Machine ID can provision short-lived certificates for
+CI/CD workflows as opposed to manually generating impersonated credentials with
+a long TTL.
+</Admonition>
+
 ### Create the Terraform user
 
 Create a local Teleport user named `terraform`, and a matching role granting the
