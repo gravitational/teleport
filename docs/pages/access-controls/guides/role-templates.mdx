@@ -107,7 +107,9 @@ Just like roles, role templates are valid YAML and validate both the structure
 and types.
 
 The role template `devs` is using the `internal` notation to refer to the local user's
-traits `logins` and `kubernetes_groups`.
+traits `logins` and `kubernetes_groups`.  The `internal` notion is limited to a few specific
+predefined traits.  The `external.<trait-name>` notation can be used if using custome traits
+for Teleport local users.
 
 Use `tctl` to create a role template:
 
