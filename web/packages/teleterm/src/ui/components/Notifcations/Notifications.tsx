@@ -38,7 +38,7 @@ const notificationConfig: Record<
   },
   warn: {
     Icon: Warning,
-    getColor: theme => theme.colors.warning,
+    getColor: theme => theme.colors.warning.main,
     isAutoRemovable: true,
   },
   info: {

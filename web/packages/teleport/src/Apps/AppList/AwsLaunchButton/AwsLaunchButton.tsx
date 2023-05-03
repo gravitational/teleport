@@ -51,7 +51,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           LAUNCH
-          <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+          <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({

@@ -22,7 +22,7 @@ import { SelectAsync, DarkStyledSelect } from 'shared/components/Select';
 
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
-    <Flex alignItems="center" color="text.primary">
+    <Flex alignItems="center" color="text.main">
       <Text typography="h6" fontWeight="regular" mr="2">
         CLUSTER:
       </Text>

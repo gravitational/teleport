@@ -228,7 +228,7 @@ exports[`kube connect dialogue local 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>
@@ -628,7 +628,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>
@@ -1057,7 +1057,7 @@ exports[`kube connect dialogue sso 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>

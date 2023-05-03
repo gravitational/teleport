@@ -201,7 +201,7 @@ exports[`render with URL loc state set to "server" 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
@@ -803,7 +803,7 @@ exports[`render with all access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
@@ -2421,7 +2421,7 @@ exports[`render with no access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;
@@ -4179,7 +4179,7 @@ exports[`render with partial access 1`] = `
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: transparent;
   margin-right: 16px;
   margin-bottom: 8px;

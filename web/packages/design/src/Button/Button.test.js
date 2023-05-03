@@ -25,14 +25,14 @@ describe('design/Button', () => {
     const { container } = render(<Button />);
     expect(container.firstChild.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.brand.main,
+      background: theme.colors.brand,
     });
   });
 
-  test('"kind" primary renders bg == theme.colors.brand.main', () => {
+  test('"kind" primary renders bg == theme.colors.brand', () => {
     const { container } = render(<ButtonPrimary />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.brand.main,
+      background: theme.colors.brand,
     });
   });
 

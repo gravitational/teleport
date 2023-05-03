@@ -23,11 +23,11 @@ import Flex from './../Flex';
 const fromTheme = ({ theme = defaultTheme }) => {
   return {
     background: theme.colors.levels.surface,
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.slightlyMuted,
     fontSize: theme.fontSizes[1],
     fontWeight: theme.bold,
     '&:active, &.active': {
-      borderLeftColor: theme.colors.brand.accent,
+      borderLeftColor: theme.colors.brandAccent,
       background: theme.colors.levels.elevated,
       color: theme.colors.text.contrast,
     },
@@ -57,7 +57,7 @@ SideNavItem.defaultProps = {
   pl: 9,
   pr: 5,
   bg: 'levels.surfaceSecondary',
-  color: 'text.primary',
+  color: 'text.main',
   theme: defaultTheme,
 };
 

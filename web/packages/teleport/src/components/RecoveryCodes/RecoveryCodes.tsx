@@ -155,7 +155,7 @@ export default function RecoveryCodesDialog({
             <Text typography="h4" mb={2}>
               Why do I need these codes?
             </Text>
-            <Text color="text.secondary">
+            <Text color="text.slightlyMuted">
               Use them in the event of losing your password or two-factor
               device.
             </Text>
@@ -164,7 +164,7 @@ export default function RecoveryCodesDialog({
             <Text typography="h4" mb={2}>
               How long do the codes last for?
             </Text>
-            <Text color="text.secondary">
+            <Text color="text.slightlyMuted">
               Recovery codes can only be used once. After recovering your
               account, we will generate a new set of codes for you.
             </Text>
@@ -174,7 +174,7 @@ export default function RecoveryCodesDialog({
               <Text typography="h4" mb={2}>
                 What about my old codes?
               </Text>
-              <Text color="text.secondary">
+              <Text color="text.slightlyMuted">
                 Your old recovery codes are no longer valid, please replace them
                 with these new ones.
               </Text>

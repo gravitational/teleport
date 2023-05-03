@@ -34,7 +34,7 @@ export const CheckboxWrapper = styled(Flex)`
 
 export const CheckboxInput = styled.input`
   margin-right: 10px;
-  accent-color: ${props => props.theme.colors.brand.main};
+  accent-color: ${props => props.theme.colors.brand};
 
   &:hover {
     cursor: pointer;

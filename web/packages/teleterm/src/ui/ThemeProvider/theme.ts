@@ -30,45 +30,48 @@ import typography, { fontSizes, fontWeights } from 'design/theme/typography';
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
+/*
+  Fields marked with "Not in v13+" are color fields that are not included in the themes released in v13 and onwards.
+  Fields marked with "Only in use in v13+" are color fields that are not used by any components in this version, but are included here in order to make
+  backporting components from later versions easier.
+*/
 const colors = {
   levels: {
     sunken: '#0C143D',
-    sunkenSecondary: '#131B43',
+    sunkenSecondary: '#131B43', // Not in v13+.
 
     surface: '#222C59',
-    surfaceSecondary: '#182047',
+    surfaceSecondary: '#182047', // Not in v13+.
 
     elevated: '#2D3761',
   },
 
-  brand: {
-    main: '#512FC9',
-    accent: '#651FFF',
-    secondaryAccent: '#354AA4',
-  },
+  // Spot backgrounds are used as highlights, for example
+  // to indicate a hover or active state for an item in a menu.
+  spotBackground: [
+    'rgba(255,255,255,0.07)',
+    'rgba(255,255,255,0.13)',
+    'rgba(255,255,255,0.18)',
+  ], // Only in use in v13+.
 
-  // missing
-  inverse: '#B0BEC5',
-  progressBarColor: '#00BFA5',
-
-  dark: '#000000',
-
-  light: '#FFFFFF',
+  brand: '#512FC9',
+  brandAccent: '#651FFF', // Not in v13+.
+  brandSecondaryAccent: '#354AA4', // Not in v13+.
 
   text: {
     // The most important text.
-    primary: 'rgba(255,255,255,0.87)',
-    // Secondary text.
-    secondary: 'rgba(255, 255, 255, 0.56)',
-    // Placeholder text for forms.
-    placeholder: 'rgba(255, 255, 255, 0.24)',
-    // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0, 0, 0, 0.24)',
-    // For maximum contrast.
-    contrast: '#FFFFFF',
+    main: 'rgba(255,255,255,0.87)',
+    // Slightly muted text.
+    slightlyMuted: 'rgba(255, 255, 255, 0.72)',
+    // Muted text. Also used as placeholder text in forms.
+    muted: 'rgba(255, 255, 255, 0.54)',
+    // Disabled text.
+    disabled: 'rgba(255, 255, 255, 0.36)',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
-    primaryInverse: '#324148',
+    primaryInverse: '#000000',
+    // For maximum contrast.
+    contrast: '#FFFFFF', // Not in v13+.
   },
 
   buttons: {
@@ -77,6 +80,7 @@ const colors = {
     bgDisabled: 'rgba(255, 255, 255, 0.12)',
 
     primary: {
+      text: '#FFFFFF', // Only in use in v13+.
       default: '#512FC9',
       hover: '#651FFF',
       active: '#354AA4',
@@ -84,21 +88,26 @@ const colors = {
 
     secondary: {
       default: '#222C59',
-      hover: '#2D3761',
+      hover: '#2C3A73',
+      active: '#2C3A73',
     },
 
     border: {
-      default: '#2D3761',
-      hover: '#2D3761',
-      border: '#182047',
+      default: '#2C3A73',
+      hover: '#2C3A73',
+      border: '#1C254D',
       borderHover: 'rgba(255, 255, 255, 0.1)',
+      active: '#2C3A73', // Only in use in v13+.
     },
 
     warning: {
       default: '#d50000',
       hover: '#ff1744',
+      text: '#000000', // Only in use in v13+.
+      active: '#ff1744', // Only in use in v13+.
     },
 
+    // Not in v13+.
     outlinedPrimary: {
       text: '#651FFF',
       border: '#512FC9',
@@ -106,6 +115,7 @@ const colors = {
       borderActive: '#354AA4',
     },
 
+    // Not in v13+.
     outlinedDefault: {
       text: 'rgba(255,255,255,0.87)',
       textHover: '#FFFFFF',
@@ -117,7 +127,19 @@ const colors = {
       default: '#2e3860',
       hover: '#414b70',
     },
+
+    // Only in use in v13+.
+    link: {
+      default: '#009EFF',
+      hover: '#33B1FF',
+      active: '#66C5FF',
+    },
   },
+
+  progressBarColor: '#00BFA5',
+
+  dark: '#000000',
+  light: '#FFFFFF',
 
   grey: {
     ...blueGrey,
@@ -127,6 +149,14 @@ const colors = {
     light: red['A200'],
     dark: red['A700'],
     main: red['A400'],
+    hover: red['A200'], // Only in use in v13+.
+    active: red['A100'], // Only in use in v13+.
+  },
+
+  warning: {
+    main: orange['A400'],
+    hover: orange['A200'], // Only in use in v13+.
+    active: orange['A100'], // Only in use in v13+.
   },
 
   action: {
@@ -145,7 +175,6 @@ const colors = {
   highlight: yellow[50],
   disabled: blueGrey[500],
   info: lightBlue[600],
-  warning: orange.A400,
   success: teal.A700,
 };
 
@@ -162,6 +191,7 @@ const borders = [
 const sansSerif = 'system-ui';
 
 const theme = {
+  name: 'dark',
   colors,
   typography,
   font: sansSerif,
@@ -176,6 +206,11 @@ const theme = {
   radii: [0, 2, 4, 8, 16, 9999, '100%'],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
+  boxShadow: [
+    '0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12)',
+    '0px 5px 5px -3px rgba(0, 0, 0, 0.2), 0px 8px 10px 1px rgba(0, 0, 0, 0.14), 0px 3px 14px 2px rgba(0, 0, 0, 0.12)',
+    '0px 3px 5px -1px rgba(0, 0, 0, 0.2), 0px 6px 10px rgba(0, 0, 0, 0.14), 0px 1px 18px rgba(0, 0, 0, 0.12)',
+  ],
   // disabled media queries for styled-system
   breakpoints: [],
 };

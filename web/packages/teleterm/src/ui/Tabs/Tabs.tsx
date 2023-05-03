@@ -113,7 +113,7 @@ const Separator = styled.div`
   height: 23px;
   width: 1px;
   margin: 0 1px;
-  background: ${props => props.theme.colors.text.placeholder};
+  background: ${props => props.theme.colors.text.muted};
 `;
 
 const StyledTabs = styled(Box)`
