@@ -60,7 +60,8 @@ export class AccessRequestsService {
       Object.keys(pendingAccessRequest.db).length +
       Object.keys(pendingAccessRequest.app).length +
       Object.keys(pendingAccessRequest.kube_cluster).length +
-      Object.keys(pendingAccessRequest.windows_desktop).length
+      Object.keys(pendingAccessRequest.windows_desktop).length +
+      Object.keys(pendingAccessRequest.user_group).length
     );
   }
 
