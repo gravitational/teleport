@@ -35,11 +35,12 @@ export function AppLauncher() {
   const queryParams = new URLSearchParams(search);
 
   const createAppSession = useCallback(async (params: UrlLauncherParams) => {
+    let fqdn = params.fqdn;
+    const port = location.port ? `:${location.port}` : '';
+
     try {
-      let fqdn = params.fqdn;
       if (!fqdn) {
         const app = await service.getAppFqdn(params);
-
         fqdn = app.fqdn;
       }
 
@@ -48,7 +49,6 @@ export function AppLauncher() {
         params.arn = decodeURIComponent(params.arn);
       }
 
-      const port = location.port ? `:${location.port}` : '';
       const session = await service.createAppSession(params);
 
       await fetch(`https://${fqdn}${port}/x-teleport-auth`, {
@@ -75,7 +75,7 @@ export function AppLauncher() {
 
       if (err instanceof TypeError) {
         // `fetch` returns `TypeError` when there is a network error.
-        statusText = `Unable to access "${params.fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (<give URL here>) and accept the certificate exception from your browser.`
+        statusText = `Unable to access "${fqdn}". This may happen if your Teleport Proxy is using untrusted or self-signed certificate. Please ensure Teleport Proxy service uses valid certificate or access the application domain directly (https://${fqdn}${port}) and accept the certificate exception from your browser.`
       } else if (err instanceof Error) {
         statusText = err.message;
       }
