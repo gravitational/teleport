@@ -158,41 +158,29 @@ const (
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 
-	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
-	OktaAssignmentActionStatusPending = "pending"
+	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	OktaAssignmentStatusPending = "pending"
 
-	// OktaAssignmentActionStatusProcessing is represents an Okta action which is currently being acted on.
-	OktaAssignmentActionStatusProcessing = "processing"
+	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	OktaAssignmentStatusProcessing = "processing"
 
-	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
-	OktaAssignmentActionStatusSuccessful = "successful"
+	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	OktaAssignmentStatusSuccessful = "successful"
 
-	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
-	OktaAssignmentActionStatusFailed = "failed"
+	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	OktaAssignmentStatusFailed = "failed"
 
-	// OktaAssignmentActionStatusCleanupPending is represents an Okta action which needs to be cleaned up.
-	OktaAssignmentActionStatusCleanupPending = "cleanup_pending"
+	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	OktaAssignmentStatusUnknown = "unknown"
 
-	// OktaAssignmentActionStatusCleanupProcessing is represents an Okta action which is currently being cleaned up.
-	OktaAssignmentActionStatusCleanupProcessing = "cleanup_processing"
+	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetApplication = "application"
 
-	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
-	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetGroup = "group"
 
-	// OktaAssignmentActionStatusCleanupFailed is represents an Okta action which was not cleaned up successfully. It will not be retried.
-	OktaAssignmentActionStatusCleanupFailed = "cleanup_failed"
-
-	// OktaAssignmentActionStatusPending is represents a unknown status for an Okta action.
-	OktaAssignmentActionStatusUnknown = "unknown"
-
-	// OktaAssignmentActionTargetApplication is an application target of an Okta assignment action.
-	OktaAssignmentActionTargetApplication = "application"
-
-	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment action.
-	OktaAssignmentActionTargetGroup = "group"
-
-	// OktaAssignmentActionTargetUnknown is an unknown target of an Okta assignment action.
-	OktaAssignmentActionTargetUnknown = "unknown"
+	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
+	OktaAssignmentTargetUnknown = "unknown"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
@@ -404,7 +392,7 @@ const (
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
-	TimeoutGetClusterAlerts = time.Millisecond * 500
+	TimeoutGetClusterAlerts = time.Millisecond * 750
 )
 
 const (
@@ -425,6 +413,13 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
 )
 
 const (

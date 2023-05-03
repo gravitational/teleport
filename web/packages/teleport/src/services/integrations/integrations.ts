@@ -22,9 +22,10 @@ import {
   IntegrationCreateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
-  IntegrationExecuteRequest,
-  AwsDatabase,
-  ListAwsDatabaseResponse,
+  AwsOidcListDatabasesRequest,
+  AwsRdsDatabase,
+  ListAwsRdsDatabaseResponse,
+  RdsEngineIdentifier,
 } from './types';
 
 export const integrationService = {
@@ -54,20 +55,50 @@ export const integrationService = {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
 
-  fetchAwsDatabases(
+  fetchAwsRdsDatabases(
     integrationName,
-    req: IntegrationExecuteRequest
-  ): Promise<ListAwsDatabaseResponse> {
+    rdsEngineIdentifier: RdsEngineIdentifier,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
+  ): Promise<ListAwsRdsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest;
+    switch (rdsEngineIdentifier) {
+      case 'mysql':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb'],
+        };
+        break;
+      case 'postgres':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['postgres'],
+        };
+        break;
+      case 'aurora-mysql':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora', 'aurora-mysql'],
+        };
+        break;
+      case 'aurora-postgres':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-postgresql'],
+        };
+        break;
+    }
+
     return api
-      .post(
-        cfg.getIntegrationExecuteUrl({
-          name: integrationName,
-          action: 'list_databases',
-        }),
-        req
-      )
+      .post(cfg.getAwsRdsDbListUrl(integrationName), body)
       .then(json => {
-        const dbs = json?.databases;
+        const dbs = json?.databases ?? [];
         return {
           databases: dbs.map(makeAwsDatabase),
           nextToken: json?.nextToken,
@@ -100,12 +131,17 @@ function makeIntegration(json: any): Integration {
   };
 }
 
-export function makeAwsDatabase(json: any): AwsDatabase {
+export function makeAwsDatabase(json: any): AwsRdsDatabase {
   json = json ?? {};
-  const { engine, name, endpoint } = json;
+  const { aws, name, uri, labels, protocol } = json;
+
   return {
-    engine,
+    engine: protocol,
     name,
-    endpoint,
+    uri,
+    status: aws?.status,
+    labels: labels ?? [],
+    resourceId: aws?.rds?.resource_id,
+    accountId: aws?.account_id,
   };
 }

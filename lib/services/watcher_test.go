@@ -193,8 +193,8 @@ func TestProxyWatcher(t *testing.T) {
 
 func newProxyServer(t *testing.T, name, addr string) types.Server {
 	s, err := types.NewServer(name, types.KindProxy, types.ServerSpecV2{
-		Addr:       addr,
-		PublicAddr: addr,
+		Addr:        addr,
+		PublicAddrs: []string{addr},
 	})
 	require.NoError(t, err)
 	return s
@@ -990,9 +990,8 @@ func TestNodeWatcher(t *testing.T) {
 
 func newNodeServer(t *testing.T, name, addr string, tunnel bool) types.Server {
 	s, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
-		Addr:       addr,
-		PublicAddr: addr,
-		UseTunnel:  tunnel,
+		Addr:      addr,
+		UseTunnel: tunnel,
 	})
 	require.NoError(t, err)
 	return s
@@ -1126,7 +1125,7 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		types.Events
 	}
 
-	oktaService, err := local.NewOktaService(bk)
+	oktaService, err := local.NewOktaService(bk, clock)
 	require.NoError(t, err)
 	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
 		RWCfg: services.ResourceWatcherConfig{
@@ -1256,15 +1255,13 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 		},
 		types.OktaAssignmentSpecV1{
 			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
+			Targets: []*types.OktaAssignmentTargetV1{
 				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
+					Type: types.OktaAssignmentTargetV1_APPLICATION,
+					Id:   "123456",
 				},
 			},
+			Status: types.OktaAssignmentSpecV1_PENDING,
 		},
 	)
 	require.NoError(t, err)

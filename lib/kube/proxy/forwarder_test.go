@@ -751,6 +751,7 @@ func TestAuthenticate(t *testing.T) {
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
 					ActiveRequests:    tt.activeRequests,
+					Expires:           certExpiration,
 				}),
 			}
 			authorizer := mockAuthorizer{ctx: &authCtx}
@@ -769,7 +770,6 @@ func TestAuthenticate(t *testing.T) {
 								CommonName:   username,
 								Organization: []string{"example"},
 							},
-							NotAfter: certExpiration,
 						},
 					},
 				},
@@ -1903,7 +1903,7 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 				kubeCluster,
 			)
 
-			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+			_, err := client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
 			tt.assertErrFunc(t, err)
 		})
 	}

@@ -516,6 +516,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		resp, err := teleportClient.Ping(ctx)
 		require.NoError(t, err, "Ping failed")
 		require.True(t, resp.Auth.DeviceTrustDisabled, "Expected device trust to be disabled for Teleport OSS")
+		require.True(t, resp.Auth.DeviceTrust.Disabled, "Expected device trust to be disabled for Teleport OSS")
 
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.

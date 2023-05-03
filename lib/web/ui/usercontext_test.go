@@ -88,6 +88,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.Locks, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Events, denied))
