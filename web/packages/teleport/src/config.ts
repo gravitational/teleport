@@ -218,6 +218,9 @@ const cfg = {
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+
+    userGroupsListPath:
+      '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -640,6 +643,13 @@ const cfg = {
     return generatePath(cfg.api.awsRdsDbListPath, {
       clusterId,
       name: integrationName,
+    });
+  },
+
+  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.userGroupsListPath, {
+      clusterId,
+      ...params,
     });
   },
 
