@@ -1211,7 +1211,6 @@ func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
 func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels := azureTagsToLabels(server.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = server.Location
 	labels[labelEngineVersion] = server.Properties.Version
 	return withLabelsFromAzureResourceID(labels, server.ID)
@@ -1232,7 +1231,6 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 // labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
 func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.RedisVersion)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1241,7 +1239,6 @@ func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, err
 // labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
 func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(cluster.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(cluster.Location)
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
 	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
@@ -1252,7 +1249,6 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 // server.
 func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1262,7 +1258,6 @@ func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) 
 // Azure Managed SQL server.
 func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
@@ -1270,7 +1265,6 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 // labelsFromAzureMySQLFlexServer creates database labels for the provided Azure MySQL flex server.
 func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 
@@ -1295,7 +1289,6 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 // labelsFromAzurePostgresFlexServer creates database labels for the provided Azure postgres flex server.
 func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1366,7 +1359,6 @@ func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endpoi
 // labelsFromAWSMetadata returns labels from provided AWS metadata.
 func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	if meta != nil {
 		labels[labelAccountID] = meta.AccountID
 		labels[labelRegion] = meta.Region
