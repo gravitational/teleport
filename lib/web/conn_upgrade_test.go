@@ -133,6 +133,8 @@ func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, server
 	io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
+	require.Equal(t, upgradeType, resp.Header.Get(constants.WebAPIConnUpgradeHeader))
+	require.Equal(t, constants.WebAPIConnUpgradeConnectionType, resp.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 }
 

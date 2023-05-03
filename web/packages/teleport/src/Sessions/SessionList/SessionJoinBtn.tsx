@@ -21,18 +21,28 @@ import { CarrotDown, Warning } from 'design/Icon';
 
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export const SessionJoinBtn = ({
   sid,
   clusterId,
   participantModes,
+  showCTA,
 }: {
   sid: string;
   clusterId: string;
   participantModes: ParticipantMode[];
+  showCTA: boolean;
 }) => {
   return (
     <JoinMenu>
+      {showCTA && (
+        <Box mx="12px" my="3">
+          <ButtonLockedFeature noIcon>
+            Join Active Sessions with Teleport Enterprise
+          </ButtonLockedFeature>
+        </Box>
+      )}
       <JoinMenuItem
         title="As an Observer"
         description={modeDescription.observer}
@@ -40,6 +50,7 @@ export const SessionJoinBtn = ({
         hasAccess={participantModes.includes('observer')}
         participantMode="observer"
         key="observer"
+        showCTA={showCTA}
       />
       <JoinMenuItem
         title="As a Moderator"
@@ -48,6 +59,7 @@ export const SessionJoinBtn = ({
         hasAccess={participantModes.includes('moderator')}
         participantMode="moderator"
         key="moderator"
+        showCTA={showCTA}
       />
       <JoinMenuItem
         title="As a Peer"
@@ -56,6 +68,7 @@ export const SessionJoinBtn = ({
         hasAccess={participantModes.includes('peer')}
         participantMode="peer"
         key="peer"
+        showCTA={showCTA}
       />
     </JoinMenu>
   );
@@ -64,7 +77,7 @@ export const SessionJoinBtn = ({
 function JoinMenu({ children }: { children: React.ReactNode }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
 
-  const handleClickListItem = event => {
+  const handleClickListItem = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
@@ -103,14 +116,16 @@ function JoinMenuItem({
   hasAccess,
   participantMode,
   url,
+  showCTA,
 }: {
   title: string;
   description: string;
   hasAccess: boolean;
   participantMode: ParticipantMode;
   url: string;
+  showCTA: boolean;
 }) {
-  if (hasAccess) {
+  if (hasAccess && !showCTA) {
     return (
       <MenuItem
         as="a"
@@ -151,12 +166,14 @@ function JoinMenuItem({
       <Box height="fit-content" width="264px">
         <Text typography="h6">{title}</Text>
         <Text>{description}</Text>
-        <Box color="text.main" px={1} mt={1}>
-          <Text fontSize="10px" color="text.slightlyMuted">
-            <Warning color="error.main" mr={2} />
-            {modeWarningText[participantMode]}
-          </Text>
-        </Box>
+        {!showCTA && (
+          <Box color="text.main" px={1} mt={1}>
+            <Text fontSize="10px" color="text.slightlyMuted">
+              <Warning color="error.main" mr={2} />
+              {modeWarningText[participantMode]}
+            </Text>
+          </Box>
+        )}
       </Box>
     </MenuItem>
   );
