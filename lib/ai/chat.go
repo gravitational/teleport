@@ -19,10 +19,10 @@ package ai
 import (
 	"context"
 	"errors"
-	"fmt"
-	"gopkg.in/yaml.v3"
 	"io"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
