@@ -29,6 +29,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
 
@@ -300,7 +301,7 @@ func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.Clien
 		WithSecrets: true,
 	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trail.FromGRPC(err)
 	}
 
 	creds := openaiPlugin.Credentials.GetBearerToken()
@@ -324,7 +325,12 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *Ses
 		client := ai.NewClient(token)
 		chat := client.NewChat(sctx.cfg.User)
 		return chat, nil
-	} else if !trace.IsNotFound(err) {
+	} else if !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
+		// We ignore 2 types of errors here.
+		// Unimplemented may be raised by the OSS server,
+		// as PluginsService does not exist there yet.
+		// NotFound means plugin does not exist,
+		// in which case we should fall back on the static token configured in YAML.
 		log.WithError(err).Error("Unexpected error fetching default OpenAI plugin")
 	}
 
