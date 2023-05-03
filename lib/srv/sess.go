@@ -435,7 +435,6 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 	}
 
 	for _, p := range session.parties {
-
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
