@@ -171,7 +171,6 @@ top:
 
 		// if we can parse it, return the parsed payload, otherwise return a non-streaming message
 		var c CompletionCommand
-		fmt.Printf("Command payload: %s", payload)
 		err = yaml.Unmarshal([]byte(payload), &c)
 		switch err {
 		case nil:
