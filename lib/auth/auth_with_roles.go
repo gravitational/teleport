@@ -48,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -200,13 +201,29 @@ func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID)
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
-// serverAction returns an access denied error if the role is not one of the builtin server roles.
-func (a *ServerWithRoles) serverAction() error {
+// localServerAction returns an access denied error if the role is not one of the builtin server roles.
+func (a *ServerWithRoles) localServerAction() error {
 	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	return nil
+}
+
+// remoteServerAction returns an access denied error if the role is not one of the remote builtin server roles.
+func (a *ServerWithRoles) remoteServerAction() error {
+	role, ok := a.context.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok || !role.IsRemoteServer() {
+		return trace.AccessDenied("this request can be only executed by a teleport remote server")
+	}
+	return nil
+}
+
+// isLocalOrRemoteServerAction returns true if the role is one of the builtin server roles (local or remote).
+func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
+	errLocal := a.localServerAction()
+	errRemote := a.remoteServerAction()
+	return errLocal == nil || errRemote == nil
 }
 
 // hasBuiltinRole checks that the attached identity is a builtin role and
@@ -444,7 +461,7 @@ func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.Ge
 
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -463,6 +480,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	if tracker.GetKind() == types.KindSSHSession {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
+			Kind:           tracker.GetSessionKind(),
 			ID:             session.ID(tracker.GetSessionID()),
 			Namespace:      apidefaults.Namespace,
 			Login:          tracker.GetLogin(),
@@ -600,7 +618,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return tracker, nil
 	}
 
@@ -625,7 +643,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -653,7 +671,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -676,7 +694,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -685,7 +703,7 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -718,7 +736,7 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 // to connect to Agentless nodes.
 func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	// this limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(types.RoleProxy) {
+	if !a.hasBuiltinRole(types.RoleProxy) && !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
@@ -1523,12 +1541,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	// Check if auth server has a license for this resource type but only return an
-	// error if the user is not a builtin proxy or kube role.
-	// Builtin proxy and kube roles are allowed to list resources to avoid crashes
+	// error if the requester is not a builtin or remote server.
+	// Builtin and remote server roles are allowed to list resources to avoid crashes
 	// even if the license is missing.
 	// Users with other roles will get an error if the license is missing so they
 	// can request a license with the correct features.
-	if err := enforceLicense(req.ResourceType); err != nil && !a.hasBuiltinRole(types.RoleProxy, types.RoleKube) {
+	if err := enforceLicense(req.ResourceType); err != nil && !a.isLocalOrRemoteServerAction() {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2880,6 +2898,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
+		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -4915,7 +4934,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	err := a.serverAction()
+	err := a.localServerAction()
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {

@@ -28,13 +28,14 @@ import type { CommonInstructionsProps } from './common';
 export function SixthStageInstructions(props: CommonInstructionsProps) {
   return (
     <InstructionsContainer>
-      <Text>Close the "Create policy tab"</Text>
+      <Text>
+        Close the tab for "Create Policy" and go back to the tab for{' '}
+        <strong>Create Role</strong>
+      </Text>
 
       <Text mt={5}>
         Refresh the list of policies and select the policy you just created
       </Text>
-
-      <Text mt={5}>Search for the policy you just created and select it</Text>
 
       <Text mt={5}>
         Click <strong>Next: Tags</strong> and then <strong>Next: Review</strong>

@@ -101,6 +101,10 @@ type AuthConfig struct {
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
+
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

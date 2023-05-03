@@ -591,13 +591,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))  // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet)) // get active list of sessions
-	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
-	// but this endpoint is still used by the UI. When time allows evaluate the
-	// removal of this handler and the associated methods here and in the UI.
-	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
-	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))                     // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -717,6 +712,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
 	h.GET("/.well-known/openid-configuration", h.WithLimiter(h.openidConfiguration))
 	h.GET(OIDCJWKWURI, h.WithLimiter(h.jwksOIDC))
+	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
@@ -2409,21 +2405,13 @@ func createIdentityContext(login string, sessionCtx *SessionContext) (srv.Identi
 	}, nil
 }
 
-type UILock struct {
-	Name      string           `json:"name"`
-	Message   string           `json:"message"`
-	Expires   string           `json:"expires"`
-	CreatedAt string           `json:"createdAt"`
-	CreatedBy string           `json:"createdBy"`
-	Targets   types.LockTarget `json:"targets"`
-}
-
 func (h *Handler) getClusterLocks(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2434,30 +2422,8 @@ func (h *Handler) getClusterLocks(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Lock data structure is reformatted to save doing it on the client as the
-	// Table component doesn't support nested complex objects. And fails to properly
-	// sort or filter results.
-	lockList := make([]UILock, 0, len(locks))
-	for _, lock := range locks {
-		var expires, createdAt string
-		if lock.LockExpiry() != nil {
-			expires = lock.LockExpiry().Format(time.RFC3339Nano)
-		}
 
-		if !lock.CreatedAt().IsZero() {
-			createdAt = lock.CreatedAt().Format(time.RFC3339Nano)
-		}
-
-		lockList = append(lockList, UILock{
-			Name:      lock.GetMetadata().Name,
-			Message:   lock.Message(),
-			Expires:   expires,
-			Targets:   lock.Target(),
-			CreatedAt: createdAt,
-			CreatedBy: lock.CreatedBy(),
-		})
-	}
-	return lockList, nil
+	return ui.MakeLocks(locks), nil
 }
 
 type createLockReq struct {
@@ -2471,7 +2437,8 @@ func (h *Handler) createClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	var req *createLockReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2510,7 +2477,7 @@ func (h *Handler) createClusterLock(
 		return nil, trace.Wrap(err)
 	}
 
-	return lock, nil
+	return ui.MakeLock(lock), nil
 }
 
 func (h *Handler) deleteClusterLock(
@@ -2518,7 +2485,8 @@ func (h *Handler) deleteClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2623,6 +2591,7 @@ func (h *Handler) siteNodeConnect(
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		AuthProvider:       clt,
+		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
@@ -2747,6 +2716,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
+		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
 		ServerID:       id,
 		ClusterName:    clusterName,
@@ -2761,6 +2731,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	}, nil
 }
 
+// fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
@@ -2792,49 +2763,8 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	return sessionData, displayLogin, nil
 }
 
-type siteSessionGenerateReq struct {
-	Session session.Session `json:"session"`
-}
-
 type siteSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
-}
-
-// siteSessionCreate generates a new site session that can be used by UI
-// The ServerID from request can be in the form of hostname, uuid, or ip address.
-func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *siteSessionGenerateReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	namespace := apidefaults.Namespace
-	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(r.Context(), namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		req.Session.Kind = types.SSHSessionKind
-		req.Session.ServerHostname = hostname
-	}
-
-	req.Session.ID = session.NewID()
-	req.Session.Created = time.Now().UTC()
-	req.Session.LastActive = time.Now().UTC()
-	req.Session.Namespace = namespace
-
-	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 
 type siteSessionsGetResponse struct {
@@ -2886,15 +2816,10 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	}
 }
 
-// siteSessionsGet gets the list of site sessions filtered by creation time
-// and whether they're active or not
+// clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
-//
-// Response body:
-//
-// {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
-func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// GET /v1/webapi/sites/:site/sessions
+func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2927,37 +2852,6 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return siteSessionsGetResponse{Sessions: sessions}, nil
-}
-
-// siteSessionGet gets the list of site session by id
-//
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid
-//
-// Response body:
-//
-// {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
-func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	h.log.Infof("web.getSession(%v)", sessionID)
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return nil, trace.NotFound("session %v not found", sessionID)
-	}
-
-	return trackerToLegacySession(tracker, site.GetName()), nil
 }
 
 const maxStreamBytes = 5 * 1024 * 1024

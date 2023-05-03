@@ -37,12 +37,11 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
 import { InstructionsContainer } from './common';
 
 export function SeventhStageInstructions() {
-  const location = useLocation<{ discoverEventId: string }>();
-
   const { attempt, setAttempt } = useAttempt('');
   const [showConfirmBox, setShowConfirmBox] = useState(false);
   const [roleArn, setRoleArn] = useState('');
@@ -79,6 +78,7 @@ export function SeventhStageInstructions() {
             <Text mt={5}>Copy the role ARN and paste it below</Text>
             <Box mt={2}>
               <FieldInput
+                autoFocus
                 label="Role ARN"
                 onChange={e => setRoleArn(e.target.value)}
                 value={roleArn}
@@ -108,22 +108,19 @@ export function SeventhStageInstructions() {
         )}
       </Validation>
       {showConfirmBox && (
-        <SuccessfullyAddedIntegrationDialog
-          discoverEventId={location.state?.discoverEventId}
-          integrationName={name}
-        />
+        <SuccessfullyAddedIntegrationDialog integrationName={name} />
       )}
     </InstructionsContainer>
   );
 }
 
 export function SuccessfullyAddedIntegrationDialog({
-  discoverEventId,
   integrationName,
 }: {
-  discoverEventId: string;
   integrationName: string;
 }) {
+  const location = useLocation<DiscoverUrlLocationState>();
+
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -140,16 +137,15 @@ export function SuccessfullyAddedIntegrationDialog({
         </Text>
       </DialogContent>
       <DialogFooter css={{ margin: '0 auto' }}>
-        {discoverEventId ? (
+        {location.state?.discover ? (
           <ButtonPrimary
             size="large"
             as={Link}
             to={{
               pathname: cfg.routes.discover,
               state: {
-                integrationSubKind: IntegrationKind.AwsOidc,
                 integrationName,
-                discoverEventId,
+                discover: location.state.discover,
               },
             }}
           >

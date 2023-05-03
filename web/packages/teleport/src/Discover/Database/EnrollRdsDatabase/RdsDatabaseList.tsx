@@ -142,11 +142,11 @@ enum Status {
 
 function getStatus(item: AwsRdsDatabase) {
   switch (item.status) {
-    case 'Available':
+    case 'available':
       return Status.Success;
 
-    case 'Failed':
-    case 'Deleting':
+    case 'failed':
+    case 'deleting':
       return Status.Error;
   }
 }

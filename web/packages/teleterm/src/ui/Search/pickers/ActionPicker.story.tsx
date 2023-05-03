@@ -324,6 +324,7 @@ const SearchResultItems = () => {
       attempts={[attempt]}
       onPick={() => {}}
       onBack={() => {}}
+      addWindowEventListener={() => ({ cleanup: () => {} })}
       render={searchResult => {
         const Component = ComponentMap[searchResult.kind];
 
@@ -350,6 +351,7 @@ const AuxiliaryItems = () => (
     onBack={() => {}}
     render={() => null}
     attempts={[]}
+    addWindowEventListener={() => ({ cleanup: () => {} })}
     ExtraTopComponent={
       <>
         <NoResultsItem

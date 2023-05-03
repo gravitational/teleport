@@ -110,6 +110,8 @@ class TeleportContext implements types.Context {
         deviceTrust: false,
         enrollIntegrationsOrPlugins: false,
         enrollIntegrations: false,
+        locks: false,
+        newLocks: false,
       };
     }
 
@@ -138,6 +140,9 @@ class TeleportContext implements types.Context {
         userContext.getPluginsAccess().create ||
         userContext.getIntegrationsAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
+      locks: userContext.getLockAccess().list,
+      newLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit,
     };
   }
 }

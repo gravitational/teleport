@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -197,8 +198,8 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
-  // Username is the Teleport username.
-  string Username = 1 [(gogoproto.jsontag) = "username"];
+  reserved 1; // Username, jsontag "username"
+  reserved "Username";
   // PublicKey is the public key to sign.
   bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
   // TTL is the duration the certificate will be valid for.
@@ -206,8 +207,13 @@ message OpenSSHCertRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
-  // Cluster is the Teleport cluster name.
+  // Cluster is the Teleport cluster name the target node is connected to.
   string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  // User is the Teleport user the certificate will be generated for.
+  types.UserV2 User = 5 [(gogoproto.jsontag) = "user"];
+  // Roles are the roles of the Teleport user the certificate will be
+  // generated for.
+  repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.
@@ -329,6 +335,9 @@ message UserCertsRequest {
   // This login is used when performing RBAC checks to determine if MFA is required
   // to access the resource.
   string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
