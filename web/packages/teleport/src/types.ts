@@ -21,6 +21,8 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
+import TeleportContext from './teleportContext';
+
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
@@ -51,6 +53,11 @@ export interface TeleportFeature {
   route?: TeleportFeatureRoute;
   navigationItem?: TeleportFeatureNavigationItem;
   topMenuItem?: TeleportFeatureNavigationItem;
+  // alternative items to display when the user has permissions (RBAC)
+  // but the cluster lacks the feature:
+  isLocked?(ctx: TeleportContext): boolean;
+  lockedNavigationItem?: TeleportFeatureNavigationItem;
+  lockedRoute?: TeleportFeatureRoute;
 }
 
 export type StickyCluster = {
