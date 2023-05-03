@@ -545,6 +545,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 
 	key, err := tc.Login(ctx)
 	if err != nil {
+		if errors.Is(err, prompt.ErrNotTerminal) {
+			log.WithError(err).Debugf("Relogin is not available in this environment")
+			return trace.Wrap(fnErr)
+		}
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
 		}
@@ -1545,7 +1549,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, proxyClient *ProxyC
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -1606,6 +1610,14 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, proxyClient 
 		),
 	)
 	defer span.End()
+
+	// There is no need to attempt a mfa ceremony if the user is attempting
+	// to connect to a resource via `tsh ssh --headless`. The entire point
+	// of headless authentication is to allow connections to originate from a
+	// machine without access to a WebAuthn device.
+	if tc.AuthConnector == constants.HeadlessConnector {
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
@@ -3559,7 +3571,7 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 
 	tshApprove := fmt.Sprintf("tsh headless approve --user=%v --proxy=%v %v", tc.Username, tc.WebProxyAddr, headlessAuthenticationID)
 
-	fmt.Fprintf(tc.Stdout, "Complete headless authentication in your local web browser:\n\n%s\n"+
+	fmt.Fprintf(tc.Stderr, "Complete headless authentication in your local web browser:\n\n%s\n"+
 		"\nor execute this command in your local terminal:\n\n%s\n", webUILink, tshApprove)
 
 	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
@@ -3681,7 +3693,7 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 	// If version checking was requested and the server advertises a minimum version.
 	if tc.CheckVersions && pr.MinClientVersion != "" {
 		if err := utils.CheckVersion(teleport.Version, pr.MinClientVersion); err != nil && trace.IsBadParameter(err) {
-			fmt.Fprintf(tc.Config.Stderr, `
+			fmt.Fprintf(tc.Stderr, `
 			WARNING
 			Detected potentially incompatible client and server versions.
 			Minimum client version supported by the server is %v but you are using %v.
@@ -3725,15 +3737,19 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	}
 
 	if motd.Text != "" {
-		fmt.Fprintf(tc.Config.Stderr, "%s\nPress [ENTER] to continue.\n", motd.Text)
-		// We're re-using the password reader for user acknowledgment for
-		// aesthetic purposes, because we want to hide any garbage the
-		// use might enter at the prompt. Whatever the user enters will
-		// be simply discarded, and the user can still CTRL+C out if they
-		// disagree.
-		_, err := prompt.Stdin().ReadPassword(context.Background())
-		if err != nil {
-			return trace.Wrap(err)
+		fmt.Fprintln(tc.Stderr, motd.Text)
+
+		// If possible, prompt the user for acknowledement before continuing.
+		if stdin := prompt.Stdin(); stdin.IsTerminal() {
+			// We're re-using the password reader for user acknowledgment for
+			// aesthetic purposes, because we want to hide any garbage the
+			// user might enter at the prompt. Whatever the user enters will
+			// be simply discarded, and the user can still CTRL+C out if they
+			// disagree.
+			fmt.Fprintln(tc.Stderr, "Press [ENTER] to continue.")
+			if _, err := stdin.ReadPassword(ctx); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -4090,13 +4106,21 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) {
+	stdin := prompt.Stdin()
+	if !stdin.IsTerminal() {
+		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
+	}
 	return prompt.Password(ctx, tc.Stderr, prompt.Stdin(), "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err error) {
+	stdin := prompt.Stdin()
+	if !stdin.IsTerminal() {
+		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")
+	}
 	return prompt.Password(
-		ctx, tc.Stderr, prompt.Stdin(), fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
+		ctx, tc.Stderr, stdin, fmt.Sprintf("Enter password for Teleport user %v", tc.Config.Username))
 }
 
 // LoadTLSConfig returns the user's TLS configuration, either from static

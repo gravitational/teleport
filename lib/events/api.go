@@ -586,7 +586,30 @@ const (
 	SSMRunEvent = "ssm.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
+	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
+	// DeviceCreateEvent is emitted on device registration.
+	// This is an inventory management event.
+	DeviceCreateEvent = "device.create"
+	// DeviceDeleteEvent is emitted on device deletion.
+	// This is an inventory management event.
+	DeviceDeleteEvent = "device.delete"
+	// DeviceUpdateEvent is emitted on device updates.
+	// This is an inventory management event.
+	DeviceUpdateEvent = "device.update"
+	// DeviceEnrollEvent is emitted when a device is enrolled.
+	// Enrollment events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceEnrollEvent = "device.enroll"
+	// DeviceAuthenticateEvent is emitted when a device is authenticated.
+	// Authentication events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceAuthenticateEvent = "device.authenticate"
+	// DeviceEnrollTokenCreateEvent is emitted when a new enrollment token is
+	// issued for a device.
+	// Device enroll tokens are issued by either a device admin or during
+	// client-side auto-enrollment.
+	DeviceEnrollTokenCreateEvent = "device.token.create"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"

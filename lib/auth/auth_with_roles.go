@@ -416,6 +416,27 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 	return trace.Wrap(err)
 }
 
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Token, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
 	if err := a.serverAction(); err != nil {
@@ -437,6 +458,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	if tracker.GetKind() == types.KindSSHSession {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
+			Kind:           tracker.GetSessionKind(),
 			ID:             session.ID(tracker.GetSessionID()),
 			Namespace:      apidefaults.Namespace,
 			Login:          tracker.GetLogin(),

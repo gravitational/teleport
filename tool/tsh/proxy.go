@@ -188,15 +188,28 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
+	signers, err := tc.LocalAgent().Signers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(signers) == 0 {
+		return trace.BadParameter("no SSH auth methods loaded, are you logged in?")
+	}
+
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
-		User: tc.HostLogin,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
-		},
+		User:            tc.HostLogin,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
+			log.Infof("Access denied to %v connecting to %v: %v", tc.HostLogin, remoteProxyAddr, err)
+			return trace.AccessDenied(`access denied to %v connecting to %v`, tc.HostLogin, remoteProxyAddr)
+		}
 		return trace.Wrap(err)
 	}
 	defer client.Close()

@@ -936,8 +936,8 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 // Sessions created via hostname and by matched labels are
 // verified.
 //
-// NOTE: This test must NOT be run in parallel because it modifies the global
-// [client.PromptWebauthn].
+// NOTE: This test must NOT be run in parallel because it updates
+// the global [client.PromptWebauthn] in multiple test cases.
 func TestSSHOnMultipleNodes(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1123,6 +1123,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		errAssertion    require.ErrorAssertionFunc
 		stdoutAssertion require.ValueAssertionFunc
 		mfaPromptCount  int
+		headless        bool
 	}{
 		{
 			name:           "default auth preference runs commands on multiple nodes without mfa",
@@ -1277,6 +1278,26 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount:  1,
 			errAssertion:    require.Error,
 		},
+		{
+			name: "mfa ceremony prevented when using headless auth",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				},
+			},
+			target: sshHostID,
+			roles:  []string{perSessionMFARole.GetName()},
+			setup:  setupChallengeSolver(failedChallenge),
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			errAssertion: require.NoError,
+			headless:     true,
+		},
 	}
 
 	for _, tt := range cases {
@@ -1322,16 +1343,20 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			// Clear counter before each ssh command,
 			// so we can assert how many times sign was called.
 			device.SetCounter(0)
-			err = Run(ctx, []string{
-				"ssh",
-				"--insecure",
-				tt.target,
-				"echo", "test",
-			},
+
+			args := []string{"ssh", "--insecure"}
+			if tt.headless {
+				args = append(args, "--headless", "--proxy", proxyAddr.String(), "--user", alice.GetName())
+			}
+			args = append(args, tt.target, "echo", "test")
+
+			err = Run(ctx,
+				args,
 				setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
 					conf.overrideStdin = &bytes.Buffer{}
 					conf.overrideStdout = stdout
+					conf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
 					return nil
 				},
 			)
@@ -2277,7 +2302,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 	for _, testcase := range tests {
 		t.Run(testcase.desc, func(t *testing.T) {
-			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus)
+			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus, "")
 			testcase.errorAssertion(t, err)
 			require.Equal(t, testcase.expectedValues, values)
 		})

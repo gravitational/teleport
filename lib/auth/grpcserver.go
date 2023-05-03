@@ -2713,6 +2713,10 @@ func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
 		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
+// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+// complete the challenge with.
+var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer, mfaRequired proto.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
@@ -2724,7 +2728,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+		return nil, ErrNoMFADevices
 	}
 
 	challenge.MFARequired = mfaRequired
@@ -5096,6 +5100,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Cache:      cfg.AuthServer.Cache,
+		Clock:      cfg.AuthServer.clock,
+		CAGetter:   cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

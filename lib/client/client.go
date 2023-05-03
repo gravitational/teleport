@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -521,6 +523,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	resp, err := stream.Recv()
 	if err != nil {
+		// Older versions will NOT reply with a MFARequired response in the
+		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
+		// In this case for all protocols other than SSH fall back to reissuing
+		// certs without MFA.
+		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+			if params.usage() != proto.UserCertsRequest_SSH {
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
@@ -543,7 +555,15 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 		if !check.Required {
-			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+			log.Debug("MFA not required for access.")
+			// MFA is not required.
+			// SSH certs can be used without embedding the node name.
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+				return key, nil
+			}
+			// All other targets need their name embedded in the cert for routing,
+			// fall back to non-MFA reissue.
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 		}
 	case proto.MFARequired_MFA_REQUIRED_YES:
 		// Proceed with the prompt for MFA below.

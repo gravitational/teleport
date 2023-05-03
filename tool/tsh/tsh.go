@@ -936,9 +936,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
 
 	// Headless login approval
-	headless := app.Command("headless", "headless commands").Interspersed(true)
-	approve := headless.Command("approve", "headless approval").Interspersed(true)
-	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
+	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
+	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1147,6 +1147,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case show.FullCommand():
 		err = onShow(&cf)
 	case status.FullCommand():
+		// onStatus can be invoked directly with `tsh status` but is also
+		// invoked from other commands. When invoked directly, we use a
+		// context with a short timeout to prevent the command from taking
+		// too long due to fetching alerts on slow networks.
+		var cancel context.CancelFunc
+		cf.Context, cancel = context.WithTimeout(cf.Context, constants.TimeoutGetClusterAlerts)
+		defer cancel()
 		err = onStatus(&cf)
 	case lsApps.FullCommand():
 		err = onApps(&cf)
@@ -3712,10 +3719,14 @@ func onShow(cf *CLIConf) error {
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	var prefix string
-	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
+	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
+		if duration < time.Minute {
+			humanDuration = "valid for <1m"
+		}
 	}
 
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -4580,7 +4591,7 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string
 	if len(cf.KubernetesCluster) == 0 {
 		return nil
 	}
-	err := updateKubeConfig(cf, tc, "")
+	err := updateKubeConfig(cf, tc, "" /* update the default kubeconfig */, "" /* do not override the context name */)
 	return trace.Wrap(err)
 }
 

@@ -205,6 +205,18 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
 	// For now, only "alpn" is supported.
 	req.Header.Add(teleport.WebAPIConnUpgradeHeader, teleport.WebAPIConnUpgradeTypeALPN)
 
+	// Set "Connection" header to meet RFC spec:
+	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
+	// Quote: "the upgrade keyword MUST be supplied within a Connection header
+	// field (section 14.10) whenever Upgrade is present in an HTTP/1.1
+	// message."
+	//
+	// Some L7 load balancers/reverse proxies like "ngrok" and "tailscale"
+	// require this header to be set to complete the upgrade flow. The header
+	// must be set on both the upgrade request here and the 101 Switching
+	// Protocols response from the server.
+	req.Header.Add(teleport.WebAPIConnUpgradeConnectionHeader, teleport.WebAPIConnUpgradeConnectionType)
+
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
 		return trace.Wrap(err)

@@ -172,8 +172,8 @@ func TestFormatAccountName(t *testing.T) {
 				proxies: []types.Server{
 					&types.ServerV2{
 						Spec: types.ServerSpecV2{
-							PublicAddr: "foo",
-							Version:    "bar",
+							PublicAddrs: []string{"foo"},
+							Version:     "bar",
 						},
 					},
 				},
