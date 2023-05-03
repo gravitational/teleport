@@ -891,6 +891,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
 	}
 
+	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
+		cfg.Proxy.AssistAPIKey = fc.Proxy.Assist.OpenAI.APIToken
+	}
+
 	if fc.Proxy.MySQLServerVersion != "" {
 		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
 	}

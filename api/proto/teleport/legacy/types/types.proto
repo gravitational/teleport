@@ -1674,21 +1674,6 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_headless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
-
-  // Assist is a set of options related to the Teleport Assist feature.
-  AssistOptions Assist = 16 [(gogoproto.jsontag) = "assist,omitempty"];
-}
-
-// AssistOptions is a set of options related to the Teleport Assist feature.
-message AssistOptions {
-  // OpenAI is a set of options related to the OpenAI assist backend.
-  OpenAIOptions OpenAI = 1 [(gogoproto.jsontag) = "openai,omitempty"];
-}
-
-// OpenAIOptions stores options related to the OpenAI assist backend.
-message OpenAIOptions {
-  // APIToken is the API token used to authenticate with the OpenAI API.
-  string APIToken = 1 [(gogoproto.jsontag) = "api_token,omitempty"];
 }
 
 // U2F defines settings for U2F device.

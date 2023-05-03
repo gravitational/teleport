@@ -1198,9 +1198,6 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
-
-	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1231,14 +1228,6 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
-	var assist *types.AssistOptions
-	if a.Assist != nil {
-		assist, err = a.Assist.Parse()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1251,7 +1240,6 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
-		Assist:            assist,
 	})
 }
 
@@ -1373,18 +1361,6 @@ type AssistOptions struct {
 // OpenAIOptions stores options related to the OpenAI assist backend.
 type OpenAIOptions struct {
 	APIToken string `yaml:"api_token,omitempty"`
-}
-
-func (ao *AssistOptions) Parse() (*types.AssistOptions, error) {
-	if ao.OpenAI == nil {
-		return &types.AssistOptions{}, nil
-	}
-
-	return &types.AssistOptions{
-		OpenAI: &types.OpenAIOptions{
-			APIToken: ao.OpenAI.APIToken,
-		},
-	}, nil
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -2094,6 +2070,9 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

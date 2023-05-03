@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -142,7 +141,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 
 	conversationID := p.ByName("conversation_id")
 
-	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
+	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -225,7 +224,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	go startPingLoop(r.Context(), ws, keepAliveInterval, h.log, nil)
 
-	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
+	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient,
+		h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -318,36 +318,30 @@ func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.Clien
 	return creds.Token, nil
 }
 
-func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
+	proxySettings proxySettingsGetter, username string,
+) (*ai.Chat, error) {
 	token, err := getOpenAITokenFromDefaultPlugin(ctx, proxyClient)
 	if err == nil {
 		client := ai.NewClient(token)
-		chat := client.NewChat(sctx.cfg.User)
+		chat := client.NewChat(username)
 		return chat, nil
 	} else if !trace.IsNotFound(err) {
 		log.WithError(err).Error("Unexpected error fetching default OpenAI plugin")
 	}
 
-	prefs, err := proxyClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	keyGetter, found := proxySettings.(interface{ GetOpenAIAPIKey() string })
+	if !found {
+		return nil, trace.Errorf("")
 	}
 
-	prefsV2, ok := prefs.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Errorf("bad cast, expected AuthPreferenceV2 found %T", prefs)
+	apiKey := keyGetter.GetOpenAIAPIKey()
+	if apiKey == "" {
+		return nil, trace.Errorf("API_KEY is empty")
 	}
 
-	if prefsV2.Spec.Assist == nil {
-		return nil, trace.Errorf("assist spec is not set")
-	}
-
-	if prefsV2.Spec.Assist.OpenAI == nil {
-		return nil, trace.Errorf("assist openai backend is not configured")
-	}
-
-	client := ai.NewClient(prefsV2.Spec.Assist.OpenAI.APIToken)
-	chat := client.NewChat(sctx.cfg.User)
+	client := ai.NewClient(apiKey)
+	chat := client.NewChat(username)
 
 	return chat, nil
 }

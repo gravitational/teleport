@@ -1071,11 +1071,6 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 
-	mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
-
-	// TODO(jakule): Currently assist is disabled when MFA is enabled as this part is not implemented.
-	as.Assist.Enabled = !mfaRequired && authPreference.IsAssistEnabled()
-
 	return as, nil
 }
 
@@ -1154,6 +1149,19 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	///
+	if proxyConfig.AssistEnabled {
+		// TODO(jakule): Currently assist is disabled when MFA is enabled as this part is not implemented.
+		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+		// Disable assistant support if per session MFA is enabled.
+		proxyConfig.AssistEnabled = !mfaRequired
+	}
+	///
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
 	if err != nil {
