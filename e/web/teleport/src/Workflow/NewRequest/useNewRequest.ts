@@ -8,6 +8,7 @@ import { WindowsDesktopService } from 'teleport/services/desktops';
 import { Kube } from 'teleport/services/kube';
 import { Database } from 'teleport/services/databases';
 import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
 import Ctx from 'e-teleport/teleportContextE';
 
@@ -155,6 +156,7 @@ export function useNewRequest(ctx: Ctx) {
       db: { ...addedResources.db },
       kube_cluster: { ...addedResources.kube_cluster },
       node: { ...addedResources.node },
+      user_group: { ...addedResources.user_group },
       windows_desktop: { ...addedResources.windows_desktop },
       role: { ...addedResources.role },
     });
@@ -273,6 +275,12 @@ export function useNewRequest(ctx: Ctx) {
           kube => (addedResources[selectedResource][kube.name] = kube.name)
         );
         break;
+      case 'user_group':
+        (agents as UserGroup[]).forEach(
+          userGroup =>
+            (addedResources[selectedResource][userGroup.name] = userGroup.name)
+        );
+        break;
       case 'windows_desktop':
         (agents as WindowsDesktopService[]).forEach(
           desktop =>
@@ -288,6 +296,7 @@ export function useNewRequest(ctx: Ctx) {
       kube_cluster: { ...addedResources.kube_cluster },
       node: { ...addedResources.node },
       windows_desktop: { ...addedResources.windows_desktop },
+      user_group: { ...addedResources.user_group },
     });
   }
 
@@ -318,6 +327,11 @@ export function useNewRequest(ctx: Ctx) {
           desktop => delete addedResources[selectedResource][desktop.name]
         );
         break;
+      case 'user_group':
+        (fetchedData.agents as UserGroup[]).forEach(
+          userGroup => delete addedResources[selectedResource][userGroup.name]
+        );
+        break;
     }
 
     setAddedResources({
@@ -327,6 +341,7 @@ export function useNewRequest(ctx: Ctx) {
       kube_cluster: { ...addedResources.kube_cluster },
       node: { ...addedResources.node },
       windows_desktop: { ...addedResources.windows_desktop },
+      user_group: { ...addedResources.user_group },
     });
   }
 
@@ -337,6 +352,7 @@ export function useNewRequest(ctx: Ctx) {
       db: addedAll.db,
       kube_cluster: addedAll.kube_cluster,
       node: addedAll.node,
+      user_group: addedAll.user_group,
       windows_desktop: addedAll.windows_desktop,
     });
   }
@@ -381,6 +397,7 @@ export function useNewRequest(ctx: Ctx) {
         kube_cluster: { ...addedResources.kube_cluster },
         node: { ...addedResources.node },
         windows_desktop: { ...addedResources.windows_desktop },
+        user_group: { ...addedResources.user_group },
       });
     }
   }
@@ -429,6 +446,15 @@ export function useNewRequest(ctx: Ctx) {
           if (
             addedResources[selectedResource][
               (fetchedData.agents[agent] as WindowsDesktopService).name
+            ]
+          ) {
+            count++;
+          }
+          break;
+        case 'user_group':
+          if (
+            addedResources[selectedResource][
+              (fetchedData.agents[agent] as UserGroup).name
             ]
           ) {
             count++;
@@ -498,6 +524,7 @@ export function getEmptyResourceState() {
     db: {},
     app: {},
     kube_cluster: {},
+    user_group: {},
     windows_desktop: {},
     role: {},
   };
@@ -530,6 +557,10 @@ function getAgentsFetchCallback(ctx: Ctx, resourceType: ResourceKind) {
 
   if (resourceType === 'windows_desktop') {
     return ctx.desktopService.fetchDesktops;
+  }
+
+  if (resourceType === 'user_group') {
+    return ctx.userGroupService.fetchUserGroups;
   }
 }
 
@@ -566,6 +597,7 @@ function getDefaultAddedAll(): AddedAll {
     node: false,
     db: false,
     kube_cluster: false,
+    user_group: false,
     windows_desktop: false,
   };
 }

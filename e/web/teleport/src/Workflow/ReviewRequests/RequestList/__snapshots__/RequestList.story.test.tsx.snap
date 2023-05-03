@@ -664,6 +664,14 @@ exports[`loaded state 1`] = `
               class="c19"
               kind="secondary"
             >
+              user_group
+              : 
+              user-group-name
+            </div>
+            <div
+              class="c19"
+              kind="secondary"
+            >
               kube_cluster
               : 
               kube-cluster-name

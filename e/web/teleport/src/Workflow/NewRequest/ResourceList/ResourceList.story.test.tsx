@@ -8,6 +8,7 @@ import {
   Kubes,
   Nodes,
   Roles,
+  UserGroups,
 } from './ResourceList.story';
 
 test('render Apps', async () => {
@@ -37,5 +38,10 @@ test('render Nodes', async () => {
 
 test('render Roles', async () => {
   const { container } = render(<Roles />);
+  expect(container).toMatchSnapshot();
+});
+
+test('render UserGroups', async () => {
+  const { container } = render(<UserGroups />);
   expect(container).toMatchSnapshot();
 });

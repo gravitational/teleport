@@ -7,6 +7,7 @@ import { Database } from 'teleport/services/databases';
 import { App } from 'teleport/services/apps';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
 import { State } from '../useNewRequest';
 
@@ -16,6 +17,7 @@ import { Nodes } from './Nodes';
 import { Desktops } from './Desktops';
 import { Kubes } from './Kubes';
 import { Roles } from './Roles';
+import { UserGroups } from './UserGroups';
 
 export function ResourceList(props: Props) {
   const {
@@ -44,6 +46,9 @@ export function ResourceList(props: Props) {
       )}
       {selectedResource === 'role' && (
         <Roles roles={requestableRoles} {...listProps} />
+      )}
+      {selectedResource === 'user_group' && (
+        <UserGroups userGroups={agents as UserGroup[]} {...listProps} />
       )}
     </Wrapper>
   );

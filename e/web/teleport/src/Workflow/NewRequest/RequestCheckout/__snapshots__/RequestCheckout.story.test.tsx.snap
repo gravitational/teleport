@@ -521,7 +521,7 @@ exports[`failed state 1`] = `
             class="c7"
             color="text.main"
           >
-            4
+            5
              
             Resources
              Selected
@@ -593,6 +593,22 @@ exports[`failed state 1`] = `
             </td>
             <td>
               kube-name
+            </td>
+            <td
+              align="right"
+            >
+              <span
+                class="c4 c11 icon icon-trash2 c12"
+                font-size="13"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              user_group
+            </td>
+            <td>
+              user-group-name
             </td>
             <td
               align="right"
@@ -1314,7 +1330,7 @@ exports[`loaded state 1`] = `
             class="c7"
             color="text.main"
           >
-            4
+            5
              
             Resources
              Selected
@@ -1380,6 +1396,22 @@ exports[`loaded state 1`] = `
             </td>
             <td>
               kube-name
+            </td>
+            <td
+              align="right"
+            >
+              <span
+                class="c4 c10 icon icon-trash2 c11"
+                font-size="13"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              user_group
+            </td>
+            <td>
+              user-group-name
             </td>
             <td
               align="right"

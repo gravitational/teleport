@@ -1382,3 +1382,271 @@ exports[`render Roles 1`] = `
   </div>
 </div>
 `;
+
+exports[`render UserGroups 1`] = `
+.c7 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  width: 134px;
+}
+
+.c7:hover,
+.c7:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c7:active {
+  background: rgba(255,255,255,0.13);
+}
+
+.c7:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c4 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c1 {
+  background: #222C59;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c1 > thead > tr > th,
+.c1 > tbody > tr > th,
+.c1 > tfoot > tr > th,
+.c1 > thead > tr > td,
+.c1 > tbody > tr > td,
+.c1 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c1 > thead > tr > th:first-child,
+.c1 > tbody > tr > th:first-child,
+.c1 > tfoot > tr > th:first-child,
+.c1 > thead > tr > td:first-child,
+.c1 > tbody > tr > td:first-child,
+.c1 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c1 > thead > tr > th:last-child,
+.c1 > tbody > tr > th:last-child,
+.c1 > tfoot > tr > th:last-child,
+.c1 > thead > tr > td:last-child,
+.c1 > tbody > tr > td:last-child,
+.c1 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c1 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c1 > thead > tr > th {
+  background: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c1 > thead > tr > th .c3 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c1 > tbody > tr > td {
+  color: #FFFFFF;
+  line-height: 16px;
+}
+
+.c1 tbody tr {
+  border-bottom: 1px solid #0C143D;
+}
+
+.c1 tbody tr:hover {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c6 {
+  box-sizing: border-box;
+  border-radius: 10px;
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  margin: 1px 0;
+  vertical-align: middle;
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
+  margin-right: 4px;
+  cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c2 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c0.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <table
+      class="c1 c2"
+    >
+      <thead>
+        <tr>
+          <th>
+            <a>
+              Name
+              <span
+                class="c3 c4 icon icon-chevrons-expand-vertical "
+                title="sort items"
+              />
+            </a>
+          </th>
+          <th>
+            <a>
+              Description
+              <span
+                class="c3 c4 icon icon-chevrons-expand-vertical "
+                title="sort items"
+              />
+            </a>
+          </th>
+          <th
+            style="cursor: default;"
+          >
+            Labels
+          </th>
+          <th
+            style="cursor: default;"
+          />
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            group id 1
+          </td>
+          <td>
+            user group
+          </td>
+          <td>
+            <div
+              class="c5"
+            >
+              <div
+                class="c6"
+                kind="secondary"
+              >
+                env: prod
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c7"
+              kind="border"
+              width="134px"
+            >
+              + Add to request
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            group id 2
+          </td>
+          <td>
+            admin group
+          </td>
+          <td>
+            <div
+              class="c5"
+            >
+              <div
+                class="c6"
+                kind="secondary"
+              >
+                env: dev
+              </div>
+            </div>
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c7"
+              kind="border"
+              width="134px"
+            >
+              + Add to request
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+`;

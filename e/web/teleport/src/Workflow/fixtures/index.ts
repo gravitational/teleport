@@ -27,6 +27,13 @@ export const requestSearchPending: AccessRequest = {
     { id: { kind: 'node', name: 'node-name', clusterName: 'cluster-name' } },
     {
       id: {
+        kind: 'user_group',
+        name: 'user-group-name',
+        clusterName: 'cluster-name',
+      },
+    },
+    {
+      id: {
         kind: 'kube_cluster',
         name: 'kube-cluster-name',
         clusterName: 'cluster-name',

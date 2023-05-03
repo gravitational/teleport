@@ -5,6 +5,7 @@ import { Database } from 'teleport/services/databases';
 import { App } from 'teleport/services/apps';
 import { Kube } from 'teleport/services/kube';
 import { Node } from 'teleport/services/nodes';
+import { UserGroup } from 'teleport/services/userGroups';
 
 import { getEmptyResourceState } from '../useNewRequest';
 
@@ -42,6 +43,10 @@ export const Roles = () => (
     requestableRoles={['role1', 'role2']}
     selectedResource="role"
   />
+);
+
+export const UserGroups = () => (
+  <ResourceList {...props} agents={userGroups} selectedResource="user_group" />
 );
 
 const props: Props = {
@@ -119,5 +124,18 @@ const kubes: Kube[] = [
   {
     name: 'tele.logicoma.dev-prod',
     labels: [{ name: 'env', value: 'prod' }],
+  },
+];
+
+const userGroups: UserGroup[] = [
+  {
+    name: 'group id 1',
+    description: 'user group',
+    labels: [{ name: 'env', value: 'prod' }],
+  },
+  {
+    name: 'group id 2',
+    description: 'admin group',
+    labels: [{ name: 'env', value: 'dev' }],
   },
 ];

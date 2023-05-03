@@ -3233,6 +3233,17 @@ exports[`loaded pending search based request state 1`] = `
                     cluster-name
                   </td>
                   <td>
+                    user_group
+                  </td>
+                  <td>
+                    user-group-name
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    cluster-name
+                  </td>
+                  <td>
                     kube_cluster
                   </td>
                   <td>

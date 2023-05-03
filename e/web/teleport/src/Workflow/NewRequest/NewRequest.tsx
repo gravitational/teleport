@@ -51,6 +51,10 @@ const agentOptions: ResourceOption[] = [
     value: 'kube_cluster',
     label: 'kubernetes',
   },
+  {
+    value: 'user_group',
+    label: 'user groups',
+  },
   // Order matters. On initial render
   // the last element in the options array
   // will be used. Which can either be 'node' or 'role'.
@@ -129,6 +133,7 @@ export function NewRequest(props: State) {
     Object.keys(addedResources.db).length +
     Object.keys(addedResources.app).length +
     Object.keys(addedResources.kube_cluster).length +
+    Object.keys(addedResources.user_group).length +
     Object.keys(addedResources.windows_desktop).length;
 
   const isResourceRequest = numAddedResources > 0;
