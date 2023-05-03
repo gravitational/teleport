@@ -84,5 +84,6 @@ export function getEmptyPendingAccessRequest() {
     app: {},
     role: {},
     windows_desktop: {},
+    user_group: {},
   };
 }
