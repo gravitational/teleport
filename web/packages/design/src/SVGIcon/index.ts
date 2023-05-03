@@ -21,6 +21,7 @@ export { ApplicationsIcon } from './Applications';
 export { AuditLogIcon } from './AuditLog';
 export { AuthConnectorsIcon } from './AuthConnectors';
 export { AWSIcon } from './AWS';
+export { LockIcon } from './Lock';
 export { ChevronRightIcon } from './ChevronRight';
 export { DatabasesIcon } from './Databases';
 export { DesktopsIcon } from './Desktops';
