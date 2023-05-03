@@ -293,32 +293,40 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	return nil
 }
 
-func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.ClientI) (string, error) {
 	// Try retrieving credentials from the plugin resource first
 	openaiPlugin, err := proxyClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 		Name:        "openai-default",
 		WithSecrets: true,
 	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	creds := openaiPlugin.Credentials.GetBearerToken()
+	if creds == nil {
+		return "", trace.BadParameter("malformed credentials")
+	}
+	if creds.TokenFile != "" {
+		tokenBytes, err := os.ReadFile(creds.TokenFile)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return strings.TrimSpace(string(tokenBytes)), nil
+	}
+
+	return creds.Token, nil
+}
+
+func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+	token, err := getOpenAITokenFromDefaultPlugin(ctx, proxyClient)
 	if err == nil {
-		creds := openaiPlugin.Credentials.GetBearerToken()
-		if creds == nil {
-			return nil, trace.BadParameter("malformed credentials")
-		}
-		var token string
-		if creds.TokenFile != "" {
-			tokenBytes, err := os.ReadFile(creds.TokenFile)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			token = strings.TrimSpace(string(tokenBytes))
-		} else {
-			token = creds.Token
-		}
 		client := ai.NewClient(token)
 		chat := client.NewChat(sctx.cfg.User)
 		return chat, nil
+	} else if !trace.IsNotFound(err) {
+		log.WithError(err).Error("Unexpected error fetching default OpenAI plugin")
 	}
-	log.WithError(err).Debug("Failed to retrieve OpenAI credentials from a plugin resource, will use static config")
 
 	prefs, err := proxyClient.GetAuthPreference(ctx)
 	if err != nil {
