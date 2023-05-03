@@ -892,7 +892,13 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
-		cfg.Proxy.AssistAPIKey = fc.Proxy.Assist.OpenAI.APIToken
+		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+		} else {
+			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
+		}
 	}
 
 	if fc.Proxy.MySQLServerVersion != "" {

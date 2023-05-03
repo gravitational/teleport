@@ -1360,7 +1360,8 @@ type AssistOptions struct {
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
 type OpenAIOptions struct {
-	APIToken string `yaml:"api_token,omitempty"`
+	//APITokenPath is the path to a file with OpenAI API key.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
