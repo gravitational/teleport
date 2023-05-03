@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -421,7 +422,26 @@ func TestUpload(t *testing.T) {
 			// try to overwrite a file, to test the --force flag by
 			// re-copying the files that were transferred above
 			if tt.tryOverwrite {
+				// succeeds, despite file being 0o440
+				cmd := exec.Command("bash", "-c", "echo test > "+tt.dstPath)
+				res, _ := cmd.CombinedOutput()
+				fmt.Printf("\n\n\n%s\n\n\n", string(res))
+
+				// shows the file is in fact 0o440
+				cmd = exec.Command("ls", "-lah", tt.dstPath, tt.srcPaths[0])
+				res, _ = cmd.CombinedOutput()
+				fmt.Printf("\n\n\n%s\n\n\n", string(res))
+
+				// succeeds despite read only
 				err = cfg.transfer(ctx)
+
+				// shows the file is still readonly
+				cmd = exec.Command("ls", "-lah", tt.dstPath, tt.srcPaths[0])
+				res, _ = cmd.CombinedOutput()
+				fmt.Printf("\n\n\n%s\n\n\n", string(res))
+
+				// succeeds also
+				fmt.Println(os.WriteFile(tt.dstPath, []byte("test??"), 0o400))
 				if tt.expectedOverwriteErr == "" {
 					require.NoError(t, err)
 					checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPaths...)
