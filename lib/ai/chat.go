@@ -106,14 +106,16 @@ type StreamingMessage struct {
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context) (any, error) {
+func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
+	var numTokens int
+
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &Message{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: initialAIResponse,
 			Idx:     len(chat.messages) - 1,
-		}, nil
+		}, numTokens, nil
 	}
 
 	// if not, copy the current chat log to a new slice and append the suffix instruction
@@ -136,7 +138,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, numTokens, trace.Wrap(err)
 	}
 
 	// fetch the first delta to check for a possible JSON payload
@@ -144,8 +146,9 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 top:
 	response, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, numTokens, trace.Wrap(err)
 	}
+	numTokens++
 
 	trimmed := strings.TrimSpace(response.Choices[0].Delta.Content)
 	if len(trimmed) == 0 {
@@ -162,8 +165,9 @@ top:
 			case errors.Is(err, io.EOF):
 				break outer
 			case err != nil:
-				return nil, trace.Wrap(err)
+				return nil, numTokens, trace.Wrap(err)
 			}
+			numTokens++
 
 			payload += response.Choices[0].Delta.Content
 		}
@@ -173,13 +177,13 @@ top:
 		err = json.Unmarshal([]byte(payload), &c)
 		switch err {
 		case nil:
-			return &c, nil
+			return &c, numTokens, nil
 		default:
 			return &Message{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: payload,
 				Idx:     len(chat.messages) - 1,
-			}, nil
+			}, numTokens, nil
 		}
 	}
 
@@ -213,5 +217,5 @@ top:
 		Idx:    len(chat.messages) - 1,
 		Chunks: chunks,
 		Error:  errCh,
-	}, nil
+	}, numTokens, nil
 }
