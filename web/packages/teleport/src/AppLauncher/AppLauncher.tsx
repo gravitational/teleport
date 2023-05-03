@@ -72,7 +72,11 @@ export function AppLauncher() {
       window.location.replace(`https://${fqdn}${port}${path}`);
     } catch (err) {
       let statusText = 'Something went wrong';
-      if (err instanceof Error) {
+
+      if (err instanceof TypeError) {
+        // `fetch` returns `TypeError` when there is a network error.
+        statusText = `Unable to access "${params.fqdn}" due to a network issue. Please ensure the domain is configured correctly, and your browser trusts the SSL certificate.`
+      } else if (err instanceof Error) {
         statusText = err.message;
       }
 
