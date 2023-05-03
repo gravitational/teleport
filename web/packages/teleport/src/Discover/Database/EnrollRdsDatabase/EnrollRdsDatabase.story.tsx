@@ -16,8 +16,10 @@
 
 import React from 'react';
 
+import { AwsRdsDatabase } from 'teleport/services/integrations';
+
 import { AwsRegionSelector } from './AwsRegionSelector';
-import { DatabaseList } from './DatabaseList';
+import { DatabaseList } from './RdsDatabaseList';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
@@ -26,7 +28,8 @@ export default {
 export const AwsRegionsSelectorDisabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableBtn={true}
+    disableFetch={true}
+    onRefresh={() => null}
     disableSelector={true}
     clear={() => null}
   />
@@ -35,7 +38,18 @@ export const AwsRegionsSelectorDisabled = () => (
 export const AwsRegionsSelectorEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableBtn={false}
+    disableFetch={false}
+    onRefresh={() => null}
+    disableSelector={false}
+    clear={() => null}
+  />
+);
+
+export const AwsRegionsSelectorRefreshEnabled = () => (
+  <AwsRegionSelector
+    onFetch={() => null}
+    disableFetch={true}
+    onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
   />
@@ -71,11 +85,66 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures = [
-  { name: 'postgres-name', engine: 'postgres', endpoint: '' },
-  { name: 'mysql-name', engine: 'mysql', endpoint: '' },
-  { name: 'alpaca', engine: 'postgres', endpoint: '' },
-  { name: 'banana', engine: 'postgres', endpoint: '' },
-  { name: 'watermelon', engine: 'mysql', endpoint: '' },
-  { name: 'llama', engine: 'postgres', endpoint: '' },
+const fixtures: AwsRdsDatabase[] = [
+  {
+    name: 'postgres-name',
+    engine: 'postgres',
+    uri: '',
+    labels: [],
+    status: 'available',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'mysql-name',
+    engine: 'mysql',
+    uri: '',
+    labels: [],
+    status: 'available',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'alpaca',
+    engine: 'aurora',
+    uri: '',
+    labels: [
+      { name: 'env', value: 'prod' },
+      { name: 'os', value: 'windows' },
+    ],
+    status: 'deleting',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'banana',
+    engine: 'postgres',
+    uri: '',
+    labels: [],
+    status: 'failed',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'watermelon',
+    engine: 'mysql',
+    uri: '',
+    labels: [
+      { name: 'env', value: 'dev' },
+      { name: 'os', value: 'mac' },
+      { name: 'fruit', value: 'watermelon' },
+    ],
+    status: 'Unknown' as any,
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'llama',
+    engine: 'postgres',
+    uri: '',
+    labels: [{ name: 'testing-name', value: 'testing-value' }],
+    status: 'available',
+    accountId: '',
+    resourceId: '',
+  },
 ];

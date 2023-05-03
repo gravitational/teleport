@@ -383,9 +383,9 @@ func getCustomRate(endpoint string) *ratelimit.RateSet {
 		return rates
 	// Passwordless RPCs (potential unauthenticated challenge generation).
 	case "/proto.AuthService/CreateAuthenticateChallenge":
-		const period = defaults.LimiterPasswordlessPeriod
-		const average = defaults.LimiterPasswordlessAverage
-		const burst = defaults.LimiterPasswordlessBurst
+		const period = defaults.LimiterPeriod
+		const average = defaults.LimiterAverage
+		const burst = defaults.LimiterBurst
 		rates := ratelimit.NewRateSet()
 		if err := rates.Add(period, average, burst); err != nil {
 			log.WithError(err).Debugf("Failed to define a custom rate for rpc method %q, using default rate", endpoint)
@@ -722,37 +722,6 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
-}
-
-// CheckIPPinning verifies IP pinning for the identity, using the client ip taken from context.
-// Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
-	if identity.PinnedIP == "" {
-		if pinSourceIP {
-			return trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
-		}
-		return nil
-	}
-
-	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if clientIP != identity.PinnedIP {
-		log.WithFields(logrus.Fields{
-			"client_ip": clientIP,
-			"pinned_ip": identity.PinnedIP,
-		}).Debug("Pinned IP and client IP mismatch")
-		return trace.AccessDenied("pinned IP doesn't match observed client IP")
-	}
-
-	return nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.

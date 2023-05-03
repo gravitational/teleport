@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type suite struct {
@@ -55,7 +56,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "rootnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -77,12 +78,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "localhost",
+			ClusterName: "root",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -143,7 +145,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "leafnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -172,6 +174,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 

@@ -19,6 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +27,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestSSH verifies "tsh ssh" command.
@@ -253,7 +252,9 @@ func TestSSHLoadAllCAs(t *testing.T) {
 
 // TestProxySSH verifies "tsh proxy ssh" functionality
 func TestProxySSH(t *testing.T) {
-	createAgent(t)
+	// ssh agent can cause race conditions in parallel tests.
+	disableAgent(t)
+	ctx := context.Background()
 
 	tests := []struct {
 		name string
@@ -280,7 +281,9 @@ func TestProxySSH(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			s := newTestSuite(t, tc.opts...)
 
 			proxyRequest := fmt.Sprintf("%s.%s:%d",
@@ -289,35 +292,27 @@ func TestProxySSH(t *testing.T) {
 				s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort))
 
 			runProxySSH := func(proxyRequest string, opts ...cliOption) error {
-				return Run(context.Background(), []string{
+				return Run(ctx, []string{
 					"--insecure",
 					"--proxy", s.root.Config.Proxy.WebAddr.Addr,
 					"proxy", "ssh", proxyRequest,
 				}, opts...)
 			}
 
-			t.Run("login", func(t *testing.T) {
+			// login to Teleport
+			homePath, kubeConfigPath := mustLogin(t, s)
+
+			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
 
-				// Should fail without login
-				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()))
-				require.Error(t, err)
-
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
-				// Should succeed with login
-				err = runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
+				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
-				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
+				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
 				require.NoError(t, err)
 			})
 
@@ -332,13 +327,9 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-
-				// login into Teleport
-				homePath, kubeConfigPath := mustLogin(t, s)
-
 				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
 				require.Error(t, err)
-				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 			})
 		})
 	}
@@ -473,8 +464,8 @@ Host *
 `, tshPath)), 0o644)
 	require.NoError(t, err)
 
-	// Connect to "localnode" with OpenSSH.
-	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
+	// Connect to "rootnode" with OpenSSH.
+	mustRunOpenSSHCommand(t, sshConfigFile, "rootnode.root",
 		s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort), "echo", "hello")
 }
 
@@ -640,37 +631,71 @@ func TestList(t *testing.T) {
 	testCases := []struct {
 		description string
 		command     []string
-		resultNodes []string
+		assertion   func(t *testing.T, out []byte)
 	}{
 		{
 			description: "List root cluster nodes",
-			command:     []string{"ls"},
-			resultNodes: []string{"localnode " + rootNodeAddress.String()},
+			command:     []string{"ls", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				var results []types.ServerV2
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Len(t, results, 1)
+				require.Equal(t, "rootnode", results[0].Spec.Hostname)
+				require.Equal(t, rootNodeAddress.String(), results[0].Spec.Addr)
+			},
 		},
 		{
 			description: "List leaf cluster nodes",
-			command:     []string{"ls", "-c", "leaf1"},
-			resultNodes: []string{"localnode " + leafNodeAddress.String()},
+			command:     []string{"ls", "-c", "leaf1", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				var results []types.ServerV2
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Len(t, results, 1)
+				require.Equal(t, "leafnode", results[0].Spec.Hostname)
+				require.Equal(t, leafNodeAddress.String(), results[0].Spec.Addr)
+			},
 		},
 		{
 			description: "List all clusters nodes",
-			command:     []string{"ls", "-R"},
-			resultNodes: []string{"leaf1     localnode", "localhost localnode"},
+			command:     []string{"ls", "-R", "-f", "json"},
+			assertion: func(t *testing.T, out []byte) {
+				expected := map[string]string{
+					"root":  "rootnode",
+					"leaf1": "leafnode",
+				}
+
+				type result struct {
+					Cluster string         `json:"cluster"`
+					Node    types.ServerV2 `json:"node"`
+				}
+				var results []result
+				require.NoError(t, json.Unmarshal(out, &results))
+
+				require.Equal(t, len(expected), len(results))
+				for _, res := range results {
+					node, ok := expected[res.Cluster]
+					require.True(t, ok, "expected node to be present for cluster %s", res.Cluster)
+					require.Equal(t, node, res.Node.Spec.Hostname)
+					address := leafNodeAddress
+					if res.Cluster == s.root.Config.Auth.ClusterName.GetName() {
+						address = rootNodeAddress
+					}
+					require.Equal(t, address.String(), results[0].Node.Spec.Addr)
+				}
+			},
 		},
 	}
 
+	tshHome, _ := mustLogin(t, s)
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			tshHome, _ := mustLogin(t, s)
-			stdout := new(bytes.Buffer)
-
+			stdout := &bytes.Buffer{}
 			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
-
 			require.NoError(t, err)
-			require.Equal(t, len(test.resultNodes), len(strings.Split(stdout.String(), "\n"))-4) // 4 - unimportant new lines
-			for _, node := range test.resultNodes {
-				require.Contains(t, stdout.String(), node)
-			}
+
+			test.assertion(t, stdout.Bytes())
 		})
 	}
 }
@@ -702,6 +727,11 @@ func createAgent(t *testing.T) string {
 	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
 
 	return teleAgent.Path
+}
+
+func disableAgent(t *testing.T) {
+	t.Helper()
+	t.Setenv(teleport.SSHAuthSock, "")
 }
 
 func setMockSSOLogin(t *testing.T, s *suite) cliOption {

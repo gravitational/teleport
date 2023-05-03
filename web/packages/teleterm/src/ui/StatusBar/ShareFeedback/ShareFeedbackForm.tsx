@@ -56,14 +56,14 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.primary">
+              <Text typography="h4" bold color="text.main">
                 Provide your feedback
               </Text>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}
                 title="Close"
-                color="text.secondary"
+                color="text.slightlyMuted"
               >
                 <Close fontSize={5} />
               </ButtonIcon>

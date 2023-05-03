@@ -124,9 +124,8 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 				Labels:    labels,
 			},
 			Spec: types.ServerSpecV2{
-				Addr:       addr,
-				PublicAddr: addr,
-				Version:    teleport.Version,
+				Addr:    addr,
+				Version: teleport.Version,
 			},
 		}
 		var err error

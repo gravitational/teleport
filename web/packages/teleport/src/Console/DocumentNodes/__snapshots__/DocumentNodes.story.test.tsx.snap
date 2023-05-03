@@ -32,7 +32,7 @@ exports[`render DocumentNodes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -44,7 +44,6 @@ exports[`render DocumentNodes 1`] = `
 .c33:hover,
 .c33:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c33:active {
@@ -69,7 +68,7 @@ exports[`render DocumentNodes 1`] = `
   color: #FFFFFF;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -97,7 +96,7 @@ exports[`render DocumentNodes 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c5 {
@@ -361,7 +360,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c17::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -476,7 +475,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c9::placeholder {
   opacity: 1;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -501,20 +500,20 @@ exports[`render DocumentNodes 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c6 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__control:hover,
 .c6 .react-select__control:focus,
 .c6 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -535,7 +534,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -549,7 +548,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__multi-value {
@@ -595,7 +594,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c6 .react-select__clear-indicator:hover,
@@ -629,20 +628,20 @@ exports[`render DocumentNodes 1`] = `
 
 .c6 .react-select--is-disabled,
 .c6 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__single-value,
 .c6 .react-select__control--is-disabled .react-select__single-value,
 .c6 .react-select--is-disabled .react-select__placeholder,
 .c6 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c2 {
@@ -770,7 +769,7 @@ exports[`render DocumentNodes 1`] = `
           </div>
           <input
             class="c9"
-            color="text.primary"
+            color="text.main"
             placeholder="login@host:port"
           />
         </div>
@@ -849,7 +848,7 @@ exports[`render DocumentNodes 1`] = `
             >
               <div
                 class="c29"
-                color="text.contrast"
+                color="text.main"
                 style="text-transform: uppercase;"
               >
                 Showing 
@@ -935,7 +934,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -977,7 +976,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1024,7 +1023,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1071,7 +1070,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1137,7 +1136,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>

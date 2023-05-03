@@ -169,7 +169,7 @@ export function AddDevice({
                     <Text fontSize={1} textAlign="center" mt={2}>
                       Scan the QR Code with any authenticator app and enter the
                       generated code.{' '}
-                      <Text color="text.secondary">
+                      <Text color="text.slightlyMuted">
                         We recommend{' '}
                         <Link
                           href="https://authy.com/download/"
