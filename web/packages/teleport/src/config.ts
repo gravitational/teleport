@@ -623,17 +623,8 @@ const cfg = {
     });
   },
 
-  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
-    // Currently you can only create integrations at the root cluster.
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.integrationExecutePath, {
-      clusterId,
-      ...params,
-    });
-  },
-
   getAwsRdsDbListUrl(integrationName: string) {
+    // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbListPath, {
@@ -728,14 +719,6 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
-}
-
-export interface UrlIntegrationExecuteRequestParams {
-  // name is the name of integration to execute (use).
-  name: string;
-  // action is the expected backend string value
-  // used to describe what to use the integration for.
-  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;
