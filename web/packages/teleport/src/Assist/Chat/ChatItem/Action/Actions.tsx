@@ -23,6 +23,11 @@ import {
   NodesAndLabels,
 } from 'teleport/Assist/Chat/ChatItem/Action/Action';
 import { RunCommand } from 'teleport/Assist/Chat/ChatItem/Action/RunAction';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
+import { remoteCommandToMessage } from 'teleport/Assist/contexts/messages';
 
 import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
 import { RunIcon } from '../../../Icons/RunIcon';
@@ -86,6 +91,7 @@ const Spacer = styled.div`
 export function Actions(props: ActionsProps) {
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
+  const { clusterId } = useStickyClusterId();
 
   console.log(actions);
 
@@ -111,6 +117,7 @@ export function Actions(props: ActionsProps) {
         availableLogins: [],
         query: '',
         command: actions.command,
+        errorMsg: '',
       };
 
       for (const item of newActionState) {
@@ -127,7 +134,7 @@ export function Actions(props: ActionsProps) {
         }
       }
 
-      setActions(newActions);
+      remoteCommandToMessage(newActions, clusterId).then(e => setActions(e));
     },
     [actions]
   );
@@ -148,6 +155,7 @@ export function Actions(props: ActionsProps) {
 
   return (
     <Container>
+      {actions.errorMsg && <ErrorMessage message={actions.errorMsg} />}
       {!result && <Title>Teleport would like to</Title>}
 
       <NodesAndLabels

@@ -36,6 +36,7 @@ export interface ExecuteRemoteCommandContent {
   selectedLogin: string;
   availableLogins: string[];
   query: string;
+  errorMsg: string;
 }
 
 export interface ExecuteRemoteCommandPayload {
