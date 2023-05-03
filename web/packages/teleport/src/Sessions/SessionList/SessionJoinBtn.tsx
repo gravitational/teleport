@@ -57,11 +57,7 @@ export const SessionJoinBtn = ({
           as="a"
           href={cfg.getSshSessionRoute({ sid, clusterId }, participantMode)}
           target="_blank"
-          css={`
-            text-transform: capitalize;
-            text-decoration: none;
-            color: ${props => props.theme.colors};
-          `}
+          style={{ textTransform: 'capitalize' }}
         >
           {participantMode}
         </MenuItem>
@@ -135,14 +131,7 @@ function InternalJoinMenu({
 }: InternalJoinMenuProps) {
   return (
     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-      <Text
-        px="2"
-        fontSize="11px"
-        css={`
-          color: ${props => props.theme.colors.text.primary};
-          background: ${props => props.theme.colors.spotBackground[2]};
-        `}
-      >
+      <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
         Join as...
       </Text>
       {children}

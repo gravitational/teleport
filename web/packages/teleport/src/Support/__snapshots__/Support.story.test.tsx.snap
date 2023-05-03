@@ -787,6 +787,18 @@ exports[`support Enterprise with CTA 1`] = `
   box-sizing: border-box;
 }
 
+.c13 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c9 {
   line-height: 1.5;
   margin: 0;
@@ -806,26 +818,29 @@ exports[`support Enterprise with CTA 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
+.c9:active {
+  opacity: 0.56;
+}
+
 .c9:hover,
 .c9:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c9:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c6 {
@@ -841,7 +856,7 @@ exports[`support Enterprise with CTA 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -894,6 +909,18 @@ exports[`support Enterprise with CTA 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   display: flex;
@@ -937,17 +964,6 @@ exports[`support Enterprise with CTA 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -963,18 +979,7 @@ exports[`support Enterprise with CTA 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -999,6 +1004,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -1040,6 +1046,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-unlock c12"
+              color="light"
             />
             Unlock Premium Support w/Enterprise
           </div>
@@ -1058,6 +1065,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -1120,6 +1128,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -1150,6 +1159,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
