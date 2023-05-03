@@ -15,6 +15,7 @@
 package testenv
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -42,6 +43,26 @@ type fakeDeviceService struct {
 
 func newFakeDeviceService() *fakeDeviceService {
 	return &fakeDeviceService{}
+}
+
+// CreateDeviceEnrollToken implements the creation of fake device enrollment
+// tokens.
+//
+// Only auto-enrollment is supported by the fake.
+//
+// Neither the device or token are stored, as the fake EnrollDevice doesn't
+// verify tokens.
+func (s *fakeDeviceService) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+	if req.DeviceId != "" {
+		return nil, trace.AccessDenied("device ID token issuance not supported")
+	}
+	if err := validateCollectedData(req.DeviceData); err != nil {
+		return nil, trace.AccessDenied(err.Error())
+	}
+
+	return &devicepb.DeviceEnrollToken{
+		Token: "fakedeviceenrolltoken",
+	}, nil
 }
 
 // EnrollDevice implements a fake, server-side device enrollment ceremony.
