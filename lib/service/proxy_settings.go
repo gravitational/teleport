@@ -56,6 +56,8 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 	}
 }
 
+// GetOpenAIAPIKey returns the OpenAI API key.
+// TODO(jakule): Remove once pluggin support is added to OSS.
 func (p *proxySettings) GetOpenAIAPIKey() string {
 	return p.cfg.Proxy.AssistAPIKey
 }

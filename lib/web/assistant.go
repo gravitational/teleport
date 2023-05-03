@@ -332,12 +332,12 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 
 	keyGetter, found := proxySettings.(interface{ GetOpenAIAPIKey() string })
 	if !found {
-		return nil, trace.Errorf("")
+		return nil, trace.Errorf("GetOpenAIAPIKey is not implemented on %T", proxySettings)
 	}
 
 	apiKey := keyGetter.GetOpenAIAPIKey()
 	if apiKey == "" {
-		return nil, trace.Errorf("API_KEY is empty")
+		return nil, trace.Errorf("OpenAI API key is not set")
 	}
 
 	client := ai.NewClient(apiKey)

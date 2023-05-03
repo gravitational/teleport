@@ -134,7 +134,7 @@ type ProxyConfig struct {
 	UI webclient.UIConfig
 
 	// AssistAPIKey is the OpenAI API key.
-	// TODO: This key will be moved to a plugin...
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
 }
 
