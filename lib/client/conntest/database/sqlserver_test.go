@@ -66,7 +66,7 @@ func TestSQLServerPing(t *testing.T) {
 
 	go func() {
 		t.Logf("MSSQL test server running at %s port", testServer.Port())
-		require.NoError(t, testServer.Serve())
+		testServer.Serve()
 	}()
 	t.Cleanup(func() {
 		testServer.Close()
