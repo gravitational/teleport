@@ -357,11 +357,6 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 			log.WithError(err).Error("can't create user")
 			return statusLogonFailure
 		}
-		teleportGroup, err := user.LookupGroup(teleportUsers)
-		if err != nil {
-			log.WithError(err).Error("can't find Teleport Users group")
-			return statusLogonFailure
-		}
 		account, err := user.Lookup(name)
 		if err != nil {
 			log.WithError(err).Error("can't lookup user")
@@ -372,8 +367,8 @@ func lsaApLogonUser(clientRequest C.PLSA_CLIENT_REQUEST, logonType uint32, authe
 			log.WithError(err).Error("can't get user groups")
 			return statusLogonFailure
 		}
-
-		if slices.Contains(groupIds, teleportGroup.Gid) {
+		teleportGroup, err := user.LookupGroup(teleportUsers)
+		if err == nil && slices.Contains(groupIds, teleportGroup.Gid) {
 			// user is part of Teleport Users group i.e. managed by Teleport
 
 			// create all requested groups
