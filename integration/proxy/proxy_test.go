@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1522,11 +1521,11 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Auth.BootstrapResources = []types.Resource{provisionToken}
-			config.Auth.ServerOptions = []auth.ServerOption{auth.WithHTTPClientForAWSSTS(fakeSTSClient{
+			config.Auth.HTTPClientForAWSSTS = fakeSTSClient{
 				accountID:   nodeAccount,
 				arn:         nodeRoleARN,
 				credentials: nodeCredentials,
-			})}
+			}
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 	)

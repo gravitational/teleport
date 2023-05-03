@@ -1622,7 +1622,8 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
+		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1640,7 +1641,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})...)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3959,8 +3960,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.log.WithField(trace.Component, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),

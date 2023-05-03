@@ -281,24 +281,25 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:              cfg.Backend,
-		clock:           cfg.Clock,
-		limiter:         limiter,
-		Authority:       cfg.Authority,
-		AuthServiceName: cfg.AuthServiceName,
-		ServerID:        cfg.HostUUID,
-		githubClients:   make(map[string]*githubClient),
-		cancelFunc:      cancelFunc,
-		closeCtx:        closeCtx,
-		emitter:         cfg.Emitter,
-		streamer:        cfg.Streamer,
-		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:        services,
-		Cache:           services,
-		keyStore:        keyStore,
-		traceClient:     cfg.TraceClient,
-		fips:            cfg.FIPS,
-		loadAllCAs:      cfg.LoadAllCAs,
+		bk:                  cfg.Backend,
+		clock:               cfg.Clock,
+		limiter:             limiter,
+		Authority:           cfg.Authority,
+		AuthServiceName:     cfg.AuthServiceName,
+		ServerID:            cfg.HostUUID,
+		githubClients:       make(map[string]*githubClient),
+		cancelFunc:          cancelFunc,
+		closeCtx:            closeCtx,
+		emitter:             cfg.Emitter,
+		streamer:            cfg.Streamer,
+		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:            services,
+		Cache:               services,
+		keyStore:            keyStore,
+		traceClient:         cfg.TraceClient,
+		fips:                cfg.FIPS,
+		loadAllCAs:          cfg.LoadAllCAs,
+		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -595,7 +596,7 @@ type Server struct {
 
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
-	httpClientForAWSSTS stsClient
+	httpClientForAWSSTS utils.HTTPDoClient
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1448,8 +1449,8 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
-	if req.Username == "" {
-		return nil, trace.BadParameter("username is empty")
+	if req.User == nil {
+		return nil, trace.BadParameter("user is empty")
 	}
 	if len(req.PublicKey) == 0 {
 		return nil, trace.BadParameter("public key is empty")
@@ -1464,29 +1465,27 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("cluster is empty")
 	}
 
-	user, err := a.GetUser(req.Username, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// add implicit roles to the set and build a checker
+	accessInfo := services.AccessInfoFromUser(req.User)
+	roles := make([]types.Role, len(req.Roles))
+	for i := range req.Roles {
+		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	roleSet := services.NewRoleSet(roles...)
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	certs, err := a.generateOpenSSHCert(certRequest{
-		user:          user,
-		publicKey:     req.PublicKey,
-		compatibility: constants.CertificateFormatStandard,
-		checker:       checker,
-		ttl:           time.Duration(req.TTL),
-		traits: map[string][]string{
-			constants.TraitLogins: {req.Username},
-		},
+		user:            req.User,
+		publicKey:       req.PublicKey,
+		compatibility:   constants.CertificateFormatStandard,
+		checker:         checker,
+		ttl:             time.Duration(req.TTL),
+		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})
@@ -5406,13 +5405,4 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
-}
-
-// WithHTTPClientForAWSSTS is a ServerOption that overwrites default HTTP
-// client used for STS requests.
-func WithHTTPClientForAWSSTS(client stsClient) ServerOption {
-	return func(s *Server) error {
-		s.httpClientForAWSSTS = client
-		return nil
-	}
 }
