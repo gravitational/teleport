@@ -438,11 +438,15 @@ message TPMEnrollChallengeResponse {
   TPMPlatformParameters platform_parameters = 2;
 }
 
-// Encapsulates the value of a PCR in a point at time.
+// Encapsulates the value of a PCR at a point at time.
 // See https://pkg.go.dev/github.com/google/go-attestation/attest#PCR
 message TPMPCR {
-  int64 index = 1;
+  // the PCR index in the PCR bank
+  int32 index = 1;
+  // the digest currently held in the PCR
   bytes digest = 2;
+  // hash algorithm associated with the PCR bank. This value is the underlying
+  // value of the crypto.Hash type.
   uint64 hash = 3;
 }
 
