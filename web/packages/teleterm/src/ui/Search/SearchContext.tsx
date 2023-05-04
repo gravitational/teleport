@@ -58,7 +58,8 @@ export type AddWindowEventListener = (
 const SearchContext = createContext<SearchContext>(null);
 
 export const SearchContextProvider: FC = props => {
-  const previouslyActive = useRef<HTMLElement>();
+  // The type of the ref is Element to adhere to the type of document.activeElement.
+  const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -80,7 +81,13 @@ export const SearchContextProvider: FC = props => {
   const close = useCallback(() => {
     setIsOpen(false);
     setActivePicker(actionPicker);
-    if (previouslyActive.current) {
+    if (
+      // The Element type is not guaranteed to have the focus function so we're forced to manually
+      // perform the type check.
+      previouslyActive.current &&
+      'focus' in previouslyActive.current &&
+      typeof previouslyActive.current.focus === 'function'
+    ) {
       previouslyActive.current.focus();
     }
   }, []);
@@ -107,8 +114,7 @@ export const SearchContextProvider: FC = props => {
       return;
     }
 
-    previouslyActive.current =
-      fromElement || (document.activeElement as HTMLElement);
+    previouslyActive.current = fromElement || document.activeElement;
     setIsOpen(true);
   }
 
