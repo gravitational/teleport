@@ -98,49 +98,52 @@ export const useFilesStore = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const abortControllers = useRef(new Map<string, AbortController>());
 
-  const start = async (options: {
-    name: string;
-    runFileTransfer(
-      abortController: AbortController
-    ): Promise<FileTransferListeners>;
-  }) => {
-    const abortController = new AbortController();
-    const fileTransfer = await options.runFileTransfer(abortController);
-
-    if (!fileTransfer) {
-      return;
-    }
-
-    const id = new Date().getTime() + options.name;
-
-    dispatch({ type: 'add', payload: { id, name: options.name } });
-    abortControllers.current.set(id, abortController);
-
-    fileTransfer.onProgress(progress => {
-      updateTransferState(id, {
-        type: 'processing',
-        progress,
-      });
-    });
-    fileTransfer.onError(error => {
-      updateTransferState(id, {
-        type: 'error',
-        progress: undefined,
-        error,
-      });
-    });
-    fileTransfer.onComplete(() => {
-      updateTransferState(id, {
-        type: 'completed',
-      });
-    });
-  };
-
   const updateTransferState = useCallback(
     (id: string, transferState: TransferState) => {
       dispatch({ type: 'updateTransferState', payload: { id, transferState } });
     },
     []
+  );
+
+  const start = useCallback(
+    async (options: {
+      name: string;
+      runFileTransfer(
+        abortController: AbortController
+      ): Promise<FileTransferListeners>;
+    }) => {
+      const abortController = new AbortController();
+      const fileTransfer = await options.runFileTransfer(abortController);
+
+      if (!fileTransfer) {
+        return;
+      }
+
+      const id = new Date().getTime() + options.name;
+
+      dispatch({ type: 'add', payload: { id, name: options.name } });
+      abortControllers.current.set(id, abortController);
+
+      fileTransfer.onProgress(progress => {
+        updateTransferState(id, {
+          type: 'processing',
+          progress,
+        });
+      });
+      fileTransfer.onError(error => {
+        updateTransferState(id, {
+          type: 'error',
+          progress: undefined,
+          error,
+        });
+      });
+      fileTransfer.onComplete(() => {
+        updateTransferState(id, {
+          type: 'completed',
+        });
+      });
+    },
+    [updateTransferState]
   );
 
   const cancel = useCallback((id: string) => {
@@ -164,3 +167,5 @@ export const useFilesStore = () => {
     isAnyTransferInProgress,
   };
 };
+
+export type FilesStore = ReturnType<typeof useFilesStore>;

@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -134,7 +135,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 		tokenName                string
 		requestTokenName         string
 		tokenSpec                types.ProvisionTokenSpecV2
-		stsClient                stsClient
+		stsClient                utils.HTTPDoClient
 		iamRegisterOptions       []iamRegisterOption
 		challengeResponseOptions []challengeResponseOption
 		challengeResponseErr     error

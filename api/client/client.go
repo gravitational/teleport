@@ -597,7 +597,16 @@ func (c *Config) CheckAndSetDefaults() error {
 		PermitWithoutStream: true,
 	}))
 	if !c.DialInBackground {
-		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+		c.DialOpts = append(
+			c.DialOpts,
+			// Provides additional feedback on connection failure, otherwise,
+			// users will only receive a `context deadline exceeded` error when
+			// c.DialInBackground == false.
+			//
+			// grpc.WithReturnConnectionError implies grpc.WithBlock which is
+			// necessary for connection route selection to work properly.
+			grpc.WithReturnConnectionError(),
+		)
 	}
 	return nil
 }
@@ -2777,6 +2786,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
+		case types.KindUserGroup:
+			resources[i] = respResource.GetUserGroup()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2867,6 +2878,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubeCluster()
 			case types.KindKubeServer:
 				resource = respResource.GetKubernetesServer()
+			case types.KindUserGroup:
+				resource = respResource.GetUserGroup()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
