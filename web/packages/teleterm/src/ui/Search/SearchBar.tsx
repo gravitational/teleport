@@ -106,14 +106,10 @@ function SearchBar() {
         flex-shrink: 1;
         min-width: calc(${props => props.theme.space[7]}px * 2);
         height: 100%;
-        background: ${props => props.theme.colors.levels.sunkenSecondary};
-        border: 1px ${props => props.theme.colors.action.disabledBackground}
-          solid;
+        border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
-
         &:hover {
-          color: ${props => props.theme.colors.levels.contrast};
-          background: ${props => props.theme.colors.levels.surface};
+          background: ${props => props.theme.colors.spotBackground[0]};
         }
       `}
       justifyContent="center"
@@ -140,7 +136,7 @@ const Input = styled.input`
   height: 38px;
   width: 100%;
   min-width: calc(${props => props.theme.space[9]}px * 2);
-  background: inherit;
+  background: transparent;
   color: inherit;
   box-sizing: border-box;
   outline: none;
@@ -160,7 +156,7 @@ const Shortcut = styled(Box).attrs({ p: 1 })`
   top: 50%;
   transform: translate(0, -50%);
   color: ${({ theme }) => theme.colors.text.slightlyMuted};
-  background-color: ${({ theme }) => theme.colors.levels.surface};
+  background-color: ${({ theme }) => theme.colors.levels.elevated};
   line-height: 12px;
   font-size: 12px;
   border-radius: ${props => props.theme.radii[2]}px;

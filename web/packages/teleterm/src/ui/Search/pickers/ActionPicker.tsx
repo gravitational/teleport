@@ -54,10 +54,6 @@ import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
 
-const MUTED_WHITE_COLOR = 'rgba(255, 255, 255, 0.72)';
-// TODO(gzdunek): replace with theme color after theme update
-const BRAND_PRIMARY_COLOR = '#9f85ff';
-
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
   const { clustersService, modalsService } = ctx;
@@ -403,7 +399,7 @@ function Item(
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
-    <Item Icon={icons.Lan} iconColor={MUTED_WHITE_COLOR}>
+    <Item Icon={icons.Lan} iconColor="text.slightlyMuted">
       <Text typography="body1">
         Search only in{' '}
         <strong>
@@ -436,7 +432,7 @@ function ResourceTypeFilterItem(
   return (
     <Item
       Icon={resourceIcons[props.searchResult.resource]}
-      iconColor={MUTED_WHITE_COLOR}
+      iconColor="text.slightlyMuted"
     >
       <Text typography="body1">
         Search only for{' '}
@@ -459,7 +455,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <Item Icon={icons.Server} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Server} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -533,7 +529,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <Item Icon={icons.Database} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Database} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -572,7 +568,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <Item Icon={icons.Kubernetes} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Kubernetes} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -619,7 +615,7 @@ export function NoResultsItem(props: {
 
   return (
     <NonInteractiveItem>
-      <Item Icon={icons.Info} iconColor={MUTED_WHITE_COLOR}>
+      <Item Icon={icons.Info} iconColor="text.slightlyMuted">
         <Text typography="body1">No matching results found.</Text>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </Item>
