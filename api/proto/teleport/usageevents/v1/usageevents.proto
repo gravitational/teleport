@@ -196,7 +196,7 @@ message UIDiscoverDatabaseRDSEnrollEvent {
 
 // UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
 message UICallToActionClickEvent {
-  CTA cta = 2;
+  CTA cta = 1;
 }
 
 // CTA represents teleport web UI's call to action buttons
