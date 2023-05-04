@@ -173,8 +173,20 @@ export function Main(props: MainProps) {
 
 function renderRoutes(features: TeleportFeature[], ctx: TeleportContext) {
   const routes = [];
+  const lockedParents = getLockedParents(features, ctx);
 
   for (const [index, feature] of features.entries()) {
+    const isParentLocked = lockedParents.find(
+      parent => feature.parent && parent === feature.parent.name
+    );
+
+    // remove features with parents locked.
+    // The parent itself will be rendered if it has a lockedRoute,
+    // but the children shouldn't be.
+    if (isParentLocked) {
+      continue;
+    }
+
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
 
@@ -217,6 +229,23 @@ function FeatureRoutes({ ctx }: { ctx: TeleportContext }) {
   const routes = renderRoutes(features, ctx);
 
   return <Switch>{routes}</Switch>;
+}
+
+function getLockedParents(
+  features: TeleportFeature[],
+  ctx: TeleportContext
+): string[] {
+  const lockedParents = new Set<string>();
+  features.forEach(feature => {
+    if (feature.parent) {
+      const parent = new feature.parent();
+      if (parent.isLocked(ctx)) {
+        lockedParents.add(parent.constructor.name);
+      }
+    }
+  });
+
+  return Array.from(lockedParents);
 }
 
 export const ContentMinWidth = styled.div`
