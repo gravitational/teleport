@@ -86,7 +86,7 @@ export default function ResourceEditor(props) {
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="h4" color="primary.contrastText">
+            <Text mb="2" typography="h4" color="text.contrast">
               {name}
             </Text>
           )}
@@ -117,7 +117,7 @@ export default function ResourceEditor(props) {
             height="100%"
             width="300px"
             p={5}
-            bg="primary.light"
+            bg="levels.surface"
           >
             <Box>
               <DialogTitle typography="body1" bold>

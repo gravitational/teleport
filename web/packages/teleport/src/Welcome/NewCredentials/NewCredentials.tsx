@@ -119,7 +119,7 @@ export function NewCredentials(props: State & Props) {
   }
 
   return (
-    <Card as="form" bg="primary.light" my={5} mx="auto" width={464}>
+    <Card as="form" bg="levels.surface" my={5} mx="auto" width={464}>
       <StepSlider<typeof loginFlows>
         flows={loginFlows}
         currFlow={flow}

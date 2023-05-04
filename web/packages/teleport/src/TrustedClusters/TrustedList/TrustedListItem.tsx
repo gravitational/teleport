@@ -36,7 +36,7 @@ export default function TrustedListItem(props: Props) {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      bg="primary.light"
+      bg="levels.surface"
       px="5"
       pt="4"
       pb="5"

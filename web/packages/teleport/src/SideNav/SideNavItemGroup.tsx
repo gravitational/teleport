@@ -105,24 +105,24 @@ const fromTheme = ({ theme }) => {
     fontFamily: theme.font,
     paddingLeft: theme.space[9] + 'px',
     paddingRight: theme.space[5] + 'px',
-    background: theme.colors.primary.light,
+    background: theme.colors.levels.surface,
     color: theme.colors.text.secondary,
 
     '&.active': {
-      borderLeftColor: theme.colors.accent,
-      background: theme.colors.primary.lighter,
-      color: theme.colors.primary.contrastText,
+      borderLeftColor: theme.colors.brand.accent,
+      background: theme.colors.levels.elevated,
+      color: theme.colors.text.contrast,
       '.marker': {
-        background: theme.colors.secondary.light,
+        background: theme.colors.brand.accent,
       },
     },
 
     '&:hover': {
-      background: theme.colors.primary.lighter,
+      background: theme.colors.levels.elevated,
     },
 
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.contrast,
     },
 
     minHeight: '56px',
@@ -131,7 +131,7 @@ const fromTheme = ({ theme }) => {
 
 const StyledChildrenContainer = styled.div`
   background: ${props =>
-    `linefar-gradient(140deg, ${props.theme.colors.primary.lighter}, ${props.theme.colors.primary.light});`};
+    `linefar-gradient(140deg, ${props.theme.colors.levels.elevated}, ${props.theme.colors.levels.surface});`};
 `;
 
 const StyledMarker = styled.div`

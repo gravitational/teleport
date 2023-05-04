@@ -300,7 +300,7 @@ exports[`render automatic tab 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="jenkins"
                   type="text"
@@ -320,7 +320,7 @@ exports[`render automatic tab 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="https://localhost:4000"
                   type="text"
@@ -664,7 +664,7 @@ exports[`render automatic tab on created state 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="jenkins"
                   type="text"
@@ -684,7 +684,7 @@ exports[`render automatic tab on created state 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="https://localhost:4000"
                   type="text"
@@ -1049,7 +1049,7 @@ exports[`render failed automatic tab 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="jenkins"
                   type="text"
@@ -1069,7 +1069,7 @@ exports[`render failed automatic tab 1`] = `
                 <input
                   autocomplete="off"
                   class="c11"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="https://localhost:4000"
                   type="text"

@@ -22,18 +22,18 @@ import Flex from './../Flex';
 
 const fromTheme = ({ theme = defaultTheme }) => {
   return {
-    background: theme.colors.primary.light,
+    background: theme.colors.levels.surface,
     color: theme.colors.text.secondary,
     fontSize: theme.fontSizes[1],
     fontWeight: theme.bold,
     '&:active, &.active': {
-      borderLeftColor: theme.colors.accent,
-      background: theme.colors.primary.lighter,
-      color: theme.colors.primary.contrastText,
+      borderLeftColor: theme.colors.brand.accent,
+      background: theme.colors.levels.elevated,
+      color: theme.colors.text.contrast,
     },
     '&:hover, &:focus': {
-      background: theme.colors.primary.lighter,
-      color: theme.colors.primary.contrastText,
+      background: theme.colors.levels.elevated,
+      color: theme.colors.text.contrast,
     },
   };
 };
@@ -56,7 +56,7 @@ SideNavItem.displayName = 'SideNavItem';
 SideNavItem.defaultProps = {
   pl: 9,
   pr: 5,
-  bg: 'primary.main',
+  bg: 'levels.surfaceSecondary',
   color: 'text.primary',
   theme: defaultTheme,
 };

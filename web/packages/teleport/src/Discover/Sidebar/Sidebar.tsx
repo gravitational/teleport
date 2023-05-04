@@ -64,7 +64,7 @@ export function Sidebar(props: SidebarProps) {
               borderRadius={5}
               alignItems="center"
               justifyContent="center"
-              bg="secondary.main"
+              bg="brand.main"
               height="30px"
               width="30px"
               mr={2}

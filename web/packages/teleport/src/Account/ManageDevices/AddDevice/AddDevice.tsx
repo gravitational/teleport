@@ -137,7 +137,7 @@ export function AddDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
-                bg="primary.light"
+                bg="levels.surface"
                 borderRadius={8}
                 height="256px"
                 p={3}

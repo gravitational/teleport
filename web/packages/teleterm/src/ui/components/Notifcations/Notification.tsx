@@ -198,7 +198,7 @@ const shortTextCss = css`
 const Container = styled(Flex)`
   flex-direction: row;
   justify-content: space-between;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   min-height: 40px;
   width: 320px;
   margin-bottom: 12px;

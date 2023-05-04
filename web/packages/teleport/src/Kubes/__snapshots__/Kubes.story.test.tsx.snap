@@ -803,7 +803,7 @@ exports[`failed 1`] = `
       >
         <div
           class="c20"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 
@@ -1510,7 +1510,7 @@ exports[`loaded 1`] = `
       >
         <div
           class="c20"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 

@@ -645,7 +645,7 @@ exports[`rendering of Session Recordings 1`] = `
         >
           <div
             class="c11"
-            color="primary.contrastText"
+            color="text.contrast"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 

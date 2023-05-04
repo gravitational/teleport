@@ -39,7 +39,7 @@ const ListItem = styled(Flex)`
   justify-content: start;
   cursor: pointer;
   &:hover {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -47,7 +47,7 @@ const IconBox = styled(Box)`
   display: flex;
   align-items: center;
   border-radius: 4px;
-  background-color: ${props => props.theme.colors.primary.lighter};
+  background-color: ${props => props.theme.colors.levels.elevated};
 `;
 
 type NavigationItemProps = {

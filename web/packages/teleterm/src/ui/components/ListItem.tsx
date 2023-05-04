@@ -40,6 +40,6 @@ export const ListItem = styled.li`
   &:focus,
   &:hover {
     background: rgba(255, 255, 255, 0.05);
-    color: ${props => props.theme.colors.primary.contrastText};
+    color: ${props => props.theme.colors.text.contrast};
   }
 `;

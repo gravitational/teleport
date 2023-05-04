@@ -26,26 +26,26 @@ const fromTheme = ({ $nested = false, theme = defaultTheme }) => {
     fontFamily: theme.font,
     paddingLeft: theme.space[9] + 'px',
     paddingRight: theme.space[5] + 'px',
-    background: theme.colors.primary.light,
+    background: theme.colors.levels.surface,
     color: theme.colors.text.secondary,
     minHeight: '56px',
 
     '&:active, &.active': {
-      borderLeftColor: $nested ? 'none' : theme.colors.accent,
-      background: theme.colors.primary.lighter,
-      color: theme.colors.primary.contrastText,
+      borderLeftColor: $nested ? 'none' : theme.colors.brand.accent,
+      background: theme.colors.levels.elevated,
+      color: theme.colors.text.contrast,
       fontWeight: theme.bold,
 
       '.marker': {
-        background: theme.colors.secondary.light,
+        background: theme.colors.brand.accent,
       },
     },
 
     '&:hover': {
-      background: theme.colors.primary.lighter,
+      background: theme.colors.levels.elevated,
     },
     '&:focus, &:hover': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.contrast,
     },
   };
 
