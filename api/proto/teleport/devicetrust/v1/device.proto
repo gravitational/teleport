@@ -90,6 +90,7 @@ message Device {
 
 // DeviceCredential represents the current enrolled public key of a device.
 message DeviceCredential {
+  reserved 5;
   // Unique identifier of the credential, defined client-side.
   string id = 1;
   // Device public key marshaled as a PKIX, ASN.1 DER.
