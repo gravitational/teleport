@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useCallback } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg, { UrlScpParams } from 'teleport/config';
@@ -22,28 +23,31 @@ import auth from 'teleport/services/auth/auth';
 export default function useGetScpUrl(addMfaToScpUrls: boolean) {
   const { setAttempt, attempt, handleError } = useAttempt('');
 
-  async function getScpUrl(params: UrlScpParams) {
-    setAttempt({
-      status: 'processing',
-      statusText: '',
-    });
-    if (!addMfaToScpUrls) {
-      return cfg.getScpUrl(params);
-    }
-    try {
-      let webauthn = await auth.getWebauthnResponse();
+  const getScpUrl = useCallback(
+    async (params: UrlScpParams) => {
       setAttempt({
-        status: 'success',
+        status: 'processing',
         statusText: '',
       });
-      return cfg.getScpUrl({
-        webauthn,
-        ...params,
-      });
-    } catch (error) {
-      handleError(error);
-    }
-  }
+      if (!addMfaToScpUrls) {
+        return cfg.getScpUrl(params);
+      }
+      try {
+        let webauthn = await auth.getWebauthnResponse();
+        setAttempt({
+          status: 'success',
+          statusText: '',
+        });
+        return cfg.getScpUrl({
+          webauthn,
+          ...params,
+        });
+      } catch (error) {
+        handleError(error);
+      }
+    },
+    [addMfaToScpUrls, handleError, setAttempt]
+  );
 
   return {
     getScpUrl,

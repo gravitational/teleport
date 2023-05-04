@@ -251,7 +251,11 @@ const ExtraTopComponents = (props: {
 
   switch (status.status) {
     case 'no-input': {
-      return status.hasNoRemainingFilterActions && <TypeToSearchItem />;
+      return (
+        <TypeToSearchItem
+          hasNoRemainingFilterActions={status.hasNoRemainingFilterActions}
+        />
+      );
     }
     case 'processing': {
       return null;
@@ -623,11 +627,17 @@ export function NoResultsItem(props: {
   );
 }
 
-export function TypeToSearchItem() {
+export function TypeToSearchItem({
+  hasNoRemainingFilterActions,
+}: {
+  hasNoRemainingFilterActions: boolean;
+}) {
   return (
     <NonInteractiveItem>
-      <Text typography="body1" color="text.main">
-        Type something to search.
+      <Text typography="body2">
+        Enter space-separated search terms.
+        {hasNoRemainingFilterActions ||
+          ' Select a filter to narrow down the search.'}
       </Text>
     </NonInteractiveItem>
   );
