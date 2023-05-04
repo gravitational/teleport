@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
 const (
