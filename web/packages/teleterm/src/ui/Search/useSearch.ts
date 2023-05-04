@@ -34,6 +34,12 @@ import {
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 
+export type CrossClusterResourceSearchResult = {
+  results: resourcesServiceTypes.SearchResult[];
+  errors: resourcesServiceTypes.ResourceSearchError[];
+  search: string;
+};
+
 /**
  * useResourceSearch returns a function which searches for the given list of space-separated keywords across
  * all root and leaf clusters that the user is currently logged in to.
@@ -48,11 +54,7 @@ export function useResourceSearch() {
     async (
       search: string,
       filters: SearchFilter[]
-    ): Promise<{
-      results: resourcesServiceTypes.SearchResult[];
-      errors: resourcesServiceTypes.ResourceSearchError[];
-      search: string;
-    }> => {
+    ): Promise<CrossClusterResourceSearchResult> => {
       // useResourceSearch has to return _something_ when the input is empty. Imagine this scenario:
       //
       // 1. The user types in 'data' into the search bar.
