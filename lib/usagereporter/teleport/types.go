@@ -414,8 +414,10 @@ func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_AssistCompletion{
 			AssistCompletion: &prehogv1a.AssistCompletionEvent{
-				UserName:    a.AnonymizeString(e.UserName),
-				TotalTokens: e.TotalTokens,
+				UserName:         a.AnonymizeString(e.UserName),
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
 			},
 		},
 	}
@@ -651,8 +653,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_AssistCompletion:
 		ret := &AssistCompletionEvent{
-			UserName:    userMD.Username,
-			TotalTokens: e.AssistCompletion.TotalTokens,
+			UserName:         userMD.Username,
+			TotalTokens:      e.AssistCompletion.TotalTokens,
+			PromptTokens:     e.AssistCompletion.PromptTokens,
+			CompletionTokens: e.AssistCompletion.CompletionTokens,
 		}
 		return ret, nil
 	default:

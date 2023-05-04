@@ -289,6 +289,10 @@ message UICreateNewRoleViewDocumentationClickEvent {}
 message AssistCompletionEvent {
   // TotalTokens is the total amount of token used to satisfy this request
   int64 total_tokens = 1;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 2;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 3;
 }
 
 // UsageEventOneOf is a message that can accept a oneof of any supported

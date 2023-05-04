@@ -1101,6 +1101,31 @@ export namespace UICreateNewRoleViewDocumentationClickEvent {
     }
 }
 
+export class UICallToActionClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICallToActionClickEvent;
+
+    getCta(): CTA;
+    setCta(value: CTA): UICallToActionClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICallToActionClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICallToActionClickEvent): UICallToActionClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICallToActionClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICallToActionClickEvent;
+    static deserializeBinaryFromReader(message: UICallToActionClickEvent, reader: jspb.BinaryReader): UICallToActionClickEvent;
+}
+
+export namespace UICallToActionClickEvent {
+    export type AsObject = {
+        userName: string,
+        cta: CTA,
+    }
+}
+
 export class KubeRequestEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
@@ -1219,6 +1244,12 @@ export class AssistCompletionEvent extends jspb.Message {
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistCompletionEvent;
 
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistCompletionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistCompletionEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): AssistCompletionEvent.AsObject;
@@ -1234,6 +1265,8 @@ export namespace AssistCompletionEvent {
     export type AsObject = {
         userName: string,
         totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
     }
 }
 
@@ -1476,6 +1509,12 @@ export class SubmitEventRequest extends jspb.Message {
     setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
 
 
+    hasUiCallToActionClickEvent(): boolean;
+    clearUiCallToActionClickEvent(): void;
+    getUiCallToActionClickEvent(): UICallToActionClickEvent | undefined;
+    setUiCallToActionClickEvent(value?: UICallToActionClickEvent): SubmitEventRequest;
+
+
     hasAssistCompletion(): boolean;
     clearAssistCompletion(): void;
     getAssistCompletion(): AssistCompletionEvent | undefined;
@@ -1536,6 +1575,7 @@ export namespace SubmitEventRequest {
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
         uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
         uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
+        uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
         assistCompletion?: AssistCompletionEvent.AsObject,
     }
 
@@ -1618,7 +1658,9 @@ export namespace SubmitEventRequest {
 
     UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
 
-    ASSIST_COMPLETION = 42,
+    UI_CALL_TO_ACTION_CLICK_EVENT = 42,
+
+    ASSIST_COMPLETION = 43,
 
     }
 
@@ -1771,4 +1813,14 @@ export enum DiscoverStatus {
     DISCOVER_STATUS_SKIPPED = 2,
     DISCOVER_STATUS_ERROR = 3,
     DISCOVER_STATUS_ABORTED = 4,
+}
+
+export enum CTA {
+    CTA_UNSPECIFIED = 0,
+    CTA_AUTH_CONNECTOR = 1,
+    CTA_ACTIVE_SESSIONS = 2,
+    CTA_ACCESS_REQUESTS = 3,
+    CTA_PREMIUM_SUPPORT = 4,
+    CTA_TRUSTED_DEVICES = 5,
+    CTA_UPGRADE_BANNER = 6,
 }
