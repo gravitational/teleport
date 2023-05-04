@@ -14,26 +14,5 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
-import { IntegrationList } from './IntegrationList';
-import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
-import { plugins, integrations } from './fixtures';
-
-export default {
-  title: 'Teleport/Integrations',
-};
-
-export function List() {
-  return <IntegrationList list={[...plugins, ...integrations]} />;
-}
-
-export function DeleteDialog() {
-  return (
-    <DeleteIntegrationDialog
-      onClose={() => null}
-      onDelete={() => null}
-      name="some-integration-name"
-    />
-  );
-}
+// export as default for use with React.lazy
+export { AwsOidc as default } from './AwsOidc';

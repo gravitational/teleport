@@ -14,26 +14,23 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { lazy } from 'react';
 
-import { IntegrationList } from './IntegrationList';
-import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
-import { plugins, integrations } from './fixtures';
+import cfg from 'teleport/config';
+import { Route } from 'teleport/components/Router';
+import { IntegrationKind } from 'teleport/services/integrations';
 
-export default {
-  title: 'Teleport/Integrations',
-};
+const EnrollAwsOidc = lazy(
+  () => import(/* webpackChunkName: "enroll-aws-oidc" */ './AwsOidc')
+);
 
-export function List() {
-  return <IntegrationList list={[...plugins, ...integrations]} />;
-}
-
-export function DeleteDialog() {
-  return (
-    <DeleteIntegrationDialog
-      onClose={() => null}
-      onDelete={() => null}
-      name="some-integration-name"
-    />
-  );
+export function getRoutesToEnrollIntegrations() {
+  return [
+    <Route
+      key={IntegrationKind.AwsOidc}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
+      component={EnrollAwsOidc}
+    />,
+  ];
 }

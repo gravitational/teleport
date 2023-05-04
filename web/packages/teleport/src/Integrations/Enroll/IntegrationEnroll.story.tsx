@@ -15,25 +15,18 @@
  */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
-import { IntegrationList } from './IntegrationList';
-import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
-import { plugins, integrations } from './fixtures';
+import cfg from 'teleport/config';
+
+import { IntegrationEnroll } from './IntegrationEnroll';
 
 export default {
-  title: 'Teleport/Integrations',
+  title: 'Teleport/Integrations/Enroll',
 };
 
-export function List() {
-  return <IntegrationList list={[...plugins, ...integrations]} />;
-}
-
-export function DeleteDialog() {
-  return (
-    <DeleteIntegrationDialog
-      onClose={() => null}
-      onDelete={() => null}
-      name="some-integration-name"
-    />
-  );
-}
+export const Picker = () => (
+  <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
+    <IntegrationEnroll />
+  </MemoryRouter>
+);

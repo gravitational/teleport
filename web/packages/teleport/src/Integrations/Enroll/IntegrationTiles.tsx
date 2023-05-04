@@ -21,6 +21,7 @@ import awsIcon from 'design/assets/images/icons/aws.svg';
 
 import cfg from 'teleport/config';
 import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
+import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IntegrationTile } from './common';
 
@@ -35,7 +36,11 @@ export function IntegrationTiles({
     <IntegrationTile
       disabled={!hasAccess}
       as={hasAccess ? Link : null}
-      to={hasAccess ? cfg.getIntegrationEnrollRoute('aws-oidc') : null}
+      to={
+        hasAccess
+          ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
+          : null
+      }
     >
       <Image mt={3} mb={2} src={awsIcon} width="80px" height="80px" />
       <Text>
