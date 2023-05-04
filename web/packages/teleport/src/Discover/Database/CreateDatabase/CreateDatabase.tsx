@@ -36,17 +36,17 @@ import { Timeout } from 'teleport/Discover/Shared/Timeout';
 import {
   ActionButtons,
   HeaderSubtitle,
-  Header,
   LabelsCreater,
   Mark,
   TextIcon,
+  HeaderWithBackBtn,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import {
   DatabaseLocation,
   getDatabaseProtocol,
   getDefaultDatabasePort,
-} from '../resources';
+} from '../../SelectResource';
 
 import { useCreateDatabase, State } from './useCreateDatabase';
 
@@ -69,6 +69,7 @@ export function CreateDatabaseView({
   dbEngine,
   dbLocation,
   isDbCreateErr,
+  prevStep,
 }: State) {
   const [dbName, setDbName] = useState('');
   const [dbUri, setDbUri] = useState('');
@@ -102,7 +103,7 @@ export function CreateDatabaseView({
     }
 
     let awsRds: AwsRds;
-    if (dbLocation === DatabaseLocation.AWS) {
+    if (dbLocation === DatabaseLocation.Aws) {
       awsRds = {
         accountId: awsAccountId,
         resourceId: awsResourceId,
@@ -118,12 +119,14 @@ export function CreateDatabaseView({
     });
   }
 
-  const isAws = dbLocation === DatabaseLocation.AWS;
+  const isAws = dbLocation === DatabaseLocation.Aws;
   return (
     <Validation>
       {({ validator }) => (
         <Box maxWidth="800px">
-          <Header>Register a Database</Header>
+          <HeaderWithBackBtn onPrev={prevStep}>
+            Register a Database
+          </HeaderWithBackBtn>
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>
@@ -201,7 +204,7 @@ export function CreateDatabaseView({
                       width="30%"
                     />
                   </Flex>
-                  {dbLocation === DatabaseLocation.AWS && (
+                  {dbLocation === DatabaseLocation.Aws && (
                     <>
                       <Box width="500px">
                         <FieldInput

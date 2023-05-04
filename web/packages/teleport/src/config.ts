@@ -38,6 +38,7 @@ const cfg = {
   isEnterprise: false,
   isCloud: false,
   isDashboard: false,
+  isUsageBasedBilling: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
 
@@ -211,6 +212,9 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+
+    userGroupsListPath:
+      '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -602,6 +606,13 @@ const cfg = {
     return generateResourcePath(cfg.api.integrationsPath, {
       clusterId,
       name,
+    });
+  },
+
+  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.userGroupsListPath, {
+      clusterId,
+      ...params,
     });
   },
 
