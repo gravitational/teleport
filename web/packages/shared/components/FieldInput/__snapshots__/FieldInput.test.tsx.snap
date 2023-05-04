@@ -49,6 +49,7 @@ exports[`snapshot tests 1`] = `
 
 .c3::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c3:read-only {
