@@ -453,12 +453,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              181
+              188
             </strong>
              of
              
             <strong>
-              181
+              188
             </strong>
           </div>
           <button
@@ -1541,6 +1541,258 @@ exports[`list of all events 1`] = `
           >
             <div
               class="c19"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Update
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has updated a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Authenticate
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to authenticate their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enrollment
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to enroll their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enroll Token Spent
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has spent a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enroll Token Create
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] created a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Delete
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has deleted a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Register
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has registered a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
             >
               <span
                 class="c14 c20 icon icon-database c14 c20"

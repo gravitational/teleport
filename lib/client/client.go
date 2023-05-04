@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -570,6 +572,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	resp, err := stream.Recv()
 	if err != nil {
+		// Older versions will NOT reply with a MFARequired response in the
+		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
+		// In this case for all protocols other than SSH fall back to reissuing
+		// certs without MFA.
+		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+			if params.usage() != proto.UserCertsRequest_SSH {
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()

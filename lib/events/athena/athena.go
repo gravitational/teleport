@@ -16,7 +16,6 @@ package athena
 
 import (
 	"context"
-	"math"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -81,9 +80,14 @@ type Config struct {
 	// GetQueryResultsInterval is used to define how long query will wait before
 	// checking again for results status if previous status was not ready (optional).
 	GetQueryResultsInterval time.Duration
-	// LimiterRate defines rate at which search_event rate limiter is filled (optional).
-	LimiterRate float64
-	// LimiterBurst defines rate limit bucket capacity (optional).
+
+	// LimiterRefillTime determines the duration of time between the addition of tokens to the bucket (optional).
+	LimiterRefillTime time.Duration
+	// LimiterRefillAmount is the number of tokens that are added to the bucket during interval
+	// specified by LimiterRefillTime (optional).
+	LimiterRefillAmount int
+	// Burst defines number of available tokens. It's initially full and refilled
+	// based on LimiterRefillAmount and LimiterRefillTime (optional).
 	LimiterBurst int
 
 	// Batcher settings.
@@ -198,19 +202,23 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
 	}
 
-	if cfg.LimiterRate < 0 {
-		return trace.BadParameter("LimiterRate cannot be negative")
+	if cfg.LimiterRefillAmount < 0 {
+		return trace.BadParameter("LimiterRefillAmount cannot be nagative")
 	}
 	if cfg.LimiterBurst < 0 {
 		return trace.BadParameter("LimiterBurst cannot be negative")
 	}
 
-	if cfg.LimiterRate > 0 && cfg.LimiterBurst == 0 {
-		return trace.BadParameter("LimiterBurst must be greater than 0 if LimiterRate is used")
+	if cfg.LimiterRefillAmount > 0 && cfg.LimiterBurst == 0 {
+		return trace.BadParameter("LimiterBurst must be greater than 0 if LimiterRefillAmount is used")
 	}
 
-	if cfg.LimiterBurst > 0 && math.Abs(cfg.LimiterRate) < 1e-9 {
-		return trace.BadParameter("LimiterRate must be greater than 0 if LimiterBurst is used")
+	if cfg.LimiterBurst > 0 && cfg.LimiterRefillAmount == 0 {
+		return trace.BadParameter("LimiterRefillAmount must be greater than 0 if LimiterBurst is used")
+	}
+
+	if cfg.LimiterRefillAmount > 0 && cfg.LimiterRefillTime == 0 {
+		cfg.LimiterRefillTime = time.Second
 	}
 
 	if cfg.Clock == nil {
@@ -283,13 +291,21 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 		}
 		cfg.GetQueryResultsInterval = dur
 	}
-	rateInString := url.Query().Get("limiterRate")
-	if rateInString != "" {
-		rate, err := strconv.ParseFloat(rateInString, 32)
+	refillAmountInString := url.Query().Get("limiterRefillAmount")
+	if refillAmountInString != "" {
+		refillAmount, err := strconv.Atoi(refillAmountInString)
 		if err != nil {
-			return trace.BadParameter("invalid limiterRate value (it must be float32): %v", err)
+			return trace.BadParameter("invalid limiterRefillAmount value (it must be int): %v", err)
 		}
-		cfg.LimiterRate = rate
+		cfg.LimiterRefillAmount = refillAmount
+	}
+	refillTimeInString := url.Query().Get("limiterRefillTime")
+	if refillTimeInString != "" {
+		dur, err := time.ParseDuration(refillTimeInString)
+		if err != nil {
+			return trace.BadParameter("invalid limiterRefillTime value: %v", err)
+		}
+		cfg.LimiterRefillTime = dur
 	}
 	burstInString := url.Query().Get("limiterBurst")
 	if burstInString != "" {

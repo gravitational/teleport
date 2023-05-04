@@ -422,6 +422,8 @@ func TestDiscoveryKube(t *testing.T) {
 		gcpMatchers                   []services.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
+		expectedAssumedRoles          []string
+		expectedExternalIDs           []string
 	}{
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from EKS",
@@ -437,6 +439,36 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
+		},
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from EKS with assumed roles",
+			existingKubeClusters: []types.KubeCluster{},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: services.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
+					},
+				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: services.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role2",
+						ExternalID: "external-id2",
+					},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+			},
+			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/teleport-role", "arn:aws:iam::123456789012:role/teleport-role2"},
+			expectedExternalIDs:  []string{"external-id", "external-id2"},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 stg clusters from EKS",
@@ -580,8 +612,9 @@ func TestDiscoveryKube(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
+			sts := &mocks.STSMock{}
 			testClients := cloud.TestCloudClients{
+				STS:            sts,
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
@@ -691,6 +724,9 @@ func TestDiscoveryKube(t *testing.T) {
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
+
+			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 		})
 	}
 }
@@ -1196,6 +1232,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)

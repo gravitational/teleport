@@ -3167,7 +3167,7 @@ func TestCustomRateLimiting(t *testing.T) {
 		},
 		{
 			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterPasswordlessBurst,
+			burst: defaults.LimiterBurst,
 			fn: func(clt *Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err

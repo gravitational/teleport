@@ -1414,9 +1414,22 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			logger, err := athena.New(ctx, cfg)
+			var logger events.AuditLogger
+			logger, err = athena.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
+			}
+			if cfg.LimiterBurst > 0 {
+				// Wrap athena logger with rate limiter on search events.
+				logger, err = events.NewSearchEventLimiter(events.SearchEventsLimiterConfig{
+					RefillTime:   cfg.LimiterRefillTime,
+					RefillAmount: cfg.LimiterRefillAmount,
+					Burst:        cfg.LimiterBurst,
+					AuditLogger:  logger,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:
@@ -1623,7 +1636,8 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
+		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1641,7 +1655,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})...)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1714,7 +1728,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		PluginRegistry: process.PluginRegistry,
-		Emitter:        checkingEmitter,
+		Emitter:        authServer,
 		MetadataGetter: uploadHandler,
 	}
 
@@ -3960,8 +3974,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.log.WithField(trace.Component, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -4049,6 +4063,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService
 		}
+
+		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
+		// and feed them to the kube proxy server so it can route the requests to
+		// the correct kubernetes server.
+		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: component,
+				Log:       log,
+				Client:    accessPoint,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -4076,13 +4104,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ConnTLSConfig:   tlsConfig.Clone(),
 				ClusterFeatures: process.getClusterFeatures,
 			},
-			TLS:             tlsConfig.Clone(),
-			LimiterConfig:   cfg.Proxy.Limiter,
-			AccessPoint:     accessPoint,
-			GetRotation:     process.GetRotation,
-			OnHeartbeat:     process.OnHeartbeat(component),
-			Log:             log,
-			IngressReporter: ingressReporter,
+			TLS:                      tlsConfig.Clone(),
+			LimiterConfig:            cfg.Proxy.Limiter,
+			AccessPoint:              accessPoint,
+			GetRotation:              process.GetRotation,
+			OnHeartbeat:              process.OnHeartbeat(component),
+			Log:                      log,
+			IngressReporter:          ingressReporter,
+			KubernetesServersWatcher: kubeServerWatcher,
 		})
 		if err != nil {
 			return trace.Wrap(err)
