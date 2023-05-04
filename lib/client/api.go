@@ -2676,14 +2676,26 @@ func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, 
 }
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
-func (tc *TeleportClient) getProxySSHPrincipal() string {
+func (tc *TeleportClient) getProxySSHPrincipal(ctx context.Context) string {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/getProxySSHPrincipal",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy", tc.Config.WebProxyAddr),
+		),
+	)
+	defer span.End()
+
 	if tc.ProxySSHPrincipal != "" {
 		return tc.ProxySSHPrincipal
 	}
 
 	// if we have any keys in the cache, pull the user's valid principals from it.
 	if tc.localAgent != nil {
+		span.AddEvent("getting signers")
 		signers, err := tc.localAgent.Signers()
+		span.AddEvent("got signers")
 		if err == nil && len(signers) > 0 {
 			cert, ok := signers[0].PublicKey().(*ssh.Certificate)
 			if ok && len(cert.ValidPrincipals) > 0 {
@@ -2777,6 +2789,16 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 // connectToProxy will dial to the proxy server and return a ProxyClient when
 // successful.
 func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/connectToProxy",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy", tc.Config.WebProxyAddr),
+		),
+	)
+	defer span.End()
+
 	sshProxyAddr := tc.Config.SSHProxyAddr
 
 	hostKeyCallback := tc.HostKeyCallback
@@ -2815,7 +2837,9 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	} else if tc.localAgent != nil {
 		// Load SSH certs for all clusters we have, in case we don't yet
 		// have a certificate for tc.SiteName (like during `tsh login leaf`).
+		span.AddEvent("getting signers")
 		signers, err := tc.localAgent.Signers()
+		span.AddEvent("got signers")
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
 		// should be passing auth methods via tc.Config.AuthMethods.
 		if err != nil && !trace.IsNotFound(err) {
@@ -2831,7 +2855,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 	}
 
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.getProxySSHPrincipal(),
+		User:            tc.getProxySSHPrincipal(ctx),
 		HostKeyCallback: hostKeyCallback,
 		Auth:            authMethods,
 	}
@@ -2886,6 +2910,16 @@ func confirmSSHConnectivityErrorMsg(proxyAddress string) string {
 //  3. Dial sshProxyAddr with raw SSH Dialer where sshProxyAddress is proxy ssh address or JumpHost address if
 //     JumpHost address was provided.
 func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig) (*tracessh.Client, error) {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/makeProxySSHClient",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy", tc.Config.WebProxyAddr),
+		),
+	)
+	defer span.End()
+
 	// Use TLS Routing dialer only if proxy support TLS Routing and JumpHost was not set.
 	if tc.Config.TLSRoutingEnabled && len(tc.JumpHosts) == 0 {
 		log.Infof("Connecting to proxy=%v login=%q using TLS Routing", tc.Config.WebProxyAddr, sshConfig.User)
@@ -2935,8 +2969,29 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 }
 
 func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/makeProxySSHClientDirect",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy", tc.Config.WebProxyAddr),
+		),
+	)
+	defer span.End()
+
 	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
-	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
+
+	span.AddEvent("dialing proxy")
+	conn, err := dialer.DialTimeout(ctx, "tcp", proxyAddr, apidefaults.DefaultIOTimeout)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	span.AddEvent("got connection to proxy")
+
+	span.AddEvent("creating ssh client conn")
+	clt, err := tracessh.NewClientConnWithDeadline(ctx, conn, proxyAddr, sshConfig)
+	span.AddEvent("created ssh client conn")
+	return clt, trace.Wrap(err)
 }
 
 func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
