@@ -243,7 +243,7 @@ const FlexBordered = props => (
 );
 
 const StyledOr = styled.div`
-  background: ${props => props.theme.colors.levels.surfaceSecondary};
+  background: ${props => props.theme.colors.levels.surface};
   display: flex;
   align-items: center;
   font-size: 10px;
