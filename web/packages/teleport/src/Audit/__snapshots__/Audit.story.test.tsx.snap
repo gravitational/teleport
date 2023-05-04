@@ -1543,7 +1543,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Update
@@ -1563,7 +1563,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1576,10 +1576,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Authenticate
@@ -1599,7 +1599,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1612,10 +1612,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enrollment
@@ -1635,7 +1635,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1648,10 +1648,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Spent
@@ -1671,7 +1671,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1684,10 +1684,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Create
@@ -1707,7 +1707,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1720,10 +1720,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Delete
@@ -1743,7 +1743,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1756,10 +1756,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Register
@@ -1779,7 +1779,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1792,7 +1792,7 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
                 class="c14 c20 icon icon-database c14 c20"
