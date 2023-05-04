@@ -81,7 +81,7 @@ const StyledListItem = styled(ListItem)`
 
 const InvertedLabel = styled(Label)`
   color: ${props => props.theme.colors.brand};
-  background-color: ${props => props.theme.colors.text.contrast};
+  background-color: ${props => props.theme.colors.text.main};
 `;
 
 function getBackgroundColor(props) {

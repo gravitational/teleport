@@ -7,8 +7,9 @@ resource "aws_s3_bucket" "certs" {
 }
 
 resource "aws_s3_bucket_acl" "certs" {
-  bucket = aws_s3_bucket.certs.bucket
-  acl    = "private"
+  depends_on = [aws_s3_bucket_ownership_controls.certs]
+  bucket     = aws_s3_bucket.certs.bucket
+  acl        = "private"
 }
 
 // For demo purposes, CMK is not needed
@@ -20,6 +21,14 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "certs" {
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "certs" {
+  bucket = aws_s3_bucket.certs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
   }
 }
 

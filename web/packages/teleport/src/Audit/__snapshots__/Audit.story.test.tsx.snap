@@ -20,7 +20,7 @@ exports[`list of all events 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -32,7 +32,6 @@ exports[`list of all events 1`] = `
 .c19:hover,
 .c19:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c19:active {
@@ -233,7 +232,7 @@ exports[`list of all events 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
   cursor: wait;
 }
 
@@ -299,14 +298,14 @@ exports[`list of all events 1`] = `
 }
 
 .c4::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 .c20 {
   background: #000000;
   border: 2px solid #9F85FF;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -376,7 +375,7 @@ exports[`list of all events 1`] = `
         >
           <div
             class="c9"
-            color="text.primary"
+            color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
@@ -385,12 +384,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              181
+              188
             </strong>
              of
              
             <strong>
-              181
+              188
             </strong>
           </div>
           <button
@@ -1449,6 +1448,258 @@ exports[`list of all events 1`] = `
             style="word-break: break-word;"
           >
             User [3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name] has registered a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Update
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has updated a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Authenticate
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to authenticate their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enrollment
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to enroll their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enroll Token Spent
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has spent a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Enroll Token Create
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] created a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Delete
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has deleted a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-info_outline c13 c18"
+                font-size="3"
+              />
+              Device Register
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has registered a device
           </td>
           <td
             style="min-width: 120px;"
@@ -7014,7 +7265,7 @@ exports[`loaded audit log screen 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -7026,7 +7277,6 @@ exports[`loaded audit log screen 1`] = `
 .c23:hover,
 .c23:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c23:active {
@@ -7107,20 +7357,20 @@ exports[`loaded audit log screen 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c4 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__control:hover,
 .c4 .react-select__control:focus,
 .c4 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -7141,7 +7391,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -7155,7 +7405,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__multi-value {
@@ -7201,7 +7451,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c4 .react-select__clear-indicator:hover,
@@ -7235,20 +7485,20 @@ exports[`loaded audit log screen 1`] = `
 
 .c4 .react-select--is-disabled,
 .c4 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__single-value,
 .c4 .react-select__control--is-disabled .react-select__single-value,
 .c4 .react-select--is-disabled .react-select__placeholder,
 .c4 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c1 {
@@ -7471,7 +7721,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -7590,7 +7840,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 

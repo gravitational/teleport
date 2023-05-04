@@ -184,6 +184,11 @@ func (cr *ContextReader) processReads() {
 	}
 }
 
+// IsTerminal returns whether the given reader is a terminal.
+func (cr *ContextReader) IsTerminal() bool {
+	return cr.term.IsTerminal(cr.fd)
+}
+
 // handleInterrupt restores terminal state on interrupts.
 // Called only on global ContextReaders, such as Stdin.
 func (cr *ContextReader) handleInterrupt() {

@@ -799,9 +799,6 @@ func newTokenDemoApp() *tokenDemoApp {
 	t, err := teleport.New(ctx, teleport.Config{
 		Addrs:       []string{proxyAddr},
 		Credentials: []teleport.Credentials{creds},
-		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
-		},
 	})
 	if err != nil {
 		panic(err)
@@ -829,10 +826,6 @@ up an API client. Our plugin initializes a Teleport client by calling
 `client.LoadIdentityFile` to obtain a `client.Credentials`. It then uses the
 `client.Credentials` to call `client.New`, which connects to the Teleport Proxy
 Service specified in the `Addrs` field using the provided identity file.
-
-In this example, we are passing the `grpc.WithReturnConnectionError()` function
-call to `client.New`, which instructs the gRPC client to return more detailed
-connection errors.
 
 <Admonition type="warning">
 

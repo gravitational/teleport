@@ -145,7 +145,7 @@ function DocumentReconnect(props: {
         alignItems="center"
         mt={100}
       >
-        <Text typography="h5" color="text.primary">
+        <Text typography="h5" color="text.main">
           {message}
         </Text>
         <Flex flexDirection="column" alignItems="center" mx="auto">

@@ -79,7 +79,7 @@ export function Tabs(props: Props & { parties: stores.Parties }) {
     <StyledTabs
       as="nav"
       typography="h5"
-      color="text.secondary"
+      color="text.slightlyMuted"
       bold
       {...styledProps}
     >
