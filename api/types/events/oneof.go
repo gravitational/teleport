@@ -279,6 +279,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DeviceEvent{
 			DeviceEvent: e,
 		}
+	case *DeviceEvent2:
+		out.Event = &OneOf_DeviceEvent2{
+			DeviceEvent2: e,
+		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
 			BillingCardCreate: e,
