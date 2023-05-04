@@ -12,7 +12,6 @@
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
 VERSION=13.0.0-alpha.2
-
 DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
@@ -35,6 +34,7 @@ PWD ?= `pwd`
 GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
+GITREF=$(shell git describe --tags --long --match "v[0-9]*")
 CGOFLAG ?= CGO_ENABLED=1
 
 # When TELEPORT_DEBUG is true, set flags to produce
@@ -44,6 +44,8 @@ BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
+
+BUILDFLAGS += -ldflags '-X github.com/gravitational/teleport.Gitref=$(GITREF)'
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -431,7 +433,7 @@ build-archive:
 # Enterprise editions, containing teleport, tctl, tbot and tsh.
 #
 .PHONY:
-release-unix: clean full build-archive
+release-unix: # clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 include darwin-signing.mk
