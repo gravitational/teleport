@@ -177,5 +177,6 @@ func getLicenseFeatures(license types.License) modules.Features {
 		AdvancedAccessWorkflows: true,
 		HSM:                     true,
 		RecoveryCodes:           license.GetCloud().Value(),
+		IsUsageBasedBilling:     false, // usage-based subscriptions don't use license as source of features
 	}
 }

@@ -33,6 +33,8 @@ func FetchFromCloud(ctx context.Context, cloudClient cloud.Client) (*modules.Fea
 		OIDC:                    features.Oidc,
 		SAML:                    features.SAML,
 		AccessControls:          features.AccessControls,
+		HSM:                     features.Hsm,
+		IsUsageBasedBilling:     features.IsUsageBased,
 	}, nil
 }
 

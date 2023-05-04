@@ -129,6 +129,46 @@ export namespace StripeBillingAddress {
   }
 }
 
+export class UpdateEmailRequest extends jspb.Message {
+  getEmail(): string;
+  setEmail(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): UpdateEmailRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: UpdateEmailRequest): UpdateEmailRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: UpdateEmailRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): UpdateEmailRequest;
+  static deserializeBinaryFromReader(message: UpdateEmailRequest, reader: jspb.BinaryReader): UpdateEmailRequest;
+}
+
+export namespace UpdateEmailRequest {
+  export type AsObject = {
+    email: string,
+  }
+}
+
+export class UpdatePurchaseOrderPrefixRequest extends jspb.Message {
+  getPo(): string;
+  setPo(value: string): void;
+
+  serializeBinary(): Uint8Array;
+  toObject(includeInstance?: boolean): UpdatePurchaseOrderPrefixRequest.AsObject;
+  static toObject(includeInstance: boolean, msg: UpdatePurchaseOrderPrefixRequest): UpdatePurchaseOrderPrefixRequest.AsObject;
+  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+  static serializeBinaryToWriter(message: UpdatePurchaseOrderPrefixRequest, writer: jspb.BinaryWriter): void;
+  static deserializeBinary(bytes: Uint8Array): UpdatePurchaseOrderPrefixRequest;
+  static deserializeBinaryFromReader(message: UpdatePurchaseOrderPrefixRequest, reader: jspb.BinaryReader): UpdatePurchaseOrderPrefixRequest;
+}
+
+export namespace UpdatePurchaseOrderPrefixRequest {
+  export type AsObject = {
+    po: string,
+  }
+}
+
 export class Card extends jspb.Message {
   getId(): string;
   setId(value: string): void;
@@ -803,6 +843,9 @@ export class GetFeaturesResponse extends jspb.Message {
   getHsm(): boolean;
   setHsm(value: boolean): void;
 
+  getIsUsageBased(): boolean;
+  setIsUsageBased(value: boolean): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetFeaturesResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetFeaturesResponse): GetFeaturesResponse.AsObject;
@@ -828,6 +871,7 @@ export namespace GetFeaturesResponse {
     saml: boolean,
     accessControls: boolean,
     hsm: boolean,
+    isUsageBased: boolean,
   }
 }
 
