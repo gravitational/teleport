@@ -41,13 +41,22 @@ jobs:
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
         run: |
+          if [ $GITHUB_EVENT_NAME = "pull_request" ]; then
+            BRANCH=$GITHUB_HEAD_REF;
+          elif [ $GITHUB_EVENT_NAME = "merge_group" ]; then
+            BRANCH=$GITHUB_REF;
+          else
+            echo "Unexpected event name: $GITHUB_EVENT_NAME";
+            exit 1;
+          fi
+
           cd $GITHUB_WORKSPACE/docs
           echo "" > .gitmodules
           rm -rf content/*
           cd content
-          git submodule add --force -b $GITHUB_REF_NAME -- https://github.com/gravitational/teleport
+          git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
           cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$GITHUB_REF_NAME\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
+          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
           yarn install
           yarn build-node
 
