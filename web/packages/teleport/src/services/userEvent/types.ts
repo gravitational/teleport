@@ -16,7 +16,9 @@
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
 
-export { CTA as CtaEvents } from 'gen-proto-js/prehog/v1alpha/teleport_pb';
+import * as prehogApi from 'gen-proto-js/prehog/v1alpha/teleport_pb';
+
+export const CtaEvents = prehogApi.CTA;
 
 export enum CaptureEvent {
   // UserEvent types
