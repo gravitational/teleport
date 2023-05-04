@@ -99,6 +99,8 @@ type Modules interface {
 	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
+	// SetFeatures set features queried from Cloud
+	SetFeatures(Features)
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
@@ -183,6 +185,11 @@ func (p *defaultModules) Features() Features {
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
 	}
+}
+
+// SetFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {
