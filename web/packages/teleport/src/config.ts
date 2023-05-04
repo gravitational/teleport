@@ -38,9 +38,10 @@ const cfg = {
   isEnterprise: false,
   isCloud: false,
   isDashboard: false,
-  isUsageBasedBilling: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
+  // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  isUsageBasedBilling: false,
 
   configDir: '$HOME/.config',
 
