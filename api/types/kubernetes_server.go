@@ -78,51 +78,6 @@ func NewKubernetesServerV3FromCluster(cluster *KubernetesClusterV3, hostname, ho
 	})
 }
 
-// NewLegacyKubeServer creates legacy Kube server object. Used in tests.
-//
-// DELETE IN 13.0.0
-func NewLegacyKubeServer(cluster *KubernetesClusterV3, hostname, hostID string) (Server, error) {
-	return NewServer(hostID, KindKubeService,
-		ServerSpecV2{
-			Hostname: hostname,
-			KubernetesClusters: []*KubernetesCluster{
-				{
-					Name:          cluster.GetName(),
-					DynamicLabels: LabelsToV2(cluster.GetDynamicLabels()),
-					StaticLabels:  cluster.GetStaticLabels(),
-				},
-			},
-		})
-}
-
-// NewKubeServersV3FromServer creates a list of kube servers from a legacy Server resource.
-//
-// DELETE IN 13.0.0
-func NewKubeServersV3FromServer(server Server) (result []KubeServer, err error) {
-	for _, legacyCluster := range server.GetKubernetesClusters() {
-		kubeCluster, err := NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), legacyCluster)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeServer, err := NewKubernetesServerV3(Metadata{
-			Name:    kubeCluster.GetName(),
-			Expires: server.GetMetadata().Expires,
-		}, KubernetesServerSpecV3{
-			Version:  server.GetTeleportVersion(),
-			Hostname: server.GetAddr(),
-			HostID:   server.GetName(),
-			Rotation: server.GetRotation(),
-			Cluster:  kubeCluster,
-			ProxyIDs: server.GetProxyIDs(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result = append(result, kubeServer)
-	}
-	return result, nil
-}
-
 // GetVersion returns the kubernetes server resource version.
 func (s *KubernetesServerV3) GetVersion() string {
 	return s.Version
@@ -276,6 +231,19 @@ func (s *KubernetesServerV3) GetProxyIDs() []string {
 // SetProxyID sets the proxy ids this server is connected to.
 func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *KubernetesServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.Cluster != nil {
+		if v, ok := s.Spec.Cluster.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns all resource's labels. Considering:

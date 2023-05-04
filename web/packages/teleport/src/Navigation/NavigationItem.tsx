@@ -21,7 +21,6 @@ import { NavLink } from 'react-router-dom';
 
 import { ExternalLinkIcon } from 'design/SVGIcon';
 
-import { useTeleport } from 'teleport';
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
 import {
@@ -29,6 +28,8 @@ import {
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -43,20 +44,21 @@ const ExternalLink = styled.a`
   ${commonNavigationItemStyles};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
+  color: ${props => props.theme.colors.text.main};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: #512fc9;
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
 
     ${LinkContent} {
       font-weight: 700;
@@ -74,8 +76,7 @@ const ExternalLinkIndicator = styled.div`
 `;
 
 export function NavigationItem(props: NavigationItemProps) {
-  const ctx = useTeleport();
-  const clusterId = ctx.storeUser.getClusterId();
+  const { clusterId } = useStickyClusterId();
 
   const { navigationItem, route } = props.feature;
 

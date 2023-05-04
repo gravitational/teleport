@@ -1781,16 +1781,7 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 		return types.ResourcesWithLabels{r.GetDatabase()}, nil
 	case types.Server:
 		if hint == types.KindKubernetesCluster {
-			kubeClusters := r.GetKubernetesClusters()
-			resources := make(types.ResourcesWithLabels, len(kubeClusters))
-			for i := range kubeClusters {
-				resource, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, kubeClusters[i])
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources[i] = resource
-			}
-			return resources, nil
+			return nil, trace.BadParameter("expected kubernetes server, got server")
 		}
 	default:
 	}

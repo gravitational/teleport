@@ -98,4 +98,6 @@ const props: State = {
   username: 'teleport-username',
   authType: 'local',
   clusterId: 'some-cluster-id',
+  showMfaDialog: false,
+  cancelMfaDialog: () => null,
 };

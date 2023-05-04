@@ -38,12 +38,14 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -54,17 +56,19 @@ import (
 )
 
 type TestContext struct {
-	HostID      string
-	ClusterName string
-	TLSServer   *auth.TestTLSServer
-	AuthServer  *auth.Server
-	AuthClient  *auth.Client
-	Authz       auth.Authorizer
-	KubeServer  *TLSServer
-	Emitter     *eventstest.ChannelEmitter
-	Context     context.Context
-	listener    net.Listener
-	cancel      context.CancelFunc
+	HostID          string
+	ClusterName     string
+	TLSServer       *auth.TestTLSServer
+	AuthServer      *auth.Server
+	AuthClient      *auth.Client
+	Authz           authz.Authorizer
+	KubeServer      *TLSServer
+	Emitter         *eventstest.ChannelEmitter
+	Context         context.Context
+	listener        net.Listener
+	cancel          context.CancelFunc
+	heartbeatCtx    context.Context
+	heartbeatCancel context.CancelFunc
 }
 
 // KubeClusterConfig defines the cluster to be created
@@ -81,16 +85,20 @@ type TestConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	OnReconcile      func(types.KubeClusters)
 	OnEvent          func(apievents.AuditEvent)
+	ClusterFeatures  func() proto.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
 func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestContext {
 	ctx, cancel := context.WithCancel(ctx)
+	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	testCtx := &TestContext{
-		ClusterName: "root.example.com",
-		HostID:      uuid.New().String(),
-		Context:     ctx,
-		cancel:      cancel,
+		ClusterName:     "root.example.com",
+		HostID:          uuid.New().String(),
+		Context:         ctx,
+		cancel:          cancel,
+		heartbeatCtx:    heartbeatCtx,
+		heartbeatCancel: heartbeatCancel,
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -140,7 +148,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		proxyLockWatcher.Close()
 	})
-	testCtx.Authz, err = auth.NewAuthorizer(auth.AuthorizerOpts{
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -171,7 +179,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
+	client := newAuthClientWithStreamer(testCtx)
 
+	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	if cfg.ClusterFeatures != nil {
+		features = cfg.ClusterFeatures
+	}
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -185,12 +198,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: newAuthClientWithStreamer(testCtx),
+			AuthClient: client,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			StreamEmitter:     testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: testCtx.AuthClient,
+			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
@@ -201,11 +214,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			Clock: clockwork.NewRealClock(),
+			Clock:           clockwork.NewRealClock(),
+			ClusterFeatures: features,
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,
-		AccessPoint:   testCtx.AuthClient,
+		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -214,7 +228,18 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
 		OnHeartbeat: func(err error) {
-			require.NoError(t, err)
+			select {
+			case <-heartbeatCtx.Done():
+				// ignore not found errors because although the heartbeat is called before
+				// the close does not wait for the resource cleanup to finish.
+				if trace.IsNotFound(err) {
+					return
+				}
+			default:
+
+			}
+
+			assert.NoError(t, err)
 			select {
 			case heartbeatsWaitChannel <- struct{}{}:
 			default:
@@ -255,6 +280,9 @@ func (c *TestContext) startKubeService(t *testing.T) {
 
 // Close closes resources associated with the test context.
 func (c *TestContext) Close() error {
+	// cancel the heartbeat context to stop validating the heartbeat not found
+	// errors when deprovisioning.
+	c.heartbeatCancel()
 	// kubeServer closes the listener
 	err := c.KubeServer.Close()
 	authCErr := c.AuthClient.Close()
@@ -318,8 +346,19 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeCluste
 	return kubeConfigLocation
 }
 
+// GenTestKubeClientTLSCertOptions is a function that can be used to modify the
+// identity used to generate the kube client certificate.
+type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
+
+// WithResourceAccessRequests adds resource access requests to the identity.
+func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+	return func(identity *tlsca.Identity) {
+		identity.AllowedResourceIDs = r
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
-func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
@@ -358,6 +397,9 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+	}
+	for _, opt := range opts {
+		opt(&id)
 	}
 	subj, err := id.Subject()
 	require.NoError(t, err)

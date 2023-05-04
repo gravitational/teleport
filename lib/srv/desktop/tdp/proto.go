@@ -229,6 +229,12 @@ func decodePNG2Frame(in byteReader) (PNG2Frame, error) {
 		return PNG2Frame{}, trace.Wrap(err)
 	}
 
+	// prevent allocation of giant buffers.
+	// this also avoids panic for pngLength ~ 4294967295 due to overflow.
+	if pngLength > maxPNGFrameDataLength {
+		return PNG2Frame{}, trace.BadParameter("pngLength too big: %v", pngLength)
+	}
+
 	// Allocate buffer that will fit PNG2Frame message
 	// https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#27---png-frame-2
 	// message type (1) + png length (4) + left, right, top, bottom (4 x 4) + data => 21 + data
@@ -253,12 +259,18 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
+	// TODO(isaiah, zmb3): remove this once a buffer pool
 	// is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
 }
+
+func (f PNG2Frame) Left() uint32   { return binary.BigEndian.Uint32(f[5:9]) }
+func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
+func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
+func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
+func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |
@@ -663,12 +675,8 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
-	var completionID, directoryID uint32
-	err := binary.Read(in, binary.BigEndian, &completionID)
-	if err != nil {
-		return SharedDirectoryAnnounce{}, trace.Wrap(err)
-	}
-	err = binary.Read(in, binary.BigEndian, &directoryID)
+	var directoryID uint32
+	err := binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
@@ -1453,6 +1461,9 @@ const tdpMaxPathLength = 10240
 
 const maxClipboardDataLength = 1024 * 1024    // 1MB
 const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+
+// maxPNGFrameDataLength is maximum data length for PNG2Frame
+const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (

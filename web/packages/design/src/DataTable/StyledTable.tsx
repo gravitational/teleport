@@ -17,15 +17,12 @@ limitations under the License.
 import styled from 'styled-components';
 
 import { space, borderRadius } from 'design/system';
-import { darken } from 'design/theme/utils/colorManipulator';
 
 import Icon from '../Icon';
 
 export const StyledTable = styled.table(
   props => `
-  background: ${props.theme.colors.primary.light};
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
-  border-collapse: collapse;
+  background: ${props.theme.colors.levels.surface};
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -52,8 +49,8 @@ export const StyledTable = styled.table(
   }
 
   & > thead > tr > th {
-    background: ${props.theme.colors.primary.dark};
-    color: ${props.theme.colors.primary.contrastText};
+    background: ${props.theme.colors.spotBackground[0]};
+    color: ${props.theme.colors.text.main};
     cursor: pointer;
     font-size: 10px;
     font-weight: 400;
@@ -72,16 +69,19 @@ export const StyledTable = styled.table(
   }
 
   & > tbody > tr > td {
-    color: rgba(255, 255, 255, 0.87);
+    color: ${props.theme.colors.text.main};
     line-height: 16px;
   }
 
-  tbody tr {
-    border-bottom: 1px solid ${props.theme.colors.primary.main};
+  // When border-collapse: collapse is set on a table element, Safari incorrectly renders the row border with alpha channel.
+  // It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14.
+  // A workaround is to not use collapse and apply border to td elements.
+  & > tbody > tr:not(:last-of-type) > td {
+    border-bottom: 1px solid ${props.theme.colors.spotBackground[0]};
   }
 
   tbody tr:hover {
-    background-color: ${darken(props.theme.colors.primary.lighter, 0.14)};
+    background-color: ${props.theme.colors.spotBackground[0]};
   }
 
   `,
@@ -89,29 +89,23 @@ export const StyledTable = styled.table(
   borderRadius
 );
 
-export const StyledPanel = styled.nav`
+export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   padding: 16px 24px;
   display: flex;
   height: 24px;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   ${borderRadius}
+  border-top: ${props =>
+    props.showTopBorder
+      ? '1px solid ' + props.theme.colors.spotBackground[0]
+      : undefined}
 `;
 
-export const StyledEmptyIndicator = styled.div(
-  props => `
-  background: ${props.theme.colors.primary.main};
-  border-radius: 4px;
-  box-sizing: border-box;
-  margin: 48px auto;
-  max-width: 720px;
-  padding: 48px 32px;
-  text-align: center;
-
-  a {
-    color: ${props.theme.colors.link};
-  }
-`
-);
+export const StyledTableWrapper = styled.div`
+  box-shadow: ${props => props.theme.boxShadow[0]};
+  overflow: hidden;
+  ${borderRadius}
+`;

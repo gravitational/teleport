@@ -37,6 +37,7 @@ import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
+import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
@@ -72,15 +73,17 @@ export default class AppContext implements IAppContext {
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;
+  configService: ConfigService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
+    this.configService = this.mainProcessClient.configService;
     this.usageService = new UsageService(
       tshClient,
-      this.mainProcessClient.configService,
+      this.configService,
       this.notificationsService,
       clusterUri => this.clustersService.findCluster(clusterUri),
       mainProcessClient.getRuntimeSettings()
@@ -110,7 +113,7 @@ export default class AppContext implements IAppContext {
 
     this.keyboardShortcutsService = new KeyboardShortcutsService(
       this.mainProcessClient.getRuntimeSettings().platform,
-      this.mainProcessClient.configService
+      this.configService
     );
 
     this.commandLauncher = new CommandLauncher(this);
@@ -141,7 +144,8 @@ export default class AppContext implements IAppContext {
 
   async init(): Promise<void> {
     this.setUpTshdEventSubscriptions();
-    await this.clustersService.syncRootClusters();
+    this.clustersService.syncGatewaysAndCatchErrors();
+    await this.clustersService.syncRootClustersAndCatchErrors();
   }
 
   private setUpTshdEventSubscriptions() {

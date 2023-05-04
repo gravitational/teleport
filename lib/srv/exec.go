@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -93,9 +94,10 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// When in recording mode, return an *remoteExec which will execute the
-	// command on a remote host. This is used by in-memory forwarding nodes.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// If this is a registered OpenSSH node or proxy recoding mode is
+	// enabled, execute the command on a remote host. This is used by
+	// in-memory forwarding nodes.
+	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -229,21 +231,16 @@ func (e *localExec) String() string {
 }
 
 func (e *localExec) transformSecureCopy() error {
-	// split up command by space to grab the first word. if we don't have anything
-	// it's an interactive shell the user requested and not scp, return
-	args := strings.Split(e.GetCommand(), " ")
-	if len(args) == 0 {
-		return nil
-	}
-
-	// see the user is not requesting scp, return
-	_, f := filepath.Split(args[0])
-	if f != teleport.SCP {
-		return nil
-	}
-
-	if err := e.Ctx.CheckFileCopyingAllowed(); err != nil {
+	isSCPCmd, err := checkSCPAllowed(e.Ctx, e.GetCommand())
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	if !isSCPCmd {
+		return nil
+	}
+	_, scpArgs, ok := strings.Cut(e.GetCommand(), " ")
+	if !ok {
+		return nil
 	}
 
 	// for scp requests update the command to execute to launch teleport with
@@ -256,9 +253,28 @@ func (e *localExec) transformSecureCopy() error {
 		teleportBin,
 		e.Ctx.ServerConn.RemoteAddr().String(),
 		e.Ctx.ServerConn.LocalAddr().String(),
-		strings.Join(args[1:], " "))
+		scpArgs,
+	)
 
 	return nil
+}
+
+// checkSCPAllowed will return false if the command is not a SCP command,
+// and if it is it will return true and potentially an error if file
+// copying is not allowed.
+func checkSCPAllowed(scx *ServerContext, command string) (bool, error) {
+	// split up command by space to grab the first word. if we don't have anything
+	// it's an interactive shell the user requested and not scp, return
+	args := strings.Split(command, " ")
+	if len(args) == 0 {
+		return false, nil
+	}
+	// see the user is not requesting scp, return
+	if _, f := filepath.Split(args[0]); f != teleport.SCP {
+		return false, nil
+	}
+
+	return true, trace.Wrap(scx.CheckFileCopyingAllowed())
 }
 
 // waitForContinue will wait 10 seconds for the continue signal, if not
@@ -313,6 +329,10 @@ func (e *remoteExec) SetCommand(command string) {
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
 func (e *remoteExec) Start(ctx context.Context, ch ssh.Channel) (*ExecResult, error) {
+	if _, err := checkSCPAllowed(e.ctx, e.GetCommand()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// hook up stdout/err the channel so the user can interact with the command
 	e.session.Stdout = ch
 	e.session.Stderr = ch.Stderr()
@@ -541,7 +561,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 		action = events.SCPActionUpload
 	}
 
-	// Exract the name of the Teleport executable on disk.
+	// Extract the name of the Teleport executable on disk.
 	teleportPath, err := os.Executable()
 	if err != nil {
 		return "", "", false, trace.Wrap(err)

@@ -22,6 +22,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
@@ -448,6 +450,154 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "gitlab empty allow rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab missing config",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab:     nil,
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab empty allow rule",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "gitlab defaults",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: defaultGitLabDomain,
+					},
+				},
+			},
+		},
+		{
+			desc: "overridden domain",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "gitlab.example.com",
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    KindToken,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "gitlab.example.com",
+					},
+				},
+			},
+		},
+		{
+			desc: "invalid overridden domain",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitLab,
+					GitLab: &ProvisionTokenSpecV2GitLab{
+						Allow: []*ProvisionTokenSpecV2GitLab_Rule{
+							{
+								Sub: "asub",
+							},
+						},
+						Domain: "http://gitlab.example.com",
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {
@@ -459,7 +609,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tc.expected != nil {
-				require.Equal(t, tc.token, tc.expected)
+				require.Equal(t, tc.expected, tc.token)
 			}
 		})
 	}

@@ -37,14 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
 type NodeCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 	// format is the output format, e.g. text or json
 	format string
 	// list of roles for the new node to assume
@@ -74,7 +74,7 @@ type NodeCommand struct {
 }
 
 // Initialize allows NodeCommand to plug itself into the CLI parser
-func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	// add node command
@@ -234,25 +234,18 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var nodes []types.Server
-	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	nodes, err := client.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,
 		Namespace:           c.namespace,
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
 		}
 		return trace.Wrap(err)
-	default:
-		nodes, err = types.ResourcesWithLabels(resources).AsServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	coll := &serverCollection{servers: nodes, verbose: c.verbose}

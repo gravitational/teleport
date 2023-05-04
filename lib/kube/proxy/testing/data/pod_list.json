@@ -567,7 +567,7 @@
                             "-conf",
                             "/etc/coredns/Corefile"
                         ],
-                        "image": "k8s.gcr.io/coredns/coredns:v1.8.6",
+                        "image": "registry.k8s.io/coredns/coredns:v1.8.6",
                         "imagePullPolicy": "IfNotPresent",
                         "livenessProbe": {
                             "failureThreshold": 5,
@@ -771,8 +771,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://e7669c7bb99cfaab164142e585b8098202259dbeed58d0ce0b89705ed07788e9",
-                        "image": "k8s.gcr.io/coredns/coredns:v1.8.6",
-                        "imageID": "docker-pullable://k8s.gcr.io/coredns/coredns@sha256:5b6ec0d6de9baaf3e92d0f66cd96a25b9edbce8716f5f15dcd1a616b3abd590e",
+                        "image": "registry.k8s.io/coredns/coredns:v1.8.6",
+                        "imageID": "docker-pullable://registry.k8s.io/coredns/coredns@sha256:5b6ec0d6de9baaf3e92d0f66cd96a25b9edbce8716f5f15dcd1a616b3abd590e",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://12ec695031d540dbd00c5458e97d20917e8eb8e2ef1cbe3be24642f85333c554",
@@ -861,7 +861,7 @@
                             "--snapshot-count=10000",
                             "--trusted-ca-file=/var/lib//certs/etcd/ca.crt"
                         ],
-                        "image": "k8s.gcr.io/etcd:3.5.3-0",
+                        "image": "registry.k8s.io/etcd:3.5.3-0",
                         "imagePullPolicy": "IfNotPresent",
                         "livenessProbe": {
                             "failureThreshold": 8,
@@ -977,8 +977,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://e943905db852a7184ec7bf12b2168093095299a8889b3b7243bace3199f590b9",
-                        "image": "k8s.gcr.io/etcd:3.5.3-0",
-                        "imageID": "docker-pullable://k8s.gcr.io/etcd@sha256:13f53ed1d91e2e11aac476ee9a0269fdda6cc4874eba903efd40daf50c55eee5",
+                        "image": "registry.k8s.io/etcd:3.5.3-0",
+                        "imageID": "docker-pullable://registry.k8s.io/etcd@sha256:13f53ed1d91e2e11aac476ee9a0269fdda6cc4874eba903efd40daf50c55eee5",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://d18e67be5f16538b4482ca5d87c9d82306ad5923d9a8c1031d1db5ae481d1b6c",
@@ -1075,7 +1075,7 @@
                             "--tls-cert-file=/var/lib//certs/apiserver.crt",
                             "--tls-private-key-file=/var/lib//certs/apiserver.key"
                         ],
-                        "image": "k8s.gcr.io/kube-apiserver:v1.24.3",
+                        "image": "registry.k8s.io/kube-apiserver:v1.24.3",
                         "imagePullPolicy": "IfNotPresent",
                         "livenessProbe": {
                             "failureThreshold": 8,
@@ -1240,8 +1240,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://4cddc5b41771ce81f7d1a2fbd982769fb5f558dd29b3a254e961cbc90d2b16b9",
-                        "image": "k8s.gcr.io/kube-apiserver:v1.24.3",
-                        "imageID": "docker-pullable://k8s.gcr.io/kube-apiserver@sha256:a04609b85962da7e6531d32b75f652b4fb9f5fe0b0ee0aa160856faad8ec5d96",
+                        "image": "registry.k8s.io/kube-apiserver:v1.24.3",
+                        "imageID": "docker-pullable://registry.k8s.io/kube-apiserver@sha256:a04609b85962da7e6531d32b75f652b4fb9f5fe0b0ee0aa160856faad8ec5d96",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://0640da5deb4f599a63574e7aacc4b7f935ad8f6e008fc6338b746111357e698c",
@@ -1327,7 +1327,7 @@
                             "--service-cluster-ip-range=10.96.0.0/12",
                             "--use-service-account-credentials=true"
                         ],
-                        "image": "k8s.gcr.io/kube-controller-manager:v1.24.3",
+                        "image": "registry.k8s.io/kube-controller-manager:v1.24.3",
                         "imagePullPolicy": "IfNotPresent",
                         "livenessProbe": {
                             "failureThreshold": 8,
@@ -1503,8 +1503,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://e17ee54be70db4380e6c3985ad5e166c42acddeabf73fb7671559f510bc15725",
-                        "image": "k8s.gcr.io/kube-controller-manager:v1.24.3",
-                        "imageID": "docker-pullable://k8s.gcr.io/kube-controller-manager@sha256:f504eead8b8674ebc9067370ef51abbdc531b4a81813bfe464abccb8c76b6a53",
+                        "image": "registry.k8s.io/kube-controller-manager:v1.24.3",
+                        "imageID": "docker-pullable://registry.k8s.io/kube-controller-manager@sha256:f504eead8b8674ebc9067370ef51abbdc531b4a81813bfe464abccb8c76b6a53",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://e8fb5e5d87186bae070b6e1dd818c14a340e68056f3d750868dac8e0a2cfc3ad",
@@ -1601,7 +1601,7 @@
                                 }
                             }
                         ],
-                        "image": "k8s.gcr.io/kube-proxy:v1.24.3",
+                        "image": "registry.k8s.io/kube-proxy:v1.24.3",
                         "imagePullPolicy": "IfNotPresent",
                         "name": "kube-proxy",
                         "resources": {},
@@ -1779,8 +1779,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://08c86ce7f98c283ba322717bd03039bb5e31ac251b2df0c5341cbba3e54a64d1",
-                        "image": "k8s.gcr.io/kube-proxy:v1.24.3",
-                        "imageID": "docker-pullable://k8s.gcr.io/kube-proxy@sha256:c1b135231b5b1a6799346cd701da4b59e5b7ef8e694ec7b04fb23b8dbe144137",
+                        "image": "registry.k8s.io/kube-proxy:v1.24.3",
+                        "imageID": "docker-pullable://registry.k8s.io/kube-proxy@sha256:c1b135231b5b1a6799346cd701da4b59e5b7ef8e694ec7b04fb23b8dbe144137",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://6527453bf4318bd4d4b7befd7be7b1d4dc39c0102a29eac3d296564f7aa58d0a",
@@ -1854,7 +1854,7 @@
                             "--kubeconfig=/etc/kubernetes/scheduler.conf",
                             "--leader-elect=false"
                         ],
-                        "image": "k8s.gcr.io/kube-scheduler:v1.24.3",
+                        "image": "registry.k8s.io/kube-scheduler:v1.24.3",
                         "imagePullPolicy": "IfNotPresent",
                         "livenessProbe": {
                             "failureThreshold": 8,
@@ -1959,8 +1959,8 @@
                 "containerStatuses": [
                     {
                         "containerID": "docker://bb7c6190db2b82aa25e45628398333ff66dbc6cd992f0202147361d6ee0ee9b0",
-                        "image": "k8s.gcr.io/kube-scheduler:v1.24.3",
-                        "imageID": "docker-pullable://k8s.gcr.io/kube-scheduler@sha256:e199523298224cd9f2a9a43c7c2c37fa57aff87648ed1e1de9984eba6f6005f0",
+                        "image": "registry.k8s.io/kube-scheduler:v1.24.3",
+                        "imageID": "docker-pullable://registry.k8s.io/kube-scheduler@sha256:e199523298224cd9f2a9a43c7c2c37fa57aff87648ed1e1de9984eba6f6005f0",
                         "lastState": {
                             "terminated": {
                                 "containerID": "docker://f15aee7a47dbdf7b7b9a62e27f2974af54e4b48aabd2d8b4d8eeb5a9e1587321",

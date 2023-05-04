@@ -36,7 +36,7 @@ export default function TrustedListItem(props: Props) {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      bg="primary.light"
+      bg="levels.surface"
       px="5"
       pt="4"
       pb="5"
@@ -58,7 +58,7 @@ export default function TrustedListItem(props: Props) {
           my="4"
           style={{ textAlign: 'center' }}
           fontSize="48px"
-          color="text.primary"
+          color="text.main"
         />
         <Text
           typography="p"

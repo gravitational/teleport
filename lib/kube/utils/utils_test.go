@@ -135,18 +135,12 @@ func TestExtractAndSortKubeClusterNames(t *testing.T) {
 
 	server2 := kubeServer(t, "watermelon", "server1", "uuuid")
 
-	server3, err := types.NewServer("bar", types.KindNode, types.ServerSpecV2{
-		KubernetesClusters: []*types.KubernetesCluster{
-			{Name: "banana"},
-			{Name: "apple"},
-			{Name: "pear"},
-		},
-	})
-	require.NoError(t, err)
+	server3 := kubeServer(t, "banana", "server2", "uuuid2")
 
-	servers, err := types.NewKubeServersV3FromServer(server3)
-	require.NoError(t, err)
+	server4 := kubeServer(t, "apple", "server2", "uuuid2")
 
-	names := extractAndSortKubeClusterNames(append(servers, server1, server2))
+	server5 := kubeServer(t, "pear", "server2", "uuuid2")
+
+	names := extractAndSortKubeClusterNames(types.KubeServers{server1, server2, server3, server4, server5})
 	require.Equal(t, []string{"apple", "banana", "pear", "watermelon"}, names)
 }

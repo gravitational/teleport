@@ -26,8 +26,8 @@ const GlobalStyle = createGlobalStyle`
 
   body {
     margin: 0;
-    background-color: ${props => props.theme.colors.primary.darker};
-    color: ${props => props.theme.colors.light};
+    background-color: ${props => props.theme.colors.levels.sunken};
+    color: ${props => props.theme.colors.text.main};
     padding: 0;
   }
 

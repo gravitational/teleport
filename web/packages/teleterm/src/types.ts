@@ -22,7 +22,7 @@ import { RuntimeSettings, MainProcessClient } from 'teleterm/mainProcess/types';
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { Logger, LoggerService } from 'teleterm/services/logger/types';
 
-export {
+export type {
   Logger,
   LoggerService,
   FileStorage,

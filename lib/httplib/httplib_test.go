@@ -124,11 +124,11 @@ func newTestHandler() *testHandler {
 	return h
 }
 
-func (h *testHandler) postSessionChunkOriginal(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *testHandler) postSessionChunkOriginal(_ http.ResponseWriter, _ *http.Request, _ httprouter.Params) (interface{}, error) {
 	return "ok", nil
 }
 
-func (h *testHandler) postSessionChunkNamespace(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *testHandler) postSessionChunkNamespace(_ http.ResponseWriter, _ *http.Request, p httprouter.Params) (interface{}, error) {
 	h.capturedNamespace = p.ByName("namespace")
 	h.capturedID = p.ByName("id")
 	return "ok", nil

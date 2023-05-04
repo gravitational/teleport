@@ -22,10 +22,10 @@ import { SearchPanel, SearchPagination } from 'shared/components/Search';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { IAppContext } from 'teleterm/ui/types';
-import { GatewayProtocol, makeDatabase } from 'teleterm/ui/services/clusters';
+import { GatewayProtocol } from 'teleterm/services/tshd/types';
+import { makeDatabase } from 'teleterm/ui/services/clusters';
 import { DatabaseUri } from 'teleterm/ui/uri';
 
-import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
 
@@ -61,7 +61,7 @@ function DatabaseList(props: State) {
       <SearchPanel
         updateQuery={updateQuery}
         updateSearch={updateSearch}
-        pageCount={pageCount}
+        pageIndicators={pageCount}
         filter={agentFilter}
         showSearchBar={true}
         disableSearch={disabled}
@@ -128,24 +128,22 @@ function ConnectButton({
 
   return (
     <Cell align="right">
-      <MenuLoginTheme>
-        <MenuLogin
-          {...getMenuLoginOptions(protocol)}
-          width="195px"
-          getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
-          onSelect={(_, user) => {
-            onConnect(user);
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          anchorOrigin={{
-            vertical: 'center',
-            horizontal: 'right',
-          }}
-        />
-      </MenuLoginTheme>
+      <MenuLogin
+        {...getMenuLoginOptions(protocol)}
+        width="195px"
+        getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
+        onSelect={(_, user) => {
+          onConnect(user);
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'center',
+          horizontal: 'right',
+        }}
+      />
     </Cell>
   );
 }
@@ -169,7 +167,7 @@ function getMenuLoginOptions(
 async function getDatabaseUsers(appContext: IAppContext, dbUri: DatabaseUri) {
   try {
     const dbUsers = await retryWithRelogin(appContext, dbUri, () =>
-      appContext.clustersService.getDbUsers(dbUri)
+      appContext.resourcesService.getDbUsers(dbUri)
     );
     return dbUsers.map(user => ({ login: user, url: '' }));
   } catch (e) {

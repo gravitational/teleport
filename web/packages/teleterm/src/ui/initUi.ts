@@ -21,6 +21,7 @@ import {
 import { IAppContext } from 'teleterm/ui/types';
 import { ConfigService } from 'teleterm/services/config';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 
 /**
  * Runs after the UI becomes visible.
@@ -42,20 +43,63 @@ export async function initUi(ctx: IAppContext): Promise<void> {
   // "User job role" dialog is shown on the second launch (only if user agreed to reporting earlier).
   await setUpUsageReporting(configService, ctx.modalsService);
   ctx.workspacesService.restorePersistedState();
-  notifyAboutStoredConfigErrors(configService, ctx.notificationsService);
+  notifyAboutConfigErrors(configService, ctx.notificationsService);
+  notifyAboutDuplicatedShortcutsCombinations(
+    ctx.keyboardShortcutsService,
+    ctx.notificationsService
+  );
 }
 
-function notifyAboutStoredConfigErrors(
+function notifyAboutConfigErrors(
   configService: ConfigService,
   notificationsService: NotificationsService
 ): void {
-  const errors = configService.getStoredConfigErrors();
-  if (errors) {
+  const configError = configService.getConfigError();
+  if (configError) {
+    switch (configError.source) {
+      case 'file-loading': {
+        notificationsService.notifyError({
+          title: 'Failed to load config file',
+          description: `Using the default config instead.\n${configError.error}`,
+        });
+        break;
+      }
+      case 'validation': {
+        const isKeymapError = configError.errors.some(e =>
+          e.path[0].toString().startsWith('keymap.')
+        );
+        notificationsService.notifyError({
+          title: 'Encountered errors in config file',
+          list: configError.errors.map(
+            e => `${e.path[0].toString()}: ${e.message}`
+          ),
+          description:
+            isKeymapError &&
+            'A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab".\nFunction keys do not require a modifier.',
+          link: {
+            href: 'https://goteleport.com/docs/connect-your-client/teleport-connect/#configuration',
+            text: 'See the config file documentation',
+          },
+        });
+      }
+    }
+  }
+}
+
+function notifyAboutDuplicatedShortcutsCombinations(
+  keyboardShortcutsService: KeyboardShortcutsService,
+  notificationsService: NotificationsService
+): void {
+  const duplicates = keyboardShortcutsService.getDuplicateAccelerators();
+  if (Object.keys(duplicates).length) {
     notificationsService.notifyError({
-      title: 'Encountered errors in config file',
-      description: errors
-        .map(error => `${error.path[0]}: ${error.message}`)
-        .join('\n'),
+      title: 'Shortcuts conflicts',
+      list: Object.entries(duplicates).map(
+        ([accelerator, actions]) =>
+          `${accelerator} is used for actions: ${actions.join(
+            ', '
+          )}. Only one of them will work.`
+      ),
     });
   }
 }

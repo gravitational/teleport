@@ -24,21 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// GetAllServers returns a full list of nodes without pagination or sorting.
-func (s *Handler) GetAllServers(ctx context.Context, req *api.GetAllServersRequest) (*api.GetAllServersResponse, error) {
-	servers, err := s.DaemonService.GetAllServers(ctx, req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &api.GetAllServersResponse{}
-	for _, srv := range servers {
-		response.Servers = append(response.Servers, newAPIServer(srv))
-	}
-
-	return response, nil
-}
-
 // GetServers accepts parameterized input to enable searching, sorting, and pagination
 func (s *Handler) GetServers(ctx context.Context, req *api.GetServersRequest) (*api.GetServersResponse, error) {
 	resp, err := s.DaemonService.GetServers(ctx, req)

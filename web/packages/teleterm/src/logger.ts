@@ -26,15 +26,15 @@ export default class Logger {
   // Logger.init has already been called
   constructor(private context = '') {}
 
-  warn(message: string, ...args: any[]) {
+  warn(message: any, ...args: any[]) {
     this.getLogger().warn(message, ...args);
   }
 
-  info(message: string, ...args: any[]) {
+  info(message: any, ...args: any[]) {
     this.getLogger().info(message, ...args);
   }
 
-  error(message: string, ...args: any[]) {
+  error(message: any, ...args: any[]) {
     this.getLogger().error(message, ...args);
   }
 

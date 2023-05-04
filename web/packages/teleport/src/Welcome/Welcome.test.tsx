@@ -132,12 +132,16 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
     fireEvent.click(screen.getByRole('button'));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith({
-      tokenId: '5182',
-      password: 'pwd_value',
-      otpCode: '',
-      deviceName: '',
-    });
+    expect(auth.resetPassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        req: {
+          tokenId: '5182',
+          password: 'pwd_value',
+          otpCode: '',
+          deviceName: '',
+        },
+      })
+    );
   });
 
   it('reset password with otp', async () => {
@@ -162,12 +166,16 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(otpField, { target: { value: '2222' } });
     fireEvent.click(screen.getByText(/submit/i));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith({
-      tokenId: '5182',
-      password: 'pwd_value',
-      otpCode: '2222',
-      deviceName: 'otp-device',
-    });
+    expect(auth.resetPassword).toHaveBeenCalledWith(
+      expect.objectContaining({
+        req: {
+          tokenId: '5182',
+          password: 'pwd_value',
+          otpCode: '2222',
+          deviceName: 'otp-device',
+        },
+      })
+    );
   });
 
   it('reset password with webauthn', async () => {
@@ -190,11 +198,15 @@ describe('teleport/components/Welcome', () => {
     // Trigger submit.
     fireEvent.click(screen.getByText(/submit/i));
 
-    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
-      tokenId: '5182',
-      password: 'pwd_value',
-      deviceName: 'webauthn-device',
-    });
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        req: {
+          tokenId: '5182',
+          password: 'pwd_value',
+          deviceName: 'webauthn-device',
+        },
+      })
+    );
   });
 
   it('reset password with passwordless', async () => {
@@ -210,11 +222,15 @@ describe('teleport/components/Welcome', () => {
     // Trigger submit.
     fireEvent.click(await screen.findByText(/submit/i));
 
-    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
-      tokenId: '5182',
-      password: '',
-      deviceName: 'passwordless-device',
-    });
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        req: {
+          tokenId: '5182',
+          password: '',
+          deviceName: 'passwordless-device',
+        },
+      })
+    );
   });
 
   it('switch between primary password to passwordless and vice versa', async () => {

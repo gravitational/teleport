@@ -28,9 +28,11 @@ const (
 	// Namespace is default namespace
 	Namespace = "default"
 
-	// DefaultDialTimeout is a default TCP dial timeout we set for our
-	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	// DefaultIOTimeout is a default network IO timeout.
+	DefaultIOTimeout = 30 * time.Second
+
+	// DefaultIdleTimeout is a default idle connection timeout.
+	DefaultIdleTimeout = 30 * time.Second
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
@@ -143,4 +145,15 @@ const (
 const (
 	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
 	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
+
+	// TLSRoutingConnUpgradeEnvVar overwrites the test result for deciding if
+	// ALPN connection upgrade is required.
+	//
+	// Sample values:
+	// true
+	// <some.cluster.com>=yes,<another.cluster.com>=no
+	// 0,<some.cluster.com>=1
+	//
+	// TODO(greedy52) DELETE IN 15.0
+	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
 )

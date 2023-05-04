@@ -29,6 +29,11 @@ export async function setUpUsageReporting(
     return;
   }
 
+  if (configService.getConfigError()?.source === 'file-loading') {
+    // do not show the dialog, response cannot be saved to the file
+    return;
+  }
+
   if (configService.get('usageReporting.enabled').metadata.isStored) {
     return;
   }

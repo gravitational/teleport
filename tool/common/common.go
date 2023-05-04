@@ -54,18 +54,27 @@ type SessionsCollection struct {
 func (e *SessionsCollection) WriteText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		session, ok := event.(*events.SessionEnd)
-		if !ok {
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event))
+		var id, typ, participants, hostname, timestamp string
+
+		switch session := event.(type) {
+		case *events.SessionEnd:
+			id = session.GetSessionID()
+			typ = session.Protocol
+			participants = strings.Join(session.Participants, ", ")
+			hostname = session.ServerAddr
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.WindowsDesktopSessionEnd:
+			id = session.GetSessionID()
+			typ = "windows"
+			participants = strings.Join(session.Participants, ", ")
+			hostname = session.DesktopName
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		default:
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd or WindowsDesktopSessionEnd: got: %T", event))
 			continue
 		}
-		t.AddRow([]string{
-			session.GetSessionID(),
-			session.Protocol,
-			strings.Join(session.Participants, ", "),
-			session.ServerHostname,
-			session.GetTime().Format(constants.HumanDateFormatSeconds),
-		})
+
+		t.AddRow([]string{id, typ, participants, hostname, timestamp})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -109,10 +118,7 @@ type ClusterAlertGetter interface {
 // ShowClusterAlerts shows cluster alerts with the given labels and severity.
 func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
 	// get any "on login" alerts
-	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
-	defer cancelAlertCtx()
-
-	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		Labels:   labels,
 		Severity: minSeverity,
 	})

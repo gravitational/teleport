@@ -38,6 +38,8 @@ adds operator permissions to ClusterRole:
       - teleportoidcconnectors/status
       - teleportsamlconnectors
       - teleportsamlconnectors/status
+      - teleportloginrules
+      - teleportloginrules/status
       verbs:
       - get
       - list

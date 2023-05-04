@@ -40,7 +40,7 @@ type mockGetter struct {
 	users       map[string]types.User
 	roles       map[string]types.Role
 	nodes       map[string]types.Server
-	kubeServers map[string]types.Server
+	kubeServers map[string]types.KubeServer
 	dbServers   map[string]types.DatabaseServer
 	appServers  map[string]types.AppServer
 	desktops    map[string]types.WindowsDesktop
@@ -1078,7 +1078,7 @@ func TestPruneRequestRoles(t *testing.T) {
 		roles:       make(map[string]types.Role),
 		users:       make(map[string]types.User),
 		nodes:       make(map[string]types.Server),
-		kubeServers: make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
 		dbServers:   make(map[string]types.DatabaseServer),
 		appServers:  make(map[string]types.AppServer),
 		desktops:    make(map[string]types.WindowsDesktop),
@@ -1191,16 +1191,16 @@ func TestPruneRequestRoles(t *testing.T) {
 		g.nodes[desc.name] = node
 	}
 
-	kube, err := types.NewServerWithLabels("kube", types.KindKubeService, types.ServerSpecV2{
-		KubernetesClusters: []*types.KubernetesCluster{
-			{
-				Name:         "kube",
-				StaticLabels: nil,
-			},
-		},
-	}, nil)
+	kube, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "kube",
+	},
+		types.KubernetesClusterSpecV3{},
+	)
 	require.NoError(t, err)
-	g.kubeServers[kube.GetName()] = kube
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "_", "_")
+	require.NoError(t, err)
+	g.kubeServers[kube.GetName()] = kubeServer
 
 	db, err := types.NewDatabaseV3(types.Metadata{
 		Name: "db",
@@ -1616,6 +1616,7 @@ type mockClusterGetter struct {
 func (mcg mockClusterGetter) GetClusterName(opts ...MarshalOption) (types.ClusterName, error) {
 	return mcg.localCluster, nil
 }
+
 func (mcg mockClusterGetter) GetRemoteCluster(clusterName string) (types.RemoteCluster, error) {
 	if cluster, ok := mcg.remoteClusters[clusterName]; ok {
 		return cluster, nil

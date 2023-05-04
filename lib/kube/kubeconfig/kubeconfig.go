@@ -76,6 +76,10 @@ type Values struct {
 	// SelectCluster is the name of the kubernetes cluster to set in
 	// current-context.
 	SelectCluster string
+	// OverrideContext is the name of the context to set when adding a new cluster.
+	// If empty, the context name will be generated from the {teleport-cluster}-{kube-cluster}.
+	// It can only be used when adding a single cluster.
+	OverrideContext string
 }
 
 // ExecValues contain values for configuring tsh as an exec auth plugin in
@@ -96,6 +100,10 @@ type ExecValues struct {
 // If `path` is empty, Update will try to guess it based on the environment or
 // known defaults.
 func Update(path string, v Values, storeAllCAs bool) error {
+	if v.OverrideContext != "" && len(v.KubeClusters) > 1 {
+		return trace.BadParameter("cannot override context when adding multiple clusters")
+	}
+
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,6 +142,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		for _, c := range v.KubeClusters {
 			contextName := ContextName(v.TeleportClusterName, c)
 			authName := contextName
+			if v.OverrideContext != "" {
+				contextName = v.OverrideContext
+			}
 			execArgs := []string{
 				"kube", "credentials",
 				fmt.Sprintf("--kube-cluster=%s", c),
@@ -163,6 +174,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 		}
 		if v.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
+			if v.OverrideContext != "" {
+				contextName = v.OverrideContext
+			}
 			if _, ok := config.Contexts[contextName]; !ok {
 				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}
@@ -235,17 +249,24 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 	contexts[name] = newContext
 }
 
-// Remove removes Teleport configuration from kubeconfig.
+// RemoveByClusterName removes Teleport configuration from kubeconfig.
 //
-// If `path` is empty, Remove will try to guess it based on the environment or
+// If `path` is empty, RemoveByClusterName will try to guess it based on the environment or
 // known defaults.
-func Remove(path, clusterName string) error {
+func RemoveByClusterName(path, clusterName string) error {
 	// Load existing kubeconfig from disk.
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	removeByClusterName(config, clusterName)
+
+	// Update kubeconfig on disk.
+	return trace.Wrap(Save(path, *config))
+}
+
+func removeByClusterName(config *clientcmdapi.Config, clusterName string) {
 	// Remove Teleport related AuthInfos, Clusters, and Contexts from kubeconfig.
 	maps.DeleteFunc(
 		config.Contexts,
@@ -264,9 +285,32 @@ func Remove(path, clusterName string) error {
 	if strings.HasPrefix(config.CurrentContext, clusterName) {
 		config.CurrentContext = prevSelectedCluster
 	}
+}
+
+// RemoveByServerAddr removes all clusters with the provided server address
+// from kubeconfig
+//
+// If `path` is empty, RemoveByServerAddr will try to guess it based on the
+// environment or known defaults.
+func RemoveByServerAddr(path, wantServer string) error {
+	// Load existing kubeconfig from disk.
+	config, err := Load(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	removeByServerAddr(config, wantServer)
 
 	// Update kubeconfig on disk.
-	return Save(path, *config)
+	return trace.Wrap(Save(path, *config))
+}
+
+func removeByServerAddr(config *clientcmdapi.Config, wantServer string) {
+	for clusterName, cluster := range config.Clusters {
+		if cluster.Server == wantServer {
+			removeByClusterName(config, clusterName)
+		}
+	}
 }
 
 // Load tries to read a kubeconfig file and if it can't, returns an error.

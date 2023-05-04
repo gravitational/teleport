@@ -39,6 +39,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	controlgroup "github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 //go:embed bytecode
@@ -84,7 +85,7 @@ func (w *SessionWatch) Remove(cgroupID uint64) {
 
 // Service manages BPF and control groups orchestration.
 type Service struct {
-	*Config
+	*servicecfg.BPFConfig
 
 	// watch is a map of cgroup IDs that the BPF service is watching and
 	// emitting events for.
@@ -114,7 +115,7 @@ type Service struct {
 }
 
 // New creates a BPF service.
-func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error) {
+func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedSessionConfig) (BPF, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -146,7 +147,7 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 	closeContext, closeFunc := context.WithCancel(context.Background())
 
 	s := &Service{
-		Config: config,
+		BPFConfig: config,
 
 		watch: NewSessionWatch(),
 
@@ -232,9 +233,24 @@ func (s *Service) OpenSession(ctx *SessionContext) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 
-	// Register cgroup in the BPF module.
-	if err := s.open.startSession(cgroupID); err != nil {
-		return 0, trace.Wrap(err)
+	// initializedModClosures holds all already opened modules closures.
+	initializedModClosures := make([]interface{ endSession(uint64) error }, 0)
+	for _, module := range []cgroupRegister{
+		s.open,
+		s.exec,
+		s.conn,
+	} {
+		// Register cgroup in the BPF module.
+		if err := module.startSession(cgroupID); err != nil {
+			// Clean up all already opened modules.
+			for _, closer := range initializedModClosures {
+				if closeErr := closer.endSession(cgroupID); closeErr != nil {
+					log.Debugf("failed to close session: %v", closeErr)
+				}
+			}
+			return 0, trace.Wrap(err)
+		}
+		initializedModClosures = append(initializedModClosures, module)
 	}
 
 	// Start watching for any events that come from this cgroup.
@@ -267,9 +283,15 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 		errs = append(errs, trace.Wrap(err))
 	}
 
-	// Remove the cgroup from BPF module.
-	if err := s.open.endSession(cgroupID); err != nil {
-		errs = append(errs, trace.Wrap(err))
+	for _, module := range []interface{ endSession(cgroupID uint64) error }{
+		s.open,
+		s.exec,
+		s.conn,
+	} {
+		// Remove the cgroup from BPF module.
+		if err := module.endSession(cgroupID); err != nil {
+			errs = append(errs, trace.Wrap(err))
+		}
 	}
 
 	return trace.NewAggregate(errs...)

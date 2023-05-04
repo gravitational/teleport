@@ -15,18 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 import Image from 'design/Image';
-import defaultLogoSvg from 'design/assets/images/teleport-medallion.svg';
+
+import LogoHeroLight from './LogoHeroLight.svg';
+import LogoHeroDark from './LogoHeroDark.svg';
 
 const LogoHero = ({ ...rest }) => {
-  return <Image {...rest} />;
+  const theme = useTheme();
+  const src = theme.name === 'light' ? LogoHeroLight : LogoHeroDark;
+  return <Image {...rest} src={src} />;
 };
 
 LogoHero.defaultProps = {
-  src: defaultLogoSvg,
+  src: LogoHeroDark,
   maxHeight: '120px',
   maxWidth: '200px',
-  my: 6,
+  my: '48px',
   mx: 'auto',
 };
 

@@ -19,6 +19,8 @@ import { useStore } from 'shared/libs/stores';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   Document,
+  DocumentOrigin,
+  isDocumentTshNodeWithLoginHost,
   WorkspacesService,
 } from 'teleterm/ui/services/workspacesService';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
@@ -80,7 +82,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  async activateItem(id: string): Promise<void> {
+  async activateItem(
+    id: string,
+    params: { origin: DocumentOrigin }
+  ): Promise<void> {
     const connection = this.state.connections.find(c => c.id === id);
     const { rootClusterUri, activate } =
       this._trackedConnectionOperationsFactory.create(connection);
@@ -88,7 +93,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     if (rootClusterUri !== this._workspacesService.getRootClusterUri()) {
       await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
-    activate();
+    activate(params);
   }
 
   findConnectionByDocument(document: Document): TrackedConnection {
@@ -217,6 +222,11 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
           }
           // process tsh connections
           case 'doc.terminal_tsh_node': {
+            // DocumentTshNodeWithLoginHost is still in the process of resolving the hostname and
+            // doesn't have serverUri, so let's not create a connection for it.
+            if (isDocumentTshNodeWithLoginHost(doc)) {
+              break;
+            }
             const tshConn = draft.connections.find(
               getServerConnectionByDocument(doc)
             );

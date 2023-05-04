@@ -30,7 +30,25 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// TestMain will re-execute Teleport to run a command if "exec" is passed to
+// it as an argument. Otherwise, it will run tests as normal.
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe.
+	if IsReexec() {
+		RunAndExit(os.Args[1])
+		return
+	}
+
+	// Otherwise run tests as normal.
+	code := m.Run()
+	os.Exit(code)
+}
 
 // TestEmitExecAuditEvent make sure the full command and exit code for a
 // command is always recorded.

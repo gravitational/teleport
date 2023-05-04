@@ -53,10 +53,12 @@ function getRuntimeSettings(): RuntimeSettings {
 
 function initializeLogger(): void {
   const loggerService = createStdoutLoggerService();
-
   Logger.init(loggerService);
-  const logger = new Logger();
-  process.on('uncaughtException', logger.error);
+  const logger = new Logger('uncaught exception');
+
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
+  });
 }
 
 async function initializeServer(

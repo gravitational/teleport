@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -46,7 +46,11 @@ func (process *TeleportProcess) initKubernetes() {
 		if conn == nil {
 			return trace.Wrap(err)
 		}
-
+		if !process.getClusterFeatures().Kubernetes {
+			log.Warn("Warning: Kubernetes service not intialized because Teleport Auth Server is not licensed for Kubernetes Access. ",
+				"Please contact the cluster administrator to enable it.")
+			return nil
+		}
 		if err := process.initKubernetesService(log, conn); err != nil {
 			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
@@ -174,7 +178,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
@@ -189,7 +193,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -231,12 +235,13 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
+			ClusterFeatures:               process.getClusterFeatures,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
 		LimiterConfig:        cfg.Kube.Limiter,
-		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
-		GetRotation:          process.getRotation,
+		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentKube),
+		GetRotation:          process.GetRotation,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.Kube.ResourceMatchers,
 		StaticLabels:         cfg.Kube.StaticLabels,

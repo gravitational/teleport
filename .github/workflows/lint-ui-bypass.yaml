@@ -15,11 +15,14 @@ on:
   pull_request:
     paths-ignore:
       - 'web/**'
+  merge_group:
+    paths-ignore:
+      - 'web/**'
 
 jobs:
   lint:
     name: Prettier, ESLint, & TSC
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none

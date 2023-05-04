@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -35,24 +36,25 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	req, err := convertListResourcesRequest(r, types.KindKubernetesCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
+	page, err := client.GetResourcePage[types.KubeCluster](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      ui.MakeKubeClusters(page.Resources, accessChecker.Roles()),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -83,19 +85,19 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	req, err := convertListResourcesRequest(r, types.KindDatabaseServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+	page, err := client.GetResourcePage[types.DatabaseServer](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Make a list of all proxied databases.
-	var databases []types.Database
-	for _, server := range servers {
+	databases := make([]types.Database, 0, len(page.Resources))
+	for _, server := range page.Resources {
 		databases = append(databases, server.GetDatabase())
 	}
 
@@ -111,8 +113,8 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 
 	return listResourcesGetResponse{
 		Items:      ui.MakeDatabases(databases, dbUsers, dbNames),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -153,20 +155,20 @@ func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseService)
+	req, err := convertListResourcesRequest(r, types.KindDatabaseService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServices()
+	page, err := client.GetResourcePage[types.DatabaseService](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabaseServices(servers),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      ui.MakeDatabaseServices(page.Resources),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -177,20 +179,30 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	req, err := convertListResourcesRequest(r, types.KindWindowsDesktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+	page, err := client.GetResourcePage[types.WindowsDesktop](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      uiDesktops,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -203,20 +215,20 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktopService)
+	req, err := convertListResourcesRequest(r, types.KindWindowsDesktopService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	desktopServices, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktopServices()
+	page, err := client.GetResourcePage[types.WindowsDesktopService](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktopServices(desktopServices),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      ui.MakeDesktopServices(page.Resources),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -235,12 +247,23 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	if len(windowsDesktops) == 0 {
-		return nil, trace.NotFound("expected at least one desktop, got 0")
+		return nil, trace.NotFound("expected at least 1 desktop, got 0")
 	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// windowsDesktops may contain the same desktop multiple times
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
-	return ui.MakeDesktop(windowsDesktops[0]), nil
+	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker.Roles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiDesktop, nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.

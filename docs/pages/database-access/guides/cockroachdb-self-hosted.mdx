@@ -1,6 +1,6 @@
 ---
 title: Database Access with Self-Hosted CockroachDB
-description: How to configure Teleport Database Access with self-hosted CockroachDB.
+description: How to configure Teleport database access with self-hosted CockroachDB.
 ---
 
 <Details
@@ -19,7 +19,6 @@ This guide will help you to:
 2. Configure mutual TLS authentication between Teleport and your CockroachDB cluster.
 3. Connect to your CockroachDB cluster via Teleport.
 
-
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access CockroachDB Self-Hosted](../../../img/database-access/guides/cockroachdb_selfhosted.png)
 </ScopedBlock>
@@ -34,61 +33,32 @@ This guide will help you to:
 - CockroachDB cluster.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-
-<Tabs>
-<TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
-Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service:
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=roach \
-  --protocol=cockroachdb \
-  --uri=roach.example.com:26257 \
-  --labels=env=dev
-```
-
-<Admonition type="note">
-  The `--auth-server` flag must point to the Teleport cluster's Proxy Service endpoint
-  because the Database Service always connects back to the cluster over a reverse
-  tunnel.
-</Admonition>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="roach" "dbProtocol="cockroachdb"  databaseAddress="roach.example.com:26257" !)
 
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-Start the Teleport Database Service, pointing the `--auth-server` flag at the address of your Teleport Cloud tenant, e.g., `mytenant.teleport.sh`.
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=roach \
-  --protocol=cockroachdb \
-  --uri=roach.example.com:26257 \
-  --labels=env=dev
-```
-
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="roach" dbProtocol="cockroachdb" databaseAddress="roach.example.com:26257" !)
 </TabItem>
 </Tabs>
 
-
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See [YAML reference](../reference/configuration.mdx).
-</Admonition>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 2/4. Create a Teleport user
 

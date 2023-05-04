@@ -59,7 +59,7 @@ func newHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*
 }
 
 // getHostCertificate will fetch a certificate from the cache. If the certificate
-// is not in the cache, it will be generated, put in the cache, and returned. Mul
+// is not in the cache, it will be generated, put in the cache, and returned.
 // Multiple callers can arrive and generate a host certificate at the same time.
 // This is a tradeoff to prevent long delays here due to the expensive
 // certificate generation call.

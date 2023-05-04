@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -541,7 +542,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	hash, err := bcrypt.GenerateFromPassword(password, bcrypt.DefaultCost)
+	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
 	if err != nil {
 		return trace.Wrap(err)
 	}

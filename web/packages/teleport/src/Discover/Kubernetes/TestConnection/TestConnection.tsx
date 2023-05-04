@@ -25,6 +25,7 @@ import { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   ActionButtons,
@@ -36,6 +37,7 @@ import {
 import { useTestConnection, State } from './useTestConnection';
 
 import type { AgentStepProps } from '../../types';
+import type { KubeImpersonation } from 'teleport/services/agents';
 
 export default function Container(props: AgentStepProps) {
   const state = useTestConnection(props);
@@ -54,6 +56,8 @@ export function TestConnection({
   authType,
   username,
   clusterId,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const userOpts = kube.users.map(l => ({ value: l, label: l }));
   const groupOpts = kube.groups.map(l => ({ value: l, label: l }));
@@ -72,17 +76,27 @@ export function TestConnection({
       return;
     }
 
-    testConnection({
+    testConnection(makeTestConnRequest());
+  }
+
+  function makeTestConnRequest(): KubeImpersonation {
+    return {
       namespace,
       user: selectedUser?.value,
       groups: selectedGroups?.map(g => g.value),
-    });
+    };
   }
 
   return (
     <Validation>
       {({ validator }) => (
         <Box>
+          {showMfaDialog && (
+            <ReAuthenticate
+              onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+              onClose={cancelMfaDialog}
+            />
+          )}
           <HeaderWithBackBtn onPrev={prevStep}>
             Test Connection
           </HeaderWithBackBtn>
@@ -191,7 +205,7 @@ export function TestConnection({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

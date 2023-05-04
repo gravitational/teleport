@@ -6,11 +6,10 @@ description: Install and configure an HA Teleport cluster using a Google Cloud G
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-<ScopedBlock scope="cloud">
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
-
-</ScopedBlock>
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -179,7 +178,6 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
 <Figure align="left" bordered caption="Private key saved">
   ![Private key saved](../../../img/helm/gcp/12-privatekey@1.5x.png)
 </Figure>
-
 
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
@@ -497,7 +495,8 @@ $ helm --namespace cert-manager uninstall cert-manager
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../management/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
-Teleport cluster.
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/introduction.mdx) section to get started enrolling
+users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.

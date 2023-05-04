@@ -261,6 +261,9 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
+	// ComponentAthena represents athena clients.
+	ComponentAthena = "athena"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -300,7 +303,7 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
-	// PTY is a raw pty session capture format
+	// PTY is a raw PTY session capture format
 	PTY = "pty"
 
 	// Names is for formatting node names in plain text
@@ -311,11 +314,11 @@ const (
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
-	DirMaskSharedGroup = 0770
+	DirMaskSharedGroup = 0o770
 
 	// FileMaskOwnerOnly is the file mask that allows read write access
 	// to owers only
-	FileMaskOwnerOnly = 0600
+	FileMaskOwnerOnly = 0o600
 
 	// On means mode is on
 	On = "on"
@@ -462,6 +465,11 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+
+	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
+	// from which this certificate is accepted for authentication.
+	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+	CertCriticalOptionSourceAddress = "source-address"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -619,10 +627,10 @@ const (
 
 const (
 	// SharedDirMode is a mode for a directory shared with group
-	SharedDirMode = 0750
+	SharedDirMode = 0o750
 
 	// PrivateDirMode is a mode for private directories
-	PrivateDirMode = 0700
+	PrivateDirMode = 0o700
 )
 
 const (
@@ -762,6 +770,9 @@ const (
 	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
 	// uses to get the home directory of a remote user.
 	GetHomeDirSubsystem = "gethomedir"
+
+	// SFTPSubsystem is the SFTP SSH subsystem.
+	SFTPSubsystem = "sftp"
 )
 
 // A principal name for use in SSH certificates.
@@ -801,13 +812,14 @@ const UserSingleUseCertTTL = time.Minute
 const StandardHTTPSPort = 443
 
 const (
-	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
-	// call.
-	WebAPIConnUpgrade = "/webapi/connectionupgrade"
-	// WebAPIConnUpgradeHeader is the header used to indicate the requested
-	// connection upgrade types in the connection upgrade API.
-	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
-	WebAPIConnUpgradeTypeALPN = "alpn"
+	// KubeSessionDisplayParticipantRequirementsQueryParam is the query parameter used to
+	// indicate that the client wants to display the participant requirements
+	// for the given session.
+	KubeSessionDisplayParticipantRequirementsQueryParam = "displayParticipantRequirements"
+	// KubeSessionReasonQueryParam is the query parameter used to indicate the reason
+	// for the session request.
+	KubeSessionReasonQueryParam = "reason"
+	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
+	// to invite to the session.
+	KubeSessionInvitedQueryParam = "invite"
 )

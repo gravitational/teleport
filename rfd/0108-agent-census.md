@@ -1,6 +1,6 @@
 ---
 authors: Vitor Enes (vitor@goteleport.com)
-state: draft
+state: implemented (v11.3.8, v12.1.1)
 ---
 
 # RFD 108 - Agent Census
@@ -77,43 +77,29 @@ The `Version` field contains the Teleport version, while the `Services` field co
 While initially we considered extending this message to contain all the agent metadata we want track, we decided to instead add a new message type `UpstreamInventoryAgentMetadata` (see the message definition below).
 Some of the agent metadata may be slow to compute (due to HTTP requests), and thus blocking the sending of the `UpstreamInventoryHello` until such metadata is computed could potentially increase the agent start-up/connection time.
 
-Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new goroutine will be spawned in order to fetch the agent metadata in the background.
-
-Then, once the agent has sent the `UpstreamInventoryHello` to the auth server and received the `DownstreamInventoryHello` reply ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L167-L191)), it will request the metadata from the new goroutine and send it to the auth server once it is available.
-This step is non-blocking, and thus it should not impact the existing ICS mechanism.
-
-An initial sketch of this flow can be found in [7dccfc9](https://github.com/gravitational/teleport/commit/7dccfc98ccccec745df1ad4bec3aff79bfb9bcbb).
-Note that the agent metadata will be sent to auth server at most once (per boot): if the first attempt does not succeed, the proposed flow won't try to send it again.
-However, this attempt only occurs after a successful hello exchange and thus it will likely succeed.
+Instead, when the auth server handle is created at the agent ([here](https://github.com/gravitational/teleport/blob/6f9ad9553a5b5946f57cb35411c598754d3f926b/lib/inventory/inventory.go#L87-L97)), a new goroutine will be spawned in order to fetch the agent metadata in the background and send it every time a new stream with the auth server is established.
 
 ```protobuf
-  // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
+// UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
 // metadata about the instance.
 message UpstreamInventoryAgentMetadata {
-  // Version advertises the teleport version of the instance.
-  string Version = 1;
-  // HostID advertises the ID of the instance.
-  string HostID = 2;
-  // Services advertises the currently live services of the instance that represent
-  // access protocols ("node", "kube", "app", "db" and "windows_desktop").
-  repeated string Services = 3;
   // OS advertises the instance OS ("darwin" or "linux").
-  string OS = 4;
-  // OSVersion advertises the instance OS version (e.g. "Ubuntu 22.04").
-  string OSVersion = 5;
+  string OS = 1;
+  // OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
+  string OSVersion = 2;
   // HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
-  string HostArchitecture = 6;
-  // GLibCVersion advertises the instance glibc version of linux instances (e.g. "2.35").
-  string GLibCVersion = 7;
+  string HostArchitecture = 3;
+  // GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
+  string GlibcVersion = 4;
   // InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
-  repeated string InstallMethods = 8;
+  repeated string InstallMethods = 5;
   // ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
-  string ContainerRuntime = 9;
+  string ContainerRuntime = 6;
   // ContainerOrchestrator advertises the container orchestrator for the instance, if any
   // (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
-  string ContainerOrchestrator = 10;
+  string ContainerOrchestrator = 7;
   // CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
-  string CloudEnvironment = 11;
+  string CloudEnvironment = 8;
 }
 ```
 
@@ -153,22 +139,6 @@ The same applies for `AgentMetadataEvent.install_methods`.
 Both the Teleport version and active Teleport services are already tracked in the ICS.
 We detail below how the remaining data will be computed.
 
-Note that some of the suggestions below require running command-line utilities (such as `sw_vers` and `ldd`) or inspecting some files (such as `/etc/os-release`) and then parsing the output.
-This parsing will be done in Go and if the output does not have the expected format, the whole output will be included in the `UpstreamInventoryAgentMetadata` field.
-For example, if `sw_vers` does not look like what follows, `UpstreamInventoryAgentMetadata.OSVersion` will be set to the full output of `sw_vers` (instead of just `"macOs 13.2"`, as detailed below).
-
-```bash
-ProductName:            macOS
-ProductVersion:         13.2.1
-BuildVersion:           22D68
-```
-
-Including the full output allows us to improve the parsing code as this project evolves.
-This is especially true since we do not have access to agent logs.
-
-An alternative would be to send the full command output to the auth server and do the parsing there (instead of at the agent).
-In this case, we could log the unexpected output and only send "clean" data to PostHog.
-
 ##### 3. OS
 
 `UpstreamInventoryAgentMetadata.OS` will be set to the value on the `GOOS` environment variable.
@@ -185,17 +155,22 @@ Following this approach is more reliable than using `/usr/bin/lsb_release` direc
 
 ##### 5. Host architecture
 
-On `linux` and `darwin`, `UpstreamInventoryAgentMetadata.HostArchitecture` will be set to the outcome of `arch` (e.g. "x86_64" or "arm64").
+`UpstreamInventoryAgentMetadata.HostArchitecture` will be set to the value on the `GOARCH` environment variable.
 
-The architecture can be different from the `GOARCH` environment variable (e.g. if running the amd64 build of Teleport on an ARM Mac).
-For this reason, we'll use the [`arch`](https://man7.org/linux/man-pages/man1/arch.1.html) command-line utility.
-
-We could also use `uname` but the flag to retrieve the architecture is not portable (`-i` on `linux` and `-p` on `darwin`).
-However, `gopsutil` is using [`golang.org/x/sys/unix.Uname`](https://pkg.go.dev/golang.org/x/sys/unix#Uname) for both OS ([here](https://github.com/shirou/gopsutil/blob/v3.23.1/host/host_posix.go)), so we may consider to do the same.
+In the future we may use `sysctl -n sysctl.proc_translated` in order to detect if a macOS agent is running under Rosetta.
 
 ##### 6. `glibc` version
 
-If on `linux`, `UpstreamInventoryAgentMetadata.GLibCVersion` will be set to the outcome of (something equivalent to) `ldd --version | head -n1 | awk '{ print $NF }'` (e.g. "2.35").
+If on `linux`, `UpstreamInventoryAgentMetadata.GLibCVersion` will be set to the output of `gnu_get_libc_version`.
+
+```go
+// #include <gnu/libc-version.h>
+import "C"
+
+func fetchGlibcVersion() string {
+  return C.GoString(C.gnu_get_libc_version())
+}
+```
 
 ##### 7. Installation methods
 
@@ -256,42 +231,19 @@ The only way to determine this seems to be by hitting certain HTTP endpoints spe
 - `gcp` if on GCP
 - `azure` if on Azure
 
-#### Development plan
-
-The above work will be divided in the following tasks:
-
-1. Add new message type `AgentMetadataEvent` to PreHog.
-2. Add new message type `UpstreamInventoryAgentMetadata` and extend the auth server to convert `UpstreamInventoryAgentMetadata` messages to `AgentMetadataEvent` messages and push them to PreHog. The `UpstreamInventoryAgentMetadata` fields will be empty initially, except for the fields common with `UpstreamInventoryHello`. This is okay since being empty means that the field could not be determined, which may happen anyways.
-3. Gradually instrument & add new code that fills each `UpstreamInventoryAgentMetadata` message field.
-
-We could decide to do step 3 together with step 2 if we don't want to risk adding fields to `UpstreamInventoryAgentMetadata` that possibly won't be used in the end (if for some reason we figure out they can/should not be tracked).
-However, step 3 requires several changes (Go code & files used by the multiple installation methods) which we may want to review separately.
-A similar reasoning also applies to step 1 since each field in `AgentMetadataEvent` should only exist if it also exists in `UpstreamInventoryAgentMetadata`.
-
 ### Security
 
 Detecting the __9. Container orchestrator__ and __10. Cloud environment__ requires hitting certain HTTP endpoints.
 This may be considered too intrusive, so we have to make a decision on whether we really want to track it and argue why it's okay to do so.
 
+The host ID will be anonymized as it may not be just a UUID.
+
 #### Data sanitization
 
-Most of the information we want to track comes e.g. from environment variables or the file system, and thus is controlled by the user.
-We will assume these are hostile and ensure that the data is sanitized before being sent to the auth server.
-
-The actual implementation is TBD but may look something like this:
-- check if the the output/content has the expected format with [`strings.Split`](https://pkg.go.dev/strings#Split) followed by [`regexp.MatchString`](https://pkg.go.dev/regexp#MatchString)
-  - if expected, send it as is to the auth server
-  - if unexpected, escape it e.g. with [`strconv.Quote`](https://pkg.go.dev/strconv#Quote) and send it to the auth server
-
-The security team will be a required reviewer of the PR containing this implementation.
+Nothing special is done regarding sanitization.
+This will be tackled more holistically in a follow-up project.
 
 ### UX
 
 Data analysis and visualization are not a goal for this RFD, so no UX concerns for now.
 
-### Open questions
-
-- Should we track Teleport services that are not `node`, `kube`, `app`, `db` and `windows_desktop` (e.g. `proxy`, `bot`, and so on)?
-- Which alternative should we use for __5. Host architecture__?
-- Which container runtimes are we interested in tracking?
-- What happens if the agent is upgraded before the auth server, and the auth server does not know about `UpstreamInventoryAgentMetadata`?

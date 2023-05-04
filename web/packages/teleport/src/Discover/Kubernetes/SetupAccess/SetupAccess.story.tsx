@@ -66,7 +66,7 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
-  resourceState: {} as any,
+  resourceSpec: {} as any,
 };
 
 const staticTraits = {

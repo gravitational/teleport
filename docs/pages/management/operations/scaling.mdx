@@ -68,3 +68,28 @@ This allow DynamoDB to scale with cluster load.
 For customers that can not use on-demand provisioning, we recommend at least
 250 WCU and 100 RCU for 10k clusters.
 
+## etcd
+
+When using Teleport with etcd, we recommend you do the following.
+
+- For performance, use the fastest SSDs available and ensure low-latency network connectivity
+  between etcd peers. See the [etcd Hardware
+  recommendations guide](https://etcd.io/docs/v3.5/op-guide/hardware/) for more
+  details.
+- For debugging, ingest etcd's Prometheus metrics and visualize them over
+  time using a dashboard. See the [etcd Metrics
+  guide](https://etcd.io/docs/v3.5/metrics) for more
+  details.
+
+During an incident, we may ask you to run `etcdctl`, test that you can run the
+following command successfully.
+
+```code
+etcdctl \
+    --write-out=table \
+    --cacert=/path/to/ca.cert \
+    --cert=/path/to/cert \
+    --key=/path/to/key.pem \
+    --endpoints=127.0.0.1:2379 \
+    endpoint status
+```

@@ -41,7 +41,8 @@ func TestSAMLIdPServiceProviderCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewSAMLIdPServiceProviderService(backend)
+	service, err := NewSAMLIdPServiceProviderService(backend)
+	require.NoError(t, err)
 
 	// Create a couple service providers.
 	sp1, err := types.NewSAMLIdPServiceProvider(

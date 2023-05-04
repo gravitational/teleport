@@ -16,11 +16,12 @@
 
 import { ResetToken } from './types';
 
-export default function makeResetToken(json): ResetToken {
-  const { expires, username, value } = json;
+export function makeResetToken(json): ResetToken {
+  json = json || {};
+  const { expiry, user, tokenId } = json;
   return {
-    username,
-    expires: new Date(expires),
-    value,
+    username: user || '',
+    expires: expiry ? new Date(expiry) : null,
+    value: tokenId || '',
   };
 }

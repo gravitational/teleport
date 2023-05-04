@@ -30,18 +30,26 @@ import type {
 
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
+import type { WebauthnAssertionResponse } from './services/auth';
 
 import type { ParticipantMode } from 'teleport/services/session';
 
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
+  // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  isUsageBasedBilling: false,
 
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
+
+  ui: {
+    scrollbackLines: 1000,
+  },
 
   auth: {
     localAuthEnabled: true,
@@ -104,6 +112,12 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
+    headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+    locks: '/web/locks',
+    newLock: '/web/locks/new',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -123,7 +137,7 @@ const cfg = {
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     webSessionPath: '/v1/webapi/sessions/web',
@@ -147,10 +161,10 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
-    terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -167,9 +181,12 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
+    mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
+
+    headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -183,6 +200,9 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
+    locksPath: '/v1/webapi/sites/:clusterId/locks',
+    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
@@ -192,6 +212,17 @@ const cfg = {
 
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
+
+    webapiPingPath: '/v1/webapi/ping',
+
+    headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+
+    userGroupsListPath:
+      '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -265,6 +296,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -392,6 +427,11 @@ const cfg = {
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
+  getMfaRequiredUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.mfaRequired, { clusterId });
+  },
+
   getCheckAccessToRegisteredResourceUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.checkAccessToRegisteredResource, {
@@ -411,6 +451,10 @@ const cfg = {
 
   getUserResetTokenContinueRoute(tokenId = '') {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
+  },
+
+  getHeadlessSsoPath(requestId: string) {
+    return generatePath(cfg.api.headlessSsoPath, { requestId });
   },
 
   getUserInviteTokenRoute(tokenId = '') {
@@ -433,8 +477,12 @@ const cfg = {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
-  getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
+  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
+  },
+
+  getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
+    return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -471,6 +519,26 @@ const cfg = {
     });
   },
 
+  getLocksRoute() {
+    return cfg.routes.locks;
+  },
+
+  getNewLocksRoute() {
+    return cfg.routes.newLock;
+  },
+
+  getLocksUrl() {
+    // Currently only support get/create locks in root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.locksPath, { clusterId });
+  },
+
+  getLocksUrlWithUuid(uuid: string) {
+    // Currently only support delete/lookup locks in root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  },
+
   getDatabaseSignUrl(clusterId: string) {
     return generatePath(cfg.api.dbSign, { clusterId });
   },
@@ -504,10 +572,20 @@ const cfg = {
     });
   },
 
-  getScpUrl(params: UrlScpParams) {
-    return generatePath(cfg.api.scp, {
+  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+    let path = generatePath(cfg.api.scp, {
       ...params,
     });
+
+    if (!webauthn) {
+      return path;
+    }
+    // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
+    // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
+    // as the existence of this param is what will issue certs
+    return `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: webauthn,
+    })}`;
   },
 
   getRenewTokenUrl() {
@@ -553,6 +631,35 @@ const cfg = {
     });
   },
 
+  getIntegrationsUrl(integrationName?: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsRdsDbListUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.userGroupsListPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getUIConfig() {
+    return cfg.ui;
+  },
+
   init(backendConfig = {}) {
     mergeDeep(this, backendConfig);
   },
@@ -578,6 +685,9 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
+  moderatedSessionId?: string;
+  fileTransferRequestId?: string;
+  webauthn?: WebauthnAssertionResponse;
 }
 
 export interface UrlSshParams {
@@ -634,6 +744,14 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+}
+
+export interface UrlIntegrationExecuteRequestParams {
+  // name is the name of integration to execute (use).
+  name: string;
+  // action is the expected backend string value
+  // used to describe what to use the integration for.
+  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;

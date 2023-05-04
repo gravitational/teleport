@@ -55,10 +55,10 @@ $ docker run -it ubuntu:22.10 /bin/bash
 ```
 
 Your terminal will begin a shell session in the `ubuntu:22.10` container. From
-there, make sure you have installed `curl`:
+there, make sure you have `curl` and `telnet` installed. When we run a script to install Teleport later in this guide, the script will require both of these tools.
 
 ```code
-$ apt update && apt install -y curl
+$ apt update && apt install -y curl telnet
 ```
 
 Keep this shell open in your terminal for the next step.
@@ -183,7 +183,7 @@ $ tsh ssh root@<Var name="node-name" />
   you can register resources in your infrastructure, including:
 
   - [Additional SSH servers](../../server-access/introduction.mdx)
-  - [Cloud provider tools and internal web  applications](../../application-access/introduction.mdx)
+  - [Cloud provider tools and internal web applications](../../application-access/introduction.mdx)
   - [Databases](../../database-access/introduction.mdx)
   - [Kubernetes clusters](../../kubernetes-access/introduction.mdx)
   - [Service accounts](../../machine-id/introduction.mdx)

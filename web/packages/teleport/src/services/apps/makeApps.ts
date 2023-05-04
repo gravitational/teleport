@@ -21,12 +21,12 @@ import { App } from './types';
 export default function makeApp(json: any): App {
   json = json || {};
   const {
-    name,
-    description,
-    uri,
-    publicAddr,
-    clusterId,
-    fqdn,
+    name = '',
+    description = '',
+    uri = '',
+    publicAddr = '',
+    clusterId = '',
+    fqdn = '',
     awsConsole = false,
   } = json;
 
@@ -34,9 +34,23 @@ export default function makeApp(json: any): App {
   const launchUrl = canCreateUrl
     ? cfg.getAppLauncherRoute({ fqdn, clusterId, publicAddr })
     : '';
-  const id = `${clusterId}-${name}-${publicAddr}`;
+  const id = `${clusterId}-${name}-${publicAddr || uri}`;
   const labels = json.labels || [];
   const awsRoles = json.awsRoles || [];
+
+  const isTcp = uri && uri.startsWith('tcp://');
+  const isCloud = uri && uri.startsWith('cloud://');
+
+  let addrWithProtocol = uri;
+  if (publicAddr) {
+    if (isCloud) {
+      addrWithProtocol = `cloud://${publicAddr}`;
+    } else if (isTcp) {
+      addrWithProtocol = `tcp://${publicAddr}`;
+    } else {
+      addrWithProtocol = `https://${publicAddr}`;
+    }
+  }
 
   return {
     id,
@@ -50,5 +64,7 @@ export default function makeApp(json: any): App {
     launchUrl,
     awsRoles,
     awsConsole,
+    isCloudOrTcpEndpoint: isTcp || isCloud,
+    addrWithProtocol,
   };
 }

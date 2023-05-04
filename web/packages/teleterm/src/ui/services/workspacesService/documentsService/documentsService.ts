@@ -15,7 +15,13 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, paths, routing, ServerUri } from 'teleterm/ui/uri';
+import {
+  ClusterUri,
+  DocumentUri,
+  ServerUri,
+  paths,
+  routing,
+} from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -27,8 +33,11 @@ import {
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
 } from './types';
 
 export class DocumentsService {
@@ -96,22 +105,59 @@ export class DocumentsService {
         options.kubeConfigRelativePath ||
         `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
+      origin: options.origin,
     };
   }
 
-  createTshNodeDocument(serverUri: ServerUri): DocumentTshNode {
-    const { params } = routing.parseServerUri(serverUri);
+  createTshNodeDocument(
+    serverUri: ServerUri,
+    params: { origin: DocumentOrigin }
+  ): DocumentTshNodeWithServerId {
+    const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
+
     return {
       uri,
       kind: 'doc.terminal_tsh_node',
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-      serverId: params.serverId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
+      serverId: routingParams.serverId,
       serverUri,
       title: '',
       login: '',
+      origin: params.origin,
+    };
+  }
+
+  /**
+   * createTshNodeDocumentFromLoginHost handles creation of the doc when the server URI is not
+   * available, for example when executing `tsh ssh user@host` from the command bar.
+   *
+   * @param clusterUri - the URI of the cluster which should be used for hostname lookup. That is,
+   * the command will succeed only if the given cluster has only a single server with the hostname
+   * matching `host`.
+   * @param loginHost - the "user@host" pair.
+   * @param params - additional parameters.
+   * @param params.origin - where the document was opened from.
+   */
+  createTshNodeDocumentFromLoginHost(
+    clusterUri: ClusterUri,
+    loginHost: string,
+    params: { origin: DocumentOrigin }
+  ): DocumentTshNodeWithLoginHost {
+    const { params: routingParams } = routing.parseClusterUri(clusterUri);
+    const uri = routing.getDocUri({ docId: unique() });
+
+    return {
+      uri,
+      kind: 'doc.terminal_tsh_node',
+      title: loginHost,
+      status: 'connecting',
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
+      loginHost,
+      origin: params.origin,
     };
   }
 
@@ -126,6 +172,7 @@ export class DocumentsService {
       targetSubresourceName,
       port,
       gatewayUri,
+      origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
     const title = `${targetUser}@${targetName}`;
@@ -140,6 +187,7 @@ export class DocumentsService {
       gatewayUri,
       title,
       port,
+      origin,
     };
   }
 

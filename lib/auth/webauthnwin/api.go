@@ -28,6 +28,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -188,7 +189,12 @@ type CheckSupportResult struct {
 // false positives.
 // See CheckSupport.
 func IsAvailable() bool {
-	return CheckSupport().IsAvailable
+	supports := CheckSupport()
+	if supports.HasCompileSupport && !supports.IsAvailable {
+		log.Warn("Webauthn is not supported on this version of Windows, supported from version 1903")
+	}
+
+	return supports.IsAvailable
 }
 
 // CheckSupport return information whether Windows Webauthn is supported and

@@ -25,11 +25,13 @@ import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
+import pingService from './services/ping';
 import appService from './services/apps';
 import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
+import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
@@ -47,15 +49,28 @@ class TeleportContext implements types.Context {
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
+  pingService = pingService;
   appService = appService;
   joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
   databaseService = new DatabaseService();
   desktopService = desktopService;
+  userGroupService = userGroupService;
   mfaService = new MfaService();
-  isEnterprise = cfg.isEnterprise;
 
+  isEnterprise = cfg.isEnterprise;
+  isCloud = cfg.isCloud;
+  automaticUpgradesEnabled = false;
   agentService = agentService;
+
+  // No CTA is currently shown
+  ctas = {
+    authConnectors: false,
+    activeSessions: false,
+    accessRequests: false,
+    premiumSupport: false,
+    trustedDevices: false,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
@@ -73,6 +88,9 @@ class TeleportContext implements types.Context {
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
     }
+
+    const pingResponse = await pingService.fetchPing();
+    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
   }
 
   getFeatureFlags(): types.FeatureFlags {
@@ -97,6 +115,13 @@ class TeleportContext implements types.Context {
         accessRequests: false,
         downloadCenter: false,
         discover: false,
+        plugins: false,
+        integrations: false,
+        deviceTrust: false,
+        enrollIntegrationsOrPlugins: false,
+        enrollIntegrations: false,
+        locks: false,
+        newLocks: false,
       };
     }
 
@@ -118,6 +143,16 @@ class TeleportContext implements types.Context {
       newAccessRequest: userContext.getAccessRequestAccess().create,
       downloadCenter: userContext.hasDownloadCenterListAccess(),
       discover: userContext.hasDiscoverAccess(),
+      plugins: userContext.getPluginsAccess().list,
+      integrations: userContext.getIntegrationsAccess().list,
+      enrollIntegrations: userContext.getIntegrationsAccess().create,
+      enrollIntegrationsOrPlugins:
+        userContext.getPluginsAccess().create ||
+        userContext.getIntegrationsAccess().create,
+      deviceTrust: userContext.getDeviceTrustAccess().list,
+      locks: userContext.getLockAccess().list,
+      newLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit,
     };
   }
 }

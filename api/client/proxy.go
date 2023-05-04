@@ -19,6 +19,7 @@ package client
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"net"
 	"net/http"
@@ -26,11 +27,40 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/net/proxy"
+
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
+// PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+// Used by proxy's web server to make calls on behalf of connected clients.
+type PROXYHeaderGetter func() ([]byte, error)
+
+type dialProxyConfig = dialConfig
+
+// DialProxyOption allows setting options as functional arguments to DialProxy.
+type DialProxyOption = DialOption
+
+// WithTLSConfig provides the dialer with the TLS config to use when using an
+// HTTPS proxy.
+func WithTLSConfig(tlsConfig *tls.Config) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.tlsConfig = tlsConfig
+	}
+}
+
 // DialProxy creates a connection to a server via an HTTP or SOCKS5 Proxy.
-func DialProxy(ctx context.Context, proxyURL *url.URL, addr string) (net.Conn, error) {
-	return DialProxyWithDialer(ctx, proxyURL, addr, &net.Dialer{})
+func DialProxy(ctx context.Context, proxyURL *url.URL, addr string, opts ...DialProxyOption) (net.Conn, error) {
+	var cfg dialProxyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	var dialer ContextDialer = &net.Dialer{}
+	if cfg.proxyHeaderGetter != nil {
+		dialer = NewPROXYHeaderDialer(dialer, cfg.proxyHeaderGetter)
+	}
+
+	return DialProxyWithDialer(ctx, proxyURL, addr, dialer, opts...)
 }
 
 // DialProxyWithDialer creates a connection to a server via an HTTP or SOCKS5
@@ -39,15 +69,21 @@ func DialProxyWithDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
 	addr string,
-	dialer *net.Dialer,
+	dialer ContextDialer,
+	opts ...DialProxyOption,
 ) (net.Conn, error) {
 	if proxyURL == nil {
 		return nil, trace.BadParameter("missing proxy url")
 	}
 
+	var cfg dialProxyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	switch proxyURL.Scheme {
-	case "http":
-		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer)
+	case "http", "https":
+		conn, err := dialProxyWithHTTPDialer(ctx, proxyURL, addr, dialer, cfg.tlsConfig)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -69,12 +105,18 @@ func dialProxyWithHTTPDialer(
 	proxyURL *url.URL,
 	addr string,
 	dialer ContextDialer,
+	tlsConfig *tls.Config,
 ) (net.Conn, error) {
-	conn, err := dialer.DialContext(ctx, "tcp", proxyURL.Host)
+	var conn net.Conn
+	var err error
+	if proxyURL.Scheme == "https" {
+		conn, err = tlsutils.TLSDial(ctx, dialer, "tcp", proxyURL.Host, tlsConfig.Clone())
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", proxyURL.Host)
+	}
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-
 	header := make(http.Header)
 	if proxyURL.User != nil {
 		// dont use User.String() because it performs url encoding (rfc 1738),
@@ -127,12 +169,26 @@ func dialProxyWithHTTPDialer(
 	}, nil
 }
 
+type socksDialerAdapter struct {
+	dialer ContextDialer
+}
+
+func (d *socksDialerAdapter) Dial(network, addr string) (c net.Conn, err error) {
+	return d.dialer.DialContext(context.Background(), network, addr)
+}
+
+// DialContext dials with context. Even though socks dialer interface requires just Dial() function
+// internally it will use dialing with context.
+func (d *socksDialerAdapter) DialContext(ctx context.Context, network, addr string) (c net.Conn, err error) {
+	return d.dialer.DialContext(ctx, network, addr)
+}
+
 // dialProxyWithSOCKSDialer creates a connection to a server via a SOCKS5 Proxy.
 func dialProxyWithSOCKSDialer(
 	ctx context.Context,
 	proxyURL *url.URL,
 	addr string,
-	dialer *net.Dialer,
+	dialer ContextDialer,
 ) (net.Conn, error) {
 	var proxyAuth *proxy.Auth
 	if proxyURL.User != nil {
@@ -144,7 +200,7 @@ func dialProxyWithSOCKSDialer(
 		}
 	}
 
-	socksDialer, err := proxy.SOCKS5("tcp", proxyURL.Host, proxyAuth, dialer)
+	socksDialer, err := proxy.SOCKS5("tcp", proxyURL.Host, proxyAuth, &socksDialerAdapter{dialer: dialer})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

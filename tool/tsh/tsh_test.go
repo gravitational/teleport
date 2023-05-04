@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -150,6 +151,13 @@ func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ keys.
 }
 
 func (p *cliModules) EnableRecoveryCodes() {
+}
+
+func (p *cliModules) EnablePlugins() {
+}
+
+func (p *cliModules) SetFeatures(f modules.Features) {
+
 }
 
 func TestAlias(t *testing.T) {
@@ -928,20 +936,31 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 	}
 }
 
-// TestSSHOnMultipleNodes tests running ssh commands on multiple nodes
-// with and without mfa_per_session.
+// TestSSHOnMultipleNodes validates that mfa is enforced when creating SSH
+// sessions when set either via role or cluster auth preference.
+// Sessions created via hostname and by matched labels are
+// verified.
+//
+// NOTE: This test must NOT be run in parallel because it updates
+// the global [client.PromptWebauthn] in multiple test cases.
 func TestSSHOnMultipleNodes(t *testing.T) {
-	// Setup cluster with 3 ssh nodes and user with access to them.
-	// Running ssh 'echo test' command should work when referencing
-	// multiple nodes by labels, without and with mfa_per_session.
-	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	const origin = "https://127.0.0.1"
+	const origin = "https://localhost"
 	connector := mockConnector(t)
 
 	user, err := user.Current()
+	require.NoError(t, err)
+
+	noAccessRole, err := types.NewRole("no-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{user.Username},
+		},
+		Deny: types.RoleConditions{
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
 	require.NoError(t, err)
 
 	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
@@ -957,7 +976,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			Logins:     []string{user.Username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
-		Options: types.RoleOptions{RequireSessionMFA: true},
+		Options: types.RoleOptions{RequireMFAType: types.RequireMFAType_SESSION},
 	})
 	require.NoError(t, err)
 
@@ -970,7 +989,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 	device.SetPasswordless()
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, sshLoginRole, perSessionMFARole))
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(connector, alice, noAccessRole, sshLoginRole, perSessionMFARole))
 
 	authAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -993,7 +1012,10 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	hasNodes := func(hostIDs ...string) func() bool {
 		return func() bool {
 			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
+			if err != nil {
+				return false
+			}
+
 			foundCount := 0
 			for _, node := range nodes {
 				if slices.Contains(hostIDs, node.GetName()) {
@@ -1006,223 +1028,280 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	// wait for auth to see nodes
 	require.Eventually(t, hasNodes(sshHostID, sshHostID2, sshHostID3),
-		10*time.Second, 100*time.Millisecond, "nodes never showed up")
+		5*time.Second, 100*time.Millisecond, "nodes never joined cluster")
 
 	defaultPreference, err := rootAuth.GetAuthServer().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	registerPasswordlessDeviceWithWebauthnSolver := func(t *testing.T) {
-		token, err := rootAuth.GetAuthServer().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
-			Name: "alice",
-		})
-		require.NoError(t, err)
-		tokenID := token.GetName()
-		res, err := rootAuth.GetAuthServer().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
-			TokenID:     tokenID,
-			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
-		})
-		require.NoError(t, err)
-		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
-
-		ccr, err := device.SignCredentialCreation(origin, cc)
-		require.NoError(t, err)
-		_, err = rootAuth.GetAuthServer().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
-			TokenID:     tokenID,
-			NewPassword: []byte(password),
-			NewMFARegisterResponse: &proto.MFARegisterResponse{
-				Response: &proto.MFARegisterResponse_Webauthn{
-					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
-				},
+	// set the default auth preference
+	webauthnPreference := &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
 			},
-		})
-		require.NoError(t, err)
+		},
+	}
+	err = rootAuth.GetAuthServer().SetAuthPreference(ctx, webauthnPreference)
+	require.NoError(t, err)
 
-		inputReader := prompt.NewFakeReader().
-			AddString(password).
-			AddReply(func(ctx context.Context) (string, error) {
-				panic("this should not be called")
+	token, err := rootAuth.GetAuthServer().CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+		Name: "alice",
+	})
+	require.NoError(t, err)
+	tokenID := token.GetName()
+	res, err := rootAuth.GetAuthServer().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		TokenID:     tokenID,
+		DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+		DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+	})
+	require.NoError(t, err)
+	cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+	ccr, err := device.SignCredentialCreation(origin, cc)
+	require.NoError(t, err)
+	_, err = rootAuth.GetAuthServer().ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     tokenID,
+		NewPassword: []byte(password),
+		NewMFARegisterResponse: &proto.MFARegisterResponse{
+			Response: &proto.MFARegisterResponse_Webauthn{
+				Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	successfulChallenge := func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion) // use the fake origin to prevent a mismatch
+		if err != nil {
+			return nil, "", err
+		}
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+			},
+		}, "", nil
+	}
+
+	failedChallenge := func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion(origin, assertion) // use the fake origin to prevent a mismatch
+		if err != nil {
+			return nil, "", err
+		}
+		carProto := wanlib.CredentialAssertionResponseToProto(car)
+		carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
+
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: carProto,
+			},
+		}, "", nil
+	}
+
+	type mfaPrompt = func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
+	setupChallengeSolver := func(mfaPrompt mfaPrompt) func(t *testing.T) {
+		return func(t *testing.T) {
+			inputReader := prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				})
+
+			oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+			t.Cleanup(func() {
+				prompt.SetStdin(oldStdin)
+				*client.PromptWebauthn = oldWebauthn
 			})
 
-		solveWebauthn := func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
-			car, err := device.SignAssertion(origin, assertion)
-			if err != nil {
-				return nil, err
-			}
-			return &proto.MFAAuthenticateResponse{
-				Response: &proto.MFAAuthenticateResponse_Webauthn{
-					Webauthn: wanlib.CredentialAssertionResponseToProto(car),
-				},
-			}, nil
-		}
-
-		oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
-		t.Cleanup(func() {
-			prompt.SetStdin(oldStdin)
-			*client.PromptWebauthn = oldWebauthn
-		})
-
-		prompt.SetStdin(inputReader)
-		*client.PromptWebauthn = func(
-			ctx context.Context,
-			origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts,
-		) (*proto.MFAAuthenticateResponse, string, error) {
-			resp, err := solveWebauthn(ctx, origin, assertion, prompt)
-			return resp, "", err
+			prompt.SetStdin(inputReader)
+			*client.PromptWebauthn = mfaPrompt
 		}
 	}
 
 	cases := []struct {
 		name            string
-		hostLabels      string
+		target          string
 		authPreference  types.AuthPreference
 		roles           []string
 		setup           func(t *testing.T)
 		errAssertion    require.ErrorAssertionFunc
 		stdoutAssertion require.ValueAssertionFunc
-		// deviceSignCount is used to check how many times
-		// webatuhn device sign was called.
-		deviceSignCount int
+		mfaPromptCount  int
+		headless        bool
 	}{
 		{
-			name:           "default auth preference - just check stage nodes",
+			name:           "default auth preference runs commands on multiple nodes without mfa",
 			authPreference: defaultPreference,
-			hostLabels:     "env=stage",
+			target:         "env=stage",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
-			deviceSignCount: 0,
-			errAssertion:    require.NoError,
+			errAssertion: require.NoError,
 		},
 		{
-			name: "without per session mfa - 2 stage nodes",
-			authPreference: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
-					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
-					},
-				},
-			},
-			hostLabels: "env=stage",
+			name:   "webauthn auth preference runs commands on multiple matches without mfa",
+			target: "env=stage",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
-			deviceSignCount: 0,
-			errAssertion:    require.NoError,
+			errAssertion: require.NoError,
 		},
 		{
-			name: "without per session mfa - 1 prod node",
-			authPreference: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
-					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
-					},
-				},
-			},
-			hostLabels: "env=prod",
+			name:   "webauthn auth preference runs commands on a single match without mfa",
+			target: "env=prod",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
-			deviceSignCount: 0,
-			errAssertion:    require.NoError,
+			errAssertion: require.NoError,
 		},
 		{
-			name: "without per session mfa - 0 dev nodes",
-			authPreference: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
-					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
-					},
-				},
-			},
-			hostLabels:      "env=dev",
+			name:            "no matching hosts",
+			target:          "env=dev",
 			errAssertion:    require.Error,
 			stdoutAssertion: require.Empty,
-			deviceSignCount: 0,
 		},
 		{
-			name: "with per session mfa - 2 stage nodes",
+			name: "command runs on multiple matches with mfa set via auth preference",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
 					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
+						RPID: "localhost",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			setup:      registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels: "env=stage",
+			setup:  setupChallengeSolver(successfulChallenge),
+			target: "env=stage",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
-			deviceSignCount: 2,
-			errAssertion:    require.NoError,
+			mfaPromptCount: 2,
+			errAssertion:   require.NoError,
 		},
 		{
-			name: "with per session mfa - 1 prod node",
+			name: "command runs on a single match with mfa set via auth preference",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
 					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
+						RPID: "localhost",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			setup:      registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels: "env=prod",
+			setup:  setupChallengeSolver(successfulChallenge),
+			target: "env=prod",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\n", i, i2...)
 			},
-			deviceSignCount: 1,
-			errAssertion:    require.NoError,
+			mfaPromptCount: 1,
+			errAssertion:   require.NoError,
 		},
 		{
-			name: "with per session mfa - 0 dev nodes",
+			name: "no matching hosts with mfa",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
 					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
+						RPID: "localhost",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
-			setup:           registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels:      "env=dev",
+			setup:           setupChallengeSolver(successfulChallenge),
+			target:          "env=dev",
 			errAssertion:    require.Error,
-			deviceSignCount: 0,
 			stdoutAssertion: require.Empty,
 		},
 		{
-			name: "role requires per session mfa - 2 stage nodes",
+			name: "command runs on a multiple matches with mfa set via role",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
 					Type:         constants.Local,
 					SecondFactor: constants.SecondFactorOptional,
 					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
+						RPID: "localhost",
 					},
 				},
 			},
-			roles:      []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
-			setup:      registerPasswordlessDeviceWithWebauthnSolver,
-			hostLabels: "env=stage",
+			roles:  []string{"access", sshLoginRole.GetName(), perSessionMFARole.GetName()},
+			setup:  setupChallengeSolver(successfulChallenge),
+			target: "env=stage",
 			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.Equal(t, "test\ntest\n", i, i2...)
 			},
-			deviceSignCount: 2,
-			errAssertion:    require.NoError,
+			mfaPromptCount: 2,
+			errAssertion:   require.NoError,
+		},
+		{
+			name:   "role permits access without mfa",
+			target: sshHostID,
+			roles:  []string{sshLoginRole.GetName()},
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:            "role prevents access",
+			target:          sshHostID,
+			roles:           []string{noAccessRole.GetName()},
+			stdoutAssertion: require.Empty,
+			errAssertion:    require.Error,
+		},
+		{
+			name:   "command runs on a hostname with mfa set via role",
+			target: sshHostID,
+			roles:  []string{perSessionMFARole.GetName()},
+			setup:  setupChallengeSolver(successfulChallenge),
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			mfaPromptCount: 1,
+			errAssertion:   require.NoError,
+		},
+		{
+			name: "failed ceremony when role requires per session mfa",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				},
+			},
+			target:          sshHostID,
+			roles:           []string{perSessionMFARole.GetName()},
+			setup:           setupChallengeSolver(failedChallenge),
+			stdoutAssertion: require.Empty,
+			mfaPromptCount:  1,
+			errAssertion:    require.Error,
+		},
+		{
+			name: "mfa ceremony prevented when using headless auth",
+			authPreference: &types.AuthPreferenceV2{
+				Spec: types.AuthPreferenceSpecV2{
+					Type:         constants.Local,
+					SecondFactor: constants.SecondFactorOptional,
+					Webauthn: &types.Webauthn{
+						RPID: "localhost",
+					},
+				},
+			},
+			target: sshHostID,
+			roles:  []string{perSessionMFARole.GetName()},
+			setup:  setupChallengeSolver(failedChallenge),
+			stdoutAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
+				require.Equal(t, "test\n", i, i2...)
+			},
+			errAssertion: require.NoError,
+			headless:     true,
 		},
 	}
 
@@ -1230,10 +1309,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tmpHomePath := t.TempDir()
 
-			require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, tt.authPreference))
-			t.Cleanup(func() {
-				require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, defaultPreference))
-			})
+			if tt.authPreference != nil {
+				require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, tt.authPreference))
+				t.Cleanup(func() {
+					require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, webauthnPreference))
+				})
+			}
 
 			if tt.setup != nil {
 				tt.setup(t)
@@ -1267,23 +1348,27 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			// Clear counter before each ssh command,
 			// so we can assert how many times sign was called.
 			device.SetCounter(0)
-			err = Run(ctx, []string{
-				"ssh",
-				"--insecure",
-				tt.hostLabels,
-				"echo", "test",
-			},
+
+			args := []string{"ssh", "--insecure"}
+			if tt.headless {
+				args = append(args, "--headless", "--proxy", proxyAddr.String(), "--user", alice.GetName())
+			}
+			args = append(args, tt.target, "echo", "test")
+
+			err = Run(ctx,
+				args,
 				setHomePath(tmpHomePath),
 				func(conf *CLIConf) error {
 					conf.overrideStdin = &bytes.Buffer{}
 					conf.overrideStdout = stdout
+					conf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
 					return nil
 				},
 			)
 
 			tt.errAssertion(t, err)
 			tt.stdoutAssertion(t, stdout.String())
-			require.Equal(t, tt.deviceSignCount, int(device.Counter()), "device sign count mismatch")
+			require.Equal(t, tt.mfaPromptCount, int(device.Counter()), "device sign count mismatch")
 		})
 	}
 }
@@ -1687,6 +1772,114 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
 	}
 	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+func TestSSHHeadless(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	// Headless ssh should pass session mfa requirements
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"ssh-login"})
+
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(sshLoginRole, alice))
+
+	authAddr, err := rootAuth.AuthAddr()
+	require.NoError(t, err)
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		},
+	}))
+
+	sshHostname := "test-ssh-server"
+	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
+	sshHostID := node.Config.HostUUID
+
+	hasNodes := func(hostIDs ...string) func() bool {
+		return func() bool {
+			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			foundCount := 0
+			for _, node := range nodes {
+				if slices.Contains(hostIDs, node.GetName()) {
+					foundCount++
+				}
+			}
+			return foundCount == len(hostIDs)
+		}
+	}
+
+	// wait for auth to see nodes
+	require.Eventually(t, hasNodes(sshHostID), 10*time.Second, 100*time.Millisecond, "nodes never showed up")
+
+	// perform "tsh --headless ssh"
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--headless",
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// "tsh --auth headless ssh" should also perform headless ssh
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--auth", constants.HeadlessConnector,
+		"--proxy", proxyAddr.String(),
+		"--user", "alice",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	// headless ssh should fail if user is not set.
+	err = Run(ctx, []string{
+		"ssh",
+		"--insecure",
+		"--headless",
+		"--proxy", proxyAddr.String(),
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -2114,7 +2307,7 @@ func TestKubeConfigUpdate(t *testing.T) {
 	}
 	for _, testcase := range tests {
 		t.Run(testcase.desc, func(t *testing.T) {
-			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus)
+			values, err := buildKubeConfigUpdate(testcase.cf, testcase.kubeStatus, "")
 			testcase.errorAssertion(t, err)
 			require.Equal(t, testcase.expectedValues, values)
 		})
@@ -2376,7 +2569,7 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 
 type testServersOpts struct {
 	bootstrap   []types.Resource
-	configFuncs []func(cfg *service.Config)
+	configFuncs []func(cfg *servicecfg.Config)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -2387,20 +2580,20 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 	}
 }
 
-func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
+func withConfig(fn func(cfg *servicecfg.Config)) testServerOptFunc {
 	return func(o *testServersOpts) {
 		o.configFuncs = append(o.configFuncs, fn)
 	}
 }
 
-func withAuthConfig(fn func(*service.AuthConfig)) testServerOptFunc {
-	return withConfig(func(cfg *service.Config) {
+func withAuthConfig(fn func(*servicecfg.AuthConfig)) testServerOptFunc {
+	return withConfig(func(cfg *servicecfg.Config) {
 		fn(&cfg.Auth)
 	})
 }
 
 func withClusterName(t *testing.T, n string) testServerOptFunc {
-	return withAuthConfig(func(cfg *service.AuthConfig) {
+	return withAuthConfig(func(cfg *servicecfg.AuthConfig) {
 		clusterName, err := services.NewClusterNameWithRandomID(
 			types.ClusterNameSpecV2{
 				ClusterName: n,
@@ -2419,20 +2612,20 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 		AddString(""). // 3x to allow multiple logins
 		AddString("").
 		AddString(""))
-	return withAuthConfig(func(cfg *service.AuthConfig) {
+	return withAuthConfig(func(cfg *servicecfg.AuthConfig) {
 		fmt.Printf("\n\n Setting MOTD: '%s' \n\n", motd)
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
 
 func withHostname(hostname string) testServerOptFunc {
-	return withConfig(func(cfg *service.Config) {
+	return withConfig(func(cfg *servicecfg.Config) {
 		cfg.Hostname = hostname
 	})
 }
 
 func withSSHLabel(key, value string) testServerOptFunc {
-	return withConfig(func(cfg *service.Config) {
+	return withConfig(func(cfg *servicecfg.Config) {
 		if cfg.SSH.Labels == nil {
 			cfg.SSH.Labels = make(map[string]string)
 		}
@@ -2447,7 +2640,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	}
 
 	// Set up a test ssh service.
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "node"
 	cfg.DataDir = t.TempDir()
@@ -2477,17 +2670,14 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		opt(&options)
 	}
 
+	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	var err error
 	// Set up a test auth server.
-	//
-	// We need this to get a random port assigned to it and allow parallel
-	// execution of this test.
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
-
-	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())})
+	cfg.SetAuthServerAddress(authAddr)
 	cfg.Auth.BootstrapResources = options.bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -2498,10 +2688,15 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		}},
 	})
 	require.NoError(t, err)
+	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.Enabled = false
+	cfg.Auth.ListenAddr = authAddr
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.DisableWebInterface = true
 	cfg.Log = utils.NewLoggerForTests()
 
 	for _, fn := range options.configFuncs {
@@ -2510,34 +2705,13 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 
 	auth = runTeleport(t, cfg)
 
-	// Wait for proxy to become ready.
+	// Wait for auth to become ready.
 	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
 	// in reality, the auth server should start *much* sooner than this.  we use a very large
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
-	authAddr, err := auth.AuthAddr()
-	require.NoError(t, err)
-
-	// Set up a test proxy service.
-	cfg = service.MakeDefaultConfig()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-
-	cfg.SetAuthServerAddress(*authAddr)
-	cfg.SetToken(staticToken)
-	cfg.SSH.Enabled = false
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = true
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.DisableWebInterface = true
-	cfg.Log = utils.NewLoggerForTests()
-
-	proxy = runTeleport(t, cfg)
-	return auth, proxy
+	return auth, auth
 }
 
 func mockConnector(t *testing.T) types.OIDCConnector {
@@ -2564,11 +2738,45 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName()
 		require.NoError(t, err)
-		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(
-			priv.MarshalSSHPublicKey(), user.GetName(), time.Hour,
-			constants.CertificateFormatStandard,
-			clusterName.GetClusterName(), "",
-		)
+		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+			Key:            priv.MarshalSSHPublicKey(),
+			Username:       user.GetName(),
+			TTL:            time.Hour,
+			Compatibility:  constants.CertificateFormatStandard,
+			RouteToCluster: clusterName.GetClusterName(),
+		})
+		require.NoError(t, err)
+
+		// load CA cert
+		authority, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName.GetClusterName(),
+		}, false)
+		require.NoError(t, err)
+
+		// build login response
+		return &auth.SSHLoginResponse{
+			Username:    user.GetName(),
+			Cert:        sshCert,
+			TLSCert:     tlsCert,
+			HostSigners: auth.AuthoritiesToTrustedCerts([]types.CertAuthority{authority}),
+		}, nil
+	}
+}
+
+func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
+	return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+		// generate certificates for our user
+		clusterName, err := authServer.GetClusterName()
+		require.NoError(t, err)
+		sshCert, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+			Key:            priv.MarshalSSHPublicKey(),
+			Username:       user.GetName(),
+			TTL:            time.Hour,
+			Compatibility:  constants.CertificateFormatStandard,
+			RouteToCluster: clusterName.GetClusterName(),
+			MFAVerified:    "mfa-verified",
+		})
 		require.NoError(t, err)
 
 		// load CA cert
@@ -3620,13 +3828,13 @@ func TestForwardingTraces(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		cfg           func(c *tracing.Collector) service.TracingConfig
+		cfg           func(c *tracing.Collector) servicecfg.TracingConfig
 		spanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.GRPCAddr(),
 					SamplingRate: 1.0,
@@ -3636,8 +3844,8 @@ func TestForwardingTraces(t *testing.T) {
 		},
 		{
 			name: "spans exported with auth sampling none",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.HTTPAddr(),
 					SamplingRate: 0.0,
@@ -3647,8 +3855,8 @@ func TestForwardingTraces(t *testing.T) {
 		},
 		{
 			name: "spans not exported when tracing disabled",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{}
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{}
 			},
 			spanAssertion: func(t *testing.T, spans []*otlp.ScopeSpans) {
 				require.Empty(t, spans)
@@ -3684,7 +3892,7 @@ func TestForwardingTraces(t *testing.T) {
 			traceCfg := tt.cfg(collector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
-				withConfig(func(cfg *service.Config) {
+				withConfig(func(cfg *servicecfg.Config) {
 					cfg.Tracing = traceCfg
 				}),
 			)
@@ -3739,14 +3947,14 @@ func TestExportingTraces(t *testing.T) {
 
 	cases := []struct {
 		name                  string
-		cfg                   func(c *tracing.Collector) service.TracingConfig
+		cfg                   func(c *tracing.Collector) servicecfg.TracingConfig
 		teleportSpanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 		tshSpanAssertion      func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.GRPCAddr(),
 					SamplingRate: 1.0,
@@ -3757,8 +3965,8 @@ func TestExportingTraces(t *testing.T) {
 		},
 		{
 			name: "spans exported with auth sampling none",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.HTTPAddr(),
 					SamplingRate: 0.0,
@@ -3769,8 +3977,8 @@ func TestExportingTraces(t *testing.T) {
 		},
 		{
 			name: "spans not exported when tracing disabled",
-			cfg: func(c *tracing.Collector) service.TracingConfig {
-				return service.TracingConfig{}
+			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
+				return servicecfg.TracingConfig{}
 			},
 			teleportSpanAssertion: spanAssertion(false, true),
 			tshSpanAssertion:      spanAssertion(true, false),
@@ -3806,7 +4014,7 @@ func TestExportingTraces(t *testing.T) {
 			traceCfg := tt.cfg(teleportCollector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
-				withConfig(func(cfg *service.Config) {
+				withConfig(func(cfg *servicecfg.Config) {
 					cfg.Tracing = traceCfg
 				}),
 			)
@@ -3945,4 +4153,36 @@ func TestShowSessions(t *testing.T) {
 	err := common.ShowSessions(sessions, teleport.JSON, &buf)
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
+}
+
+func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		profile        *client.ProfileStatus
+		expectedLogins []string
+	}{
+		{
+			name: "with internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, teleport.SSHSessionJoinPrincipal, "-teleport-something-else"},
+			},
+			expectedLogins: nil,
+		},
+		{
+			name: "with valid logins and internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, "alpaca", teleport.SSHSessionJoinPrincipal, "llama"},
+			},
+			expectedLogins: []string{"alpaca", "llama"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			madeProfile := makeProfileInfo(test.profile, nil /* env map */, false /* inactive */)
+			require.Equal(t, test.expectedLogins, madeProfile.Logins)
+		})
+	}
 }

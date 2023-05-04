@@ -18,6 +18,8 @@ import {
   DocumentGateway,
   DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithServerId,
+  isDocumentTshNodeWithServerId,
 } from 'teleterm/ui/services/workspacesService';
 import { unique } from 'teleterm/ui/utils/uid';
 
@@ -36,6 +38,7 @@ export function getGatewayConnectionByDocument(document: DocumentGateway) {
 
 export function getServerConnectionByDocument(document: DocumentTshNode) {
   return (i: TrackedServerConnection) =>
+    isDocumentTshNodeWithServerId(document) &&
     i.kind === 'connection.server' &&
     i.serverUri === document.serverUri &&
     i.login === document.login;
@@ -65,6 +68,7 @@ export function getServerDocumentByConnection(
 ) {
   return (i: DocumentTshNode) =>
     i.kind === 'doc.terminal_tsh_node' &&
+    isDocumentTshNodeWithServerId(i) &&
     i.serverUri === connection.serverUri &&
     i.login === connection.login;
 }
@@ -87,7 +91,7 @@ export function createGatewayConnection(
 }
 
 export function createServerConnection(
-  document: DocumentTshNode
+  document: DocumentTshNodeWithServerId
 ): TrackedServerConnection {
   return {
     kind: 'connection.server',

@@ -22,7 +22,9 @@ import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
 import { Dialog } from 'teleterm/ui/services/modals';
 
-import ClusterLogout from '../ClusterLogout/ClusterLogout';
+import { ClusterLogout } from '../ClusterLogout';
+import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
+import { assertUnreachable } from '../utils';
 
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
@@ -117,8 +119,25 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
       );
     }
 
-    default: {
+    case 'resource-search-errors': {
+      return (
+        <ResourceSearchErrors
+          errors={dialog.errors}
+          getClusterName={dialog.getClusterName}
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel();
+          }}
+        />
+      );
+    }
+
+    case 'none': {
       return null;
+    }
+
+    default: {
+      return assertUnreachable(dialog);
     }
   }
 }

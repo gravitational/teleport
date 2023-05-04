@@ -1,7 +1,6 @@
 ---
 title: Resource Access Requests
 description: Teleport allows users to request access to specific resources from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
-h1: Teleport Resource Access Requests
 ---
 
 <Admonition type="tip" title="Preview">
@@ -28,7 +27,7 @@ available in Teleport Enterprise.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="warning">
 All `teleport` instances in the cluster must be running Teleport `v10.0.0` or
@@ -146,7 +145,6 @@ To request access to these resources, run
 > tsh request create --resource /teleport.example.com/node/b1168402-9340-421a-a344-af66a6675738 \
     --reason <request reason>
 ```
-
 
 ## Step 5/8. Request access to a resource
 
@@ -573,6 +571,10 @@ the requested node, the hostname will be displayed in the Review Request page of
 the Teleport Web UI.
 
 ### Integrating with an external tool
+
+With Teleport's Access Request plugins, users can manage Access Requests from
+within your organization's existing messaging and project management solutions.
+
 (!docs/pages/includes/access-request-integrations.mdx!)
 
 ### Using TTLs with Access Requests
