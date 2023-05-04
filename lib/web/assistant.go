@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -195,6 +194,28 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return trace.Wrap(err)
 	}
 
+	identity, err := createIdentityContext(sctx.GetUser(), sctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.WithError(err).Debug("Unable to get auth access point.")
+		return trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+		return trace.Wrap(err)
+	}
+
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -209,9 +230,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	}
 
-	// Use the default interval as this handler doesn't have access to network config.
 	// Note: This time should be longer than OpenAI response time.
-	keepAliveInterval := 15 * time.Second //defaults.KeepAliveInterval()
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
@@ -231,7 +251,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	})
 
-	ctx := context.Background() // r.Context()
+	//ctx := context.Background() // r.Context()
 	go startPingLoop(ctx, ws, keepAliveInterval/2, h.log, nil)
 
 	chat, err := getAssistantClient(ctx, h.cfg.ProxyClient,
@@ -267,6 +287,11 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}
 	}
 
+	// Close the connection to auth, otherwise the connection will time out.
+	//if err := authClient.Close(); err != nil {
+	//	h.log.Debugf("failed to close auth client: %w", err)
+	//}
+
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
@@ -284,27 +309,37 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
-		//TODO(jakule): Close authClient before reopening
-		authClient, err = newRemoteClient(ctx, sctx, site)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if _, err := authClient.InsertAssistantMessage(ctx, &proto.AssistantMessage{
-			ConversationId: conversationID,
-			Type:           messageKindUserMessage,
-			Payload:        wsIncoming.Payload,
-			CreatedTime:    h.clock.Now().UTC(),
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
+		if err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	h.log.Debugf("end assistant conversation loop")
+
+	return nil
+}
+
+func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContext, site reversetunnel.RemoteSite,
+	conversationID string, wsIncoming proto.AssistantMessage, chat *ai.Chat, ws *websocket.Conn,
+) error {
+	authClient, err := newRemoteClient(ctx, sctx, site)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	if _, err := authClient.InsertAssistantMessage(ctx, &proto.AssistantMessage{
+		ConversationId: conversationID,
+		Type:           messageKindUserMessage,
+		Payload:        wsIncoming.Payload,
+		CreatedTime:    h.clock.Now().UTC(),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
