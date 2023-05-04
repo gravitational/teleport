@@ -160,10 +160,11 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return conversationInfo, nil
 }
 
-func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (any, error) {
+func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
+	sctx *SessionContext, site reversetunnel.RemoteSite,
+) (any, error) {
 	// moved into a separate function for error management/debug purposes
-	err := runAssistant(h, w, r, sctx, site)
-	if err != nil {
+	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
@@ -241,7 +242,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
-		h.log.Warnf("received PONG AAAAA")
 		ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 		return nil
 	})
@@ -251,8 +251,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	})
 
-	//ctx := context.Background() // r.Context()
-	go startPingLoop(ctx, ws, keepAliveInterval/2, h.log, nil)
+	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
 	chat, err := getAssistantClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, sctx.cfg.User)
@@ -287,11 +286,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}
 	}
 
-	// Close the connection to auth, otherwise the connection will time out.
-	//if err := authClient.Close(); err != nil {
-	//	h.log.Debugf("failed to close auth client: %w", err)
-	//}
-
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
@@ -322,6 +316,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContext, site reversetunnel.RemoteSite,
 	conversationID string, wsIncoming proto.AssistantMessage, chat *ai.Chat, ws *websocket.Conn,
 ) error {
+	// Create a new auth client as the WS is a long-living connection
+	// and client created at the beginning will timeout at some point.
 	authClient, err := newRemoteClient(ctx, sctx, site)
 	if err != nil {
 		return trace.Wrap(err)
