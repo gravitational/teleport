@@ -412,6 +412,14 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		return nil, trace.Wrap(err)
 	}
 
+	authPref, err := s.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	autoEnrollEnabled := dtent.MDMFeatureActive &&
+		authPref.GetDeviceTrust() != nil &&
+		authPref.GetDeviceTrust().AutoEnroll
+
 	// Verify access to the necessary verbs.
 	// It's possible to issue an enroll token without the verb if auto-enrollment
 	// is enabled.
@@ -420,7 +428,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		defaults.Namespace, types.KindDevice, types.VerbCreateEnrollToken,
 		false, /* silent */
 	)
-	if checkErr != nil && !dtent.AutoEnrollEnabled {
+	if checkErr != nil && !autoEnrollEnabled {
 		return nil, trace.Wrap(checkErr)
 	}
 
@@ -430,7 +438,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	//   (Otherwise, favor legacy behavior.)
 	var devMetadata *apievents.DeviceMetadata
 	var token *devicepb.DeviceEnrollToken
-	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && dtent.AutoEnrollEnabled) {
+	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
 		var dev *devicepb.Device
 		dev, err = s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
 		// err verified below

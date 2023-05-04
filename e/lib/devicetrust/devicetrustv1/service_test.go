@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1649,10 +1650,16 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	}
 
 	emitter := &eventstest.MockEmitter{}
+	dt := &types.DeviceTrust{
+		Mode: constants.DeviceTrustModeRequired,
+	}
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithAuthorizer(authorizer),
 		testenv.WithEmitter(emitter),
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: dt,
+		}),
 	)
 	defer env.Close()
 	devices := env.DevicesClient
@@ -1687,9 +1694,6 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		OsType:       devicepb.OSType_OS_TYPE_MACOS,
 		SerialNumber: "unknown",
 	}
-
-	oldAutoEnroll := dtent.AutoEnrollEnabled
-	t.Cleanup(func() { dtent.AutoEnrollEnabled = oldAutoEnroll })
 
 	type testCase struct {
 		name      string
@@ -1735,7 +1739,6 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	// The same device is used for the majority of tests. This works because the
 	// device is never enrolled, so multiple token creation is allowed.
 
-	dtent.AutoEnrollEnabled = false
 	runTests(t, []testCase{
 		{
 			name: "admin auto-enroll not allowed",
@@ -1802,7 +1805,7 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		},
 	})
 
-	dtent.AutoEnrollEnabled = true
+	dt.AutoEnroll = true
 	runTests(t, []testCase{
 		{
 			name: "admin auto-enroll",
