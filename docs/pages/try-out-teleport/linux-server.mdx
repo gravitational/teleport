@@ -52,9 +52,9 @@ We will run the following Teleport services:
 
 - A two-factor authenticator app such as [Authy](https://authy.com/download/), [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
 
-- `python3` installed on your Linux host. We will use this to run a simple
-  HTTP file server, so you can use another HTTP server if you have one
-  installed.
+- A web application to provide access to through Teleport. If you don't have
+  one, make sure `python3` installed on your Linux host. We will use this to
+  run a simple HTTP file server as a demo.
 
 You must also have one of the following:
 - A registered domain name.
@@ -80,7 +80,9 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Run a web application for Teleport to manage access to. You can use any service that listens for HTTP requests, or create a demo application using the instructions below.
+Run a web application for Teleport to manage access to. You can use any service
+that listens for HTTP requests, or create a demo application using the
+instructions below.
 
 <Details title="Create a demo app" opened="false">
 
