@@ -1086,12 +1086,21 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 		return nil, trace.Wrap(err)
 	}
 
+	// aws.StringValueSlice will return an empty slice is the input slice
+	// is empty, but when cloning protobuf messages a cloned empty slice
+	// will return nil. Keep this behavior so tests comparing cloned
+	// messages don't fail.
+	var userGroupIDs []string
+	if len(cluster.UserGroupIds) != 0 {
+		userGroupIDs = aws.StringValueSlice(cluster.UserGroupIds)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
 			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
+			UserGroupIDs:             userGroupIDs,
 			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
 		},
