@@ -734,14 +734,6 @@ func disableAgent(t *testing.T) {
 	t.Setenv(teleport.SSHAuthSock, "")
 }
 
-func setMockSSOLogin(t *testing.T, s *suite) cliOption {
-	return func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, s.root.GetAuthServer(), s.user)
-		cf.AuthConnector = s.connector.GetName()
-		return nil
-	}
-}
-
 func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
 	tshHome := t.TempDir()
 	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
