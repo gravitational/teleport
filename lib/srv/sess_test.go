@@ -141,6 +141,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		expectedError  string
 		req            *fileTransferRequest
 		reqID          string
+		location       string
 	}{
 
 		{
@@ -164,19 +165,19 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			req: &fileTransferRequest{
 				requester: "michael",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
 				approvers: make(map[string]*party),
 			},
 		},
 		{
-			name:           "current payload does not match original payload",
+			name:           "current request location does not match original location",
 			expectedResult: false,
-			expectedError:  "Incoming request does not match the approved request",
+			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
+			location:       "~/Downloads",
 			req: &fileTransferRequest{
-				requester: "teleportUser",
-				shellCmd:  "badcommand",
+				requester: "michael",
 				approvers: make(map[string]*party),
+				location:  "~/badlocation",
 			},
 		},
 		{
@@ -184,10 +185,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: true,
 			expectedError:  "",
 			reqID:          "123",
+			location:       "~/Downloads",
 			req: &fileTransferRequest{
 				requester: "teleportUser",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
 				approvers: approvers,
+				location:  "~/Downloads",
 			},
 		},
 	}
@@ -204,12 +206,9 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
-			scx.sshRequest = &ssh.Request{
-				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
-			}
-
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
+			scx.SetEnv(sftp.FileTransferDstPath, tt.location)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())
