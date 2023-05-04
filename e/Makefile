@@ -183,7 +183,7 @@ CGOFLAG_TSH ?= $(CGOFLAG)
 # All build Enterprise version of "teleport" and "tctl" binaries and copy
 # over tsh from OSS.
 .PHONY: all
-all:
+all: version
 	@echo "---> $(RELEASE_ENT_MESSAGE)"
 	$(MAKE) $(BINARIES)
 
@@ -487,3 +487,7 @@ ent-deb:
 # build .deb
 .PHONY: deb
 deb: ent-deb
+
+.PHONY: version
+version:
+	$(MAKE) -C .. version
