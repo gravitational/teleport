@@ -188,7 +188,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		cfg.LicenseFile,
 		process.TeleportProcess,
 	); err != nil {
-		return nil, trace.Wrap(nil)
+		return nil, trace.Wrap(err)
 	}
 
 	return process, nil
