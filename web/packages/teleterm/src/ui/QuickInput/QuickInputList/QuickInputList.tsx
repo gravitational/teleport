@@ -167,7 +167,7 @@ const StyledItem = styled.div(({ theme, $active }) => {
     padding: '2px 8px',
     color: theme.colors.text.main,
     background: $active
-      ? theme.colors.levels.surfaceSecondary
+      ? theme.colors.levels.surface
       : theme.colors.levels.sunken,
   };
 });
