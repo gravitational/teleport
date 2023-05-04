@@ -192,13 +192,9 @@ type stsIdentityResponse struct {
 	GetCallerIdentityResponse getCallerIdentityResponse `json:"GetCallerIdentityResponse"`
 }
 
-type stsClient interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
 // executeSTSIdentityRequest sends the sts:GetCallerIdentity HTTP request to the
 // AWS API, parses the response, and returns the awsIdentity
-func executeSTSIdentityRequest(ctx context.Context, client stsClient, req *http.Request) (*awsIdentity, error) {
+func executeSTSIdentityRequest(ctx context.Context, client utils.HTTPDoClient, req *http.Request) (*awsIdentity, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}

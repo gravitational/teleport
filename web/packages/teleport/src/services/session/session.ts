@@ -22,31 +22,35 @@ import { ParticipantList } from './types';
 
 const service = {
   fetchSessions(clusterId) {
-    return api.get(cfg.getTerminalSessionUrl({ clusterId })).then(response => {
-      if (response && response.sessions) {
-        return response.sessions.map(makeSession);
-      }
+    return api
+      .get(cfg.getActiveAndPendingSessionsUrl({ clusterId }))
+      .then(response => {
+        if (response && response.sessions) {
+          return response.sessions.map(makeSession);
+        }
 
-      return [];
-    });
+        return [];
+      });
   },
 
   fetchParticipants({ clusterId }: { clusterId: string }) {
     // Because given session might not be available right away,
     // we query for all active session to find this session participants.
     // This is to avoid 404 errors.
-    return api.get(cfg.getTerminalSessionUrl({ clusterId })).then(json => {
-      if (!json && !json.sessions) {
-        return {};
-      }
+    return api
+      .get(cfg.getActiveAndPendingSessionsUrl({ clusterId }))
+      .then(json => {
+        if (!json && !json.sessions) {
+          return {};
+        }
 
-      const parties: ParticipantList = {};
-      json.sessions.forEach(s => {
-        parties[s.id] = s.parties.map(makeParticipant);
+        const parties: ParticipantList = {};
+        json.sessions.forEach(s => {
+          parties[s.id] = s.parties.map(makeParticipant);
+        });
+
+        return parties;
       });
-
-      return parties;
-    });
   },
 };
 
