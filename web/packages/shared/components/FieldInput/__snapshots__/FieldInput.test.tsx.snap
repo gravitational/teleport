@@ -21,7 +21,7 @@ exports[`snapshot tests 1`] = `
 
 .c3 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -40,7 +40,7 @@ exports[`snapshot tests 1`] = `
 .c3:hover,
 .c3:focus,
 .c3:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c3::-ms-clear {
@@ -48,7 +48,8 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c3:read-only {
@@ -56,8 +57,8 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c3:hover,

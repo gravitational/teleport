@@ -78,7 +78,7 @@ it('does not display empty results copy after selecting two filters', () => {
   expect(results).not.toHaveTextContent('No matching results found');
 });
 
-it('does display empty results copy after providing search query for which there is no results', () => {
+it('displays empty results copy after providing search query for which there is no results', () => {
   const appContext = new MockAppContext();
   appContext.workspacesService.setState(draft => {
     draft.rootClusterUri = '/clusters/foo';
@@ -110,22 +110,14 @@ it('does display empty results copy after providing search query for which there
   expect(results).toHaveTextContent('No matching results found.');
 });
 
-it('does display empty results copy and excluded clusters after providing search query for which there is no results', () => {
+it('includes offline cluster names in the empty results copy', () => {
   const appContext = new MockAppContext();
-  jest
-    .spyOn(appContext.clustersService, 'getRootClusters')
-    .mockImplementation(() => [
-      {
-        uri: '/clusters/teleport-12-ent.asteroid.earth',
-        name: 'teleport-12-ent.asteroid.earth',
-        connected: false,
-        leaf: false,
-        proxyHost: 'test:3030',
-        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-      },
-    ]);
+  const cluster = makeRootCluster({ connected: false });
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.set(cluster.uri, cluster);
+  });
   appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = '/clusters/foo';
+    draft.rootClusterUri = cluster.uri;
   });
 
   const mockActionAttempts = {
@@ -153,7 +145,7 @@ it('does display empty results copy and excluded clusters after providing search
   const results = screen.getByRole('menu');
   expect(results).toHaveTextContent('No matching results found.');
   expect(results).toHaveTextContent(
-    'The cluster teleport-12-ent.asteroid.earth was excluded from the search because you are not logged in to it.'
+    `The cluster ${cluster.name} was excluded from the search because you are not logged in to it.`
   );
 });
 
@@ -216,6 +208,7 @@ it('notifies about resource search errors and allows to display details', () => 
 });
 
 it('maintains focus on the search input after closing a resource search error modal', async () => {
+  const user = userEvent.setup();
   const appContext = new MockAppContext();
   appContext.workspacesService.setState(draft => {
     draft.rootClusterUri = '/clusters/foo';
@@ -247,7 +240,8 @@ it('maintains focus on the search input after closing a resource search error mo
     </MockAppContextProvider>
   );
 
-  screen.getByRole('searchbox').focus();
+  await user.type(screen.getByRole('searchbox'), 'foo');
+
   expect(screen.getByRole('menu')).toHaveTextContent(
     'Some of the search results are incomplete.'
   );

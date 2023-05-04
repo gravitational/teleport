@@ -21,7 +21,7 @@ import Icon from './../Icon';
 const MenuItemIcon = styled(Icon)`
   &:hover,
   &:focus {
-    color: ${props => props.theme.colors.text.primary};
+    color: ${props => props.theme.colors.text.main};
   }
 `;
 

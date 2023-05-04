@@ -108,7 +108,6 @@ export const kinds = props => {
         border: '1px solid ' + theme.colors.buttons.border.border,
         '&:hover, &:focus': {
           background: theme.colors.buttons.border.hover,
-          border: '1px solid ' + theme.colors.buttons.border.borderHover,
         },
         '&:active': {
           background: theme.colors.buttons.border.active,

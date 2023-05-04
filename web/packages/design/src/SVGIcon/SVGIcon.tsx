@@ -33,7 +33,7 @@ export function SVGIcon({
       xmlns="http://www.w3.org/2000/svg"
       width={width || size}
       height={height || size}
-      fill={fill || theme.colors.text.primary}
+      fill={fill || theme.colors.text.main}
     >
       {children}
     </svg>

@@ -74,13 +74,13 @@ export function ClusterLogout({
             type="button"
             disabled={status === 'processing'}
             onClick={onClose}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             <Close fontSize={5} />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text color="text.secondary" typography="body1">
+          <Text color="text.slightlyMuted" typography="body1">
             Are you sure you want to log out?
           </Text>
           {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}

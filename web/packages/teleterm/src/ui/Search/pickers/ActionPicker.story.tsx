@@ -53,12 +53,13 @@ export const Items = (props: { maxWidth: string }) => {
   const { maxWidth = '600px' } = props;
 
   return (
-    <Flex gap={4}>
+    <Flex gap={4} alignItems="flex-start">
       <div
         css={`
           max-width: ${maxWidth};
           min-width: 0;
           flex: 1;
+          background-color: ${props => props.theme.colors.levels.elevated};
 
           display: flex;
           flex-direction: column;
@@ -75,6 +76,7 @@ export const Items = (props: { maxWidth: string }) => {
           max-width: ${maxWidth};
           min-width: 0;
           flex: 1;
+          background-color: ${props => props.theme.colors.levels.elevated};
 
           display: flex;
           flex-direction: column;
@@ -355,20 +357,16 @@ const AuxiliaryItems = () => (
     ExtraTopComponent={
       <>
         <NoResultsItem
-          clusters={[
-            {
-              uri: clusterUri,
-              name: 'teleport-12-ent.asteroid.earth',
-              connected: false,
-              leaf: false,
-              proxyHost: 'test:3030',
-              authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-            },
-          ]}
+          clustersWithExpiredCerts={new Set([clusterUri])}
+          getClusterName={routing.parseClusterName}
+        />
+        <NoResultsItem
+          clustersWithExpiredCerts={new Set([clusterUri, '/clusters/foobar'])}
+          getClusterName={routing.parseClusterName}
         />
         <ResourceSearchErrorsItem
           getClusterName={routing.parseClusterName}
-          onShowDetails={() => window.alert('Error details')}
+          showErrorsInModal={() => window.alert('Error details')}
           errors={[
             new ResourceSearchError(
               '/clusters/foo',
@@ -381,7 +379,7 @@ const AuxiliaryItems = () => (
         />
         <ResourceSearchErrorsItem
           getClusterName={routing.parseClusterName}
-          onShowDetails={() => window.alert('Error details')}
+          showErrorsInModal={() => window.alert('Error details')}
           errors={[
             new ResourceSearchError(
               '/clusters/bar',

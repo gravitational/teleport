@@ -192,7 +192,7 @@ const StyledSupportLink = styled.a.attrs({
   rel: 'noreferrer',
 })`
   display: block;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 4px;
   text-decoration: none;
   margin-bottom: 8px;
