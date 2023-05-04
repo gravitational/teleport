@@ -16,6 +16,8 @@
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
 
+export { CTA as CtaEvents } from 'gen-proto-js/prehog/v1alpha/teleport_pb';
+
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
@@ -109,14 +111,6 @@ export enum DiscoverEventStatus {
   Skipped = 'DISCOVER_STATUS_SKIPPED',
   Error = 'DISCOVER_STATUS_ERROR',
   Aborted = 'DISCOVER_STATUS_ABORTED', // user exits the wizard
-}
-
-export enum CtaEvents {
-  authConnectors = 1,
-  activeSessions = 2,
-  accessRequests = 3,
-  premiumSupport = 4,
-  trustedDevices = 5,
 }
 
 export type UserEvent = {

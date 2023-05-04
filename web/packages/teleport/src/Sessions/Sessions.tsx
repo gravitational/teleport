@@ -49,7 +49,10 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {showActiveSessionsCTA && (
           <Box width="340px">
-            <ButtonLockedFeature height="36px" event={CtaEvents.activeSessions}>
+            <ButtonLockedFeature
+              height="36px"
+              event={CtaEvents.CTA_ACTIVE_SESSIONS}
+            >
               Join Active Sessions With Teleport Enterprise
             </ButtonLockedFeature>
           </Box>

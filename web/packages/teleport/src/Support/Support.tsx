@@ -83,7 +83,7 @@ export const Support = ({
               url="mailto:support@goteleport.com"
             />
             {isEnterprise && showPremiumSupportCTA && (
-              <ButtonLockedFeature event={CtaEvents.premiumSupport}>
+              <ButtonLockedFeature event={CtaEvents.CTA_PREMIUM_SUPPORT}>
                 Unlock Premium Support w/Enterprise
               </ButtonLockedFeature>
             )}

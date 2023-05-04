@@ -42,7 +42,7 @@ export const SessionJoinBtn = ({
           <ButtonLockedFeature
             noIcon
             height="40px"
-            event={CtaEvents.activeSessions}
+            event={CtaEvents.CTA_ACTIVE_SESSIONS}
           >
             Join Active Sessions with Teleport Enterprise
           </ButtonLockedFeature>
