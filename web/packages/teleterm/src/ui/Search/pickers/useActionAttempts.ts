@@ -35,7 +35,6 @@ import {
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
 import { mapToActions } from 'teleterm/ui/Search/actions';
-import Logger from 'teleterm/logger';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchFilter } from 'teleterm/ui/Search/searchResult';
@@ -43,7 +42,6 @@ import { routing } from 'teleterm/ui/uri';
 import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
 
 export function useActionAttempts() {
-  const searchLogger = useRef(new Logger('search'));
   const ctx = useAppContext();
   const { modalsService, workspacesService } = ctx;
   const searchContext = useSearchContext();
@@ -113,7 +111,6 @@ export function useActionAttempts() {
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
         const sortedResults = rankResults(results, search);
-        searchLogger.current.info('results for', search, sortedResults);
 
         return mapToActions(ctx, searchContext, sortedResults);
       }),
