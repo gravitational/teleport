@@ -84,8 +84,7 @@ type Props = {
 
 const Header = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid
-    ${props => props.theme.colors.levels.surfaceSecondary};
+  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   height: 56px;
   margin-bottom: 24px;
 `;

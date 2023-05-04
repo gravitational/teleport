@@ -18,7 +18,7 @@ export function AccessRequestCheckoutButton() {
         size="small"
         title="Toggle Access Request Checkout"
       >
-        <OpenBox mr={2} fontSize="12px" />
+        <OpenBox mr={2} fontSize="12px" color="buttons.primary.text" />
         <Text fontSize="12px">{count}</Text>
       </ButtonPrimary>
     );

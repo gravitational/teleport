@@ -90,18 +90,19 @@ export function NewRequest() {
         onConfirm={handleConfirmChangeResource}
       />
       <StyledMain>
-        <StyledNav mt={3} mb={3}>
+        <Flex mt={3} mb={3}>
           {filteredAgentOptions.map(agent => (
             <StyledNavButton
               key={agent.value}
               mr={6}
+              p={1}
               active={selectedResource === agent.value}
               onClick={() => handleUpdateSelectedResource(agent.value)}
             >
               {agent.label}
             </StyledNavButton>
           ))}
-        </StyledNav>
+        </Flex>
         <SearchPanel
           updateQuery={updateQuery}
           updateSearch={updateSearch}
@@ -159,20 +160,15 @@ const StyledNavButton = styled.button(props => {
     backgroundColor: 'inherit',
     flexShrink: '0',
     borderRadius: '4px',
+    fontFamily: 'inherit',
 
     '&:hover, &:focus': {
-      background: props.theme.colors.levels.surfaceSecondary,
+      background: props.theme.colors.spotBackground[0],
     },
     ...space(props),
     ...width(props),
   };
 });
-
-const StyledNav = styled(Flex)`
-  min-width: 180px;
-  min-height: 16px;
-  overflow: auto;
-`;
 
 const StyledMain = styled.div`
   width: 100%;

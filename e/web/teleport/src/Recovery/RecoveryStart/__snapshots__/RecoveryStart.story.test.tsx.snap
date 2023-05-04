@@ -113,6 +113,7 @@ exports[`render correct form for clicking forgot mfa device 1`] = `
 
 .c6::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c6:read-only {
@@ -314,6 +315,7 @@ exports[`render correct form for clicking forgot password 1`] = `
 
 .c6::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c6:read-only {

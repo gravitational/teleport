@@ -151,6 +151,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 
 .c8::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c8:read-only {
@@ -623,6 +624,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 
 .c8::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c8:read-only {
@@ -882,6 +884,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 
 .c8::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c8:read-only {
@@ -1381,6 +1384,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 
 .c8::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c8:read-only {
@@ -1839,6 +1843,7 @@ exports[`render form for authenticating with multi option 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2282,6 +2287,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 
 .c7::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2512,6 +2518,7 @@ exports[`render form for authenticating with totp 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2982,6 +2989,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 
 .c7::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {

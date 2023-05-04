@@ -327,7 +327,6 @@ exports[`renders loaded linux 1`] = `
 
 .c22 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -390,8 +389,8 @@ exports[`renders loaded linux 1`] = `
   line-height: 16px;
 }
 
-.c22 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c22 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c22 tbody tr:hover {
@@ -1208,7 +1207,6 @@ exports[`renders loaded macOS 1`] = `
 
 .c22 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1271,8 +1269,8 @@ exports[`renders loaded macOS 1`] = `
   line-height: 16px;
 }
 
-.c22 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c22 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c22 tbody tr:hover {
@@ -1993,7 +1991,6 @@ exports[`renders loaded windows 1`] = `
 
 .c22 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -2056,8 +2053,8 @@ exports[`renders loaded windows 1`] = `
   line-height: 16px;
 }
 
-.c22 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c22 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c22 tbody tr:hover {
@@ -2786,7 +2783,6 @@ exports[`renders when license failed 1`] = `
 
 .c23 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -2849,8 +2845,8 @@ exports[`renders when license failed 1`] = `
   line-height: 16px;
 }
 
-.c23 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c23 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c23 tbody tr:hover {
@@ -3673,7 +3669,6 @@ exports[`renders when license is loading 1`] = `
 
 .c22 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -3736,8 +3731,8 @@ exports[`renders when license is loading 1`] = `
   line-height: 16px;
 }
 
-.c22 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c22 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c22 tbody tr:hover {

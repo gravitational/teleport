@@ -290,24 +290,111 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c21 {
+.c23 {
   box-sizing: border-box;
   margin-left: auto;
   width: 240px;
   color: #FFFFFF;
 }
 
-.c18 {
+.c19 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c20 {
+.c22 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
+}
+
+.c16 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c16 .c18 {
+  color: inherit;
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c16:hover:enabled,
+.c16:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c20 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c20 .c18 {
+  color: inherit;
+}
+
+.c20:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c20:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c20:hover:enabled,
+.c20:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c20:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c14 {
@@ -321,7 +408,7 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c22 {
+.c24 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -332,7 +419,7 @@ exports[`loaded 1`] = `
   margin-bottom: 16px;
 }
 
-.c23 {
+.c25 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -342,7 +429,7 @@ exports[`loaded 1`] = `
   margin-bottom: 16px;
 }
 
-.c24 {
+.c26 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -351,7 +438,7 @@ exports[`loaded 1`] = `
   margin: 0px;
 }
 
-.c25 {
+.c27 {
   color: #009EFF;
   font-weight: normal;
   background: none;
@@ -424,9 +511,8 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 {
+.c21 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -436,39 +522,39 @@ exports[`loaded 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c19 > thead > tr > th,
-.c19 > tbody > tr > th,
-.c19 > tfoot > tr > th,
-.c19 > thead > tr > td,
-.c19 > tbody > tr > td,
-.c19 > tfoot > tr > td {
+.c21 > thead > tr > th,
+.c21 > tbody > tr > th,
+.c21 > tfoot > tr > th,
+.c21 > thead > tr > td,
+.c21 > tbody > tr > td,
+.c21 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th:first-child,
-.c19 > tbody > tr > th:first-child,
-.c19 > tfoot > tr > th:first-child,
-.c19 > thead > tr > td:first-child,
-.c19 > tbody > tr > td:first-child,
-.c19 > tfoot > tr > td:first-child {
+.c21 > thead > tr > th:first-child,
+.c21 > tbody > tr > th:first-child,
+.c21 > tfoot > tr > th:first-child,
+.c21 > thead > tr > td:first-child,
+.c21 > tbody > tr > td:first-child,
+.c21 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c19 > thead > tr > th:last-child,
-.c19 > tbody > tr > th:last-child,
-.c19 > tfoot > tr > th:last-child,
-.c19 > thead > tr > td:last-child,
-.c19 > tbody > tr > td:last-child,
-.c19 > tfoot > tr > td:last-child {
+.c21 > thead > tr > th:last-child,
+.c21 > tbody > tr > th:last-child,
+.c21 > tfoot > tr > th:last-child,
+.c21 > thead > tr > td:last-child,
+.c21 > tbody > tr > td:last-child,
+.c21 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c19 > tbody > tr > td {
+.c21 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th {
+.c21 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -482,22 +568,22 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c19 > thead > tr > th .c17 {
+.c21 > thead > tr > th .c18 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c19 > tbody > tr > td {
+.c21 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c19 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c21 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
-.c19 tbody tr:hover {
+.c21 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -517,29 +603,12 @@ exports[`loaded 1`] = `
   border-radius: 8px;
 }
 
-.c16 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c16 .c17 {
+.c17 .c18 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c16:hover .c17,
-.c16:focus .c17 {
-  opacity: 1;
-}
-
-.c16:disabled {
-  cursor: default;
-}
-
-.c16:disabled .c17 {
-  opacity: 0.1;
+.c17 .c18:before {
+  padding-left: 1px;
 }
 
 .c11 {
@@ -684,22 +753,22 @@ exports[`loaded 1`] = `
               class="c15"
             >
               <button
-                class="c16"
+                class="c16 c17"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c17 c18 icon icon-arrow-left-circle "
+                  class="c18 c19 icon icon-arrow-left-circle "
                   font-size="3"
                 />
               </button>
               <button
-                class="c16"
+                class="c20 c17"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c17 c18 icon icon-arrow-right-circle "
+                  class="c18 c19 icon icon-arrow-right-circle "
                   font-size="3"
                 />
               </button>
@@ -707,7 +776,7 @@ exports[`loaded 1`] = `
           </div>
         </nav>
         <table
-          class="c19"
+          class="c21"
         >
           <thead>
             <tr>
@@ -734,7 +803,7 @@ exports[`loaded 1`] = `
                 align="left"
               >
                 <span
-                  class="c17 c20 icon icon-apple "
+                  class="c18 c22 icon icon-apple "
                   style="padding-right: 5px;"
                 />
                  
@@ -752,7 +821,7 @@ exports[`loaded 1`] = `
                 align="left"
               >
                 <span
-                  class="c17 c20 icon icon-linux "
+                  class="c18 c22 icon icon-linux "
                   style="padding-right: 5px;"
                 />
                  
@@ -770,7 +839,7 @@ exports[`loaded 1`] = `
                 align="left"
               >
                 <span
-                  class="c17 c20 icon icon-windows "
+                  class="c18 c22 icon icon-windows "
                   style="padding-right: 5px;"
                 />
                  
@@ -788,28 +857,28 @@ exports[`loaded 1`] = `
       </div>
     </div>
     <div
-      class="c21"
+      class="c23"
       color="text.main"
       style="flex-shrink: 0;"
       width="240px"
     >
       <div
-        class="c22"
+        class="c24"
       >
         Register Trusted Device
       </div>
       <div
-        class="c23"
+        class="c25"
       >
         Device Trust allows Teleport admins to enforce the use of trusted devices. Resources protected by the device mode "required" will enforce authenticated device access.
       </div>
       <div
-        class="c24"
+        class="c26"
       >
         Please
          
         <a
-          class="c25"
+          class="c27"
           color="text.main"
           href="https://goteleport.com/docs/access-controls/guides/device-trust/"
           rel="noreferrer"

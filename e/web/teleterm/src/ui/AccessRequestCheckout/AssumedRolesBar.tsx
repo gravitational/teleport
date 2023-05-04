@@ -1,5 +1,6 @@
-import React, { useRef } from 'react';
-import { Box, Flex, Text, ButtonPrimary } from 'design';
+import React from 'react';
+import styled from 'styled-components';
+import { Box, Flex, Text } from 'design';
 import { pluralize } from 'teleport/lib/util';
 import { AssumedRequest } from 'teleterm/services/tshd/types';
 
@@ -18,15 +19,16 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
   const hasExpiredText =
     assumedRoles.length > 1 ? 'have expired' : 'has expired';
   const expirationText = `${roleText} ${hasExpiredText}`;
-  const ref = useRef<HTMLButtonElement>(null);
   const assumedRolesText = assumedRoles.join(', ');
   return (
     <Box
       px={3}
       py={2}
-      bg="accent"
+      bg="brand"
       borderTop={1}
-      borderColor="levels.sunkenSecondary"
+      css={`
+        border-color: ${props => props.theme.colors.spotBackground[0]};
+      `}
     >
       <Flex justifyContent="space-between" alignItems="center">
         <Flex alignItems="center">
@@ -35,7 +37,7 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
             py={1}
             px={3}
             mr={2}
-            color="brand"
+            color="text.primaryInverse"
             bg="light"
             style={{
               fontWeight: '500',
@@ -48,17 +50,16 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
           >
             {assumedRolesText}
           </Box>
-          <Text typography="body" color="light" bold>
+          <Text typography="body" color="text.primaryInverse">
             {hasExpired ? expirationText : durationText}
           </Text>
         </Flex>
-        <ButtonPrimary
-          setRef={ref}
+        <StyledButtonLink
           onClick={dropRequest}
           disabled={dropRequestAttempt.status === 'processing'}
         >
           Drop Request
-        </ButtonPrimary>
+        </StyledButtonLink>
       </Flex>
     </Box>
   );
@@ -67,3 +68,26 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
 type Props = {
   assumedRolesRequest: AssumedRequest;
 };
+
+const StyledButtonLink = styled.button`
+  color: ${props => props.theme.colors.text.primaryInverse};
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  padding: 8px;
+  outline: none;
+  border: none;
+  border-radius: 4px;
+  font-family: inherit;
+
+  &:hover,
+  &:focus {
+    background: ${props => props.theme.colors.spotBackground[1]};
+    cursor: pointer;
+  }
+
+  &:disabled {
+    background: ${props => props.theme.colors.spotBackground[0]};
+    color: ${props => props.theme.colors.text.disabled};
+  }
+`;

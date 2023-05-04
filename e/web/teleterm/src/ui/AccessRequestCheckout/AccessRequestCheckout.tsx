@@ -1,8 +1,7 @@
 import React from 'react';
-import styled from 'styled-components';
 import { Transition } from 'react-transition-group';
 
-import { Box, Flex, ButtonPrimary, ButtonText, Text } from 'design';
+import { Box, Flex, ButtonPrimary, ButtonText, Text, ButtonIcon } from 'design';
 import { ArrowDown } from 'design/Icon';
 
 import { pluralize } from 'teleport/lib/util';
@@ -73,9 +72,10 @@ export function AccessRequestCheckout() {
       {data.length > 0 && !isCollapsed() && (
         <Box
           p={3}
-          bg="levels.sunken"
-          border={1}
-          borderColor="levels.sunkenSecondary"
+          css={`
+            border-top: 1px solid
+              ${props => props.theme.colors.spotBackground[1]};
+          `}
         >
           <Flex justifyContent="space-between" alignItems="center">
             <Text typography="h4" color="light" bold>
@@ -85,9 +85,9 @@ export function AccessRequestCheckout() {
               <ButtonPrimary onClick={() => setShowCheckout(!showCheckout)}>
                 Proceed to Request
               </ButtonPrimary>
-              <CollapseButton onClick={collapseBar}>
+              <ButtonIcon onClick={collapseBar}>
                 <ArrowDown fontSize={3} />
-              </CollapseButton>
+              </ButtonIcon>
             </Flex>
           </Flex>
         </Box>
@@ -128,17 +128,3 @@ export function AccessRequestCheckout() {
     </>
   );
 }
-
-const CollapseButton = styled(Flex)`
-  background: ${props => props.theme.colors.levels.sunkenSecondary};
-  width: 26px;
-  justify-content: center;
-  align-items: center;
-  height: 26px;
-  border-radius: 50%;
-  &:hover {
-    cursor: pointer;
-    background: ${props => props.theme.colors.brand};
-  }
-  transition: background linear 0.1s;
-`;

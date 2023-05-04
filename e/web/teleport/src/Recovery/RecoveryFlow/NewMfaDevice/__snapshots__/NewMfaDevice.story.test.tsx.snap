@@ -143,6 +143,7 @@ exports[`render correct form to add TOTP device 1`] = `
 
 .c15::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c15:read-only {
@@ -667,6 +668,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 
 .c13::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c13:read-only {
@@ -1145,6 +1147,7 @@ exports[`render correct form to add with multi option 1`] = `
 
 .c13::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c13:read-only {
@@ -1645,6 +1648,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 
 .c14::placeholder {
   color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c14:read-only {

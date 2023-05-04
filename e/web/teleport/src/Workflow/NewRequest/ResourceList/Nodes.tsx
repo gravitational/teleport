@@ -56,8 +56,10 @@ export const renderAddressCell = ({ addr, tunnel }: Node) => (
 function renderTunnel() {
   return (
     <span
-      style={{ cursor: 'default' }}
+      style={{ cursor: 'default', whiteSpace: 'nowrap' }}
       title="This node is connected to cluster through reverse tunnel"
-    >{`⟵ tunnel`}</span>
+    >
+      ← tunnel
+    </span>
   );
 }

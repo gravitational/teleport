@@ -58,7 +58,6 @@ exports[`render Apps 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -121,8 +120,8 @@ exports[`render Apps 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -303,7 +302,6 @@ exports[`render Databases 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -366,8 +364,8 @@ exports[`render Databases 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -552,7 +550,6 @@ exports[`render Desktops 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -615,8 +612,8 @@ exports[`render Desktops 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -785,7 +782,6 @@ exports[`render Kubes 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -848,8 +844,8 @@ exports[`render Kubes 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -1010,7 +1006,6 @@ exports[`render Nodes 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1073,8 +1068,8 @@ exports[`render Nodes 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -1237,7 +1232,6 @@ exports[`render Roles 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1300,8 +1294,8 @@ exports[`render Roles 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
@@ -1441,7 +1435,6 @@ exports[`render UserGroups 1`] = `
 
 .c1 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1504,8 +1497,8 @@ exports[`render UserGroups 1`] = `
   line-height: 16px;
 }
 
-.c1 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c1 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c1 tbody tr:hover {
