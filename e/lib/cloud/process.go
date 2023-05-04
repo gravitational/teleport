@@ -8,8 +8,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
@@ -27,6 +29,10 @@ var (
 	defaultAPIServerAddr = "api.teleport.sh"
 	// defaultReportingInterval is how often Teleport Cloud reports its usage
 	defaultReportingInterval = 5 * time.Minute
+	// defaultFeatureQueryInterval is how often Teleport will query Cloud for the feature set
+	defaultFeatureQueryInterval = 2 * time.Minute
+	//  defaultRequestTimeout is the timeout of requests to fetch Cloud features
+	defaultFeatureQueryTimeout = time.Second * 30
 	// defaultAPIServerPort is the default SalesCenter API port
 	defaultAPIServerPort = 443
 	// EnvVarHostPort is used to override the default cloud api server address
@@ -135,6 +141,23 @@ func NewTeleport(cfg Config) (*Process, error) {
 		cloudClient.Close()
 	})
 
+	// Start feature service
+	if cfg.LicenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
+		// Use a jittered interval between (defaultFeatureQuerryInterval, defaultFeatureQueryInterval * 2)
+		// so cloud server doesn't get too crowded when all auth servers are restarted on upgrades
+		jitteredQueryInterval := utils.HalfJitter(defaultFeatureQueryInterval * 2)
+		featureService, err := feature.NewService(feature.Config{
+			Backend:        process.GetBackend(),
+			CloudClient:    cloudClient,
+			Interval:       jitteredQueryInterval,
+			RequestTimeout: defaultFeatureQueryTimeout,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		go featureService.Run(process.ExitContext())
+	}
+
 	// Start usage reporting
 	go usageReporter.Run(process.ExitContext())
 
@@ -186,7 +209,7 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 	}
 
 	if c.LicenseFile == nil {
-		return trace.BadParameter("missing LicenseFile ")
+		return trace.BadParameter("missing LicenseFile")
 	}
 
 	if c.LicenseFile.KeyPair == nil {
@@ -239,4 +262,30 @@ func GetServerAddr(hostport string) (*utils.NetAddr, error) {
 	}
 
 	return addr, nil
+}
+
+// NewClientFromLicense returns a new cloud client from a license file
+func NewClientFromLicense(license liblicense.License) (cloud.Client, error) {
+	cloudAPIServerAddr := os.Getenv(EnvVarHostPort)
+	if cloudAPIServerAddr == "" {
+		return nil, trace.BadParameter("license requires fetching features from Cloud but no Cloud host was provided")
+	}
+
+	apiServerAddr, err := GetServerAddr(cloudAPIServerAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := liblicense.MakeTLSConfig(license)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig.ServerName = apiServerAddr.Host()
+	tlsConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
+
+	return cloud.NewClient(cloud.ClientConfig{
+		Hostname:  apiServerAddr.Addr,
+		TLSConfig: tlsConfig,
+	})
 }

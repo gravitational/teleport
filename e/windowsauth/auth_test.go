@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/windows"
 	"os/user"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows"
 )
 
 const (

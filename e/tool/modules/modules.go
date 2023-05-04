@@ -16,7 +16,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
+	"github.com/gravitational/teleport/e/lib/cloud"
+	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -25,6 +26,10 @@ import (
 
 // eModuleComponent is the name of the component used for logging
 const eModuleComponent = "enterprise/modules"
+
+// cloudFeatureRequestTimeout is the timeout of requests to Teleport Cloud
+// when fetching features
+var cloudFeatureRequestTimeout = time.Second * 10
 
 func init() {
 	// Set the modules to Enterprise but with no license information.
@@ -46,12 +51,22 @@ func SetModules(licenseFile *licensefile.LicenseFile) error {
 
 	if licenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
 		p.log.Debug("fetching features from Cloud")
-		f, err := cloudlib.FetchFeatures(context.Background(), *licenseFile.KeyPair)
+		client, err := cloud.NewClientFromLicense(*licenseFile.KeyPair)
+		if err != nil {
+			p.log.Errorf("failed creating cloud client to fetch features: %+v", err)
+			return trace.Wrap(err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), cloudFeatureRequestTimeout)
+		defer cancel()
+
+		f, err := feature.FetchFromCloud(ctx, client)
 		if err != nil {
 			p.log.Errorf("failed fetching features from Cloud: %+v", err)
 			return trace.Wrap(err)
 		}
 		p.log.Debugf("successfully fetched features from Cloud: %+v", f)
+		f.RecoveryCodes = true
 		features = *f
 	}
 
@@ -84,6 +99,20 @@ func (p *enterpriseModules) Features() modules.Features {
 
 	features.AutomaticUpgrades = p.automaticUpgrades
 	return features
+}
+
+// SetFeatures sets the module's features for cloud clusters.
+// The values of RecoveryCodes and Plugins will not be updated. Use
+// EnableRecoveryCodes or EnablePlugins to update these fields.
+func (p *enterpriseModules) SetFeatures(f modules.Features) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// since these fields are directly set based on config features and shouldn't be set automatically
+	f.RecoveryCodes = p.features.RecoveryCodes
+	f.Plugins = p.features.Plugins
+
+	p.features = f
 }
 
 // EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords

@@ -44,12 +44,16 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 	}
 
 	cfg.Log.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
-	err = emodules.SetModules(licenseFile)
-	if err != nil {
-		cfg.Log.Errorf("error setting enterprise modules: %+v", err)
-		return nil, trace.Wrap(err)
-	}
 	return licenseFile, nil
+}
+
+// configureModules configures the modules based on the license
+func configureModules(licenseFile *licensefile.LicenseFile) error {
+	err := emodules.SetModules(licenseFile)
+	if err != nil {
+		return trace.Wrap(err, "error setting enterprise modules")
+	}
+	return nil
 }
 
 // servicesNeedLicense returns true if the configured services require a license.

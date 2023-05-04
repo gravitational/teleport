@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"net/url"
 	"os"
 
@@ -8,11 +9,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -26,9 +29,21 @@ const pluginShimURLEnvVar = "TELEPORT_PLUGIN_SHIM_URL"
 
 // NewTeleport initializes a new Teleport Enterprise process
 func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
+	tryLoadingFeaturesFromBackend := false
+	ctx := context.Background()
+
 	license, err := configureLicense(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := configureModules(license); err != nil {
+		// despite the error, we should still try to load features from the backend.
+		// Features from the backend may be stale, so we should always prioritize
+		// using configureModules, and only use the backend features as a fallback in case
+		// some external service (like Cloud's API) is offline during the features fetching.
+		cfg.Log.Warnf("failed configuring cluster modules: %+v", err)
+		tryLoadingFeaturesFromBackend = cfg.Auth.Enabled
 	}
 
 	webPlugin, authPlugin, err := addPlugins(cfg, license)
@@ -39,6 +54,23 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	ossProcess, err := service.NewTeleport(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if tryLoadingFeaturesFromBackend {
+		cfg.Log.Info("trying to read cluster features from the backend")
+		f, err := feature.Load(ctx, ossProcess.GetBackend())
+		if err != nil {
+			return nil, trace.Wrap(err, "couldn't read or load the cluster features")
+		}
+		cfg.Log.Infof("successfully loaded features from backend: %+v", *f)
+		modules.GetModules().SetFeatures(*f)
+	}
+
+	// store cloud features for future restarts
+	if license != nil && license.License.GetFeatureSource() == types.FeatureSourceCloud {
+		if _, err := feature.Store(ctx, modules.GetModules().Features(), ossProcess.GetBackend()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if cfg.Proxy.Enabled && !cfg.Proxy.DisableWebService {
