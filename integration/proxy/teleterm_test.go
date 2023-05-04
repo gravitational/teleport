@@ -82,7 +82,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 		ALBAddr: albAddr,
 	}, *creds)
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
