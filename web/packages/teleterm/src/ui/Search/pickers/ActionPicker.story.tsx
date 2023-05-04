@@ -395,7 +395,8 @@ const AuxiliaryItems = () => (
             ),
           ]}
         />
-        <TypeToSearchItem />
+        <TypeToSearchItem hasNoRemainingFilterActions={false} />
+        <TypeToSearchItem hasNoRemainingFilterActions={true} />
       </>
     }
   />
