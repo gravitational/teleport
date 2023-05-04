@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
   UID: "1000"
 trigger:
   event:
@@ -117,19 +117,13 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -161,7 +155,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
   UID: "1000"
 trigger:
   event:
@@ -237,19 +231,13 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -281,7 +269,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
   UID: "1000"
 trigger:
   event:
@@ -361,19 +349,13 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -405,7 +387,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
   UID: "1000"
 trigger:
   event:
@@ -481,19 +463,13 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -580,7 +556,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.8
+    RUNTIME: go1.19.9
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -1158,7 +1134,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
   GID: "1000"
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
   UID: "1000"
 trigger:
   event:
@@ -1234,19 +1210,13 @@ steps:
   - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1318,26 +1288,20 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -tag-workflow -timeout 2h30m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
     -input "upload-artifacts=false" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 - name: Send Slack notification
-  image: plugins/slack
+  image: plugins/slack:1.4.1
   settings:
+    template: |-
+      *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1664,17 +1628,13 @@ steps:
       path: /root/.aws
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
       status: [failure]
 
@@ -1693,7 +1653,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -1902,7 +1862,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -2110,7 +2070,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -2325,7 +2285,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -3625,7 +3585,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -4439,7 +4399,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.19.8
+    RUNTIME: go1.19.9
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -5031,7 +4991,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -5277,7 +5237,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
     "upload-artifacts=true" '
   environment:
@@ -6360,7 +6320,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport10
-  RUNTIME: go1.19.8
+  RUNTIME: go1.19.9
 trigger:
   event:
     include:
@@ -19893,6 +19853,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 9280d6c11f0ffb17532817e95bf26f7f8c4c18157106768f3dcdd8ee8c01be34
+hmac: bd68cd7d7ed539da8bcc3a952d18971c5458554da9a2e56a229181c8e98631e2
 
 ...
