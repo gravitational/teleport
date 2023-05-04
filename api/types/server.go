@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -467,7 +466,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
-	return proto.Clone(s).(*ServerV2)
+	return utils.CloneProtoMsg(s)
 }
 
 // IsAWSConsole returns true if this app is AWS management console.
