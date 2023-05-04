@@ -199,7 +199,10 @@ message UICallToActionClickEvent {
   CTA cta = 1;
 }
 
-// CTA represents teleport web UI's call to action buttons
+// CTA represents teleport web UI's call to action buttons.
+// We can't use prehog.v1alpha.CTA here because AuthService (and thus this file)
+// is generated with gogofast, so we just copy the enum definition here instead.
+// Make sure you update both.
 enum CTA {
   CTA_UNSPECIFIED = 0;
   CTA_AUTH_CONNECTOR = 1;
