@@ -72,11 +72,98 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c38 {
+.c39 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c37 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c37 .c26 {
+  color: inherit;
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c37:hover:enabled,
+.c37:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c37:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c40 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c40 .c26 {
+  color: inherit;
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c40:hover:enabled,
+.c40:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c40:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c25 {
@@ -166,7 +253,6 @@ exports[`render DocumentNodes 1`] = `
 
 .c30 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -229,7 +315,7 @@ exports[`render DocumentNodes 1`] = `
   line-height: 16px;
 }
 
-.c30 tbody tr {
+.c30 > tbody > tr:not(:last-of-type) > td {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
@@ -257,6 +343,7 @@ exports[`render DocumentNodes 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c10 {
@@ -285,29 +372,12 @@ exports[`render DocumentNodes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c37 .c26 {
+.c38 .c26 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c37:hover .c26,
-.c37:focus .c26 {
-  opacity: 1;
-}
-
-.c37:disabled {
-  cursor: default;
-}
-
-.c37:disabled .c26 {
-  opacity: 0.1;
+.c38 .c26:before {
+  padding-left: 1px;
 }
 
 .c19 {
@@ -1000,10 +1070,10 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <span
-                  style="cursor: default;"
+                  style="cursor: default; white-space: nowrap;"
                   title="This node is connected to cluster through reverse tunnel"
                 >
-                  ⟵ tunnel
+                  ← tunnel
                 </span>
               </td>
               <td>
@@ -1047,10 +1117,10 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <span
-                  style="cursor: default;"
+                  style="cursor: default; white-space: nowrap;"
                   title="This node is connected to cluster through reverse tunnel"
                 >
-                  ⟵ tunnel
+                  ← tunnel
                 </span>
               </td>
               <td>
@@ -1167,22 +1237,22 @@ exports[`render DocumentNodes 1`] = `
               class="c28"
             >
               <button
-                class="c37"
+                class="c37 c38"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c26 c38 icon icon-arrow-left-circle "
+                  class="c26 c39 icon icon-arrow-left-circle "
                   font-size="3"
                 />
               </button>
               <button
-                class="c37"
+                class="c40 c38"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c26 c38 icon icon-arrow-right-circle "
+                  class="c26 c39 icon icon-arrow-right-circle "
                   font-size="3"
                 />
               </button>

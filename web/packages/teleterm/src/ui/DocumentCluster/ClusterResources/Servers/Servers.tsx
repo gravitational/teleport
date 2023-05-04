@@ -131,9 +131,11 @@ const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
   <Cell>
     {tunnel && (
       <span
-        style={{ cursor: 'default' }}
+        style={{ cursor: 'default', whiteSpace: 'nowrap' }}
         title="This node is connected to cluster through reverse tunnel"
-      >{`⟵ tunnel`}</span>
+      >
+        ← tunnel
+      </span>
     )}
     {!tunnel && addr}
   </Cell>

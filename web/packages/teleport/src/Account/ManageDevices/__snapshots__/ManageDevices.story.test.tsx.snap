@@ -140,7 +140,6 @@ exports[`render device dashboard 1`] = `
 
 .c11 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -205,7 +204,7 @@ exports[`render device dashboard 1`] = `
   line-height: 16px;
 }
 
-.c11 tbody tr {
+.c11 > tbody > tr:not(:last-of-type) > td {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
@@ -683,7 +682,6 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 
 .c12 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -748,7 +746,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   line-height: 16px;
 }
 
-.c12 tbody tr {
+.c12 > tbody > tr:not(:last-of-type) > td {
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
