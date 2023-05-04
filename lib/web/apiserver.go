@@ -1152,7 +1152,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 	// TODO: This part should be removed once the plugin support is added to OSS.
 	if proxyConfig.AssistEnabled {
-		// TODO(jakule): Currently assist is disabled when MFA is enabled as this part is not implemented.
+		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
 		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
