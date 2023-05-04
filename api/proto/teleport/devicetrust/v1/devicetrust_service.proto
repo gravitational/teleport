@@ -404,7 +404,7 @@ message TPMEnrollChallenge {
   TPMEncryptedCredential encrypted_credential = 1;
   // The nonce to use when producing the quotes over the PCRs with the TPM
   // during the platform attestation.
-  bytes platform_attestation_nonce = 2;
+  bytes attestation_nonce = 2;
 }
 
 // These values are used by the TPM2.0 `ActivateCredential` command to produce
@@ -514,7 +514,7 @@ message AuthenticateDeviceInit {
 message TPMAuthenticateDeviceChallenge {
   // Randomly-generated nonce to be used during platform attestation by the
   // TPM.
-  bytes nonce = 1;
+  bytes attestation_nonce = 1;
 }
 
 // TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
