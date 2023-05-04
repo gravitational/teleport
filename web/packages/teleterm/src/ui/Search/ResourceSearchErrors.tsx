@@ -52,18 +52,18 @@ export function ResourceSearchErrors(props: {
         <ButtonIcon
           type="button"
           onClick={props.onCancel}
-          color="text.secondary"
+          color="text.slightlyMuted"
         >
           <Close fontSize={5} />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <Text typography="body1" color="text.secondary">
+        <Text typography="body1" color="text.slightlyMuted">
           <pre
             css={`
               padding: ${props => props.theme.space[2]}px;
               background-color: ${props => props.theme.colors.levels.sunken};
-              color: ${props => props.theme.colors.text.primary};
+              color: ${props => props.theme.colors.text.main};
 
               white-space: pre-wrap;
               max-height: calc(${props => props.theme.space[6]}px * 10);

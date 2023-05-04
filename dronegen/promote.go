@@ -27,7 +27,7 @@ func promoteBuildPipelines() []pipeline {
 		workflows: []ghaWorkflow{
 			{
 				name:              "promote-teleport-oci-distroless.yml",
-				timeout:           60 * time.Minute,
+				timeout:           150 * time.Minute,
 				ref:               "${DRONE_TAG}",
 				shouldTagWorkflow: true,
 				inputs: map[string]string{
@@ -47,7 +47,7 @@ func promoteBuildPipelines() []pipeline {
 		workflows: []ghaWorkflow{
 			{
 				name:              "promote-teleport-kube-agent-updater-oci.yml",
-				timeout:           60 * time.Minute,
+				timeout:           150 * time.Minute,
 				ref:               "${DRONE_TAG}",
 				shouldTagWorkflow: true,
 				inputs: map[string]string{

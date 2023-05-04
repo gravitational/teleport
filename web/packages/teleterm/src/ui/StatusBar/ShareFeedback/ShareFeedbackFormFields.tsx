@@ -78,16 +78,16 @@ export function ShareFeedbackFormFields({
         textAreaCss={`
         font-size: 14px;
         outline: none;
-        color: ${theme.colors.text.primary};
+        color: ${theme.colors.text.main};
         background: ${theme.colors.levels.surface};
-        border: 1px solid ${theme.colors.text.placeholder};
+        border: 1px solid ${theme.colors.text.muted};
         ::placeholder {
-          color: ${theme.colors.text.placeholder};
+          color: ${theme.colors.text.muted};
         }
         &:hover,
         &:focus,
         &:active {
-          border: 1px solid ${theme.colors.text.secondary};
+          border: 1px solid ${theme.colors.text.slightlyMuted};
         }
         `}
         rule={requiredField('Suggestions are required')}
@@ -103,7 +103,7 @@ export function ShareFeedbackFormFields({
           updateFormField('newsletterEnabled', !formValues.newsletterEnabled);
         }}
       >
-        <Text ml={2} color="text.primary">
+        <Text ml={2} color="text.main">
           Sign me up for the newsletter
         </Text>
       </Toggle>
@@ -119,7 +119,7 @@ export function ShareFeedbackFormFields({
       >
         <Text
           ml={2}
-          color="text.primary"
+          color="text.main"
           css={`
             line-height: 18px;
           `}

@@ -160,7 +160,7 @@ export function CreateDatabaseView({
                     <Text mb={2}>
                       Labels make this new database discoverable by the database
                       service. <br />
-                      Not defining labels is equivalent to asteriks (any
+                      Not defining labels is equivalent to asterisks (any
                       database service can discover this database).
                     </Text>
                     <LabelsCreater
