@@ -1,4 +1,4 @@
-.version: &version "10.3.16"
+.version: &version "10.3.17-gitref.1"
 
 name: teleport-kube-agent
 apiVersion: v2
