@@ -26,6 +26,7 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
@@ -264,3 +265,5 @@ export type AssumedRequest = {
 };
 
 export { FileTransferDirection };
+
+export type Label = apiLabel.Label.AsObject;
