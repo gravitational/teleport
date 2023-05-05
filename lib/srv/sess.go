@@ -36,6 +36,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1807,10 +1808,11 @@ func (s *session) join(ch ssh.Channel, ctx *ServerContext, mode types.SessionPar
 		}
 
 		modes := s.access.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, mode) {
+		if !slices.Contains(modes, mode) {
 			return nil, trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
 
+		// TODO: debug presence checks after initial MFA is working
 		if s.presenceEnabled {
 			_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
 			if err != nil {

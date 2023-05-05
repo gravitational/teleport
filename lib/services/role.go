@@ -2243,6 +2243,12 @@ func NewLoginMatcher(login string) RoleMatcher {
 
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	// When joining sessions, we can't match on the OS login.
+	// Return true here so the rest of the role options apply.
+	if typ == types.Allow && l.login == teleport.SSHSessionJoinPrincipal {
+		return true, nil
+	}
+
 	logins := role.GetLogins(typ)
 	for _, login := range logins {
 		if l.login == login {
@@ -2403,7 +2409,7 @@ type AccessCheckable interface {
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
 	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Tracef
+	return isDebugEnabled, log.Debugf
 }
 
 // checkAccess checks if this role set has access to a particular resource r,

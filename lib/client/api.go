@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -1518,6 +1519,18 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer span.End()
 
+	// TODO(zmb3): remove this debug check
+	resp, _ := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  node,
+				Login: user,
+			},
+		}})
+	if resp != nil {
+		log.Warnf("MFA required for %v@%v? %v", user, node, resp.Required)
+	}
+
 	// if per-session mfa is required, perform the mfa ceremony to get
 	// new certificates and use them to connect.
 	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
@@ -1551,18 +1564,28 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		// try connecting to the node with the certs we already have
 		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			directResultC <- clientRes{err: err}
 			return
 		}
 
 		sshConfig := clt.ProxyClient.SSHConfig(user)
 		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
+		span.RecordError(err)
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		}
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
 	go func() {
 		// try performing mfa and then connecting with the single use certs
 		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
+		span.RecordError(err)
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		}
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -1656,6 +1679,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		oteltrace.WithAttributes(
 			attribute.String("cluster", nodeDetails.Cluster),
 			attribute.String("node", node),
+			attribute.String("user", user),
 		),
 	)
 	defer span.End()
