@@ -195,7 +195,10 @@ func (DiscoverStatus) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_94cf2ca1c69fd564, []int{1}
 }
 
-// CTA represents teleport web UI's call to action buttons
+// CTA represents teleport web UI's call to action buttons.
+// We can't use prehog.v1alpha.CTA here because AuthService (and thus this file)
+// is generated with gogofast, so we just copy the enum definition here instead.
+// Make sure you update both.
 type CTA int32
 
 const (
