@@ -23,6 +23,33 @@ We will run the following Teleport services:
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
+```mermaid
+flowchart LR
+
+subgraph private[Private network]
+    direction LR
+    serv1[Teleport service]
+    serv2[Teleport service]
+    serv3[Teleport service]
+end
+
+subgraph public[Public network]
+    Developers
+end
+
+subgraph server[Linux server]
+    direction RL
+    auth["Auth Service"]
+    proxy[Proxy Service]
+    ssh[SSH Service]
+    auth-- "Short-lived credentials" -->proxy
+    ssh-- Reverse tunnel-->proxy
+end
+
+Developers-- tsh sessions --->server
+serv1 & serv2 & serv3-- Reverse tunnel--->server
+```
+
 ## Prerequisites
 
 - A Linux host with only port `443` open to ingress traffic. You must be able
