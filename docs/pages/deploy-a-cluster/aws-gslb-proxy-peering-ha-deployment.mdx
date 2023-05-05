@@ -69,22 +69,10 @@ traffic across multiple zones. Doing this improves resiliency against localized 
 
 ### Configure the Proxy Service NLBs
 Configure the load balancer to forward traffic from the following ports on the
-load balancer to the corresponding port on an available Teleport instance. The
-configuration depends on whether you route Proxy Peering traffic over 
-the public internet:
+load balancer to the corresponding port on an available Teleport instance.
 
 <Tabs>
-<TabItem label="Public NLB Proxy ports">
-
-| Port | Description |
-| - | - |
-| `443` | ALPN port for TLS Routing, HTTPS connections to authenticate `tsh` users into the cluster, and to serve Teleport's Web UI |
-| `3021`| Proxy Peering gRPC Stream  |
-
-</TabItem>
-<TabItem label="VPC peering Proxy NLB ports">
-
-These ports are required:
+<TabItem label="NLB Proxy ports">
 
 | Port | Description |
 | - | - |
@@ -212,9 +200,29 @@ for additional settings.
 
 ### Proxy Service Proxy Peering configuration 
 
-Proxies must advertise a peer address which can be configured to use one of the two options listed below:
+Proxies must advertise a peer address for proxy peers to establish connections to each other.
+The ports exposed on the Teleport Proxy Instances depends on whether you route Proxy Peering traffic over 
+the public internet:
 
-**Option 1:** You can set `peer_public_addr` to the specific name of that proxy. This is the recommended 
+<Tabs>
+<TabItem label="Public Proxy Peering ports">
+
+| Port | Description |
+| - | - |
+| `443` | ALPN port for TLS Routing, HTTPS connections to authenticate `tsh` users into the cluster, and to serve Teleport's Web UI |
+| `3021`| Proxy Peering gRPC Stream  |
+
+</TabItem>
+<TabItem label="VPC peering Proxy Peering ports">
+
+| Port | Description |
+| - | - |
+| `443` | ALPN port for TLS Routing, HTTPS connections to authenticate `tsh` users into the cluster, and to serve Teleport's Web UI |
+
+</TabItem>
+</Tabs>
+
+Set `peer_public_addr` to the specific name of that proxy. This is the recommended 
 method for lowest latency and most reliable connection.
 
 ```
@@ -226,27 +234,13 @@ proxy_service:
   peer_public_addr: teleport-proxy-eu-west-1-host1.example.com:3021
   ...
 ```
-
-**Option 2:** Proxies can use peer_public_addr: to advertise the proxy NLB. When using this method 
-you could incur additional latency or user experience issues because peer proxies must continually dial through the NLB until 
-they establish connection to the correct peer target.
-
-
-```
-version: v3
-teleport:
-...
-proxy_service:
-  ...
-  peer_public_addr: teleport-example-nlb-us-east-1.amazonaws.com:3021
-  ...
-```
 <Admonition
   type="warning"
   title="Note"
 >
-For both Options 1 and 2, `agent_connection_count` on the Auth service should be set to a value >=2 to decrease
+`agent_connection_count` on the Auth service should be set to a value >=2 to decrease
 the likelihood of agents being unavailable.
 </Admonition>
+
 Reference the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
 for additional settings.
