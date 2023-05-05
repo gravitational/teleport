@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/utils"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -1166,6 +1167,11 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 }
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
+		TestFeatures:  modules.GetModules().Features(),
+	})
+
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
@@ -1287,15 +1293,18 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetSSH()
-					require.NotEmpty(t, crt)
+					sshCertBytes := c.GetSSH()
+					require.NotEmpty(t, sshCertBytes)
 
-					cert, err := sshutils.ParseCertificate(crt)
+					cert, err := sshutils.ParseCertificate(sshCertBytes)
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
+					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
+					require.True(t, ok)
+					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -1366,6 +1375,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1405,6 +1415,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1445,6 +1456,44 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
+				},
+			},
+		},
+		{
+			desc: "kube with ttl limit disabled",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires:           clock.Now().Add(1000 * time.Hour),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+				},
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
+				},
+				checkInitErr: require.NoError,
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, identity.KubernetesCluster, "kube-a")
 				},
 			},
 		},
@@ -1519,6 +1568,10 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
 					require.NoError(t, err, "ParseCertificate failed")
+					pinnedIP, ok := sshCert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
+					require.True(t, ok, "missing 'source-address' critical option from SSH certificate")
+					require.Equal(t, "127.0.0.1/32", pinnedIP, "pinned IP mismatch on SSH certificate")
+
 					gotSSH := tlsca.DeviceExtensions{
 						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
 						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],
@@ -1576,6 +1629,8 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
 						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
 					}
+					require.Equal(t, "127.0.0.1", singleUseIdentity.PinnedIP,
+						"missing pinned IP on single use identity")
 				},
 			},
 		},
@@ -1700,7 +1755,7 @@ func TestIsMFARequired(t *testing.T) {
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name: "node-a",
+			Name: uuid.NewString(),
 		},
 		Spec: types.ServerSpecV2{
 			Hostname: "node-a",
@@ -1841,6 +1896,102 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
 	require.False(t, resp.Required)
+}
+
+func TestIsMFARequired_NodeMatch(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Register an SSH node.
+	node, err := types.NewServerWithLabels(uuid.NewString(), types.KindNode, types.ServerSpecV2{
+		Hostname:    "node-a",
+		Addr:        "127.0.0.1:3022",
+		PublicAddrs: []string{"node.example.com:3022", "localhost:3022"},
+	}, map[string]string{"foo": "bar"})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	// Create a fake user with per session mfa required for all nodes.
+	role, err := CreateRole(ctx, srv.Auth(), "mfa-user", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{"mfa-user"},
+			NodeLabels: types.Labels{types.Wildcard: utils.Strings{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := CreateUser(srv.Auth(), "mfa-user", role)
+	require.NoError(t, err)
+
+	cl, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc string
+		// IsMFARequired only expects a host name or ip without the port.
+		node        string
+		expectMatch require.BoolAssertionFunc
+	}{
+		{
+			desc:        "OK uuid match",
+			node:        node.GetName(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK host name match",
+			node:        node.GetHostname(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK addr match",
+			node:        node.GetAddr(),
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK public addr 1 match",
+			node:        "node.example.com",
+			expectMatch: require.True,
+		},
+		{
+			desc:        "OK public addr 2 match",
+			node:        "localhost",
+			expectMatch: require.True,
+		},
+		{
+			desc:        "NOK label match",
+			node:        "foo",
+			expectMatch: require.False,
+		},
+		{
+			desc:        "NOK unknown ip",
+			node:        "1.2.3.4",
+			expectMatch: require.False,
+		},
+		{
+			desc:        "NOK unknown addr",
+			node:        "unknown.example.com",
+			expectMatch: require.False,
+		},
+	} {
+		tc := tc
+		t.Run(tc.desc, func(t *testing.T) {
+			t.Parallel()
+			resp, err := cl.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+				Target: &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{
+					Login: user.GetName(),
+					Node:  tc.node,
+				}},
+			})
+			require.NoError(t, err)
+			tc.expectMatch(t, resp.Required)
+		})
+	}
 }
 
 // testOriginDynamicStored tests setting a ResourceWithOrigin via the server
@@ -3054,7 +3205,7 @@ func TestCustomRateLimiting(t *testing.T) {
 		},
 		{
 			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterPasswordlessBurst,
+			burst: defaults.LimiterBurst,
 			fn: func(clt *Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err

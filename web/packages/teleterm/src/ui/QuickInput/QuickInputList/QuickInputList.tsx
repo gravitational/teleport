@@ -87,7 +87,7 @@ function CmdItem(props: { item: types.SuggestionCmd }) {
       <Box flex="0 0 auto" mr={2}>
         {props.item.data.displayName}
       </Box>
-      <Box color="text.secondary">{props.item.data.description}</Box>
+      <Box color="text.slightlyMuted">{props.item.data.description}</Box>
     </Flex>
   );
 }
@@ -165,9 +165,9 @@ const StyledItem = styled.div(({ theme, $active }) => {
     },
 
     padding: '2px 8px',
-    color: theme.colors.text.contrast,
+    color: theme.colors.text.main,
     background: $active
-      ? theme.colors.levels.surfaceSecondary
+      ? theme.colors.levels.surface
       : theme.colors.levels.sunken,
   };
 });
@@ -175,7 +175,7 @@ const StyledItem = styled.div(({ theme, $active }) => {
 const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
+    color: theme.colors.text.main,
     background: theme.colors.levels.surface,
     boxSizing: 'border-box',
     marginTop: '42px',

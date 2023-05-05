@@ -230,16 +230,20 @@ func (g *gcpKMSKeyStore) canSignWithKey(ctx context.Context, raw []byte, keyType
 
 // DeleteUnusedKeys deletes all keys from KMS if they are:
 // 1. Labeled by this server (matching HostUUID) when they were created
-// 2. Not included in the argument usedKeys
-func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error {
-	usedKmsKeyVersions := make(map[string]struct{})
-	for _, usedKey := range usedKeys {
-		keyID, err := parseGCPKMSKeyID(usedKey)
+// 2. Not included in the argument activeKeys
+func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error {
+	// Make a map of currently active key versions, this is used for lookups to
+	// check which keys in KMS are unused, and holds a count of how many times
+	// they are found in KMS. If any active keys are not found in KMS, we are in
+	// a bad state, so key deletion will be aborted.
+	activeKmsKeyVersions := make(map[string]int)
+	for _, activeKey := range activeKeys {
+		keyID, err := parseGCPKMSKeyID(activeKey)
 		if err != nil {
 			// could be a different type of key
 			continue
 		}
-		usedKmsKeyVersions[keyID.keyVersionName] = struct{}{}
+		activeKmsKeyVersions[keyID.keyVersionName] = 0
 	}
 
 	var unusedKeyIDs []gcpKMSKeyID
@@ -252,7 +256,9 @@ func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte
 	key, err := iter.Next()
 	for err == nil {
 		keyVersionName := key.Name + keyVersionSuffix
-		if _, used := usedKmsKeyVersions[keyVersionName]; !used {
+		if _, active := activeKmsKeyVersions[keyVersionName]; active {
+			activeKmsKeyVersions[keyVersionName]++
+		} else {
 			unusedKeyIDs = append(unusedKeyIDs, gcpKMSKeyID{
 				keyVersionName: keyVersionName,
 			})
@@ -261,6 +267,16 @@ func (g *gcpKMSKeyStore) DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte
 	}
 	if err != nil && !errors.Is(err, iterator.Done) {
 		return trace.Wrap(err)
+	}
+
+	for keyVersion, found := range activeKmsKeyVersions {
+		if found == 0 {
+			// Failed to find a currently active key owned by this host.
+			// The cluster is in a bad state, refuse to delete any keys.
+			return trace.NotFound(
+				"cannot find currently active CA key in %q GCP KMS, aborting attempt to delete unused keys",
+				keyVersion)
+		}
 	}
 
 	for _, unusedKey := range unusedKeyIDs {

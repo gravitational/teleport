@@ -125,8 +125,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			Id:                    res.Spec.Credential.Id,
 			PublicKeyDer:          res.Spec.Credential.PublicKeyDer,
 			DeviceAttestationType: attestationType,
-			TpmSerial:             res.Spec.Credential.TpmSerial,
-			TpmAttestationKeyDer:  res.Spec.Credential.TpmAttestationKeyDer,
+			TpmEkcertSerial:       res.Spec.Credential.TpmEkcertSerial,
 		}
 	}
 
@@ -181,8 +180,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			DeviceAttestationType: ResourceDeviceAttestationTypeToString(
 				dev.Credential.DeviceAttestationType,
 			),
-			TpmSerial:            dev.Credential.TpmSerial,
-			TpmAttestationKeyDer: dev.Credential.TpmAttestationKeyDer,
+			TpmEkcertSerial: dev.Credential.TpmEkcertSerial,
 		}
 	}
 
@@ -287,10 +285,12 @@ func ResourceDeviceAttestationTypeToString(
 	switch attestationType {
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
 		return "unspecified"
-	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM:
-		return "tpm"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
+		return "tpm_ekpub"
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:
 		return "tpm_ekcert"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED:
+		return "tpm_ekcert_trusted"
 	default:
 		return attestationType.String()
 	}
@@ -302,10 +302,12 @@ func ResourceDeviceAttestationTypeFromString(
 	switch attestationType {
 	case "unspecified", "":
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, nil
-	case "tpm":
-		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM, nil
+	case "tpm_ekpub":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB, nil
 	case "tpm_ekcert":
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT, nil
+	case "tpm_ekcert_trusted":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED, nil
 	default:
 		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, trace.BadParameter("unknown attestation type %q", attestationType)
 	}

@@ -31,6 +31,7 @@ import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
+import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
@@ -54,13 +55,22 @@ class TeleportContext implements types.Context {
   kubeService = new KubeService();
   databaseService = new DatabaseService();
   desktopService = desktopService;
+  userGroupService = userGroupService;
   mfaService = new MfaService();
+
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-
   automaticUpgradesEnabled = false;
-
   agentService = agentService;
+
+  // No CTA is currently shown
+  ctas = {
+    authConnectors: false,
+    activeSessions: false,
+    accessRequests: false,
+    premiumSupport: false,
+    trustedDevices: false,
+  };
 
   // init fetches data required for initial rendering of components.
   // The caller of this function provides the try/catch
@@ -110,6 +120,8 @@ class TeleportContext implements types.Context {
         deviceTrust: false,
         enrollIntegrationsOrPlugins: false,
         enrollIntegrations: false,
+        locks: false,
+        newLocks: false,
       };
     }
 
@@ -138,6 +150,9 @@ class TeleportContext implements types.Context {
         userContext.getPluginsAccess().create ||
         userContext.getIntegrationsAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
+      locks: userContext.getLockAccess().list,
+      newLocks:
+        userContext.getLockAccess().create && userContext.getLockAccess().edit,
     };
   }
 }

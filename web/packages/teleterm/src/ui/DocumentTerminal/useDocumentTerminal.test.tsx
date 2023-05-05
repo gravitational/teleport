@@ -52,7 +52,7 @@ beforeAll(() => {
   Logger.init(new NullService());
 });
 
-afterEach(() => {
+beforeEach(() => {
   jest.restoreAllMocks();
 });
 

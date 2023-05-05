@@ -18,7 +18,6 @@ package gitlab
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -105,7 +105,7 @@ func (id *IDTokenValidator) Validate(
 
 	// `go-oidc` does not implement not before check, so we need to manually
 	// perform this
-	if err := checkNotBefore(
+	if err := jwt.CheckNotBefore(
 		id.Clock.Now(), time.Minute*2, idToken,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -116,54 +116,4 @@ func (id *IDTokenValidator) Validate(
 		return nil, trace.Wrap(err)
 	}
 	return &claims, nil
-}
-
-// checkNotBefore ensures the token was not issued in the future.
-// https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
-// 4.1.5.  "nbf" (Not Before) Claim
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func checkNotBefore(
-	now time.Time, leeway time.Duration, token *oidc.IDToken,
-) error {
-	claims := struct {
-		NotBefore *jsonTime `json:"nbf"`
-	}{}
-	if err := token.Claims(&claims); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if claims.NotBefore != nil {
-		adjustedNow := now.Add(leeway)
-		nbf := time.Time(*claims.NotBefore)
-		if adjustedNow.Before(nbf) {
-			return trace.AccessDenied("token not before in future")
-		}
-	}
-
-	return nil
-}
-
-// jsonTime unmarshaling sourced from
-// https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
-// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-type jsonTime time.Time
-
-func (j *jsonTime) UnmarshalJSON(b []byte) error {
-	var n json.Number
-	if err := json.Unmarshal(b, &n); err != nil {
-		return err
-	}
-	var unix int64
-
-	if t, err := n.Int64(); err == nil {
-		unix = t
-	} else {
-		f, err := n.Float64()
-		if err != nil {
-			return err
-		}
-		unix = int64(f)
-	}
-	*j = jsonTime(time.Unix(unix, 0))
-	return nil
 }

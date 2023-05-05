@@ -22,10 +22,11 @@ import React, {
   useState,
 } from 'react';
 import styled, { css } from 'styled-components';
-
 import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
+
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -41,10 +42,17 @@ type ResultListProps<T> = {
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraTopComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
 
@@ -98,9 +106,11 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
+  }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
 
   return (
     <>
@@ -135,17 +145,15 @@ export function ResultList<T>(props: ResultListProps<T>) {
 export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
-    background-color: ${props => props.theme.colors.levels.popout};
+    background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
-  background: ${props => props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
@@ -153,13 +161,13 @@ const InteractiveItem = styled(NonInteractiveItem)`
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.levels.elevated};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   ${props => {
     if (props.active) {
       return css`
-        background: ${props => props.theme.colors.levels.elevated};
+        background: ${props => props.theme.colors.spotBackground[0]};
       `;
     }
   }}
@@ -175,7 +183,7 @@ function getNext(selectedIndex = 0, max = 0) {
 
 const Separator = styled.div`
   position: relative;
-  background: ${props => props.theme.colors.action.hover};
+  background: ${props => props.theme.colors.spotBackground[0]};
   height: 1px;
 `;
 

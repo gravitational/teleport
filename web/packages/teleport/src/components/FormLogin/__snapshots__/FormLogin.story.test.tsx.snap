@@ -86,7 +86,7 @@ exports[`auth2faType: off 1`] = `
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -103,7 +103,7 @@ exports[`auth2faType: off 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -111,7 +111,8 @@ exports[`auth2faType: off 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -119,8 +120,8 @@ exports[`auth2faType: off 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -362,7 +363,7 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -379,7 +380,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -387,7 +388,8 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -395,8 +397,8 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -497,20 +499,20 @@ exports[`auth2faType: optional rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -531,7 +533,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -545,7 +547,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -591,7 +593,7 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -625,20 +627,20 @@ exports[`auth2faType: optional rendering 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -894,7 +896,7 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -911,7 +913,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -919,7 +921,8 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -927,8 +930,8 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -1029,20 +1032,20 @@ exports[`auth2faType: otp rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1063,7 +1066,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1077,7 +1080,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -1123,7 +1126,7 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -1157,20 +1160,20 @@ exports[`auth2faType: otp rendering 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -1439,7 +1442,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -1456,7 +1459,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -1464,7 +1467,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -1472,8 +1476,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -1574,20 +1578,20 @@ exports[`auth2faType: webauthn rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__control:hover,
 .c12 .react-select__control:focus,
 .c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1608,7 +1612,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -1622,7 +1626,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c12 .react-select__multi-value {
@@ -1668,7 +1672,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c12 .react-select__clear-indicator:hover,
@@ -1702,20 +1706,20 @@ exports[`auth2faType: webauthn rendering 1`] = `
 
 .c12 .react-select--is-disabled,
 .c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__single-value,
 .c12 .react-select__control--is-disabled .react-select__single-value,
 .c12 .react-select--is-disabled .react-select__placeholder,
 .c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c12 .react-select--is-disabled .react-select__indicator,
 .c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -2045,7 +2049,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2062,7 +2066,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c7:hover,
 .c7:focus,
 .c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c7::-ms-clear {
@@ -2070,7 +2074,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c7:read-only {
@@ -2078,8 +2083,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c6 {
@@ -2180,20 +2185,20 @@ exports[`cloud auth2faType: on rendering 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c17 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c17 .react-select__control:hover,
 .c17 .react-select__control:focus,
 .c17 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2214,7 +2219,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c17 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -2228,7 +2233,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c17 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c17 .react-select__multi-value {
@@ -2274,7 +2279,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c17 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c17 .react-select__clear-indicator:hover,
@@ -2308,20 +2313,20 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c17 .react-select--is-disabled,
 .c17 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c17 .react-select--is-disabled .react-select__single-value,
 .c17 .react-select__control--is-disabled .react-select__single-value,
 .c17 .react-select--is-disabled .react-select__placeholder,
 .c17 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c17 .react-select--is-disabled .react-select__indicator,
 .c17 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 <div
@@ -2688,7 +2693,7 @@ exports[`server error rendering 1`] = `
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   box-sizing: border-box;
   display: block;
@@ -2705,7 +2710,7 @@ exports[`server error rendering 1`] = `
 .c8:hover,
 .c8:focus,
 .c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c8::-ms-clear {
@@ -2713,7 +2718,8 @@ exports[`server error rendering 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c8:read-only {
@@ -2721,8 +2727,8 @@ exports[`server error rendering 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
 }
 
 .c7 {
@@ -3238,7 +3244,7 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: none;
   text-transform: none;
   min-height: 32px;
