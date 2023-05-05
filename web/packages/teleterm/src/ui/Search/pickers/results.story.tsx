@@ -37,19 +37,20 @@ import {
   ResourceSearchErrorsItem,
   TypeToSearchItem,
 } from './ActionPicker';
+import { SuggestionsError } from './ParameterPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
 
 export default {
-  title: 'Teleterm/Search/ActionPicker',
+  title: 'Teleterm/Search',
 };
 
 const clusterUri: uri.ClusterUri = '/clusters/teleport-local';
 const longClusterUri: uri.ClusterUri =
   '/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c';
 
-export const Items = (props: { maxWidth: string }) => {
+export const Results = (props: { maxWidth: string }) => {
   const { maxWidth = '600px' } = props;
 
   return (
@@ -92,8 +93,8 @@ export const Items = (props: { maxWidth: string }) => {
   );
 };
 
-export const ItemsNarrow = () => {
-  return <Items maxWidth="300px" />;
+export const ResultsNarrow = () => {
+  return <Results maxWidth="300px" />;
 };
 
 const SearchResultItems = () => {
@@ -396,6 +397,11 @@ const AuxiliaryItems = () => (
               )
             ),
           ]}
+        />
+        <SuggestionsError
+          statusText={
+            '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+          }
         />
         <TypeToSearchItem hasNoRemainingFilterActions={false} />
         <TypeToSearchItem hasNoRemainingFilterActions={true} />
