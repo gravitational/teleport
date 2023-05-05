@@ -22,6 +22,7 @@ import { CarrotDown, Warning } from 'design/Icon';
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 export const SessionJoinBtn = ({
   sid,
@@ -38,7 +39,11 @@ export const SessionJoinBtn = ({
     <JoinMenu>
       {showCTA && (
         <Box mx="12px" my="3">
-          <ButtonLockedFeature noIcon>
+          <ButtonLockedFeature
+            noIcon
+            height="40px"
+            event={CtaEvent.CTA_ACTIVE_SESSIONS}
+          >
             Join Active Sessions with Teleport Enterprise
           </ButtonLockedFeature>
         </Box>
