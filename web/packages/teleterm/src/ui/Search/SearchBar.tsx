@@ -53,12 +53,14 @@ function SearchBar() {
   const {
     activePicker,
     inputValue,
-    onInputValueChange,
+    setInputValue,
     inputRef,
     isOpen,
     open,
     close,
+    closeWithoutRestoringFocus,
     addWindowEventListener,
+    makeEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
@@ -69,23 +71,53 @@ function SearchBar() {
     },
   });
 
+  // Handle outside click when the search bar is open.
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     const onClickOutside = e => {
       if (!e.composedPath().includes(containerRef.current)) {
         close();
       }
     };
-    if (isOpen) {
-      const { cleanup } = addWindowEventListener('click', onClickOutside, {
-        capture: true,
-      });
-      return cleanup;
-    }
+
+    const { cleanup } = addWindowEventListener('click', onClickOutside, {
+      capture: true,
+    });
+    return cleanup;
   }, [close, isOpen, addWindowEventListener]);
 
-  function handleOnFocus(e: React.FocusEvent) {
-    open(e.relatedTarget);
-  }
+  // closeIfAnotherElementReceivedFocus handles a scenario where the focus shifts from the search
+  // input to another element on page. It does nothing if there's no other element that receives
+  // focus, i.e. the user clicks on an unfocusable element (for example, the empty space between the
+  // search bar and the profile selector).
+  //
+  // If that element is present though, onBlur takes precedence over onClickOutside. For example,
+  // clicking on a button outside of the search bar will trigger onBlur and will not trigger
+  // onClickOutside.
+  const closeIfAnotherElementReceivedFocus = makeEventListener(
+    (event: FocusEvent) => {
+      const elementReceivingFocus = event.relatedTarget;
+
+      if (!(elementReceivingFocus instanceof Node)) {
+        // event.relatedTarget might be undefined if the user clicked on an element that is not
+        // focusable. The element might or might not be inside the search bar, however we have no way
+        // of knowing that. Instead of closing the search bar, we defer this responsibility to the
+        // onClickOutside handler and return early.
+        //
+        return;
+      }
+
+      const isElementReceivingFocusOutsideOfSearchBar =
+        !containerRef.current.contains(elementReceivingFocus);
+
+      if (isElementReceivingFocusOutsideOfSearchBar) {
+        closeWithoutRestoringFocus(); // without restoring focus
+      }
+    }
+  );
 
   const defaultInputProps = {
     ref: inputRef,
@@ -93,8 +125,12 @@ function SearchBar() {
     placeholder: activePicker.placeholder,
     value: inputValue,
     onChange: e => {
-      onInputValueChange(e.target.value);
+      setInputValue(e.target.value);
     },
+    onFocus: (e: React.FocusEvent) => {
+      open(e.relatedTarget);
+    },
+    onBlur: closeIfAnotherElementReceivedFocus,
     spellCheck: false,
   };
 
@@ -114,7 +150,6 @@ function SearchBar() {
       `}
       justifyContent="center"
       ref={containerRef}
-      onFocus={handleOnFocus}
     >
       {!isOpen && (
         <>
@@ -124,7 +159,11 @@ function SearchBar() {
       )}
       {isOpen && (
         <activePicker.picker
-          // autofocusing cannot be done in `open` function as it would focus the input from closed state
+          // When the search bar transitions from closed to open state, `inputRef.current` within
+          // the `open` function refers to the input element from when the search bar was closed.
+          //
+          // Thus, calling `focus()` on it would have no effect. Instead, we add `autoFocus` on the
+          // input when the search bar is open.
           input={<Input {...defaultInputProps} autoFocus={true} />}
         />
       )}
