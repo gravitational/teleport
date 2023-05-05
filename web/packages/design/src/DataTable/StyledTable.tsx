@@ -18,12 +18,20 @@ import styled from 'styled-components';
 
 import { space, borderRadius } from 'design/system';
 
+import {
+  darken,
+  decomposeColor,
+  lighten,
+} from 'design/theme/utils/colorManipulator';
+
 import Icon from '../Icon';
 
 export const StyledTable = styled.table(
   props => `
   background: ${props.theme.colors.levels.surface};
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 
@@ -76,8 +84,8 @@ export const StyledTable = styled.table(
   // When border-collapse: collapse is set on a table element, Safari incorrectly renders the row border with alpha channel.
   // It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14.
   // A workaround is to not use collapse and apply border to td elements.
-  & > tbody > tr:not(:last-of-type) > td {
-    border-bottom: 1px solid ${props.theme.colors.spotBackground[0]};
+  tbody tr {
+    border-bottom: 1px solid ${getSolidRowBorderColor(props.theme)};
   }
 
   tbody tr:hover {
@@ -88,6 +96,23 @@ export const StyledTable = styled.table(
   space,
   borderRadius
 );
+
+// When `border-collapse: collapse` is set on a table element, Safari incorrectly renders row border with alpha channel.
+// It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14 (this is more visible
+// on dark theme).
+// Sometimes, there is also an artifact visible after hovering the rows - some of them have correct border color, some not.
+//
+// `getSolidRowBorderColor` is a workaround. The colors below were created by lightening or darkening the table background by
+// the value of theme.colors.spotBackground[0]
+function getSolidRowBorderColor(theme) {
+  const alpha = decomposeColor(theme.colors.spotBackground[0]).values[3];
+  if (theme.name === 'dark') {
+    return lighten(theme.colors.levels.surface, alpha);
+  }
+  if (theme.name === 'light') {
+    return darken(theme.colors.levels.surface, alpha);
+  }
+}
 
 export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
   padding: 16px 24px;
