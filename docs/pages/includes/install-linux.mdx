@@ -3,7 +3,7 @@ Use the appropriate commands for your environment to install your package.
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)" scope="oss">
+  <TabItem label="Debian/Ubuntu (apt)" scope="oss">
 
   Add the Teleport repository to your repository list:
 
@@ -27,7 +27,7 @@ Use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL <= 7 (yum)" scope="oss">
+  <TabItem label="AL 2/RHEL 7- (yum)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -44,7 +44,7 @@ Use the appropriate commands for your environment to install your package.
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
   </TabItem>
-  <TabItem label="Amazon Linux 2023/RHEL >= 8 (dnf)" scope="oss">
+  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -86,7 +86,7 @@ Use the appropriate commands for your environment to install your package.
   </TabItem>
   <TabItem label="Enterprise" scope="enterprise">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)" scope="enterprise">
+  <TabItem label="Debian/Ubuntu (apt)" scope="enterprise">
 
   Add the Teleport repository to your repository list:
 
@@ -116,7 +116,7 @@ Use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL <= 7 (yum)" scope="oss">
+  <TabItem label="AL 2/RHEL 7- (yum)" scope="enterprise">
 
   ```code
   # Source variables about OS version
@@ -140,7 +140,7 @@ Use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2023/RHEL >= 8 (dnf)" scope="oss">
+  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="enterprise">
 
   ```code
   # Source variables about OS version
@@ -199,7 +199,7 @@ Use the appropriate commands for your environment to install your package.
   </TabItem>
   <TabItem label="Cloud" scope="cloud">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (DEB)" scope="cloud">
+  <TabItem label="Debian/Ubuntu (apt)" scope="cloud">
 
   Add the Teleport repository to your repository list:
 
@@ -223,7 +223,25 @@ Use the appropriate commands for your environment to install your package.
   ```
 
   </TabItem>
-  <TabItem label="Amazon Linux 2023/RHEL >= 8 (dnf)" scope="oss">
+  <TabItem label="AL 2/RHEL 7- (yum)" scope="cloud">
+
+  ```code
+  # Source variables about OS version
+  $ source /etc/os-release
+  # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
+  # file for each major release of Teleport.
+  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
+  # and the codename your distro was forked from instead of '$ID'
+  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+  $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
+  $ sudo yum install teleport-ent
+  #
+  # Tip: Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
+  # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+  ```
+
+  </TabItem>
+  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="oss">
 
   ```code
   # Source variables about OS version
