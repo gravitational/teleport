@@ -18,11 +18,7 @@ import styled from 'styled-components';
 
 import { space, borderRadius } from 'design/system';
 
-import {
-  darken,
-  decomposeColor,
-  lighten,
-} from 'design/theme/utils/colorManipulator';
+import { decomposeColor, emphasize } from 'design/theme/utils/colorManipulator';
 
 import Icon from '../Icon';
 
@@ -81,9 +77,6 @@ export const StyledTable = styled.table(
     line-height: 16px;
   }
 
-  // When border-collapse: collapse is set on a table element, Safari incorrectly renders the row border with alpha channel.
-  // It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14.
-  // A workaround is to not use collapse and apply border to td elements.
   tbody tr {
     border-bottom: 1px solid ${getSolidRowBorderColor(props.theme)};
   }
@@ -99,19 +92,15 @@ export const StyledTable = styled.table(
 
 // When `border-collapse: collapse` is set on a table element, Safari incorrectly renders row border with alpha channel.
 // It looks like the collapsed border was rendered twice, that is, opacity 0.07 looks like opacity 0.14 (this is more visible
-// on dark theme).
+// on the dark theme).
 // Sometimes, there is also an artifact visible after hovering the rows - some of them have correct border color, some not.
+// WebKit issue https://bugs.webkit.org/show_bug.cgi?id=35456.
 //
-// `getSolidRowBorderColor` is a workaround. The colors below were created by lightening or darkening the table background by
-// the value of theme.colors.spotBackground[0]
+// `getSolidRowBorderColor` is a workaround. The color is created by lightening or darkening the table background by
+// the value of theme.colors.spotBackground[0].
 function getSolidRowBorderColor(theme) {
   const alpha = decomposeColor(theme.colors.spotBackground[0]).values[3];
-  if (theme.name === 'dark') {
-    return lighten(theme.colors.levels.surface, alpha);
-  }
-  if (theme.name === 'light') {
-    return darken(theme.colors.levels.surface, alpha);
-  }
+  return emphasize(theme.colors.levels.surface, alpha);
 }
 
 export const StyledPanel = styled.nav<{ showTopBorder: boolean }>`
