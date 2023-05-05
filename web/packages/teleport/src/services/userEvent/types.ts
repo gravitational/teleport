@@ -18,6 +18,7 @@
 
 import * as prehogApi from 'gen-proto-js/prehog/v1alpha/teleport_pb';
 
+export type CtaEvents = prehogApi.CTA;
 export const CtaEvents = prehogApi.CTA;
 
 export enum CaptureEvent {
