@@ -151,8 +151,8 @@ Label              | `v3`, `v4` and `v5` Default   | `v6` Default
 
 ## RBAC for hosts
 
-A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../management/admin/labels.mdx) and listing
+A Teleport role defines which resources (applications, servers, databases,...) a user can have access to.
+This works by [labeling resources](../management/admin/labels.mdx) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -186,16 +186,25 @@ spec:
       'workload': ['database', 'backup']
 ```
 
+Setting multiple entries under labels works as "and" logic to match to all entries.
+As an example this entry would match to databases that have `env: prod` label and
+`region` label `us-west-1` or `eu-central-1`.
+```yaml
+    db_labels:
+      'env': 'prod'
+      'region': ['us-west-1', 'eu-central-1']
+```
+
 <Admonition
   type="tip"
   title="Dynamic RBAC"
 >
-  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
+  Resource labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
-### Extended Node labels syntax
+### Extended Resource labels syntax
 
 Below are a few examples for more complex filtering using various regexes.
 
