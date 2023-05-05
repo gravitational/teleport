@@ -279,6 +279,26 @@ function findIntersection<T>(elems: T[][]): T[] {
   return [...elems.map(e => new Set(e)).reduce(intersectSets)];
 }
 
+export async function generateTitle(messageContent: string): Promise<string> {
+  ///webapi/assistant/conversations/:conversation_id/title/summary
+  const res = (await api.post(
+    `/v1/webapi/assistant/title/summary`,
+    { message: messageContent }
+  )) as { title: string };
+
+  return res.title;
+}
+
+export async function setConversationTitle(
+  conversationId: string,
+  title: string
+): Promise<void> {
+  await api.post(
+    `/v1/webapi/assistant/conversations/${conversationId}/title`,
+    { title: title }
+  );
+}
+
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {

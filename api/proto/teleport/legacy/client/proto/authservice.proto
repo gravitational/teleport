@@ -2325,8 +2325,15 @@ message GetAssistantMessagesResponse {
 message GetAssistantConversationsRequest {}
 
 message ConversationInfo {
+  // id is a unique conversation ID.
   string id = 1;
+  // title is a title of the conversation.
   string title = 2;
+  // createdTime is the time when the conversation was created.
+  google.protobuf.Timestamp created_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 message GetAssistantConversationsResponse {

@@ -66,7 +66,7 @@ export function ConversationsContextProvider(
     );
 
     setConversations(
-      res.conversations.reverse().map(conversation => ({
+      res.conversations?.reverse().map(conversation => ({
         id: conversation.id,
         title: conversation.title ?? 'New Chat',
       }))

@@ -749,7 +749,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Sets the title for the conversation.
 	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
-	h.POST("/webapi/assistant/conversations/:conversation_id/title/summary", h.WithAuth(h.generateAssistantTitle))
+	h.POST("/webapi/assistant/title/summary", h.WithAuth(h.generateAssistantTitle))
 
 	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))

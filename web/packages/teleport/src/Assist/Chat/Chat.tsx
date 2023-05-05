@@ -33,7 +33,11 @@ import {
   ChatItemAvatarTeleport,
 } from 'teleport/Assist/Chat/Avatar';
 
-import { useMessages } from '../contexts/messages';
+import {
+  generateTitle,
+  setConversationTitle,
+  useMessages,
+} from '../contexts/messages';
 
 import { ChatBox } from './ChatBox';
 import { ChatItem } from './ChatItem';
@@ -73,7 +77,11 @@ const Width = styled.div`
   width: 100%;
 `;
 
-export function Chat() {
+class ChatProps {
+  conversationId: string;
+}
+
+export function Chat(props: ChatProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { send, messages, loading, responding } = useMessages();
@@ -88,6 +96,17 @@ export function Chat() {
 
   const handleSubmit = useCallback(
     (message: string) => {
+      if (messages.length >= 1) {
+        (async () => {
+          console.log('sending the first message to generate the title ');
+          const title = await generateTitle(message);
+          console.log('title is ', title);
+          await setConversationTitle(props.conversationId, title);
+        })();
+      } else {
+        console.log('messages is not empty', messages.length);
+      }
+
       send(message);
     },
     [messages]
