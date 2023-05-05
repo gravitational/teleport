@@ -88,7 +88,8 @@ export const SearchContextProvider: FC = props => {
       'focus' in previouslyActive.current &&
       typeof previouslyActive.current.focus === 'function'
     ) {
-      previouslyActive.current.focus();
+      // TODO(ravicious): Revert this to a regular `focus()` call once #25683 gets merged.
+      previouslyActive.current['focus']();
     }
   }, []);
 
