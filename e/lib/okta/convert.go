@@ -31,14 +31,15 @@ import (
 )
 
 const (
-	oktaActive       = "ACTIVE"
-	oktaAdminConsole = "Okta Admin Console"
+	oktaActive        = "ACTIVE"
+	oktaAdminConsole  = "Okta Admin Console"
+	oktaGroupEveryone = "Everyone"
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
 func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, error) {
-	if oktaGroup.Profile == nil {
-		return nil, trace.BadParameter("the okta group object has no profile")
+	if err := isGroupValid(oktaGroup); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	labels := s.getGroupLabels(oktaGroup.Id)
@@ -46,10 +47,16 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 	labels[teleport.OktaOrgURLLabel] = s.orgURL
 	labels[teleport.OktaGroupIDLabel] = oktaGroup.Id
 
+	description := oktaGroup.Profile.Name
+
+	if oktaGroup.Profile.Description != "" {
+		description += fmt.Sprintf(" (%s)", oktaGroup.Profile.Description)
+	}
+
 	userGroup, err := types.NewUserGroup(
 		types.Metadata{
 			Name:        oktaGroup.Id,
-			Description: oktaGroup.Profile.Description,
+			Description: description,
 			Labels:      labels,
 		},
 	)
@@ -74,7 +81,7 @@ type appLinks struct {
 func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV3, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
-	// Filter out Okta apps if they're not the kind we want to display to users..
+	// Filter out Okta apps if they're not the kind we want to display to users.
 	if err := isAppValid(oktaApplication); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,6 +155,19 @@ func appName(hash crypto.Hash, id, appLinkName string) (string, error) {
 	// Take only the first 12 characters of the resulting base64 encoded hash.
 	// Otherwise, the links for the apps in the UI are far too long.
 	return base64.RawURLEncoding.EncodeToString(hashedID)[:12], nil
+}
+
+// isGroupValid will return an error if the group shouldn't be synced with the list of user groups.
+func isGroupValid(oktaGroup *okta.Group) error {
+	if oktaGroup.Profile == nil {
+		return trace.BadParameter("the okta group %s has no profile", oktaGroup.Id)
+	}
+
+	if oktaGroup.Profile.Name == oktaGroupEveryone {
+		return trace.BadParameter("group %s is %s", oktaGroup.Id, oktaGroupEveryone)
+	}
+
+	return nil
 }
 
 // isAppValid will return an error if the application shouldn't be synced with the app catalog.

@@ -270,6 +270,7 @@ type Service struct {
 func New(ctx context.Context, config Config) (*Service, error) {
 	return newWithClientCreator(ctx, config, func(context.Context, Config) (oktaClient, error) {
 		_, client, err := okta.NewClient(ctx,
+			okta.WithCache(false), // We don't want a cache as we need up to date info.
 			okta.WithOrgUrl(config.OktaAPIEndpoint),
 			okta.WithToken(config.OktaAPIToken),
 		)

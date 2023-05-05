@@ -97,10 +97,10 @@ func TestSynchronizeGroups(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 	group3, err = ap.GetUserGroup(ctx, "group3")
 	require.NoError(t, err)
-	require.Equal(t, "group 3 description", group3.GetMetadata().Description)
+	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
 	group4, err := ap.GetUserGroup(ctx, "group4")
 	require.NoError(t, err)
-	require.Equal(t, "group 4 description", group4.GetMetadata().Description)
+	require.Equal(t, "group name (group 4 description)", group4.GetMetadata().Description)
 
 	// This should have never been created.
 	_, err = ap.GetUserGroup(ctx, "group5")

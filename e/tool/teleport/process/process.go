@@ -51,6 +51,9 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// register enterprise specific expected services.
+	registerExpectedServices(cfg)
+
 	ossProcess, err := service.NewTeleport(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,7 +83,6 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	if cfg.Okta.Enabled {
-		ossProcess.SetExpectedInstanceRole(types.RoleOkta, services.OktaIdentityEvent)
 		services.InitOkta(ossProcess)
 	}
 
@@ -145,4 +147,16 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 	cfg.PluginRegistry = pluginRegistry
 
 	return webPlugin, authPlugin, nil
+}
+
+// registerExpectedServices sets up the instance role -> identity event mapping.
+func registerExpectedServices(cfg *servicecfg.Config) {
+	if cfg.Okta.Enabled {
+		cfg.AdditionalExpectedRoles = append(cfg.AdditionalExpectedRoles,
+			servicecfg.RoleAndIdentityEvent{
+				Role:          types.RoleOkta,
+				IdentityEvent: services.OktaIdentityEvent,
+			})
+		cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, services.OktaReady)
+	}
 }

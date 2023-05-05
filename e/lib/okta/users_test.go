@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/teleport"
 )
@@ -48,6 +49,9 @@ func TestUserAssignmentCreator(t *testing.T) {
 	role, err := types.NewRole(testRole, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
+			GroupLabels: types.Labels{
 				types.Wildcard: []string{types.Wildcard},
 			},
 			Rules: []types.Rule{
@@ -95,7 +99,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err := uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{"app1"})
+	expectedName, err := uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{app1.GetName()})
 	require.NoError(t, err)
 
 	expectedAssignment1, err := types.NewOktaAssignment(types.Metadata{
@@ -112,7 +116,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   "app1",
+				Id:   app1.GetName(),
 			},
 		},
 		Status:         types.OktaAssignmentSpecV1_PENDING,
@@ -133,7 +137,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{"app1", "app2"})
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1"}, []string{app1.GetName(), app2.GetName()})
 	require.NoError(t, err)
 
 	// Old assignment should be marked as needing cleanup.
@@ -153,11 +157,11 @@ func TestUserAssignmentCreator(t *testing.T) {
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   "app1",
+				Id:   app1.GetName(),
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   "app2",
+				Id:   app2.GetName(),
 			},
 		},
 		Status:         types.OktaAssignmentSpecV1_PENDING,
@@ -177,7 +181,7 @@ func TestUserAssignmentCreator(t *testing.T) {
 	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
 	require.NoError(t, err)
 
-	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1", "group2"}, []string{"app1", "app2"})
+	expectedName, err = uacAssignmentName(uac.hash, testUser, []string{"group1", "group2"}, []string{app1.GetName(), app2.GetName()})
 	require.NoError(t, err)
 
 	// Old assignment should be given a cleanup time.
@@ -201,11 +205,11 @@ func TestUserAssignmentCreator(t *testing.T) {
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   "app1",
+				Id:   app1.GetName(),
 			},
 			{
 				Type: types.OktaAssignmentTargetV1_APPLICATION,
-				Id:   "app2",
+				Id:   app2.GetName(),
 			},
 		},
 		Status:         types.OktaAssignmentSpecV1_PENDING,
@@ -225,8 +229,25 @@ func TestUserAssignmentCreator(t *testing.T) {
 	require.NoError(t, err)
 
 	// Old assignment should be marked as needing cleanup, other assignment should be restored.
-	expectedAssignment3.SetCleanupTime(clock.Now())
 	expectedAssignment2.SetCleanupTime(time.Time{})
+	expectedAssignment3.SetCleanupTime(clock.Now())
+
+	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
+		cmpopts.SortSlices(assignmentLess)))
+
+	// Delete everything to see that no assignments are active.
+	require.NoError(t, ap.DeleteUserGroup(ctx, group1.GetName()))
+	require.NoError(t, ap.DeleteApplicationServer(ctx, apidefaults.Namespace, app1.GetHostID(), app1.GetName()))
+	require.NoError(t, ap.DeleteApplicationServer(ctx, apidefaults.Namespace, app2.GetHostID(), app2.GetName()))
+
+	require.NoError(t, uac.OnLogin(ctx, user))
+
+	assignments, _, err = ap.ListOktaAssignments(ctx, 0, "")
+	require.NoError(t, err)
+
+	// Old assignment should be marked as needing cleanup, other assignment should be restored.
+	expectedAssignment1.SetCleanupTime(clock.Now())
+	expectedAssignment2.SetCleanupTime(clock.Now())
 
 	require.Empty(t, cmp.Diff([]types.OktaAssignment{expectedAssignment1, expectedAssignment2, expectedAssignment3}, assignments,
 		cmpopts.SortSlices(assignmentLess)))
@@ -289,6 +310,25 @@ func TestAssignmentDiff(t *testing.T) {
 				"group3",
 			},
 			expectedRemovedApps: []string{
+				"application2",
+			},
+		},
+		{
+			name: "all removed",
+			oldAssignments: types.OktaAssignments{
+				assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, time.Time{}, false,
+					target(types.OktaAssignmentTargetV1_GROUP, "group2"),
+					target(types.OktaAssignmentTargetV1_GROUP, "group3"),
+					target(types.OktaAssignmentTargetV1_APPLICATION, "application1"),
+					target(types.OktaAssignmentTargetV1_APPLICATION, "application2"),
+				),
+			},
+			expectedRemovedGroups: []string{
+				"group2",
+				"group3",
+			},
+			expectedRemovedApps: []string{
+				"application1",
 				"application2",
 			},
 		},

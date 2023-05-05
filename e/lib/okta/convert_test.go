@@ -37,7 +37,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	service, _ := newTestService(t, ap)
 	_, err := service.oktaGroupToUserGroup(oktaGroup)
-	require.ErrorIs(t, trace.BadParameter("the okta group object has no profile"), err)
+	require.ErrorIs(t, trace.BadParameter("the okta group okta-group-id has no profile"), err)
 
 	oktaGroup = &okta.Group{
 		Id: "okta-group-id",
@@ -52,7 +52,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 
 	expected, err := types.NewUserGroup(types.Metadata{
 		Name:        "okta-group-id",
-		Description: "group description",
+		Description: "group name (group description)",
 		Labels: map[string]string{
 			types.OriginLabel:         types.OriginOkta,
 			teleport.OktaOrgURLLabel:  service.orgURL,
@@ -61,6 +61,52 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, expected, userGroup)
+}
+
+func TestIsGroupValid(t *testing.T) {
+	tests := []struct {
+		name             string
+		group            *okta.Group
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "is valid",
+			group: &okta.Group{
+				Id: "group-id",
+				Profile: &okta.GroupProfile{
+					Name: "group",
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "no profile",
+			group: &okta.Group{
+				Id: "group-id",
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("the okta group group-id has no profile"))
+			},
+		},
+		{
+			name: "everyone",
+			group: &okta.Group{
+				Id: "group-id",
+				Profile: &okta.GroupProfile{
+					Name: oktaGroupEveryone,
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("group group-id is Everyone"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.errAssertionFunc(t, isGroupValid(test.group))
+		})
+	}
 }
 
 type dummyOktaApp struct{}

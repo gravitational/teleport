@@ -155,31 +155,46 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err, "listing app servers for Okta access calculation")
 	}
 
-	// If the groups and apps are both empty, skip processing.
-	if len(groups) == 0 && len(apps) == 0 {
-		return nil
-	}
-
 	assignmentName, err := uacAssignmentName(u.hash, user.GetName(), groups, apps)
 	if err != nil {
 		return trace.Wrap(err, "creating user OktaAssignment name")
 	}
 
-	// The Okta assignment already exists, so skip any further processing.
-	foundAssignment, err := u.accessPoint.GetOktaAssignment(ctx, assignmentName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err, "finding Okta assignment for user %s", user.GetName())
-	}
+	var newAssignment types.OktaAssignment
 
-	// The current assignment is still active, so we'll return.
-	if foundAssignment != nil && foundAssignment.GetCleanupTime().IsZero() {
-		return nil
-	}
+	// Only create an assignment if there are groups and apps to add to it.
+	if len(groups) != 0 && len(apps) != 0 {
+		// The Okta assignment already exists, so skip any further processing.
+		foundAssignment, err := u.accessPoint.GetOktaAssignment(ctx, assignmentName)
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "finding Okta assignment for user %s", user.GetName())
+		}
 
-	// The Okta assignment doesn't exist, so let's create the new one.
-	newAssignment, err := u.newOktaAssignment(ctx, assignmentName, user.GetName(), groups, apps)
-	if err != nil {
-		return trace.Wrap(err, "creating the new Okta assignment")
+		// The current assignment is still active, so we'll return.
+		if foundAssignment != nil && foundAssignment.GetCleanupTime().IsZero() {
+			return nil
+		}
+
+		// The Okta assignment doesn't exist, so let's create the new one.
+		newAssignment, err = u.newOktaAssignment(ctx, assignmentName, user.GetName(), groups, apps)
+		if err != nil {
+			return trace.Wrap(err, "creating the new Okta assignment")
+		}
+
+		// Create the new assignment in the backend and remove the old assignments.
+		if foundAssignment != nil {
+			// If the found assignment is present but it's finalized, it means we're restoring duplicate
+			// access. We'll update the Okta assignment to reflect the new state.
+			_, err = u.accessPoint.UpdateOktaAssignment(ctx, newAssignment)
+			if err != nil {
+				return trace.Wrap(err, "update the new Okta assignment in the backend")
+			}
+		} else {
+			_, err = u.accessPoint.CreateOktaAssignment(ctx, newAssignment)
+			if err != nil {
+				return trace.Wrap(err, "creating the new Okta assignment in the backend")
+			}
+		}
 	}
 
 	// The Okta assignment doesn't exist, so find the old reconciler assignment for this user.
@@ -188,24 +203,9 @@ func (u *UserAssignmentCreator) OnLogin(ctx context.Context, user types.User) er
 		return trace.Wrap(err, "finding old Okta assignments")
 	}
 
-	// Create the new assignment in the backend and remove the old assignments.
-	if foundAssignment != nil && !foundAssignment.GetCleanupTime().IsZero() {
-		// If the found assignment is present but it's finalized, it means we're restoring duplicate
-		// access. We'll update the Okta assignment to reflect the new state.
-		_, err = u.accessPoint.UpdateOktaAssignment(ctx, newAssignment)
-		if err != nil {
-			return trace.Wrap(err, "update the new Okta assignment in the backend")
-		}
-	} else {
-		_, err = u.accessPoint.CreateOktaAssignment(ctx, newAssignment)
-		if err != nil {
-			return trace.Wrap(err, "creating the new Okta assignment in the backend")
-		}
-	}
-
 	for _, oldAssignment := range oldAssignments {
 		// Only retire old assignments if they don't match the name of the new assignment.
-		if oldAssignment.GetName() != newAssignment.GetName() {
+		if oldAssignment.GetName() != assignmentName {
 			oldAssignment.SetCleanupTime(u.clock.Now())
 			if _, err := u.accessPoint.UpdateOktaAssignment(ctx, oldAssignment); err != nil {
 				return trace.Wrap(err, "cleaning up old assignment %s", oldAssignment.GetName())
@@ -241,8 +241,10 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 			// Only check Okta groups.
 			if group.Origin() == types.OriginOkta {
 				// If the user has access to the group, add it to the list of targets.
-				if err := accessChecker.CheckAccess(group, u.accessState); err != nil {
+				if err := accessChecker.CheckAccess(group, u.accessState); err == nil {
 					targets = append(targets, group.GetName())
+				} else if !trace.IsAccessDenied(err) {
+					u.log.Errorf("Error checking access to group during login: %v", err)
 				}
 			}
 		}
@@ -275,14 +277,17 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		for _, resource := range resp.Resources {
 			// Only check Okta apps.
 			if resource.Origin() == types.OriginOkta {
+				appServer, ok := resource.(types.AppServer)
+
+				if !ok {
+					u.log.Errorf("Expected AppServer, got %T", resource)
+					continue
+				}
 				// If the user has access to the app, extra the Okta app label and add it to the list of targets.
-				if err := accessChecker.CheckAccess(resource, u.accessState); err != nil {
-					oktaAppID, ok := resource.GetMetadata().Labels[teleport.OktaAppIDLabel]
-					if ok {
-						targets = append(targets, oktaAppID)
-					} else {
-						u.log.Errorf("App server %s does not appear to have the %s label", resource.GetName(), teleport.OktaAppIDLabel)
-					}
+				if err := accessChecker.CheckAccess(appServer.GetApp(), u.accessState); err == nil {
+					targets = append(targets, resource.GetName())
+				} else if !trace.IsAccessDenied(err) {
+					u.log.Errorf("Error checking access to application during login: %v", err)
 				}
 			}
 		}
@@ -384,12 +389,14 @@ func assignmentDiff(newAssignment types.OktaAssignment, oldAssignments ...types.
 	removedAppsMap := map[string]struct{}{}
 
 	// register all new targets in the new maps.
-	for _, target := range newAssignment.GetTargets() {
-		switch target.GetTargetType() {
-		case constants.OktaAssignmentTargetGroup:
-			newGroupsMap[target.GetID()] = struct{}{}
-		case constants.OktaAssignmentTargetApplication:
-			newAppsMap[target.GetID()] = struct{}{}
+	if newAssignment != nil {
+		for _, target := range newAssignment.GetTargets() {
+			switch target.GetTargetType() {
+			case constants.OktaAssignmentTargetGroup:
+				newGroupsMap[target.GetID()] = struct{}{}
+			case constants.OktaAssignmentTargetApplication:
+				newAppsMap[target.GetID()] = struct{}{}
+			}
 		}
 	}
 

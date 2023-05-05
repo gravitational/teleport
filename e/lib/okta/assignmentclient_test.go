@@ -22,15 +22,19 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
+
+	"github.com/gravitational/teleport/e/lib/teleport"
 )
 
 func TestAssignmentClient(t *testing.T) {
 	ctx := context.Background()
 	oktaClient := newTestClient()
 	rateLimiter := rate.NewLimiter(rate.Inf, 1)
-	assignmentClient := newAssignmentClient(oktaClient, rateLimiter)
+	log := logrus.WithField(trace.Component, teleport.ComponentOkta)
+	assignmentClient := newAssignmentClient(log, oktaClient, rateLimiter)
 	testGroup := "test-group"
 	testApp := "test-app"
 	testUser := "test-user@test.user"
@@ -46,7 +50,7 @@ func TestAssignmentClient(t *testing.T) {
 	oktaClient.addUserID(testUser, testOktaUserID)
 
 	// Refresh client so that the cache will retry the user.
-	assignmentClient = newAssignmentClient(oktaClient, rateLimiter)
+	assignmentClient = newAssignmentClient(log, oktaClient, rateLimiter)
 
 	// User present, but no apps/groups present.
 	_, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)
@@ -60,7 +64,7 @@ func TestAssignmentClient(t *testing.T) {
 	oktaClient.addGroupToMapping(testGroup)
 
 	// Refresh client.
-	assignmentClient = newAssignmentClient(oktaClient, rateLimiter)
+	assignmentClient = newAssignmentClient(log, oktaClient, rateLimiter)
 
 	// User present, apps/groups present. This shouldn't fail, but the result of this should be cached.
 	ok, err := assignmentClient.userAssignedToApp(ctx, testUser, testApp)
@@ -85,7 +89,7 @@ func TestAssignmentClient(t *testing.T) {
 	require.False(t, ok)
 
 	// Refresh caching client.
-	assignmentClient = newAssignmentClient(oktaClient, rateLimiter)
+	assignmentClient = newAssignmentClient(log, oktaClient, rateLimiter)
 
 	// Updated assignments should be used.
 	ok, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)

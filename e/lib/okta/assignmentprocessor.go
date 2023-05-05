@@ -97,7 +97,7 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		assignmentGetter:  assignmentGetter,
 		rateLimiter:       rateLimiter,
 		oktaClient:        svc.client,
-		assignmentClient:  newAssignmentClient(svc.client, rateLimiter),
+		assignmentClient:  newAssignmentClient(svc.log, svc.client, rateLimiter),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
 	}
@@ -124,7 +124,7 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
 
 		// Refresh the assignment client every loop.
 		a.assignmentClientMu.Lock()
-		a.assignmentClient = newAssignmentClient(oktaClient, a.rateLimiter)
+		a.assignmentClient = newAssignmentClient(a.log, oktaClient, a.rateLimiter)
 		a.assignmentClientMu.Unlock()
 
 		if err := a.processAssignments(ctx); err != nil {
@@ -292,10 +292,16 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 func (a *assignmentProcessor) processTargets(ctx context.Context, assignment types.OktaAssignment) error {
 	assignmentClient := a.getAssignmentClient()
 
+	a.log.Infof("Provisioning assignment %s for user %s", assignment.GetName(), assignment.GetUser())
+
 	var errs []error
 	for _, target := range assignment.GetTargets() {
 		ok, err := a.authorizeTarget(ctx, target)
 		if err != nil {
+			// If we can't find the target, then we'll continue because there's nothing we can do here.
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return trace.Wrap(err)
 		}
 
@@ -306,15 +312,7 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			var userInGroup bool
-			userInGroup, err = assignmentClient.userAssignedToGroup(ctx, assignment.GetUser(), target.GetID())
-			if err != nil {
-				break
-			}
-
-			if !userInGroup {
-				err = assignmentClient.registerUserToGroup(ctx, assignment.GetUser(), target.GetID())
-			}
+			err = assignmentClient.registerUserToGroup(ctx, assignment.GetUser(), target.GetID())
 		case constants.OktaAssignmentTargetApplication:
 			var oktaAppID string
 			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
@@ -322,20 +320,14 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 				break
 			}
 
-			var userInApp bool
-			userInApp, err = assignmentClient.userAssignedToApp(ctx, assignment.GetUser(), oktaAppID)
-			if err != nil {
-				break
-			}
-
-			if !userInApp {
-				err = assignmentClient.registerUserToApp(ctx, assignment.GetUser(), oktaAppID)
-			}
+			err = assignmentClient.registerUserToApp(ctx, assignment.GetUser(), oktaAppID)
 		}
 
 		if err == nil {
+			a.log.Infof("Successfully provisioned %s", targetDescriptor(assignment, target))
 			a.registerUserTarget(assignment, target)
 		} else {
+			a.log.Errorf("Error provisioning target %s: %v", targetDescriptor(assignment, target), err)
 			errs = append(errs, err)
 		}
 	}
@@ -348,9 +340,15 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 	var errs []error
 	assignmentClient := a.getAssignmentClient()
 
+	a.log.Infof("Cleaning up assignment %s for user %s", assignment.GetName(), assignment.GetUser())
+
 	for _, target := range assignment.GetTargets() {
 		ok, err := a.authorizeTarget(ctx, target)
 		if err != nil {
+			// If we can't find the target, then we'll continue because there's nothing we can do here.
+			if trace.IsNotFound(err) {
+				continue
+			}
 			return trace.Wrap(err)
 		}
 
@@ -369,15 +367,7 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 
 		switch target.GetTargetType() {
 		case constants.OktaAssignmentTargetGroup:
-			var userInGroup bool
-			userInGroup, err = assignmentClient.userAssignedToGroup(ctx, assignment.GetUser(), target.GetID())
-			if err != nil {
-				break
-			}
-
-			if userInGroup {
-				err = assignmentClient.unregisterUserFromGroup(ctx, assignment.GetUser(), target.GetID())
-			}
+			err = assignmentClient.unregisterUserFromGroup(ctx, assignment.GetUser(), target.GetID())
 		case constants.OktaAssignmentTargetApplication:
 			var oktaAppID string
 			oktaAppID, err = a.getOktaAppIDFromAppServer(ctx, target.GetID())
@@ -385,19 +375,14 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 				break
 			}
 
-			var userInApp bool
-			userInApp, err = assignmentClient.userAssignedToApp(ctx, assignment.GetUser(), oktaAppID)
-			if err != nil {
-				break
-			}
-
-			if userInApp {
-				err = assignmentClient.unregisterUserFromApp(ctx, assignment.GetUser(), oktaAppID)
-			}
+			err = assignmentClient.unregisterUserFromApp(ctx, assignment.GetUser(), oktaAppID)
 		}
 
 		if err != nil {
+			a.log.Errorf("Error cleaning up target %s: %v", targetDescriptor(assignment, target), err)
 			errs = append(errs, err)
+		} else {
+			a.log.Infof("Successfully cleaned up %s", targetDescriptor(assignment, target))
 		}
 	}
 
@@ -412,7 +397,16 @@ func (a *assignmentProcessor) rebuildTargetCounter(assignments []types.OktaAssig
 	a.userTargetCounter = map[string]map[string]struct{}{}
 
 	for _, assignment := range assignments {
-		if assignment.GetStatus() == constants.OktaAssignmentStatusSuccessful && !assignment.IsFinalized() {
+		status := assignment.GetStatus()
+		cleanupTime := assignment.GetCleanupTime()
+		needsCleanup := !cleanupTime.IsZero() && !a.clock.Now().Before(cleanupTime)
+
+		// Only count targets if they aren't in need of cleanup and if they are
+		// something other than pending. The result here is that, if multiple
+		// assignments are attempting to clean up the same target, then they'll
+		// all be able to issue the cleanup command since there won't be multiple
+		// assignments holding onto a target.
+		if !needsCleanup && status != constants.OktaAssignmentStatusPending {
 			for _, target := range assignment.GetTargets() {
 				targetName := userTargetName(assignment, target)
 				if _, ok := a.userTargetCounter[targetName]; !ok {
