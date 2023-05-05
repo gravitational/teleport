@@ -272,7 +272,10 @@ type Config struct {
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
 type RoleAndIdentityEvent struct {
-	Role          types.SystemRole
+	// Role is a system role.
+	Role types.SystemRole
+
+	// IdentityEvent is the identity event associated with the above role.
 	IdentityEvent string
 }
 
