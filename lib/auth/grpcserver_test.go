@@ -1754,6 +1754,43 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "ssh in leaf node",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:        clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:          proto.UserCertsRequest_SSH,
+					NodeName:       "node-b",
+					SSHLogin:       "role",
+					RouteToCluster: "leaf",
+				},
+				checkInitErr: require.NoError,
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					sshCertBytes := c.GetSSH()
+					require.NotEmpty(t, sshCertBytes)
+
+					cert, err := sshutils.ParseCertificate(sshCertBytes)
+					require.NoError(t, err)
+
+					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
+					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
+					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
+					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
+					require.True(t, ok)
+					require.Equal(t, "127.0.0.1/32", pinnedIP)
+					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
