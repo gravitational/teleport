@@ -31,6 +31,8 @@ var (
 		Data4: [8]byte{0xA9, 0xA2, 0x9C, 0xC5, 0xF8, 0x41, 0x9D, 0x55}}.String()
 
 	CLSID       = `Software\Classes\CLSID\` + CredentialProviderGUID
+	InprocKey   = CLSID + `\InprocServer32`
+	ProgIdKey   = CLSID + `\ProgId`
 	ProviderKey = `SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Providers\` + CredentialProviderGUID
 	FilterKey   = `SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\Credential Provider Filters\` + CredentialProviderGUID
 	LSAKey      = `SYSTEM\CurrentControlSet\Control\Lsa`
@@ -71,7 +73,7 @@ func main() {
 		fmt.Println("Teleport Authentication Package installed")
 	case uninstall.FullCommand():
 		app.FatalIfError(unregisterDLL(), "can't unregister dll")
-		app.FatalIfError(renameDLL(), "can't rename dll")
+		app.FatalIfError(deleteOldDLL(), "can't delete dll")
 		fmt.Println("Teleport Authentication Package uninstalled")
 	}
 	if *reboot {
@@ -88,7 +90,16 @@ func ui() {
 				zenity.Error(fmt.Sprintf("Can't unregister Teleport Authentication Package: %s", err), title, width, height)
 				return
 			}
-			renameDLL()
+			if err := deleteOldDLL(); err != nil {
+				zenity.Error(fmt.Sprintf("Can't delete Teleport Authentication Package: %s", err), title, width, height)
+				return
+			}
+			if err := zenity.Question("Teleport Authentication Package uninstalled successfully.\nRestart now?",
+				title, width, height); err == nil {
+				if err := rebootWindows(); err != nil {
+					zenity.Error(fmt.Sprintf("Can't reboot Windows: %s", err), title, width, height)
+				}
+			}
 		} else if err == nil {
 			if file, err := zenity.SelectFile(
 				zenity.Filename(""),
@@ -159,7 +170,7 @@ func rebootWindows() error {
 }
 
 func copyDLL() error {
-	err := renameDLL()
+	err := deleteOldDLL()
 	if err != nil {
 		return err
 	}
@@ -169,12 +180,19 @@ func copyDLL() error {
 	return nil
 }
 
-func renameDLL() error {
+func deleteOldDLL() error {
 	if _, err := os.Stat(dllPath); err == nil {
 		newName := fmt.Sprintf("C:\\Windows\\System32\\teleport_old_%d.dll", time.Now().UnixMilli())
 		if err := os.Rename(dllPath, newName); err != nil {
 			return fmt.Errorf("can't move DLL: %w", err)
 		}
+		uname, err := windows.UTF16PtrFromString(newName)
+		if err != nil {
+			return err
+		}
+		// this will delete file on reboot
+		// see https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-movefileexw
+		windows.MoveFileEx(uname, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
 	}
 	return nil
 }
@@ -273,6 +291,12 @@ func registerDLL() error {
 }
 
 func unregisterDLL() error {
+	if err := registry.DeleteKey(registry.LOCAL_MACHINE, InprocKey); err != nil {
+		return fmt.Errorf("can't delete InprocServer32 key: %w", err)
+	}
+	if err := registry.DeleteKey(registry.LOCAL_MACHINE, ProgIdKey); err != nil {
+		return fmt.Errorf("can't delete ProgId key: %w", err)
+	}
 	if err := registry.DeleteKey(registry.LOCAL_MACHINE, CLSID); err != nil {
 		return fmt.Errorf("can't delete CLSID key: %w", err)
 	}
