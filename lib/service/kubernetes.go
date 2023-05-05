@@ -182,6 +182,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		Logger:      log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
