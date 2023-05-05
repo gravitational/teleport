@@ -72,4 +72,6 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 40
-        run: runuser -u ci -g ci make rdpclient integration
+        run: |
+          echo $KUBECONFIG
+          runuser -u ci -g ci make rdpclient integration
