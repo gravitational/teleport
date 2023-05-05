@@ -73,6 +73,15 @@ type Rate struct {
 	Time   time.Duration
 }
 
+// RoleAndIdentityEvent is a role and its corresponding identity event.
+type RoleAndIdentityEvent struct {
+	// Role is a system role.
+	Role types.SystemRole
+
+	// IdentityEvent is the identity event associated with the above role.
+	IdentityEvent string
+}
+
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
 	Azure AzureJoinParams
@@ -278,6 +287,9 @@ type Config struct {
 
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+
+	// AdditionalExpectedRoles are additional roles to attach to the Teleport instances.
+	AdditionalExpectedRoles []RoleAndIdentityEvent
 
 	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
 	AdditionalReadyEvents []string
