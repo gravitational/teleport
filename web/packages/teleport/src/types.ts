@@ -21,8 +21,6 @@ import {
   NavigationCategory,
 } from 'teleport/Navigation/categories';
 
-import TeleportContext from './teleportContext';
-
 export type NavGroup = 'team' | 'activity' | 'clusters' | 'accessrequests';
 
 export interface Context {
@@ -63,7 +61,9 @@ export interface TeleportFeature {
   // `route` and `navigationItem` to an alternate route and component if
   // this feature is locked. Returns true to indicate feature was locked
   // and changes have been made.
-  isLockedAndUpdatedRouteAndNavigationItem?(ctx: TeleportContext): boolean;
+  isLockedAndUpdatedRouteAndNavigationItem?(
+    lockedFeatures: LockedFeatures
+  ): boolean;
 }
 
 export type StickyCluster = {
@@ -107,3 +107,12 @@ export interface FeatureFlags {
   enrollIntegrationsOrPlugins: boolean;
   enrollIntegrations: boolean;
 }
+
+// LockedFeatures are used for determining which features are disabled in the user's cluster.
+export type LockedFeatures = {
+  authConnectors: boolean;
+  activeSessions: boolean;
+  accessRequests: boolean;
+  premiumSupport: boolean;
+  trustedDevices: boolean;
+};

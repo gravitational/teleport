@@ -63,8 +63,9 @@ class TeleportContext implements types.Context {
   automaticUpgradesEnabled = false;
   agentService = agentService;
 
-  // No CTA is currently shown
-  lockedFeatures = {
+  // lockedFeatures are used to
+  // hide features when the user cluster doesn't support it
+  lockedFeatures: types.LockedFeatures = {
     authConnectors: false,
     activeSessions: false,
     accessRequests: false,
