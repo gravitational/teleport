@@ -125,7 +125,9 @@ export const PaymentAddDialog = ({
           </CheckboxWrapper>
         )}
       </DialogContent>
-      {networkState.error != undefined && <Text>{networkState.error}</Text>}
+      {networkState.error != undefined && (
+        <Text>{networkState.error.message}</Text>
+      )}
       <DialogFooter>
         <ButtonPrimary
           disabled={!stripe || !valid || networkState.status == 'loading'}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import TeleportContextE from 'e-teleport/teleportContextE';
+import { isValidEmail } from 'e-teleport/validations/email';
 
 export default function useRecovery(ctx: TeleportContextE) {
   const [token, setToken] = useState('');
@@ -55,17 +56,6 @@ export default function useRecovery(ctx: TeleportContextE) {
     userHasCodes,
     isRecoveryEnabled,
   };
-}
-
-// isValidEmail returns true if the string is a valid email eg. is formatted as chars@chars{at least one dot}chars
-function isValidEmail(email: string) {
-  const emailParts = email.split('@');
-  return (
-    emailParts.length === 2 &&
-    emailParts[0] &&
-    emailParts[1] &&
-    emailParts[1].indexOf('.') !== -1
-  );
 }
 
 export type State = ReturnType<typeof useRecovery>;

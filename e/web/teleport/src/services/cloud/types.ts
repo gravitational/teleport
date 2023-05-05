@@ -14,9 +14,15 @@ export type RemoveCardRequest = cloud.RemoveCardRequest.AsObject;
 
 export type UpdateCardRequest = cloud.UpdateCardRequest.AsObject;
 
+export type UpdateEmailRequest = cloud.UpdateEmailRequest.AsObject;
+
+export type UpdatePurchaseOrderRequest =
+  cloud.UpdatePurchaseOrderPrefixRequest.AsObject;
+
 export type UpdateAccountRequest = cloud.UpdateAccountRequest.AsObject;
 
-export type StripeBillingAddressRequest = cloud.StripeBillingAddress.AsObject;
+export type StripeBillingAddressRequest =
+  cloud.StripeBillingAddressRequest.AsObject;
 
 export type BillingCycle = cloud.BillingCycle.AsObject;
 

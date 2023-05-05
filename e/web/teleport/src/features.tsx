@@ -1,6 +1,6 @@
 import React from 'react';
 import * as Icons from 'design/Icon';
-import { Profile, Chart } from 'design/Icon';
+import { Chart, Profile } from 'design/Icon';
 import * as OSS from 'teleport/features';
 import {
   ManagementSection,
@@ -61,6 +61,13 @@ const PaymentsInvoicesE = React.lazy(
   () =>
     import(
       /* webpackChunkName: "e-payments-invoices" */ 'e-teleport/Billing/PaymentsAndInvoices'
+    )
+);
+
+const InvoiceSettingsE = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-invoice-settings" */ 'e-teleport/Billing/InvoiceSettings'
     )
 );
 
@@ -185,6 +192,30 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
     icon: <Profile />,
     getLink(clusterId: string) {
       return cfg.getPaymentsInvoicesRoute(clusterId);
+    },
+  };
+}
+
+export class FeatureInvoiceSettings implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Billing;
+
+  route = {
+    title: 'Invoice Settings',
+    path: cfg.routes.invoiceSettings,
+    component: InvoiceSettingsE,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
+    return flags.billing;
+  }
+
+  navigationItem = {
+    title: 'Invoice Settings',
+    icon: <Profile />,
+    getLink(clusterId: string) {
+      return cfg.getInvoiceSettingsRoute(clusterId);
     },
   };
 }
@@ -355,6 +386,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Billing
     new FeatureSummary(),
     new FeaturePaymentsAndInvoices(),
+    new FeatureInvoiceSettings(),
 
     // - Clusters
     new OSS.FeatureClusters(),

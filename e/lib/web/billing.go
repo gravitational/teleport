@@ -144,3 +144,31 @@ func (p *Plugin) createSetupIntentHandle(w http.ResponseWriter, r *http.Request,
 
 	return res, nil
 }
+
+func (p *Plugin) updatePurchaseOrderHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	var req *cloudapi.UpdatePurchaseOrderPrefixRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.UpdatePurchaseOrderPrefix(r.Context(), req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}
+
+func (p *Plugin) updateEmailHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	var req *cloudapi.UpdateEmailRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := client.UpdateEmail(r.Context(), req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return res, nil
+}

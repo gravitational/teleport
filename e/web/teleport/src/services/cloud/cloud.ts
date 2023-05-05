@@ -12,9 +12,11 @@ import {
   PaymentsInvoicesInformation,
   RemoveCardRequest,
   SetupIntent,
-  UpdateAccountRequest,
   StripeBillingAddressRequest,
+  UpdateAccountRequest,
   UpdateCardRequest,
+  UpdateEmailRequest,
+  UpdatePurchaseOrderRequest,
 } from './types';
 
 class CloudService {
@@ -70,6 +72,14 @@ class CloudService {
     return api
       .get(cfg.api.invoiceSettingsPath)
       .then(makeInvoiceSettingsInformation);
+  }
+
+  updateEmail(req: UpdateEmailRequest) {
+    return api.put(cfg.api.emailPath, req);
+  }
+
+  updatePurchaseOrderPrefix(req: UpdatePurchaseOrderRequest) {
+    return api.put(cfg.api.poPath, req);
   }
 }
 

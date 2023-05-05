@@ -49,6 +49,10 @@ type MockedClient struct {
 	MockGetInvoiceSettingsInformation func(context.Context, *v1.EmptyRequest, ...grpc.CallOption) (*v1.GetInvoiceSettingsInformationResponse, error)
 	// MockUpdateStripeAddress updates customer address information in Stripe
 	MockUpdateStripeAddress func(context.Context, *v1.StripeBillingAddressRequest, ...grpc.CallOption) (*v1.EmptyResponse, error)
+	// MockUpdateEmail updates email address information
+	MockUpdateEmail func(ctx context.Context, in *v1.UpdateEmailRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
+	// MockUpdatePurchaseOrderPrefix updates purchase order prefix
+	MockUpdatePurchaseOrderPrefix func(ctx context.Context, in *v1.UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -179,6 +183,7 @@ func (m *MockedClient) GetBillingSummaryInformation(ctx context.Context, in *v1.
 
 	return nil, trace.NotImplemented("GetBillingSummaryInformation is not implemented")
 }
+
 func (m *MockedClient) GetPaymentsInvoicesInformation(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetPaymentsInvoicesInformationResponse, error) {
 	if m.MockGetPaymentsInvoicesInformation != nil {
 		return m.MockGetPaymentsInvoicesInformation(ctx, in)
@@ -186,6 +191,7 @@ func (m *MockedClient) GetPaymentsInvoicesInformation(ctx context.Context, in *v
 
 	return nil, trace.NotImplemented("GetPaymentsInvoicesInformation is not implemented")
 }
+
 func (m *MockedClient) GetInvoiceSettingsInformation(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.GetInvoiceSettingsInformationResponse, error) {
 	if m.MockGetInvoiceSettingsInformation != nil {
 		return m.MockGetInvoiceSettingsInformation(ctx, in)
@@ -193,10 +199,27 @@ func (m *MockedClient) GetInvoiceSettingsInformation(ctx context.Context, in *v1
 
 	return nil, trace.NotImplemented("GetInvoiceSettingsInformation is not implemented")
 }
+
 func (m *MockedClient) UpdateStripeAddress(ctx context.Context, in *v1.StripeBillingAddressRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
 	if m.MockUpdateStripeAddress != nil {
 		return m.MockUpdateStripeAddress(ctx, in)
 	}
 
 	return nil, trace.NotImplemented("UpdateStripeAddress is not implemented")
+}
+
+func (m *MockedClient) UpdateEmail(ctx context.Context, in *v1.UpdateEmailRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockUpdateEmail != nil {
+		return m.MockUpdateEmail(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("UpdateEmail is not implemented")
+}
+
+func (m *MockedClient) UpdatePurchaseOrderPrefix(ctx context.Context, in *v1.UpdatePurchaseOrderPrefixRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockUpdatePurchaseOrderPrefix != nil {
+		return m.MockUpdatePurchaseOrderPrefix(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("UpdatePurchaseOrderPrefix is not implemented")
 }

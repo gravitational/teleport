@@ -64,6 +64,8 @@ const cfg = {
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
     paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
     invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',
+    emailPath: '/v1/enterprise/cloud/billing-email',
+    poPath: '/v1/enterprise/cloud/billing-po',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',

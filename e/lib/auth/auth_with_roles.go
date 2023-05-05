@@ -298,6 +298,64 @@ func (ac *cloudWithRoles) UpdateStripeAddress(ctx context.Context, req *v1.Strip
 	return res, nil
 }
 
+// UpdateEmail updates email address information
+func (ac *cloudWithRoles) UpdateEmail(ctx context.Context, req *v1.UpdateEmailRequest) (*v1.EmptyResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.UpdateEmail(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event := &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.BillingInformationUpdateEvent,
+			Code: events.BillingInformationUpdateCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+	}
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing account update event.")
+	}
+
+	return res, nil
+}
+
+// UpdatePurchaseOrderPrefix updates purchase order prefix
+func (ac *cloudWithRoles) UpdatePurchaseOrderPrefix(ctx context.Context, req *v1.UpdatePurchaseOrderPrefixRequest) (*v1.EmptyResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := ac.plugin.cloudClient.UpdatePurchaseOrderPrefix(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event := &apievents.BillingInformationUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.BillingInformationUpdateEvent,
+			Code: events.BillingInformationUpdateCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+	}
+	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
+		log.WithError(err).WithFields(logrus.Fields{
+			"user":         event.UserMetadata.User,
+			"impersonator": event.UserMetadata.Impersonator,
+		}).Warn("Failed to emit billing account update event.")
+	}
+
+	return res, nil
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")

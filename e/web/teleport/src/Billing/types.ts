@@ -2,9 +2,11 @@ import { Dispatch, SetStateAction } from 'react';
 
 import {
   BillingSummaryInformation,
+  InvoiceSettingsInformation,
   PaymentsInvoicesInformation,
   StripeCard,
   StripeCardList,
+  StripeInvoiceBillingAddress,
   StripeInvoiceList,
   StripeUsage,
 } from 'e-teleport/services/cloud';
@@ -12,6 +14,16 @@ import {
 export interface SummaryProps {
   data: BillingSummaryInformation;
   reload: () => void;
+}
+
+export interface InvoiceSettingsProps {
+  data: InvoiceSettingsInformation;
+  reload: () => void;
+}
+
+export interface AddressProps {
+  address?: StripeInvoiceBillingAddress;
+  name?: string;
 }
 
 export interface PaymentsAndInvoicesProps {
@@ -36,6 +48,14 @@ export interface CardsListProps {
 export interface InvoiceListProps {
   invoices: StripeInvoiceList;
   productName: string;
+}
+
+export interface EmailProps {
+  email?: string;
+}
+
+export interface PurchaseOrderProps {
+  po?: string;
 }
 
 export interface PaymentAddDialogProps {
