@@ -15,14 +15,6 @@
  */
 
 // these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
-
-import * as prehogApi from 'gen-proto-js/prehog/v1alpha/teleport_pb';
-
-// export prehopApi.CTA as both value and a type, so we can use it to
-// describe the enum and as a value at the same time.
-export type CtaEvent = prehogApi.CTA;
-export const CtaEvent = prehogApi.CTA;
-
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
@@ -156,3 +148,13 @@ export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+export enum CtaEvent {
+  CTA_UNSPECIFIED = 0,
+  CTA_AUTH_CONNECTOR = 1,
+  CTA_ACTIVE_SESSIONS = 2,
+  CTA_ACCESS_REQUESTS = 3,
+  CTA_PREMIUM_SUPPORT = 4,
+  CTA_TRUSTED_DEVICES = 5,
+  CTA_UPGRADE_BANNER = 6,
+}
