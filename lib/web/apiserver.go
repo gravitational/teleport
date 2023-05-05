@@ -3347,7 +3347,6 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
-		h.log.WithError(err).Warn("Failed to authenticate.")
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -3454,17 +3453,14 @@ type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httpro
 func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx := r.Context()
-		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
 		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
@@ -3650,33 +3646,25 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
-	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 	cookie, err := r.Cookie(CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		if err != nil {
-			logger.Warn(err)
-		}
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	decodedCookie, err := DecodeCookie(cookie.Value)
 	if err != nil {
-		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
-			logger.WithError(err).Warn("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
