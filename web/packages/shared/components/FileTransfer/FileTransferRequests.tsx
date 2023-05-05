@@ -23,6 +23,7 @@ import {
   isOwnRequest,
 } from 'teleport/Console/DocumentSsh/useFileTransfer';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
+import { UserContext } from 'teleport/services/user';
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];
@@ -59,6 +60,7 @@ export const FileTransferRequests = ({
               request={request}
               onApprove={onApprove}
               onDeny={onDeny}
+              currentUser={currentUser}
             />
           )
         )}
@@ -106,9 +108,15 @@ type RequestFormProps = {
   request: FileTransferRequest;
   onApprove: (requestId: string, approved: boolean) => void;
   onDeny: (requestId: string, approved: boolean) => void;
+  currentUser: UserContext;
 };
 
-const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
+const ResponseForm = ({
+  request,
+  onApprove,
+  onDeny,
+  currentUser,
+}: RequestFormProps) => {
   return (
     <Box mt={3} key={request.requestID}>
       <Text
@@ -120,7 +128,11 @@ const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
         {getPendingText(request)}
       </Text>
       <Flex gap={2}>
-        <ButtonBorder block onClick={() => onApprove(request.requestID, true)}>
+        <ButtonBorder
+          disabled={request.approvers.includes(currentUser.username)}
+          block
+          onClick={() => onApprove(request.requestID, true)}
+        >
           <Icons.Check fontSize="16px" mr={2} />
           Approve
         </ButtonBorder>

@@ -37,7 +37,7 @@ interface ParameterPickerProps {
 export function ParameterPicker(props: ParameterPickerProps) {
   const {
     inputValue,
-    closeAndResetInput,
+    close,
     changeActivePicker,
     resetInput,
     addWindowEventListener,
@@ -62,13 +62,13 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const onPick = useCallback(
     (item: string) => {
       props.action.perform(item);
-      if (props.action.preventAutoClose === true) {
-        resetInput();
-      } else {
-        closeAndResetInput();
+
+      resetInput();
+      if (!props.action.preventAutoClose) {
+        close();
       }
     },
-    [closeAndResetInput, resetInput, props.action]
+    [close, resetInput, props.action]
   );
 
   const onBack = useCallback(() => {
