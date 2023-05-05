@@ -639,7 +639,7 @@ export function ResourceSearchErrorsItem(props: {
 
   return (
     <NonInteractiveItem>
-      <IconAndContent Icon={icons.Warning} iconColor="#f3af3d">
+      <IconAndContent Icon={icons.Warning} iconColor="warning.main">
         <Text typography="body1">
           Some of the search results are incomplete.
         </Text>
