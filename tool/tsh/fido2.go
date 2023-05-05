@@ -18,12 +18,34 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-func onFIDO2Diag(cf *CLIConf) error {
+type fido2Command struct {
+	diag *fido2DiagCommand
+}
+
+func newFIDO2Command(app *kingpin.Application) *fido2Command {
+	cmd := &fido2Command{
+		diag: &fido2DiagCommand{},
+	}
+
+	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
+
+	diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
+	cmd.diag.CmdClause = diag
+
+	return cmd
+}
+
+type fido2DiagCommand struct {
+	*kingpin.CmdClause
+}
+
+func (_ *fido2DiagCommand) run(cf *CLIConf) error {
 	diag, err := wancli.FIDO2Diag(cf.Context, os.Stdout)
 	// Abort if we got a nil diagnostic, otherwise print as much as we can.
 	if diag == nil {
