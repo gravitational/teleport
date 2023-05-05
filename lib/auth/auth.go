@@ -3749,6 +3749,16 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if kind == 0 {
 		return nil
 	}
+
+	// KubeServiceV2 (used by v11 kube agents) keepalives as
+	// KeepAlive_KUBERNETES but with no HostID; we shouldn't count those, as the
+	// name is going to be the host ID of the agent rather than the kube cluster
+	// name.
+	// DELETE IN: 13.0
+	if h.Type == types.KeepAlive_KUBERNETES && h.HostID == "" {
+		return nil
+	}
+
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   h.Name,
 		Kind:   kind,

@@ -359,12 +359,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            178
+            184
           </strong>
            of
            
           <strong>
-            178
+            184
           </strong>
         </div>
         <button
@@ -1344,6 +1344,228 @@ exports[`list of all events 1`] = `
           style="word-break: break-word;"
         >
           User [3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name] has registered a device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Authenticate
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has failed to authenticate their device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enrollment
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has failed to enroll their device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enroll Token Spent
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has spent a device enroll token
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enroll Token Create
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] created a device enroll token
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Delete
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has deleted a device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Register
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has registered a device
         </td>
         <td
           style="min-width: 120px;"

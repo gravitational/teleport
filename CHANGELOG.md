@@ -1,6 +1,20 @@
 # Changelog
 
+## 12.3.2 (05/04/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Auth server
+  * Fixed panic when cluster has access requests. [teleport.e#1298](https://github.com/gravitational/teleport.e/pull/1298)
+* Application Access
+  * Improved error message when Proxy is using untrusted certificate. [#25606](https://github.com/gravitational/teleport/pull/25606)
+* Database Access
+  * Fixed issue with Postgres listener not supporting IP pinning. [#25529](https://github.com/gravitational/teleport/pull/25529)
+
 ## 12.3.1 (05/02/23)
+
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
 
 This release of Teleport contains a security Go upgrade as well as multiple improvements and bug fixes.
 
@@ -16,6 +30,9 @@ This release of Teleport contains a security Go upgrade as well as multiple impr
 
 ## 12.3.0 (05/01/23)
 
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
+
 This release of Teleport contains multiple improvements and bug fixes.
 
 * Desktop Access
@@ -28,6 +45,9 @@ This release of Teleport contains multiple improvements and bug fixes.
   * Updated device trust audit events to have descriptive types. [#25320](https://github.com/gravitational/teleport/pull/25320)
 
 ## 12.2.5 (04/28/23)
+
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
 
 This release of Teleport contains multiple improvements and bug fixes.
 
