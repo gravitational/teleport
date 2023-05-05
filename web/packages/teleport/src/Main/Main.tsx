@@ -77,7 +77,7 @@ export function Main(props: MainProps) {
       feature =>
         feature.hasAccess &&
         feature.isLockedAndUpdatedRouteAndNavigationItem && // check if its defined
-        feature.isLockedAndUpdatedRouteAndNavigationItem(ctx)
+        feature.isLockedAndUpdatedRouteAndNavigationItem(ctx.lockedFeatures)
     );
 
     return props.features.filter(feature => {
