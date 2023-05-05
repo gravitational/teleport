@@ -239,7 +239,7 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
-	// AdditionalExpectedInstanceRoles are additional roles to attach to the Teleport instances.
+	// AdditionalExpectedRoles are additional roles to attach to the Teleport instances.
 	AdditionalExpectedRoles []RoleAndIdentityEvent
 
 	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
