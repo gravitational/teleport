@@ -45,8 +45,41 @@ Infrastructure components include:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-![Diagram of a high-availability Teleport
-architecture](../../img/deploy-a-cluster/teleport-ha-architecture.png)
+```mermaid
+flowchart
+
+   subgraph public[Public Network]
+     Developers
+   end
+
+   subgraph private[Private Network]
+     serv1[Teleport Service]
+     serv2[Teleport Service]
+     serv3[Teleport Service]
+   end
+
+   Developers & serv1 & serv2 & serv3 --> lb1[Load Balancer]
+   lb1 --> proxypool
+
+   subgraph teleport[Private Network]
+     subgraph proxypool[Proxy Service Pool]
+       tp1[Teleport Proxy Service]
+       tp2[Teleport Proxy Service]
+     end
+
+     proxypool --> lb2[Load Balancer]
+
+     subgraph authpool[Auth Service Pool]
+       ta1[Teleport Auth Service]
+       ta3[Teleport Auth Service]
+    end
+
+    lb2-->authpool
+
+    authpool-->kv[Key/Value Store]
+    authpool-->os[Object Store]
+   end
+```
 
 ## Layer 4 load balancers
 
