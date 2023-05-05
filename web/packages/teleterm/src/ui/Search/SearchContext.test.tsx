@@ -146,11 +146,12 @@ describe('addWindowEventListener', () => {
 describe('open', () => {
   it('manages the focus properly when called with no arguments', () => {
     const SearchInput = () => {
-      const { inputRef, open, close } = useSearchContext();
+      const { inputRef, isOpen, open, close } = useSearchContext();
 
       return (
         <>
           <input data-testid="search-input" ref={inputRef} />
+          <div data-testid="is-open">{String(isOpen)}</div>
           <button data-testid="open" onClick={() => open()} />
           <button data-testid="close" onClick={() => close()} />
         </>
@@ -168,13 +169,59 @@ describe('open', () => {
     );
 
     const otherInput = screen.getByTestId('other-input');
-    const searchInput = screen.getByTestId('search-input');
     otherInput.focus();
 
+    expect(screen.getByTestId('is-open')).toHaveTextContent('false');
     screen.getByTestId('open').click();
-    expect(searchInput).toHaveFocus();
+    expect(screen.getByTestId('is-open')).toHaveTextContent('true');
 
     screen.getByTestId('close').click();
     expect(otherInput).toHaveFocus();
+  });
+});
+
+describe('close', () => {
+  it('restores focus on the previously active element', () => {
+    const previouslyActive = {
+      focus: jest.fn(),
+    } as unknown as HTMLInputElement;
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => (
+        <SearchContextProvider>{children}</SearchContextProvider>
+      ),
+    });
+
+    act(() => {
+      result.current.open(previouslyActive);
+    });
+
+    act(() => {
+      result.current.close();
+    });
+
+    expect(previouslyActive.focus).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('closeWithoutRestoringFocus', () => {
+  it('does not restore focus on the previously active element', () => {
+    const previouslyActive = {
+      focus: jest.fn(),
+    } as unknown as HTMLInputElement;
+    const { result } = renderHook(() => useSearchContext(), {
+      wrapper: ({ children }) => (
+        <SearchContextProvider>{children}</SearchContextProvider>
+      ),
+    });
+
+    act(() => {
+      result.current.open(previouslyActive);
+    });
+
+    act(() => {
+      result.current.closeWithoutRestoringFocus();
+    });
+
+    expect(previouslyActive.focus).not.toHaveBeenCalled();
   });
 });

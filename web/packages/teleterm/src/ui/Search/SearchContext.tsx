@@ -33,17 +33,20 @@ export interface SearchContext {
   inputValue: string;
   filters: SearchFilter[];
   activePicker: SearchPicker;
-  onInputValueChange(value: string): void;
+  setInputValue(value: string): void;
   changeActivePicker(picker: SearchPicker): void;
   isOpen: boolean;
   open(fromElement?: Element): void;
   close(): void;
-  closeAndResetInput(): void;
+  closeWithoutRestoringFocus(): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
   pauseUserInteraction(action: () => Promise<any>): Promise<void>;
   addWindowEventListener: AddWindowEventListener;
+  makeEventListener: <EventListener>(
+    eventListener: EventListener
+  ) => EventListener | undefined;
 }
 
 export type AddWindowEventListener = (
@@ -55,6 +58,7 @@ export type AddWindowEventListener = (
 const SearchContext = createContext<SearchContext>(null);
 
 export const SearchContextProvider: FC = props => {
+  // The type of the ref is Element to adhere to the type of document.activeElement.
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
@@ -77,33 +81,39 @@ export const SearchContextProvider: FC = props => {
   const close = useCallback(() => {
     setIsOpen(false);
     setActivePicker(actionPicker);
-    if (previouslyActive.current instanceof HTMLElement) {
-      previouslyActive.current.focus();
+    if (
+      // The Element type is not guaranteed to have the focus function so we're forced to manually
+      // perform the type check.
+      previouslyActive.current
+    ) {
+      // TODO(ravicious): Revert to a regular `focus()` call (#25186@4f9077eb7) once #25683 gets in.
+      previouslyActive.current['focus']?.();
     }
   }, []);
 
-  const closeAndResetInput = useCallback(() => {
+  const closeWithoutRestoringFocus = useCallback(() => {
+    previouslyActive.current = undefined;
     close();
-    setInputValue('');
   }, [close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
   }, []);
 
-  function open(fromElement?: Element): void {
+  function open(fromElement?: HTMLElement): void {
     if (isOpen) {
       // Even if the search bar is already open, we want to focus on the input anyway. The search
       // input might lose focus due to user interaction while the search bar stays open. Focusing
       // here again makes it possible to use the shortcut to grant the focus to the input again.
+      //
+      // Also note that SearchBar renders two distinct input elements, one when the search bar is
+      // closed and another when its open. During the initial call to this function,
+      // inputRef.current is equal to the element from when the search bar was closed.
       inputRef.current?.focus();
       return;
     }
 
-    // In case `open` was called without `fromElement` (e.g. when using the keyboard shortcut), we
-    // must read `document.activeElement` before we focus the input.
     previouslyActive.current = fromElement || document.activeElement;
-    inputRef.current?.focus();
     setIsOpen(true);
   }
 
@@ -163,6 +173,22 @@ export const SearchContextProvider: FC = props => {
     [isUserInteractionPaused]
   );
 
+  /**
+   * makeEventListener is similar to addWindowEventListener but meant for situations where you want
+   * to add a listener to an element directly. By wrapping the listener in makeEventListener, you
+   * make sure that the listener will be removed when the interaction with the search bar is paused.
+   */
+  const makeEventListener = useCallback(
+    eventListener => {
+      if (isUserInteractionPaused) {
+        return;
+      }
+
+      return eventListener;
+    },
+    [isUserInteractionPaused]
+  );
+
   function setFilter(filter: SearchFilter) {
     // UI prevents adding more than one filter of the same type
     setFilters(prevState => [...prevState, filter]);
@@ -187,7 +213,7 @@ export const SearchContextProvider: FC = props => {
       value={{
         inputRef,
         inputValue,
-        onInputValueChange: setInputValue,
+        setInputValue,
         changeActivePicker,
         activePicker,
         filters,
@@ -197,9 +223,10 @@ export const SearchContextProvider: FC = props => {
         isOpen,
         open,
         close,
-        closeAndResetInput,
+        closeWithoutRestoringFocus,
         pauseUserInteraction,
         addWindowEventListener,
+        makeEventListener,
       }}
       children={props.children}
     />
