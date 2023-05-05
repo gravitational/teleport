@@ -233,7 +233,7 @@ exports[`render dialog with instructions to connect to database 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Connect To Database
         </div>
@@ -611,7 +611,7 @@ exports[`render dialog with instructions to connect to database with requestId 1
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Connect To Database
           </div>

@@ -23,17 +23,17 @@ import { fade } from 'design/theme/utils/colorManipulator';
 const kinds = ({ theme, kind, shadow }) => {
   // default is primary
   const styles = {
-    background: theme.colors.brand.main,
+    background: theme.colors.brand,
     color: theme.colors.text.contrast,
   };
 
   if (kind === 'secondary') {
     styles.background = theme.colors.levels.sunkenSecondary;
-    styles.color = theme.colors.text.primary;
+    styles.color = theme.colors.text.main;
   }
 
   if (kind === 'warning') {
-    styles.background = theme.colors.warning;
+    styles.background = theme.colors.warning.main;
     styles.color = theme.colors.text.contrast;
   }
 

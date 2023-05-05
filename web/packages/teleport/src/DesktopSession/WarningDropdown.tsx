@@ -81,7 +81,7 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
                 item={warning}
                 onRemove={() => onRemoveWarning(warning.id)}
                 Icon={Warning}
-                getColor={theme => theme.colors.warning}
+                getColor={theme => theme.colors.warning.main}
                 isAutoRemovable={false}
               />
             ))}
@@ -103,7 +103,7 @@ const StyledButton = styled(Button)`
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
   background-color: ${props =>
     props.hasWarnings
-      ? props.theme.colors.warning
+      ? props.theme.colors.warning.main
       : props.theme.colors.action.disabled};
   &:hover,
   &:focus {

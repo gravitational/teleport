@@ -137,8 +137,8 @@ const Bullet = styled.span`
 `;
 
 const ActiveBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand.main};
-  background: ${props => props.theme.colors.brand.main};
+  border-color: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.brand};
 
   :before {
     content: '';
@@ -150,8 +150,8 @@ const ActiveBullet = styled(Bullet)`
 `;
 
 const CheckedBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.brand.main};
-  background: ${props => props.theme.colors.brand.main};
+  border-color: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.brand};
 
   :before {
     content: '✓';
@@ -161,7 +161,7 @@ const CheckedBullet = styled(Bullet)`
 const StepsContainer = styled.div<{ active: boolean }>`
   display: flex;
   flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.secondary)};
+  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
   margin-right: 32px;
   position: relative;
 
@@ -169,7 +169,7 @@ const StepsContainer = styled.div<{ active: boolean }>`
     position: absolute;
     content: '';
     width: 16px;
-    background: ${({ theme }) => theme.colors.brand.main};
+    background: ${({ theme }) => theme.colors.brand};
     height: 1px;
     top: 50%;
     transform: translate(0, -50%);

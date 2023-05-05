@@ -187,7 +187,7 @@ exports[`another session active 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Another Session Is Active
         </div>
@@ -304,7 +304,7 @@ exports[`connected settings false 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -413,7 +413,7 @@ exports[`connected settings false 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -426,13 +426,13 @@ exports[`connected settings false 1`] = `
           <span
             class="c5 c6 icon icon-folder-shared c7"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Clipboard Sharing Disabled"
           />
           <div
@@ -461,7 +461,7 @@ exports[`connected settings false 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
@@ -566,7 +566,7 @@ exports[`connected settings true 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -675,7 +675,7 @@ exports[`connected settings true 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -723,7 +723,7 @@ exports[`connected settings true 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
@@ -906,7 +906,7 @@ exports[`connection error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1030,7 +1030,7 @@ exports[`disconnected 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -1145,7 +1145,7 @@ exports[`disconnected 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1158,13 +1158,13 @@ exports[`disconnected 1`] = `
           <span
             class="c5 c6 icon icon-folder-shared c7"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Clipboard Sharing Disabled"
           />
           <div
@@ -1193,7 +1193,7 @@ exports[`disconnected 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
@@ -1385,7 +1385,7 @@ exports[`fetch error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1581,7 +1581,7 @@ exports[`invalid processing 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1705,7 +1705,7 @@ exports[`processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -1814,7 +1814,7 @@ exports[`processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1827,7 +1827,7 @@ exports[`processing 1`] = `
           <span
             class="c5 c6 icon icon-folder-shared c7"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
@@ -1862,7 +1862,7 @@ exports[`processing 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
@@ -1976,7 +1976,7 @@ exports[`tdp processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -2085,7 +2085,7 @@ exports[`tdp processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -2098,7 +2098,7 @@ exports[`tdp processing 1`] = `
           <span
             class="c5 c6 icon icon-folder-shared c7"
             color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
@@ -2133,7 +2133,7 @@ exports[`tdp processing 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
@@ -2319,7 +2319,7 @@ exports[`unintended disconnect 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -2548,7 +2548,7 @@ exports[`webauthn prompt 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Multi-factor authentication
         </div>

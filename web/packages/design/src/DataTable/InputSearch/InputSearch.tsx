@@ -83,16 +83,16 @@ const StyledInput = styled.input`
 
 function fromTheme(props) {
   return {
-    color: props.theme.colors.text.primary,
+    color: props.theme.colors.text.main,
     background: props.theme.colors.levels.sunkenSecondary,
 
     '&: hover, &:focus, &:active': {
       background: props.theme.colors.levels.surfaceSecondary,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.primary,
+      color: props.theme.colors.text.main,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

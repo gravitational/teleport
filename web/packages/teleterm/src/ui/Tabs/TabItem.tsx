@@ -98,7 +98,7 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
     flexBasis: '0',
     flexGrow: '1',
     opacity: '1',
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.slightlyMuted,
     alignItems: 'center',
     minWidth: '0',
     height: '100%',

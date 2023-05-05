@@ -51,7 +51,7 @@ const TopNavItem = styled.button`
   }
 
   &.active:after {
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: ${props => props.theme.colors.brandAccent};
     content: '';
     position: absolute;
     bottom: 0;

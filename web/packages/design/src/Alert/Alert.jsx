@@ -36,7 +36,7 @@ const kind = props => {
       };
     case 'warning':
       return {
-        background: theme.colors.warning,
+        background: theme.colors.warning.main,
         color: theme.colors.text.contrast,
       };
     case 'success':

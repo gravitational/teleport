@@ -81,7 +81,7 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
       </ButtonBorder>
       <InternalJoinMenu anchorEl={anchorEl} handleClose={handleClose}>
         {children}
@@ -108,7 +108,7 @@ function LockedFeatureJoinMenu({ modes }: LockedFeatureJoinMenu) {
     <Box textAlign="center" width="80px">
       <ButtonBorder size="small" onClick={handleClickListItem}>
         Join
-        <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+        <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
       </ButtonBorder>
       <LockedFeatureInternalJoinMenu
         anchorEl={anchorEl}
