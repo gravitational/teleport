@@ -21,7 +21,7 @@ import {
   UserEvent,
   PreUserEvent,
   DiscoverEventRequest,
-  CtaEvents,
+  CtaEvent,
   CaptureEvent,
 } from './types';
 
@@ -53,7 +53,7 @@ export const userEventService = {
     });
   },
 
-  captureCtaEvent(event: CtaEvents) {
+  captureCtaEvent(event: CtaEvent) {
     // using api.fetch instead of api.fetchJSON
     // because we are not expecting a JSON response
     void api.fetch(cfg.api.captureUserEventPath, {

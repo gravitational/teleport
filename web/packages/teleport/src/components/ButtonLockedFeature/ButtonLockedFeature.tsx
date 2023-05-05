@@ -20,12 +20,12 @@ import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
-import { CtaEvents, userEventService } from 'teleport/services/userEvent';
+import { CtaEvent, userEventService } from 'teleport/services/userEvent';
 
 export type Props = {
   children: React.ReactNode;
   noIcon?: boolean;
-  event?: CtaEvents;
+  event?: CtaEvent;
   [index: string]: any;
 };
 

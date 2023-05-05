@@ -20,8 +20,8 @@ import * as prehogApi from 'gen-proto-js/prehog/v1alpha/teleport_pb';
 
 // export prehopApi.CTA as both value and a type, so we can use it to
 // describe the enum and as a value at the same time.
-export type CtaEvents = prehogApi.CTA;
-export const CtaEvents = prehogApi.CTA;
+export type CtaEvent = prehogApi.CTA;
+export const CtaEvent = prehogApi.CTA;
 
 export enum CaptureEvent {
   // UserEvent types

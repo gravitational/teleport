@@ -24,7 +24,7 @@ import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
-import { CtaEvents } from 'teleport/services/userEvent';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 export default function Container({
   children,
@@ -83,7 +83,7 @@ export const Support = ({
               url="mailto:support@goteleport.com"
             />
             {isEnterprise && showPremiumSupportCTA && (
-              <ButtonLockedFeature event={CtaEvents.CTA_PREMIUM_SUPPORT}>
+              <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
                 Unlock Premium Support w/Enterprise
               </ButtonLockedFeature>
             )}

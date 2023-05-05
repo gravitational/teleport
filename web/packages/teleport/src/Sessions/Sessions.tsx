@@ -29,7 +29,7 @@ import useStickerClusterId from 'teleport/useStickyClusterId';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
-import { CtaEvents } from 'teleport/services/userEvent';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 import SessionList from './SessionList';
 import useSessions from './useSessions';
@@ -51,7 +51,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
           <Box width="340px">
             <ButtonLockedFeature
               height="36px"
-              event={CtaEvents.CTA_ACTIVE_SESSIONS}
+              event={CtaEvent.CTA_ACTIVE_SESSIONS}
             >
               Join Active Sessions With Teleport Enterprise
             </ButtonLockedFeature>
