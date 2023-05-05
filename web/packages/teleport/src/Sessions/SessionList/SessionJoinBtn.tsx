@@ -23,6 +23,7 @@ import { CarrotDown } from 'design/Icon';
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 export const SessionJoinBtn = ({
   sid,
@@ -51,6 +52,7 @@ export const SessionJoinBtn = ({
 
   return (
     <JoinMenu>
+<<<<<<< HEAD
       {sortedParticipantModes.map(participantMode => (
         <MenuItem
           key={participantMode}
@@ -62,6 +64,46 @@ export const SessionJoinBtn = ({
           {participantMode}
         </MenuItem>
       ))}
+=======
+      {showCTA && (
+        <Box mx="12px" my="3">
+          <ButtonLockedFeature
+            noIcon
+            height="40px"
+            event={CtaEvent.CTA_ACTIVE_SESSIONS}
+          >
+            Join Active Sessions with Teleport Enterprise
+          </ButtonLockedFeature>
+        </Box>
+      )}
+      <JoinMenuItem
+        title="As an Observer"
+        description={modeDescription.observer}
+        url={cfg.getSshSessionRoute({ sid, clusterId }, 'observer')}
+        hasAccess={participantModes.includes('observer')}
+        participantMode="observer"
+        key="observer"
+        showCTA={showCTA}
+      />
+      <JoinMenuItem
+        title="As a Moderator"
+        description={modeDescription.moderator}
+        url={cfg.getSshSessionRoute({ sid, clusterId }, 'moderator')}
+        hasAccess={participantModes.includes('moderator')}
+        participantMode="moderator"
+        key="moderator"
+        showCTA={showCTA}
+      />
+      <JoinMenuItem
+        title="As a Peer"
+        description={modeDescription.peer}
+        url={cfg.getSshSessionRoute({ sid, clusterId }, 'peer')}
+        hasAccess={participantModes.includes('peer')}
+        participantMode="peer"
+        key="peer"
+        showCTA={showCTA}
+      />
+>>>>>>> 0697011eaa... Add events to cta clicks (#25325)
     </JoinMenu>
   );
 };
