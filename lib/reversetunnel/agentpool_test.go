@@ -132,13 +132,8 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		select {
-		case <-pool.tracker.Acquire():
-			return true
-		default:
-			return false
-		}
-	}, time.Second*5, time.Millisecond*10, "expected a lease to be available")
+		return pool.active.len() == 1
+	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
 
 	require.False(t, pool.isAgentRequired())
 	require.Equal(t, pool.Count(), 1)
