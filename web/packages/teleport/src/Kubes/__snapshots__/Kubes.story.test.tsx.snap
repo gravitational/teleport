@@ -346,11 +346,98 @@ exports[`failed 1`] = `
   color: #FFFFFF;
 }
 
-.c30 {
+.c32 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c30 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c30 .c20 {
+  color: inherit;
+}
+
+.c30:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c30:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c30:hover:enabled,
+.c30:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c30:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c33 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c33 .c20 {
+  color: inherit;
+}
+
+.c33:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c33:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c33:hover:enabled,
+.c33:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c33:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -398,7 +485,7 @@ exports[`failed 1`] = `
   flex-wrap: wrap;
 }
 
-.c28 {
+.c29 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -407,7 +494,6 @@ exports[`failed 1`] = `
 
 .c24 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -470,8 +556,8 @@ exports[`failed 1`] = `
   line-height: 16px;
 }
 
-.c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c24 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c24 tbody tr:hover {
@@ -486,6 +572,19 @@ exports[`failed 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c28 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c4 {
@@ -514,29 +613,12 @@ exports[`failed 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c29 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c29 .c20 {
+.c31 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c29:hover .c20,
-.c29:focus .c20 {
-  opacity: 1;
-}
-
-.c29:disabled {
-  cursor: default;
-}
-
-.c29:disabled .c20 {
-  opacity: 0.1;
+.c31 .c20:before {
+  padding-left: 1px;
 }
 
 .c13 {
@@ -942,30 +1024,30 @@ exports[`failed 1`] = `
       </tbody>
     </table>
     <nav
-      class="c5"
+      class="c28"
     >
       <div
-        class="c28"
+        class="c29"
         width="100%"
       >
         <div
           class="c22"
         >
           <button
-            class="c29"
+            class="c30 c31"
             title="Previous page"
           >
             <span
-              class="c20 c30 icon icon-arrow-left-circle "
+              class="c20 c32 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c29"
+            class="c33 c31"
             title="Next page"
           >
             <span
-              class="c20 c30 icon icon-arrow-right-circle "
+              class="c20 c32 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
@@ -1074,11 +1156,98 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c30 {
+.c32 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c30 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c30 .c20 {
+  color: inherit;
+}
+
+.c30:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c30:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c30:hover:enabled,
+.c30:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c30:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c33 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c33 .c20 {
+  color: inherit;
+}
+
+.c33:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c33:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c33:hover:enabled,
+.c33:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c33:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -1126,7 +1295,7 @@ exports[`loaded 1`] = `
   flex-wrap: wrap;
 }
 
-.c28 {
+.c29 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1135,7 +1304,6 @@ exports[`loaded 1`] = `
 
 .c24 {
   background: #222C59;
-  border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
   width: 100%;
@@ -1198,8 +1366,8 @@ exports[`loaded 1`] = `
   line-height: 16px;
 }
 
-.c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c24 > tbody > tr:not(:last-of-type) > td {
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
 .c24 tbody tr:hover {
@@ -1214,6 +1382,19 @@ exports[`loaded 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c28 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c4 {
@@ -1242,29 +1423,12 @@ exports[`loaded 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c29 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c29 .c20 {
+.c31 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c29:hover .c20,
-.c29:focus .c20 {
-  opacity: 1;
-}
-
-.c29:disabled {
-  cursor: default;
-}
-
-.c29:disabled .c20 {
-  opacity: 0.1;
+.c31 .c20:before {
+  padding-left: 1px;
 }
 
 .c13 {
@@ -1676,30 +1840,30 @@ exports[`loaded 1`] = `
       </tbody>
     </table>
     <nav
-      class="c5"
+      class="c28"
     >
       <div
-        class="c28"
+        class="c29"
         width="100%"
       >
         <div
           class="c22"
         >
           <button
-            class="c29"
+            class="c30 c31"
             title="Previous page"
           >
             <span
-              class="c20 c30 icon icon-arrow-left-circle "
+              class="c20 c32 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c29"
+            class="c33 c31"
             title="Next page"
           >
             <span
-              class="c20 c30 icon icon-arrow-right-circle "
+              class="c20 c32 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>

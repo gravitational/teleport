@@ -26,10 +26,12 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   ...props,
 });
 
+export const databaseUri = '/clusters/teleport-local/dbs/foo';
+
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
 ): tsh.Database => ({
-  uri: '/clusters/teleport-local/dbs/foo',
+  uri: databaseUri,
   name: 'foo',
   protocol: 'postgres',
   type: 'self-hosted',
@@ -69,5 +71,18 @@ export const makeRootCluster = (
     requestableRolesList: [],
     suggestedReviewersList: [],
   },
+  ...props,
+});
+
+export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
+  uri: '/gateways/foo',
+  targetName: 'sales-production',
+  targetUri: databaseUri,
+  targetUser: 'alice',
+  localAddress: 'localhost',
+  localPort: '1337',
+  protocol: 'postgres',
+  cliCommand: 'connect-me-to-db-please',
+  targetSubresourceName: 'bar',
   ...props,
 });

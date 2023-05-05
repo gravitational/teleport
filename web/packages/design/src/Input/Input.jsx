@@ -58,6 +58,7 @@ const Input = styled.input`
 
   ::placeholder {
     color: ${props => props.theme.colors.text.muted};
+    opacity: 1;
   }
 
   :read-only {

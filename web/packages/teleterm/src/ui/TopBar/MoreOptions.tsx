@@ -181,11 +181,11 @@ const Menu = styled.menu`
   display: flex;
   flex-direction: column;
   min-width: 280px;
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.elevated};
 `;
 
 const Separator = styled.div`
-  background: ${props => props.theme.colors.levels.elevated};
+  background: ${props => props.theme.colors.spotBackground[1]};
   height: 1px;
 `;
 
@@ -222,7 +222,7 @@ function MenuItem({
               padding: ${props => props.theme.space[1]}px
                 ${props => props.theme.space[1]}px;
             `}
-            bg="levels.surfaceSecondary"
+            bg="levels.surface"
           >
             {getAccelerator(item.keyboardShortcutAction)}
           </Text>
