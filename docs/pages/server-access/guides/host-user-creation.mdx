@@ -4,7 +4,8 @@ description: How to configure Teleport to automatically create transient host us
 ---
 
 Teleport's SSH Service can be configured to automatically create local Unix users
-upon login.
+upon login.  Refer to the [Desktop Access RBAC guide](https://goteleport.com/docs/desktop-access/rbac/#automatic-user-creation)
+if looking for instructions on how to create local users in Windows machines.
 
 Host users created by Teleport are transient and will be deleted at the end of an SSH
 session. This feature has overlap with the [PAM](./ssh-pam.mdx) integration, however
