@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/puttyhosts"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/registry"
 )
 
@@ -195,7 +195,7 @@ func addHostCAPublicKey(keyName string, publicKey string, hostname string) error
 	defer registryKey.Close()
 
 	// add the new hostname to the existing hostList from the registry key (if one exists)
-	hostList = utils.AddHostToHostList(hostList, hostname)
+	hostList = puttyhosts.AddHostToHostList(hostList, hostname)
 
 	// write strings to subkey
 	if err := registry.WriteMultiString(registryKey, "MatchHosts", hostList); err != nil {
@@ -239,7 +239,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	// to typos or similar. setting an "invalid" key in the registry makes it impossible to delete via the PuTTY
 	// UI and requires registry edits, so it's much better to error out early here.
 	hostname := tc.Config.Host
-	if !utils.NaivelyValidateHostname(hostname) {
+	if !puttyhosts.NaivelyValidateHostname(hostname) {
 		return trace.BadParameter("provided hostname %v does not look like a valid hostname. Make sure it doesn't contain illegal characters.", hostname)
 	}
 
@@ -274,11 +274,8 @@ func onPuttyConfig(cf *CLIConf) error {
 	certificateFilePath := keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName)
 
 	// if a leaf cluster is requested, we need to check whether we can find it while running the CA loop below
-	wantLeaf := false
+	wantLeaf := cf.LeafClusterName != ""
 	leafExists := false
-	if cf.LeafClusterName != "" {
-		wantLeaf = true
-	}
 
 	// get all CAs for the cluster (including trusted clusters)
 	var cas []types.CertAuthority
