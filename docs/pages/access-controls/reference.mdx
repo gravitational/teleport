@@ -186,7 +186,7 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-Setting multiple entries under labels works as "and" logic to match to all entries.
+Multiple label entries are treated as logical "AND" operations.
 As an example this entry would match to databases that have `env: prod` label and
 `region` label `us-west-1` or `eu-central-1`.
 ```yaml
