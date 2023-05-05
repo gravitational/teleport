@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
+  UiCallToActionClickEvent = 'tp.ui.callToAction.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -148,3 +149,14 @@ export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+// TODO(mcbattirola): import this from protofile instead of copying it here
+export enum CtaEvent {
+  CTA_UNSPECIFIED = 0,
+  CTA_AUTH_CONNECTOR = 1,
+  CTA_ACTIVE_SESSIONS = 2,
+  CTA_ACCESS_REQUESTS = 3,
+  CTA_PREMIUM_SUPPORT = 4,
+  CTA_TRUSTED_DEVICES = 5,
+  CTA_UPGRADE_BANNER = 6,
+}
