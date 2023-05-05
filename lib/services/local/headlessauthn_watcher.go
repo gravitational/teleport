@@ -22,12 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -225,7 +225,7 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 		for _, s := range h.subscribers {
 			if s != nil && s.name == ha.Metadata.Name {
 				select {
-				case s.updates <- proto.Clone(ha).(*types.HeadlessAuthentication):
+				case s.updates <- apiutils.CloneProtoMsg(ha):
 				default:
 					select {
 					case s.stale <- struct{}{}:
