@@ -1227,6 +1227,12 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 	require.NoError(t, err)
 
+	leaf, err := types.NewRemoteCluster("leaf")
+	require.NoError(t, err)
+
+	// create remote cluster
+	require.NoError(t, srv.Auth().CreateRemoteCluster(leaf))
+
 	// Create a fake user.
 	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -1677,6 +1683,85 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					return &proto.MFAAuthenticateResponse{}
 				},
 				checkAuthErr: require.Error,
+			},
+		},
+		{
+			desc: "k8s in leaf cluster",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-b",
+					RouteToCluster:    "leaf",
+				},
+				checkInitErr: require.NoError,
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-b", identity.KubernetesCluster)
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
+				},
+			},
+		},
+		{
+			desc: "db in leaf cluster",
+			opts: generateUserSingleUseCertTestOpts{
+				initReq: &proto.UserCertsRequest{
+					PublicKey: pub,
+					Username:  user.GetName(),
+					// This expiry is longer than allowed, should be
+					// automatically adjusted.
+					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:   proto.UserCertsRequest_Database,
+					RouteToDatabase: proto.RouteToDatabase{
+						ServiceName: "db-b",
+						Database:    "db-b",
+					},
+					RouteToCluster: "leaf",
+				},
+				checkInitErr: require.NoError,
+				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
+					require.Equal(t, proto.MFARequired_MFA_REQUIRED_UNSPECIFIED, required)
+				},
+				authHandler:  registered.webAuthHandler,
+				checkAuthErr: require.NoError,
+				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
+					crt := c.GetTLS()
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, clock.Now().Add(teleport.UserSingleUseCertTTL), cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
+					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-b")
+					require.Equal(t, "127.0.0.1", identity.PinnedIP)
+				},
 			},
 		},
 	}
