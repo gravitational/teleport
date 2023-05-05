@@ -84,12 +84,10 @@ export const SearchContextProvider: FC = props => {
     if (
       // The Element type is not guaranteed to have the focus function so we're forced to manually
       // perform the type check.
-      previouslyActive.current &&
-      'focus' in previouslyActive.current &&
-      typeof previouslyActive.current.focus === 'function'
+      previouslyActive.current
     ) {
-      // TODO(ravicious): Revert this to a regular `focus()` call once #25683 gets merged.
-      previouslyActive.current['focus']();
+      // TODO(ravicious): Revert to a regular `focus()` call (#25186@4f9077eb7) once #25683 gets in.
+      previouslyActive.current['focus']?.();
     }
   }, []);
 
