@@ -1,9 +1,23 @@
 Use the appropriate commands for your environment to install your package.
 
+<Admonition type="note">
+`apt` and `yum` repos don't expose packages for all distribution variants.
+When following installation instructions, you might need to replace `ID` with
+`ID_LIKE` to install packages of the closest supported distribution.
+
+Currently supported distributions (and `ID`) are:
+- RHEL (`rhel`)
+- CentOS (`centos`)
+- Debian (`debian`)
+- Ubuntu (`ubuntu`)
+- AmazonLinux (`amzn`)``
+</Admonition>
+
+
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (apt)" scope="oss">
+  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="oss">
 
   Add the Teleport repository to your repository list:
 
@@ -15,9 +29,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
@@ -34,9 +45,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   $ sudo yum install teleport
   #
@@ -51,9 +59,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
   # Use the dnf config manager plugin to add the teleport RPM repo
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   
@@ -86,7 +91,7 @@ Use the appropriate commands for your environment to install your package.
   </TabItem>
   <TabItem label="Enterprise" scope="enterprise">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (apt)" scope="enterprise">
+  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="enterprise">
 
   Add the Teleport repository to your repository list:
 
@@ -98,9 +103,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v(=teleport.major_version=)" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
@@ -123,9 +125,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   $ sudo yum install teleport-ent
   #
@@ -147,9 +146,6 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
   # Use the dnf config manager plugin to add the teleport RPM repo
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   
@@ -199,7 +195,7 @@ Use the appropriate commands for your environment to install your package.
   </TabItem>
   <TabItem label="Cloud" scope="cloud">
   <Tabs>
-  <TabItem label="Debian/Ubuntu (apt)" scope="cloud">
+  <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="cloud">
 
   Add the Teleport repository to your repository list:
 
@@ -209,11 +205,7 @@ Use the appropriate commands for your environment to install your package.
   -o /usr/share/keyrings/teleport-archive-keyring.asc
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport APT repository for v(=teleport.major_version=). You'll need to update this
-  # file for each major release of Teleport.
-  # Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
+  # Add the Teleport apt repository for cloud.
   $ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
   https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/cloud" \
   | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
@@ -228,11 +220,7 @@ Use the appropriate commands for your environment to install your package.
   ```code
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
-  # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+  # Add the Teleport yum repository for cloud.
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
   $ sudo yum install teleport-ent
   #
@@ -246,11 +234,7 @@ Use the appropriate commands for your environment to install your package.
   ```code
   # Source variables about OS version
   $ source /etc/os-release
-  # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
-  # file for each major release of Teleport.
-  # Note: if using a fork of RHEL/CentOS or Amazon Linux you may need to use '$ID_LIKE'
-  # and the codename your distro was forked from instead of '$ID'
-  # Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L133-L153
+  # Add the Teleport yum repository for cloud.
   # Use the dnf config manager plugin to add the teleport RPM repo
   $ sudo dnf config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
   
