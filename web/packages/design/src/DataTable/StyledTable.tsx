@@ -96,8 +96,9 @@ export const StyledTable = styled.table(
 // Sometimes, there is also an artifact visible after hovering the rows - some of them have correct border color, some not.
 // WebKit issue https://bugs.webkit.org/show_bug.cgi?id=35456.
 //
-// `getSolidRowBorderColor` is a workaround. The color is created by lightening or darkening the table background by
-// the value of theme.colors.spotBackground[0].
+// `getSolidRowBorderColor` is a workaround. Instead of setting a color with an alpha channel to the border and letting
+// the browser mix it with the background color, we calculate the final (non-alpha) color in the JS code.
+// The final color is created by lightening or darkening the table background color by the value of theme.colors.spotBackground[0].
 function getSolidRowBorderColor(theme) {
   const alpha = decomposeColor(theme.colors.spotBackground[0]).values[3];
   return emphasize(theme.colors.levels.surface, alpha);
