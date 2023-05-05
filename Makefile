@@ -517,14 +517,6 @@ release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
 endif
 
 #
-# make release-unix-only - Produces an Enterprise binary release tarball containing
-# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
-#
-.PHONY: release-unix-only
-release-unix-only: clean
-	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
-
-#
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
 #
 .PHONY: release-windows-unsigned
