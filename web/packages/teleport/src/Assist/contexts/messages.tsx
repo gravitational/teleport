@@ -33,8 +33,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import cfg from 'teleport/config';
 
+import { ApiError } from 'teleport/services/api/parseError';
+
 import {
   Author,
+  ExecuteRemoteCommandContent,
   ExecuteRemoteCommandPayload,
   Message,
   TextMessageContent,
@@ -76,6 +79,66 @@ interface PartialMessagePayload {
   content: string;
   idx: number;
 }
+
+const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
+  let query = '';
+
+  if (cmd.nodes) {
+    query += cmd.nodes.map(node => `name == "${node}"`).join(' || ');
+  }
+
+  if (cmd.labels) {
+    query += cmd.labels
+      .map(label => `labels["${label.key}"] == "${label.value}"`)
+      .join(' || ');
+  }
+
+  return query;
+};
+
+export const remoteCommandToMessage = async (
+  execCmd: ExecuteRemoteCommandContent,
+  clusterId: string
+): Promise<ExecuteRemoteCommandContent> => {
+  try {
+    const ns = new NodeService();
+    // fetch available users
+    const nodes = await ns.fetchNodes(clusterId, {
+      query: execCmd.query,
+      limit: 100, // TODO: What if there is more nodes?
+    });
+
+    if (nodes.agents.length == 0) {
+      return {
+        ...execCmd,
+        selectedLogin: '',
+        availableLogins: [],
+        errorMsg: 'no nodes found',
+      };
+    }
+
+    const availableLogins = findIntersection(
+      nodes.agents.map(e => e.sshLogins)
+    );
+
+    let errorMsg = '';
+    if (availableLogins.length == 0) {
+      errorMsg = 'no users found';
+    }
+
+    return {
+      ...execCmd,
+      selectedLogin: availableLogins ? availableLogins[0] : '',
+      availableLogins: availableLogins,
+      errorMsg: errorMsg,
+    };
+  } catch (e) {
+    return {
+      ...execCmd,
+      errorMsg: (e as ApiError).message,
+    };
+  }
+};
 
 async function convertServerMessage(
   message: ServerMessage,
@@ -166,47 +229,24 @@ async function convertServerMessage(
     return (messages: Message[]) => messages.push(newMessage);
   }
 
-  const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
-    let query = '';
-
-    if (cmd.nodes) {
-      query += cmd.nodes.map(node => `name == "${node}"`).join(' || ');
-    }
-
-    if (cmd.labels) {
-      query += cmd.labels
-        .map(label => `labels["${label.key}"] == "${label.value}"`)
-        .join(' || ');
-    }
-
-    return query;
-  };
-
   if (message.type === 'COMMAND') {
     const execCmd: ExecuteRemoteCommandPayload = JSON.parse(message.payload);
     const searchQuery = convertToQuery(execCmd);
-
-    // fetch available users
-    const ns = new NodeService();
-    // TODO: fetch users after the query is edited in the UI.
-    const nodes = await ns.fetchNodes(clusterId, {
-      query: searchQuery,
-      limit: 100, // TODO: What if there is more nodes?
-    });
-    const availableLogins = findIntersection(
-      nodes.agents.map(e => e.sshLogins)
+    const executionContent = await remoteCommandToMessage(
+      {
+        ...execCmd,
+        type: Type.ExecuteRemoteCommand,
+        query: searchQuery,
+        selectedLogin: '',
+        availableLogins: [],
+        errorMsg: '',
+      },
+      clusterId
     );
-
-    const newMessage: Message = {
+    const newMessage = {
       author: Author.Teleport,
       isNew: true,
-      content: {
-        query: searchQuery,
-        command: execCmd.command,
-        type: Type.ExecuteRemoteCommand,
-        selectedLogin: availableLogins ? availableLogins[0] : '',
-        availableLogins: availableLogins,
-      },
+      content: executionContent,
     };
 
     return (messages: Message[]) => messages.push(newMessage);
