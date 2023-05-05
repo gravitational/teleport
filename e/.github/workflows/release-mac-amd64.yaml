@@ -89,8 +89,8 @@ jobs:
           echo "teleport-version=${TELEPORT_VERSION#v}" >> $GITHUB_OUTPUT
 
   build-artifacts:
-    uses: ./.github/workflows/build-mac-amd64.yaml
-    secrets: inherit # Allows the build-mac-amd64 workflow to access signing keys/passwords
+    uses: ./.github/workflows/build-mac.yaml
+    secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
     with:
       release: "enterprise"
       oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
@@ -166,7 +166,7 @@ jobs:
             # We don't upload sha256 files, just use them to verify. skip them
             [[ "${file##*.}" == sha256 ]] && continue
             # Don't upload unsigned files/archives
-            # TODO(camh): Stop adding -unsigned tarballs as artifacts in build-mac-amd64
+            # TODO(camh): Stop adding -unsigned tarballs as artifacts in build-mac
             [[ "$file" =~ -unsigned ]] && continue
 
             (cd "${file%/*}" && sha256sum -c "${file##*/}.sha256") || exit 1

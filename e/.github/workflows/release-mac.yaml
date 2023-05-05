@@ -1,17 +1,272 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
 name: Build MacOS Release Artifacts
-on:
+on: 
   workflow_dispatch:
-jobs:
-  dummy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+    inputs:
+      oss-teleport-repo:
+        description: 'The name of the OSS Teleport repo to build'
+        required: false
+        default: "gravitational/teleport"
+        type: string
 
+      oss-teleport-ref:
+        description: 'Tag, branch or reference to OSS teleport to build'
+        type: string
+        required: true
+
+      ent-teleport-ref:
+        description: |
+          Tag, branch or reference to Enterprise teleport to include in the
+          build. If no value is supplied this workflow will use whatever
+          reference is specified in the OSS teleport submodule record.
+        type: string
+        required: false
+        default: ""
+
+      build-packages:
+        description: |
+          Build Mac packages for Teleport, tsh and Teleport Connect.
+          Packages are not build for push builds. Release builds do
+          build packages.
+        required: false
+        type: boolean
+        default: false
+
+      release-artifacts:
+        description:  |
+          Should the workflow upload the resulting artifacts to the Release
+          server?
+        type: boolean
+        default: false
+
+      release-version:
+        description: |
+          Override the default release version tag when uploading the build
+          artifacts. The default value is deduced from `oss-teleport-ref`,
+          which is assumed to be a version tag with a leading `v`. Use this
+          override to specify a tag for build debugging purposes.
+        type: string
+        default: ""
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
+      build-environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `promote` or `build`. The default `promote` can only be used for
+          `master` and `branch/*` branches. `build` should be used for testing
+          workflow changes on a dev branch.
+        required: false
+        type: string
+        default: promote
+
+run-name: "Build MacOS Release Artifacts for ${{ inputs.oss-teleport-ref }}"
+jobs:
+
+  identity:
+    runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
+    steps:
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      teleport-version: ${{ steps.determine-version.outputs.teleport-version }}
+    steps:
+      - name: Determine Teleport version
+        id: determine-version
+        env:
+          # If a teleport version is not explicitly given we assume that the
+          # `oss-teleport-ref` is a release tag of the form vX.Y.Z and deduce 
+          # the version from that.
+          TELEPORT_VERSION: ${{ inputs.release-version || inputs.oss-teleport-ref }}
+        run: |
+          echo "teleport-version=${TELEPORT_VERSION#v}" >> $GITHUB_OUTPUT
+
+  build-artifacts:
+    uses: ./.github/workflows/build-mac.yaml
+    secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
+    strategy:
+      matrix:
+        arch: ['amd64', 'arm64']
+    with:
+      release: "enterprise"
+      arch: ${{ matrix.arch }}
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      build-packages: false
+      save-artifacts: ${{ inputs.release-artifacts }}
+      release-version: ${{ inputs.release-version }}
+      environment: ${{ inputs.build-environment }}
+
+  build-artifacts-universal:
+    uses: ./.github/workflows/build-mac.yaml
+    needs: [ build-artifacts ]
+    secrets: inherit # Allows the build-mac workflow to access signing keys/passwords
+    with:
+      release: "enterprise"
+      arch: "universal"
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      build-packages: ${{ inputs.build-packages }}
+      save-artifacts: ${{ inputs.release-artifacts }}
+      release-version: ${{ inputs.release-version }}
+      environment: ${{ inputs.build-environment }}
+
+  upload-artifacts-to-dronestaging:
+    name: Upload Artifacts to Drone staging bucket
+    if: inputs.release-artifacts
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+    needs: [ build-artifacts-universal, version ]
+    steps:
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: artifacts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-skip-session-tagging: true
+          aws-region:  us-west-2
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.STAGING_DEPLOYMENT_AWS_ROLE }}
+          role-session-name: "gha-teleport-build-${{ github.run_number }}"
+          role-duration-seconds: 3600
+
+      - name: Copy artifacts to staging area
+        working-directory: ${{ steps.download.outputs.download-path }}
+        env:
+          TARGET_BUCKET: ${{ secrets.STAGING_AWS_S3_BUCKET }}
+          TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
+        run: |
+          aws s3 sync . s3://${TARGET_BUCKET}/teleport/tag/${TELEPORT_VERSION}
+
+  register-assets-with-release-server:
+    name: Register artifacts with releases API
+    if: inputs.release-artifacts
+    needs: [ build-artifacts-universal, version ]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Download artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: artifacts
+
+      # register the artifacts with the releases API. This is largely cribbed from
+      # the old Drone release process
+      - name: Register artifacts
+        env:
+          ARTIFACT_DIR: ${{ steps.download.outputs.download-path }}
+          RELEASES_HOST: https://releases-prod.platform.teleport.sh
+          RELEASES_KEY: ${{ secrets.RELEASES_API_KEY }}
+          RELEASES_CERT: ${{ secrets.RELEASES_API_CERT }}
+          TELEPORT_VERSION: ${{ needs.version.outputs.teleport-version }}
+        shell: bash
+        working-directory: ${{ steps.download.outputs.download-path }}
+        run: |
+          for file in *; do
+            # We don't upload sha256 files, just use them to verify. skip them
+            [[ "${file##*.}" == sha256 ]] && continue
+
+            # Determine architecture from filename
+            case "$file" in
+            *-amd64*)
+              arch=amd64
+              descLabel="Intel"
+              ;;
+            *-arm64*)
+              arch=arm64
+              descLabel="ARM"
+              ;;
+            *-universal*|*.pkg|*.dmg)
+              # Architecture-specific files have been captured above. Universal
+              # pkg and dmg files are named without an architecture.
+              arch=universal
+              descLabel="Universal"
+              ;;
+            *)
+              echo "Skipping artifact with unknown architecture: $file"
+              continue
+              ;;
+            esac
+
+            # Set description and products from filename
+            name="$(echo "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+            products="$name"
+
+            case "$file" in
+            teleport-*.tar.gz)
+              description="MacOS $descLabel" ;;
+            teleport-*.pkg)
+              description="MacOS $descLabel .pkg installer" ;;
+            tsh-*.pkg)
+              description="MacOS $descLabel .pkg installer (tsh client only)"
+              products="teleport teleport-ent"
+              ;;
+            'Teleport Connect'*)
+              description="Teleport Connect"
+              products="teleport teleport-ent"
+              ;;
+            *)
+              echo "Skipping unknown artifact: $file"
+              continue
+              ;;
+            esac
+
+            sha256sum -c "$file.sha256" || exit 1
+            shasum="$(cut -d ' ' -f 1 "$file.sha256")"
+
+            rs_curl() {
+              status_code=$(
+                curl \
+                  --cert <(printenv RELEASES_CERT | base64 -d) \
+                  --key <(printenv RELEASES_KEY | base64 -d) \
+                  -o "./curl_out.txt" -w "%{http_code}" "$@"
+              )
+              if (( status_code != 200 && status_code != 409 )); then
+                echo "curl HTTP status: $status_code"
+                cat ./curl_out.txt
+                exit 1
+              fi
+            }
+
+            echo "Releasing $file for products $products (arch $arch) ($description $TELEPORT_VERSION)"
+
+            release_params=""
+            for product in $products; do
+              rs_curl \
+                -F "product=$product" \
+                -F "version=$TELEPORT_VERSION" \
+                -F "notesMd=# Teleport $TELEPORT_VERSION" \
+                -F "status=draft" \
+                "$RELEASES_HOST/releases"
+              release_params+=" -F releaseId=$product@$TELEPORT_VERSION"
+            done
+
+            rs_curl \
+              -F "description=$description" \
+              -F "os=darwin" \
+              -F "arch=$arch" \
+              -F "file=@$file" \
+              -F "sha256=$shasum" \
+              $release_params \
+              "$RELEASES_HOST/assets"
+          done

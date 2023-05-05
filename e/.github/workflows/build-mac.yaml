@@ -1,4 +1,4 @@
-name: Build MacOS (Darwin) AMD64
+name: Build MacOS (Darwin)
 
 on:
   workflow_call:
@@ -23,17 +23,22 @@ on:
         default: ""
         type: string
 
+      arch:
+        description: 'Build architecture. Either amd64 or arm64'
+        required: true
+        type: string
+
+      release:
+        description: 'Release level to build. Currently supports `oss` and `enterprise`'
+        required: true
+        type: string
+
       release-version:
         description: |
           Override the build version from what is in the Makefile.
           Use this override to specify a tag for build debugging purposes.
         type: string
         default: ""
-
-      release:
-        description: 'Release level to build. Currently supports `oss` and `enterprise`'
-        required: true
-        type: string
 
       save-artifacts:
         description: 'Should the build export the build artifacts'
@@ -69,6 +74,7 @@ jobs:
     env:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
+      ARCH: ${{ inputs.arch }}
     steps:
       # --- Checkout ----------------------------------------------------------
       # TODO(camh/tcsc): Factor repo checkout steps into separate action.
@@ -120,7 +126,7 @@ jobs:
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
           echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
           echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(make print-fido2-pkg-path)" >> $GITHUB_ENV
 
       - name: Print versions
         run: |
@@ -138,14 +144,18 @@ jobs:
         run: |
           corepack enable yarn
 
+      # For universal builds, we combine pre-built binaries. We don't need Go
       - name: Install Go Toolchain
+        if: inputs.arch != 'universal'
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GOLANG_VERSION }}
 
-      - name: Configure Rust Toolchain
+      # For universal builds, we combine pre-built binaries. We don't need Rust
+      - name: Install Rust Toolchain
+        if: inputs.arch != 'universal'
         run: |
-          rustup override set ${{ env.RUST_VERSION }}
+          make ARCH=${ARCH} RUST_VERSION=${RUST_VERSION} rustup-install-target-toolchain
 
       - name: Setup keychain
         env:
@@ -156,12 +166,23 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
-      # --- Build -------------------------------------------------------------
-      - name: Build FIDO2
-        run: |
-          build.assets/build-fido2-macos.sh build
+      # Download pre-built architecture-specific artifacts for combining into a universal binary
+      - name: Download architecture-specific artifacts
+        if: inputs.arch == 'universal'
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: build/artifacts
 
-      - name: Build Teleport
+      # --- Build -------------------------------------------------------------
+      # For universal builds, we combine pre-built binaries. We don't need to build fido2
+      - name: Build FIDO2
+        if: inputs.arch != 'universal'
+        run: |
+          make ARCH=${ARCH} build-fido2
+
+      - name: Build Teleport Tarball
         env:
           APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
@@ -169,12 +190,7 @@ jobs:
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
           echo "Building for environment: ${ENVIRONMENT_NAME}"
-          make release OS=darwin ARCH=amd64 FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
-          mkdir -p build/artifacts
-          cp teleport-*.tar.gz build/artifacts
-          if [ "${{ inputs.release }}" == 'enterprise' ]; then
-              cp e/teleport-*.tar.gz build/artifacts
-          fi
+          make release OS=darwin ARCH=${ARCH} FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       - name: Build Teleport Package
         if: inputs.build-packages
@@ -185,11 +201,7 @@ jobs:
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          make pkg ARCH=amd64 OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
-          cp build/teleport-*.pkg build/artifacts
-          if [ "${{ inputs.release }}" == 'enterprise' ]; then
-              cp e/build/teleport-*.pkg build/artifacts
-          fi
+          make pkg ARCH=${ARCH} OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       - name: Build tsh Package
         if: inputs.build-packages
@@ -200,8 +212,7 @@ jobs:
           OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          make pkg-tsh ARCH=amd64 OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
-          cp build/tsh-*.pkg build/artifacts
+          make pkg-tsh ARCH=${ARCH} OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       - name: Prepare tsh Package for Teleport Connect
         if: inputs.build-packages
@@ -214,6 +225,7 @@ jobs:
           echo "CONNECT_TSH_APP_PATH=$PWD/tsh/Payload/tsh.app" >> $GITHUB_ENV
 
       - name: Build Teleport Connect
+        if: inputs.arch == 'universal'
         env:
           APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
@@ -225,12 +237,15 @@ jobs:
           # Make CONNECT_TSH_APP_PATH override CONNECT_TSH_BIN_PATH by unsetting
           # the latter if the former is set (by the previous step).
           [ -n "${CONNECT_TSH_APP_PATH:-}" ] && unset CONNECT_TSH_BIN_PATH
-          make release-connect ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
-          if [ "${{ inputs.build-packages }}" = 'true' ]; then
-            cp web/packages/teleterm/build/release/*.dmg build/artifacts
-          fi
+          make release-connect ARCH=${ARCH} ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
+      # Don't upload architecture-specific artifacts for universal builds
+      - name: Remove duplicate artifacts
+        if: inputs.arch == 'universal'
+        run: |
+          rm build/artifacts/*-arm64* build/artifacts/*-amd64*
+
       - name: Checksum artifacts
         if: inputs.save-artifacts
         run: |
@@ -245,5 +260,7 @@ jobs:
         uses: actions/upload-artifact/@v3
         with:
           name: release
-          path: build/artifacts
+          path: |
+            build/artifacts
+            !**/*-unsigned*
           retention-days: 1
