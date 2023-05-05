@@ -20,6 +20,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
 import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
@@ -55,6 +56,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
   } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const pickAndResetActiveItem = useCallback(
+    (item: T) => {
+      onPick(item);
+      setActiveItemIndex(0);
+    },
+    [onPick]
+  );
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -83,7 +91,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 
           const item = items[activeItemIndex];
           if (item) {
-            onPick(item);
+            pickAndResetActiveItem(item);
           }
           break;
         }
@@ -110,7 +118,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
       capture: true,
     });
     return cleanup;
-  }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
+  }, [
+    items,
+    pickAndResetActiveItem,
+    onBack,
+    activeItemIndex,
+    addWindowEventListener,
+  ]);
 
   return (
     <>
@@ -131,7 +145,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
               role="menuitem"
               active={isActive}
               key={key}
-              onClick={() => props.onPick(r)}
+              onClick={() => pickAndResetActiveItem(r)}
             >
               {Component}
             </InteractiveItem>
