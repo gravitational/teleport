@@ -30,7 +30,7 @@ export interface Context {
   getFeatureFlags(): FeatureFlags;
 }
 
-interface TeleportFeatureNavigationItem {
+export interface TeleportFeatureNavigationItem {
   title: string;
   icon: React.ReactNode;
   exact?: boolean;
@@ -38,7 +38,7 @@ interface TeleportFeatureNavigationItem {
   isExternalLink?: boolean;
 }
 
-interface TeleportFeatureRoute {
+export interface TeleportFeatureRoute {
   title: string;
   path: string;
   exact?: boolean;
@@ -50,14 +50,20 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  // route defines react router Route fields.
+  // This field can be left undefined to indicate
+  // this feature is a parent to children features
+  // eg: FeatureAccessRequests is parent to sub features
+  // FeatureNewAccessRequest and FeatureReviewAccessRequests.
+  // These childrens will be responsible for routing.
   route?: TeleportFeatureRoute;
   navigationItem?: TeleportFeatureNavigationItem;
   topMenuItem?: TeleportFeatureNavigationItem;
-  // alternative items to display when the user has permissions (RBAC)
-  // but the cluster lacks the feature:
-  isLocked?(ctx: TeleportContext): boolean;
-  lockedNavigationItem?: TeleportFeatureNavigationItem;
-  lockedRoute?: TeleportFeatureRoute;
+  // isLockedAndUpdatedRouteAndNavigationItem will update this feature's
+  // `route` and `navigationItem` to an alternate route and component if
+  // this feature is locked. Returns true to indicate feature was locked
+  // and changes have been made.
+  isLockedAndUpdatedRouteAndNavigationItem?(ctx: TeleportContext): boolean;
 }
 
 export type StickyCluster = {

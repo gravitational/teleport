@@ -43,8 +43,6 @@ import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
-import TeleportContext from 'teleport/teleportContext';
-
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
@@ -74,10 +72,29 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
-  const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
-    [featureFlags, props.features]
-  );
+  const features = useMemo(() => {
+    const lockedParentFeatures: TeleportFeature[] = props.features.filter(
+      feature =>
+        feature.hasAccess &&
+        feature.isLockedAndUpdatedRouteAndNavigationItem && // check if its defined
+        feature.isLockedAndUpdatedRouteAndNavigationItem(ctx)
+    );
+
+    return props.features.filter(feature => {
+      if (!feature.hasAccess(featureFlags)) {
+        return false;
+      }
+      if (!feature.parent) {
+        return true;
+      }
+      // This feature is a child of a parent feature.
+      // Check if the parent is locked, which means
+      // the children should also be locked from access.
+      return !lockedParentFeatures.some(
+        lockedParent => lockedParent instanceof feature.parent
+      );
+    });
+  }, [featureFlags, props.features]);
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
@@ -158,7 +175,7 @@ export function Main(props: MainProps) {
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />
-                <FeatureRoutes ctx={ctx} />
+                <FeatureRoutes />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
@@ -171,44 +188,13 @@ export function Main(props: MainProps) {
   );
 }
 
-function renderRoutes(features: TeleportFeature[], ctx: TeleportContext) {
+function renderRoutes(features: TeleportFeature[]) {
   const routes = [];
-  const lockedParents = getLockedParents(features, ctx);
 
   for (const [index, feature] of features.entries()) {
-    const isParentLocked = lockedParents.find(
-      parent => feature.parent && parent === feature.parent.name
-    );
-
-    // remove features with parents locked.
-    // The parent itself will be rendered if it has a lockedRoute,
-    // but the children shouldn't be.
-    if (isParentLocked) {
-      continue;
-    }
-
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
-
       // add regular feature routes
-      routes.push(
-        <Route title={title} key={index} path={path} exact={exact}>
-          <CatchError>
-            <Suspense fallback={null}>
-              <Component />
-            </Suspense>
-          </CatchError>
-        </Route>
-      );
-    }
-
-    // add the route of the 'locked' variants of the features
-    if (feature.isLocked !== undefined && feature.isLocked(ctx)) {
-      if (!feature.lockedRoute) {
-        continue;
-      }
-
-      const { path, title, exact, component: Component } = feature.lockedRoute;
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
@@ -224,28 +210,11 @@ function renderRoutes(features: TeleportFeature[], ctx: TeleportContext) {
   return routes;
 }
 
-function FeatureRoutes({ ctx }: { ctx: TeleportContext }) {
+function FeatureRoutes() {
   const features = useFeatures();
-  const routes = renderRoutes(features, ctx);
+  const routes = renderRoutes(features);
 
   return <Switch>{routes}</Switch>;
-}
-
-function getLockedParents(
-  features: TeleportFeature[],
-  ctx: TeleportContext
-): string[] {
-  const lockedParents = new Set<string>();
-  features.forEach(feature => {
-    if (feature.parent) {
-      const parent = new feature.parent();
-      if (parent.isLocked(ctx)) {
-        lockedParents.add(parent.constructor.name);
-      }
-    }
-  });
-
-  return Array.from(lockedParents);
 }
 
 export const ContentMinWidth = styled.div`
