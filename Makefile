@@ -258,13 +258,10 @@ endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
 
-# Map ARCH into the architecture flag for electron-builder. Ensure
-# ELECTRON_BUILDER_ARCH is not exported so we do not generate
-# an error on unsupported architectures when not running this target.
+# Map ARCH into the architecture flag for electron-builder if they
+# are different to the Go $(ARCH) we use as an input.
 ELECTRON_BUILDER_ARCH_amd64 = x64
-ELECTRON_BUILDER_ARCH_arm64 = arm64
-ELECTRON_BUILDER_ARCH_universal = universal
-ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(error Unsupported architecture: $(ARCH)))
+ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
 #
 # 'make all' builds all 4 executables and places them in the current directory.
