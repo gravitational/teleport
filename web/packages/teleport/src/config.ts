@@ -135,7 +135,7 @@ const cfg = {
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     webSessionPath: '/v1/webapi/sessions/web',
@@ -574,6 +574,7 @@ const cfg = {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
+
     if (!webauthn) {
       return path;
     }
@@ -682,6 +683,8 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
+  moderatedSessionId?: string;
+  fileTransferRequestId?: string;
   webauthn?: WebauthnAssertionResponse;
 }
 
