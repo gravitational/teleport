@@ -22,6 +22,7 @@ import React, {
   useState,
   useCallback,
 } from 'react';
+import { Flex } from 'design';
 import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -186,6 +187,30 @@ const InteractiveItem = styled(NonInteractiveItem)`
     }
   }}
 `;
+
+/**
+ * IconAndContent is supposed to be used within InteractiveItem & NonInteractiveItem.
+ */
+export function IconAndContent(
+  props: React.PropsWithChildren<{
+    Icon: React.ComponentType<{
+      color: string;
+      fontSize: string;
+      lineHeight: string;
+    }>;
+    iconColor: string;
+  }>
+) {
+  return (
+    <Flex alignItems="flex-start" gap={2}>
+      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
+      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
+      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
+        {props.children}
+      </Flex>
+    </Flex>
+  );
+}
 
 function getNext(selectedIndex = 0, max = 0) {
   let index = selectedIndex % max;
