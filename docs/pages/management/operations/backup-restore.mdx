@@ -99,7 +99,7 @@ As of version v4.1, you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all --with-secrets` will retrieve the below items:
+Using `tctl get all` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -110,18 +110,18 @@ Using `tctl get all --with-secrets` will retrieve the below items:
   - OIDC
 - Roles
 
+This command automatically includes all secrets in these resources. You
+can also individually retrieve resources with `tctl get` (Example: `tctl get roles`).
+
 When migrating backends, you should back up your Auth Service's
 `data_dir/storage` directly.
 
 ### Example of backing up and restoring a cluster
 
 ```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
+# Run this command on one of the Teleport Auth Service hosts
 # Export dynamic configuration state from old cluster
-$ tctl get all --with-secrets > state.yaml
+$ tctl get all > state.yaml
 
 # Prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -137,6 +137,15 @@ $ sudo teleport start --config fresh.yaml --bootstrap state.yaml
 $ tctl --config fresh.yaml get all
 # <your state here>
 ```
+<Notice>
+The `tctl get all` is not fully supported remotely as retrieving user
+resources with secrets is not allowed. As a workaround, retrieve resources
+individually. Local user secrets including passwords would need resetting
+after creating without secrets.
+
+All trusted cluster certificate resources should be removed for use
+in a bootstrap or you will receive an error.
+</Notice>
 
 The `--bootstrap` flag has no effect, except when the Auth Service initializes
 its backend initialization on first startup, so it is safe for use in
@@ -166,7 +175,7 @@ As of version v4.1, you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all --with-secrets` will retrieve the below items:
+Using `tctl get all` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -174,18 +183,18 @@ Using `tctl get all --with-secrets` will retrieve the below items:
 - GitHub Connectors
 - Roles
 
+This command automatically includes all secrets in these resources. You
+can also individually retrieve resources with `tctl get` (Example: `tctl get roles`).
+
 When migrating backends, you should back up your Auth Service's
 `data_dir/storage` directly.
 
 ### Example of backing up and restoring a cluster
 
 ```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --user=myuser --proxy=teleport.example.com
+# Run this command on one of the Teleport Auth Service hosts
 # Export dynamic configuration state from old cluster
-$ tctl get all --with-secrets > state.yaml
+$ tctl get all > state.yaml
 
 # Prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -201,6 +210,16 @@ $ sudo teleport start --config fresh.yaml --bootstrap state.yaml
 $ tctl --config fresh.yaml get all
 # <your state here>
 ```
+
+<Notice>
+The `tctl get all` is not fully supported remotely as retrieving user
+resources with secrets is not allowed remotely. As a workaround, retrieve resources
+individually. Local user secrets including passwords would need resetting after
+creating without secrets.
+
+All trusted cluster certificate resources should be removed for use
+in a bootstrap or you will receive an error.
+</Notice>
 
 The `--bootstrap` flag has no effect, except when the Auth Service initializes
 its backend initialization on first startup, so it is safe for use in
