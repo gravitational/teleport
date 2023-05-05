@@ -150,6 +150,7 @@ export type DiscoverEventStepStatus = {
   stepStatusError?: string;
 };
 
+// TODO(mcbattirola): import this from protofile instead of copying it here
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,
   CTA_AUTH_CONNECTOR = 1,
