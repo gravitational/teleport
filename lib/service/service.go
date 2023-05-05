@@ -4687,8 +4687,8 @@ func (process *TeleportProcess) waitForAppDepend() {
 func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config) {
 	// Register additional expected services for this Teleport instance.
 	// Meant for enterprise support.
-	for _, service := range cfg.AdditionalExpectedRoles {
-		process.SetExpectedInstanceRole(service.Role, service.IdentityEvent)
+	for _, r := range cfg.AdditionalExpectedRoles {
+		process.SetExpectedInstanceRole(r.Role, r.IdentityEvent)
 	}
 
 	if cfg.Auth.Enabled {
