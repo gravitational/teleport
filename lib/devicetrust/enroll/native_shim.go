@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package enroll
 
-var HasTouchIDCredentials = &hasTouchIDCredentials
+import "github.com/gravitational/teleport/lib/devicetrust/native"
 
-func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {
-	tc.dtAttemptLoginIgnorePing = val
-}
-
-func (tc *TeleportClient) SetDTAutoEnrollIgnorePing(val bool) {
-	tc.dtAutoEnrollIgnorePing = val
-}
-
-func (tc *TeleportClient) SetDTAuthnRunCeremony(fn dtAuthnRunCeremonyFunc) {
-	tc.dtAuthnRunCeremony = fn
-}
-
-func (tc *TeleportClient) SetDTAutoEnroll(fn dtAutoEnrollFunc) {
-	tc.dtAutoEnroll = fn
-}
+// vars below are used to fake OSes and switch implementations for tests.
+var (
+	collectDeviceData = native.CollectDeviceData
+	enrollInit        = native.EnrollDeviceInit
+	getOSType         = getDeviceOSType
+	signChallenge     = native.SignChallenge
+)
