@@ -146,12 +146,17 @@ func NewYumRunner() (*YumRunner, error) {
 				"8",
 				"9",
 			},
-			// "$releasever" is a hot mess for Amazon Linux. No good documentation on this outside of just running
-			//  a container or EC2 instance and manually checking $releasever values
+			// Note that it is important that we specify "$VERSION_ID" in our installation docs instead of
+			// "$releasever" due to Amazon's weird $releasever naming scheme. Amazon Linux 2022 and onward
+			// specify the release date in their naming scheme which means if we use $releasever anywhere
+			// then we need to update our supported versions monthly.
+			// $releasever can be checked with:
+			// `python3 -c 'import dnf; print(dnf.dnf.Base().conf.substitutions);'`
 			"amzn": {
 				// "latest"	// 1, aka 2018.03.0.20201028.0
-				"2", // 2, aka 2.0.20201111.0
-				// "2022.0.20220531" // 2022 (new naming scheme, preview) aka 2022.0.20220531
+				"2",    // 2, aka 2.0.20201111.0
+				"2022", // (new naming scheme, preview) aka 2022.0.20220531
+				"2023", // 2023, which should match 2023.0.20230503 and similar releasever
 			},
 		},
 	}
