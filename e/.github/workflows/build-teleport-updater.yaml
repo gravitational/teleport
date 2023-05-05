@@ -32,12 +32,14 @@ jobs:
       - name: Set environment output values
         id: set-variables
         env:
-          GITHUB_EVENT_REF: ${{ github.event.ref }}
+          GITHUB_EVENT_REF: ${{ github.ref }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
-          REF_TYPE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f2)  # This will be empty for PR triggers
+          REF_TYPE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f2)
+          REF_VALUE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f3)
 
-          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ]; then
+          # Check for tag pushes that are not prereleases
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ] && [ "${REF_VALUE#*-}" = "$REF_VALUE" ]; then
             echo "package-environment=promote" >> "$GITHUB_OUTPUT"
             echo "should-target-production=true" >> "$GITHUB_OUTPUT"
             echo "artifact-version=${GITHUB_EVENT_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
