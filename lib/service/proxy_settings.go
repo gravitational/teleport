@@ -56,6 +56,12 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 	}
 }
 
+// GetOpenAIAPIKey returns the OpenAI API key.
+// TODO(jakule): Remove once pluggin support is added to OSS.
+func (p *proxySettings) GetOpenAIAPIKey() string {
+	return p.cfg.Proxy.AssistAPIKey
+}
+
 // buildProxySettings builds standard proxy configuration where proxy services are
 // configured on different listeners. If the TLSRoutingEnabled flag is set and a proxy
 // client support the TLSRouting dialer then the client will connect to the Teleport Proxy WebPort
@@ -63,6 +69,7 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 func (p *proxySettings) buildProxySettings(proxyListenerMode types.ProxyListenerMode) *webclient.ProxySettings {
 	proxySettings := webclient.ProxySettings{
 		TLSRoutingEnabled: proxyListenerMode == types.ProxyListenerMode_Multiplex,
+		AssistEnabled:     p.cfg.Proxy.AssistAPIKey != "",
 		Kube: webclient.KubeProxySettings{
 			Enabled: p.cfg.Proxy.Kube.Enabled,
 		},
