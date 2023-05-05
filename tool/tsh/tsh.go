@@ -1236,6 +1236,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onDaemonStop(&cf)
 	case f2.diag.FullCommand():
 		err = f2.diag.run(&cf)
+	case f2.attobj.FullCommand():
+		err = f2.attobj.run(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
