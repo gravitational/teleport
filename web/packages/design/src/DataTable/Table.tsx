@@ -331,7 +331,7 @@ const EmptyIndicator = ({
         <Text
           typography="paragraph"
           m="4"
-          color="text.primary"
+          color="text.main"
           style={{
             display: 'flex',
             alignItems: 'center',

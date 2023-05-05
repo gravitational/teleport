@@ -81,7 +81,7 @@ exports[`loaded 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -315,7 +315,7 @@ exports[`loaded 1`] = `
 }
 
 .c5::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -516,7 +516,7 @@ exports[`loaded 1`] = `
               Join
               <span
                 class="c12 c20 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -734,7 +734,7 @@ exports[`loaded with CTA 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -989,7 +989,7 @@ exports[`loaded with CTA 1`] = `
 }
 
 .c12::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1210,7 +1210,7 @@ exports[`loaded with CTA 1`] = `
               Join
               <span
                 class="c7 c25 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>

@@ -175,7 +175,7 @@ const Passwordless = ({
             <Key mr={3} fontSize={16} />
             <Box>
               <Text typography="h6">Passwordless</Text>
-              <Text fontSize={1} color="text.secondary">
+              <Text fontSize={1} color="text.slightlyMuted">
                 Follow the prompt from your browser
               </Text>
             </Box>
@@ -470,7 +470,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={5}
     mt={5}
     mb={2}
@@ -482,7 +482,7 @@ const Divider = () => (
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
+  border: 1px solid ${({ theme }) => theme.colors.text.muted};
 
   &:hover,
   &:active,

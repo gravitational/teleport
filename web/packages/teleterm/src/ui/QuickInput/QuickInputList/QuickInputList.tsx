@@ -87,7 +87,7 @@ function CmdItem(props: { item: types.SuggestionCmd }) {
       <Box flex="0 0 auto" mr={2}>
         {props.item.data.displayName}
       </Box>
-      <Box color="text.secondary">{props.item.data.description}</Box>
+      <Box color="text.slightlyMuted">{props.item.data.description}</Box>
     </Flex>
   );
 }

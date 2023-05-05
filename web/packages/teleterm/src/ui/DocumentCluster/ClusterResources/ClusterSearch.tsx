@@ -40,7 +40,7 @@ const Input = styled.input(props => {
   return {
     background: theme.colors.levels.surfaceSecondary,
     boxSizing: 'border-box',
-    color: theme.colors.text.primary,
+    color: theme.colors.text.main,
     width: '100%',
     minHeight: '24px',
     minWidth: '300px',
@@ -55,7 +55,7 @@ const Input = styled.input(props => {
     },
     '::placeholder': {
       opacity: 1,
-      color: theme.colors.text.secondary,
+      color: theme.colors.text.slightlyMuted,
     },
 
     ...space(props),

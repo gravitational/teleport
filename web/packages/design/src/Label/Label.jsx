@@ -25,13 +25,13 @@ const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.levels.sunkenSecondary,
-      color: theme.colors.text.primary,
+      color: theme.colors.text.main,
     };
   }
 
   if (kind === 'warning') {
     return {
-      backgroundColor: theme.colors.warning,
+      backgroundColor: theme.colors.warning.main,
       color: theme.colors.text.contrast,
     };
   }
@@ -52,7 +52,7 @@ const kind = ({ kind, theme }) => {
 
   // default is primary
   return {
-    backgroundColor: theme.colors.brand.main,
+    backgroundColor: theme.colors.brand,
     color: theme.colors.text.contrast,
   };
 };

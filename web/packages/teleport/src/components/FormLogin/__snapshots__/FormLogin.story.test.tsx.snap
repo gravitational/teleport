@@ -88,7 +88,7 @@ exports[`auth2faType: off 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -365,7 +365,7 @@ exports[`auth2faType: optional rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -809,7 +809,7 @@ exports[`auth2faType: otp rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -1267,7 +1267,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -1778,7 +1778,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -2335,7 +2335,7 @@ exports[`server error rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }

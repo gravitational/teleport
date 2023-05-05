@@ -656,7 +656,7 @@ exports[`failed 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1415,7 +1415,7 @@ exports[`open source loaded 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1882,7 +1882,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

@@ -146,7 +146,7 @@ exports[`render ConsoleTabs 1`] = `
   box-sizing: border-box;
   height: 32px;
   width: 100%;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   background: #01172C;
   min-height: 32px;
   border-radius: 4px;
@@ -168,7 +168,7 @@ exports[`render ConsoleTabs 1`] = `
 >
   <nav
     class="c1"
-    color="text.secondary"
+    color="text.slightlyMuted"
     height="32px"
     width="100%"
   >
