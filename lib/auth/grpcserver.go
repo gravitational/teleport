@@ -2512,11 +2512,11 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
-	if isDBLocalProxyTunnelCertReq(req) {
-		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+	if isLocalProxyCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy tunnel process.
+		// time is bounded by the lifetime of the local proxy process.
 		return nil
 	}
 
@@ -2559,11 +2559,13 @@ func isMFARequiredForSingleUseCertRequest(ctx context.Context, actx *grpcContext
 	return resp.Required, nil
 }
 
-// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// isLocalProxyCertReq returns whether a cert request is for
 // a database cert and the requester is a local proxy tunnel.
-func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
-	return req.Usage == proto.UserCertsRequest_Database &&
-		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
+func isLocalProxyCertReq(req *proto.UserCertsRequest) bool {
+	return (req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
+		(req.Usage == proto.UserCertsRequest_Kubernetes &&
+			req.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
 }
 
 // ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
