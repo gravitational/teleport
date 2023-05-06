@@ -742,7 +742,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
 	// WebSocket endpoint for the chat conversation
-	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
+	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuth(h.assistant))
 
 	// Sets the title for the conversation.
 	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))

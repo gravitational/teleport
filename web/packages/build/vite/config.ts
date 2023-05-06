@@ -100,7 +100,7 @@ export function createViteConfig(
           changeOrigin: false,
           secure: false,
         },
-        '^\\/v1\\/webapi\\/assistant': {
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/assistant': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,
