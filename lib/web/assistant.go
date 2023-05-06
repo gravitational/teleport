@@ -318,6 +318,7 @@ func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContex
 ) error {
 	// Create a new auth client as the WS is a long-living connection
 	// and client created at the beginning will timeout at some point.
+	// TODO(jakule): Fix the timeout issue https://github.com/gravitational/teleport/issues/25758
 	authClient, err := newRemoteClient(ctx, sctx, site)
 	if err != nil {
 		return trace.Wrap(err)
