@@ -3444,6 +3444,13 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 	return rsp
 }
 
+// GetInventoryServiceCounts returns the counts of each service seen in the inventory.
+func (a *Server) GetInventoryServiceCounts() proto.InventoryServiceCounts {
+	return proto.InventoryServiceCounts{
+		ServiceCounts: a.inventory.ServiceCounts(),
+	}
+}
+
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	const pingAttempt = "ping-attempt"
 	const pingSuccess = "ping-success"
