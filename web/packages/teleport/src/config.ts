@@ -212,6 +212,11 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationExecutePath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
+
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -615,6 +620,16 @@ const cfg = {
     return generateResourcePath(cfg.api.userGroupsListPath, {
       clusterId,
       ...params,
+    });
+  },
+
+  getAwsRdsDbListUrl(integrationName: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
     });
   },
 

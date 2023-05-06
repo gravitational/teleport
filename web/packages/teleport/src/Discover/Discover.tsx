@@ -77,7 +77,7 @@ function DiscoverContent() {
           }}
           when={
             viewConfig.shouldPrompt
-              ? viewConfig.shouldPrompt(currentStep)
+              ? viewConfig.shouldPrompt(currentStep, agentProps.resourceSpec)
               : true
           }
         />
