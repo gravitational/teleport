@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -139,6 +140,7 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
 	store              *Store
+	serviceCounter     *serviceCounter
 	auth               Auth
 	authID             string
 	serverKeepAlive    time.Duration
@@ -162,6 +164,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
 		store:              NewStore(),
+		serviceCounter:     &serviceCounter{&sync.Map{}},
 		serverKeepAlive:    options.serverKeepAlive,
 		serverTTL:          apidefaults.ServerAnnounceTTL,
 		instanceHBInterval: options.instanceHBInterval,
@@ -207,6 +210,11 @@ func (c *Controller) Iter(fn func(UpstreamHandle)) {
 	c.store.Iter(fn)
 }
 
+// ServiceCounts returns the number of each service seen in the inventory.
+func (c *Controller) ServiceCounts() map[types.SystemRole]uint64 {
+	return c.serviceCounter.counts()
+}
+
 func (c *Controller) testEvent(event testEvent) {
 	if c.testEvents == nil {
 		return
@@ -218,7 +226,15 @@ func (c *Controller) testEvent(event testEvent) {
 // and also manages keepalives for previously heartbeated state.
 func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	c.testEvent(handlerStart)
+
+	for _, service := range handle.hello.Services {
+		c.serviceCounter.increment(service)
+	}
+
 	defer func() {
+		for _, service := range handle.hello.Services {
+			c.serviceCounter.decrement(service)
+		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
 		handle.ticker.Stop()

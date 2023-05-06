@@ -592,6 +592,21 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *proto.Inventor
 	return &rsp, nil
 }
 
+// GetInventoryServiceCounts returns the counts of each service seen in the inventory.
+func (g *GRPCServer) GetInventoryServiceCounts(ctx context.Context, _ *proto.InventoryServiceCountsRequest) (*proto.InventoryServiceCounts, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.GetInventoryServiceCounts()
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
 func (g *GRPCServer) PingInventory(ctx context.Context, req *proto.InventoryPingRequest) (*proto.InventoryPingResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
