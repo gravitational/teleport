@@ -163,9 +163,9 @@ from Kubernetes for security.
   </TabItem>
   <TabItem scope="enterprise" label="Teleport Enterprise">
 
-  Obtain your Teleport Enterprise license file from the [Teleport Customer
-  Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-  "license" in the namespace you created:
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+  
+  Create a secret called "license" in the namespace you created:
 
   ```code
   $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
