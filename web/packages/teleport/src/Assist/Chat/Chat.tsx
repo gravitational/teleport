@@ -42,6 +42,7 @@ import {
 import { ChatBox } from './ChatBox';
 import { ChatItem } from './ChatItem';
 import { ExampleChatItem } from './ChatItem/ChatItem';
+import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 const Container = styled.div`
   flex: 1;
@@ -85,6 +86,7 @@ export function Chat(props: ChatProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { send, messages, loading, responding } = useMessages();
+  const { conversations, setConversations } = useConversations();
 
   const scrollTextarea = useCallback(() => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
@@ -96,20 +98,26 @@ export function Chat(props: ChatProps) {
 
   const handleSubmit = useCallback(
     (message: string) => {
-      if (messages.length >= 1) {
-        (async () => {
-          console.log('sending the first message to generate the title ');
-          const title = await generateTitle(message);
-          console.log('title is ', title);
-          await setConversationTitle(props.conversationId, title);
-        })();
-      } else {
-        console.log('messages is not empty', messages.length);
-      }
+      send(message).then(() => {
+        if (messages.length >= 1) {
+          (async () => {
+            console.log('sending the first message to generate the title ');
+            const title = await generateTitle(message);
+            console.log('title is ', title);
+            await setConversationTitle(props.conversationId, title);
 
-      send(message);
+            conversations.find(
+              conversation => conversation.id === props.conversationId
+            ).title = title;
+            console.log('conversations is ', conversations, setConversations)
+            setConversations(conversations);
+          })();
+        } else {
+          console.log('messages is not empty', messages.length);
+        }
+      });
     },
-    [messages]
+    [messages, conversations, setConversations]
   );
 
   const items = messages.map((message, index) => (

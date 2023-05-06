@@ -33,6 +33,7 @@ interface Conversation {
 interface MessageContextValue {
   create: () => Promise<string>;
   conversations: Conversation[];
+  setConversations: (conversations: Conversation[]) => void;
 }
 
 interface CreateConversationResponse {
@@ -51,6 +52,7 @@ interface ListConversationsResponse {
 const ConversationsContext = createContext<MessageContextValue>({
   conversations: [],
   create: () => Promise.resolve(void 0),
+  setConversations: () => void 0,
 });
 
 export function ConversationsContextProvider(
@@ -94,7 +96,7 @@ export function ConversationsContextProvider(
   }, []);
 
   return (
-    <ConversationsContext.Provider value={{ conversations, create }}>
+    <ConversationsContext.Provider value={{ conversations, create, setConversations }}>
       {props.children}
     </ConversationsContext.Provider>
   );

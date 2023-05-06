@@ -280,7 +280,6 @@ function findIntersection<T>(elems: T[][]): T[] {
 }
 
 export async function generateTitle(messageContent: string): Promise<string> {
-  ///webapi/assistant/conversations/:conversation_id/title/summary
   const res = (await api.post(
     `/v1/webapi/assistant/title/summary`,
     { message: messageContent }
@@ -313,7 +312,10 @@ export function MessagesContextProvider(
     props.conversationId
   }`;
 
-  const { sendMessage, lastMessage } = useWebSocket(socketUrl);
+  const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
+    share: true,
+    retryOnError: true,
+  });
 
   const load = useCallback(async () => {
     setMessages([]);
