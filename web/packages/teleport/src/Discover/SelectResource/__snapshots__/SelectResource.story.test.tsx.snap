@@ -1274,7 +1274,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -1315,7 +1315,7 @@ exports[`render with all access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -2967,7 +2967,6 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
-        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2990,7 +2989,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -3031,7 +3030,7 @@ exports[`render with no access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -3050,7 +3049,6 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
-        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4805,7 +4803,6 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
-        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4828,7 +4825,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4869,7 +4866,7 @@ exports[`render with partial access 1`] = `
         >
           <div
             class="c16"
-            color="text.secondary"
+            color="#a8afb2"
             font-size="12px"
           >
             Amazon Web Services (AWS)
@@ -4888,7 +4885,6 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
-        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
