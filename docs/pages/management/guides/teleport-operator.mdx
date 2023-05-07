@@ -77,9 +77,9 @@ Create a namespace for your Teleport cluster resources:
 $ kubectl create namespace teleport-cluster
 ```
 
-Obtain your Teleport Enterprise license file from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-"license" in the namespace you created:
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
+
+Create a secret called "license" in the namespace you created:
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
