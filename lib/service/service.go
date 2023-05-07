@@ -4095,7 +4095,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				trace.Component: component,
 			})
 
-			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
+			kubeListenAddr := fmt.Sprintf("%v", listeners.kube.Addr())
+			if cfg.Proxy.Kube.ListenAddr.Addr != "" {
+				kubeListenAddr = fmt.Sprintf("%v", cfg.Proxy.Kube.ListenAddr.Addr)
+			}
+			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
