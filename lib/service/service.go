@@ -3974,9 +3974,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
+		// If a ssh proxy address is specified provide the address and specifics
+		sshListenerAddr := listeners.ssh.Addr().String()
+		sshListenerAddrDetails := sshListenerAddr
+		if cfg.Proxy.SSHAddr.Addr != "" {
+			sshListenerAddr = cfg.Proxy.SSHAddr.Addr
+			// will include address and type (tcp)
+			sshListenerAddrDetails = fmt.Sprintf("%v", cfg.Proxy.SSHAddr)
+		}
 		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
-			teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr.Addr)
-		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, cfg.Proxy.SSHAddr)
+			teleport.Version, teleport.Gitref, sshListenerAddr)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, sshListenerAddrDetails)
 
 		// start ssh server
 		go func() {
@@ -4095,9 +4103,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				trace.Component: component,
 			})
 
-			kubeListenAddr := fmt.Sprintf("%v", listeners.kube.Addr())
+			kubeListenAddr := listeners.kube.Addr().String()
 			if cfg.Proxy.Kube.ListenAddr.Addr != "" {
-				kubeListenAddr = fmt.Sprintf("%v", cfg.Proxy.Kube.ListenAddr.Addr)
+				kubeListenAddr = cfg.Proxy.Kube.ListenAddr.Addr
 			}
 			log.Infof("Starting Kube proxy on %v.", kubeListenAddr)
 			err := kubeServer.Serve(listeners.kube)
