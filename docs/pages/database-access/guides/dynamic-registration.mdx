@@ -30,7 +30,7 @@ db_service:
 ```
 
 You can use a wildcard selector to register all dynamic app resources in the cluster
-on the database service or provide a specific set of labels for a subset:
+on the Database Service or provide a specific set of labels for a subset:
 
 ```yaml
 resources:
@@ -61,7 +61,7 @@ spec:
 
 The user creating the dynamic registration needs to have a role with access to the 
 database labels and the `db` resource.  In this example role the user can only
-create and maintain database services labeled `env: prod` and `engine: postgres`.
+create and maintain Database Services labeled `env: prod` and `engine: postgres`.
 ```yaml
 kind: role
 metadata:
