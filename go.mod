@@ -35,7 +35,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.64
 	github.com/aws/aws-sdk-go-v2/service/athena v1.25.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.93.2
-	github.com/aws/aws-sdk-go-v2/service/rds v1.43.1
+	github.com/aws/aws-sdk-go-v2/service/rds v1.43.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.8
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.9
