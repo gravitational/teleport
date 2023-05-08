@@ -239,6 +239,9 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
+	// AdditionalExpectedRoles are additional roles to attach to the Teleport instances.
+	AdditionalExpectedRoles []RoleAndIdentityEvent
+
 	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
 	AdditionalReadyEvents []string
 
@@ -265,6 +268,15 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+// RoleAndIdentityEvent is a role and its corresponding identity event.
+type RoleAndIdentityEvent struct {
+	// Role is a system role.
+	Role types.SystemRole
+
+	// IdentityEvent is the identity event associated with the above role.
+	IdentityEvent string
 }
 
 // JoinParams is a set of extra parameters for joining the auth server.

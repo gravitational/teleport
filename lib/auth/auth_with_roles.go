@@ -4475,7 +4475,7 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	}
 	// Users can only fetch their own SAML IdP sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindSAMLIdPSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ClusterNetworkingConfig defines cluster networking configuration. This is
@@ -276,7 +276,7 @@ func (c *ClusterNetworkingConfigV2) SetProxyListenerMode(mode ProxyListenerMode)
 
 // Clone performs a deep copy.
 func (c *ClusterNetworkingConfigV2) Clone() ClusterNetworkingConfig {
-	return proto.Clone(c).(*ClusterNetworkingConfigV2)
+	return utils.CloneProtoMsg(c)
 }
 
 // setStaticFields sets static resource header and metadata fields.
