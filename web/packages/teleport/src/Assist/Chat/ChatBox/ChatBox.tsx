@@ -86,7 +86,7 @@ export function ChatBox(props: ChatBoxProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      if (!responding) {
+      if (!responding && value) {
         props.onSubmit(value);
         setValue('');
       }
