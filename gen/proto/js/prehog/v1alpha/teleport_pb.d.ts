@@ -1241,6 +1241,9 @@ export class AssistCompletionEvent extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): AssistCompletionEvent;
 
+    getConversationId(): string;
+    setConversationId(value: string): AssistCompletionEvent;
+
     getTotalTokens(): number;
     setTotalTokens(value: number): AssistCompletionEvent;
 
@@ -1264,6 +1267,7 @@ export class AssistCompletionEvent extends jspb.Message {
 export namespace AssistCompletionEvent {
     export type AsObject = {
         userName: string,
+        conversationId: string,
         totalTokens: number,
         promptTokens: number,
         completionTokens: number,

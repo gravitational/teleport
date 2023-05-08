@@ -9164,9 +9164,10 @@ proto.prehog.v1alpha.AssistCompletionEvent.prototype.toObject = function(opt_inc
 proto.prehog.v1alpha.AssistCompletionEvent.toObject = function(includeInstance, msg) {
   var f, obj = {
     userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    totalTokens: jspb.Message.getFieldWithDefault(msg, 2, 0),
-    promptTokens: jspb.Message.getFieldWithDefault(msg, 3, 0),
-    completionTokens: jspb.Message.getFieldWithDefault(msg, 4, 0)
+    conversationId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    totalTokens: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    promptTokens: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    completionTokens: jspb.Message.getFieldWithDefault(msg, 5, 0)
   };
 
   if (includeInstance) {
@@ -9208,14 +9209,18 @@ proto.prehog.v1alpha.AssistCompletionEvent.deserializeBinaryFromReader = functio
       msg.setUserName(value);
       break;
     case 2:
-      var value = /** @type {number} */ (reader.readInt64());
-      msg.setTotalTokens(value);
+      var value = /** @type {string} */ (reader.readString());
+      msg.setConversationId(value);
       break;
     case 3:
       var value = /** @type {number} */ (reader.readInt64());
-      msg.setPromptTokens(value);
+      msg.setTotalTokens(value);
       break;
     case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setPromptTokens(value);
+      break;
+    case 5:
       var value = /** @type {number} */ (reader.readInt64());
       msg.setCompletionTokens(value);
       break;
@@ -9255,24 +9260,31 @@ proto.prehog.v1alpha.AssistCompletionEvent.serializeBinaryToWriter = function(me
       f
     );
   }
-  f = message.getTotalTokens();
-  if (f !== 0) {
-    writer.writeInt64(
+  f = message.getConversationId();
+  if (f.length > 0) {
+    writer.writeString(
       2,
       f
     );
   }
-  f = message.getPromptTokens();
+  f = message.getTotalTokens();
   if (f !== 0) {
     writer.writeInt64(
       3,
       f
     );
   }
-  f = message.getCompletionTokens();
+  f = message.getPromptTokens();
   if (f !== 0) {
     writer.writeInt64(
       4,
+      f
+    );
+  }
+  f = message.getCompletionTokens();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
       f
     );
   }
@@ -9298,28 +9310,28 @@ proto.prehog.v1alpha.AssistCompletionEvent.prototype.setUserName = function(valu
 
 
 /**
- * optional int64 total_tokens = 2;
+ * optional string conversation_id = 2;
+ * @return {string}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getConversationId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setConversationId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int64 total_tokens = 3;
  * @return {number}
  */
 proto.prehog.v1alpha.AssistCompletionEvent.prototype.getTotalTokens = function() {
-  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
-};
-
-
-/**
- * @param {number} value
- * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
- */
-proto.prehog.v1alpha.AssistCompletionEvent.prototype.setTotalTokens = function(value) {
-  return jspb.Message.setProto3IntField(this, 2, value);
-};
-
-
-/**
- * optional int64 prompt_tokens = 3;
- * @return {number}
- */
-proto.prehog.v1alpha.AssistCompletionEvent.prototype.getPromptTokens = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
 };
 
@@ -9328,16 +9340,16 @@ proto.prehog.v1alpha.AssistCompletionEvent.prototype.getPromptTokens = function(
  * @param {number} value
  * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
  */
-proto.prehog.v1alpha.AssistCompletionEvent.prototype.setPromptTokens = function(value) {
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setTotalTokens = function(value) {
   return jspb.Message.setProto3IntField(this, 3, value);
 };
 
 
 /**
- * optional int64 completion_tokens = 4;
+ * optional int64 prompt_tokens = 4;
  * @return {number}
  */
-proto.prehog.v1alpha.AssistCompletionEvent.prototype.getCompletionTokens = function() {
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getPromptTokens = function() {
   return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
 };
 
@@ -9346,8 +9358,26 @@ proto.prehog.v1alpha.AssistCompletionEvent.prototype.getCompletionTokens = funct
  * @param {number} value
  * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
  */
-proto.prehog.v1alpha.AssistCompletionEvent.prototype.setCompletionTokens = function(value) {
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setPromptTokens = function(value) {
   return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int64 completion_tokens = 5;
+ * @return {number}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getCompletionTokens = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setCompletionTokens = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
 };
 
 

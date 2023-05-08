@@ -405,13 +405,18 @@ message AgentMetadataEvent {
   string cloud_environment = 11;
 }
 
+// AssistCompletionEvent is an event that is emitted
+// when a single completion occurs in the Teleport Assist,
+// i.e. a user submits a prompt, and receives an answer from the Assist
 message AssistCompletionEvent {
   // anonymized
   string user_name = 1;
 
-  int64 total_tokens = 2;
-  int64 prompt_tokens = 3;
-  int64 completion_tokens = 4;
+  string conversation_id = 2;
+
+  int64 total_tokens = 3;
+  int64 prompt_tokens = 4;
+  int64 completion_tokens = 5;
 }
 
 message SubmitEventRequest {

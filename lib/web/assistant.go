@@ -323,6 +323,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			Event: &usageeventsv1.UsageEventOneOf{
 				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
 					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+						ConversationId:   conversationID,
 						TotalTokens:      int64(len(promptTokens) + completionTokens),
 						PromptTokens:     int64(len(promptTokens)),
 						CompletionTokens: int64(completionTokens),
