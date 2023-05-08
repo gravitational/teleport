@@ -207,6 +207,7 @@ func (h *Handler) executeCommand(
 				Router:             h.cfg.Router,
 				TracerProvider:     h.cfg.TracerProvider,
 				proxySigner:        h.cfg.PROXYSigner,
+				LocalAuthProvider:  h.auth.accessPoint,
 			}
 
 			handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -277,6 +278,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 		interactiveCommand: cfg.InteractiveCommand,
 		router:             cfg.Router,
 		proxySigner:        cfg.proxySigner,
+		localAuthProvider:  cfg.LocalAuthProvider,
 		tracer:             cfg.tracer,
 	}, nil
 }
@@ -302,6 +304,9 @@ type CommandHandlerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// ProxySigner is used to sign PROXY header and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+	// LocalAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	LocalAuthProvider agentless.AuthProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 }
@@ -335,6 +340,10 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.TracerProvider == nil {
 		t.TracerProvider = tracing.DefaultProvider()
+	}
+
+	if t.LocalAuthProvider == nil {
+		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
 	t.tracer = t.TracerProvider.Tracer("webcommand")
@@ -373,6 +382,10 @@ type commandHandler struct {
 
 	// ProxySigner is used to sign PROXY header and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
 
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
@@ -481,13 +494,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		return
 	}
 
-	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
-	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failed to get site client")
-		t.writeError(err)
-		return
-	}
-	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
+	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
