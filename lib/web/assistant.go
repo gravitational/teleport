@@ -306,7 +306,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		promptTokens, err := chat.PromptTokens()
 		if err != nil {
-			log.WithError(err).Warn("Failed to calculate prompt tokens")
+			log.Warnf("Failed to calculate prompt tokens: %v", err)
 		}
 		completionTokens, err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws)
 		if err != nil {
