@@ -58,6 +58,9 @@ type Values struct {
 	// This value is empty if a proxy was not specified.
 	ProxyAddr string
 
+	// AddKeysToAgent specifies the behavior of how certs are handled.
+	AddKeysToAgent string
+
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
 
@@ -152,6 +155,9 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 			if v.ProxyAddr != "" {
 				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
+			}
+			if v.AddKeysToAgent != "" {
+				execArgs = append(execArgs, fmt.Sprintf("--add-keys-to-agent=%s", v.AddKeysToAgent))
 			}
 			authInfo := &clientcmdapi.AuthInfo{
 				Impersonate:       v.Impersonate,
