@@ -145,8 +145,6 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const theme = useTheme();
 
-  console.log(theme);
-
   const [open, setOpen] = useState(showAssist);
 
   const history = useHistory();
