@@ -16,7 +16,7 @@ description: How to setup automatic agent update for self-hosted Teleport
 Teleport supports automatic agent updates for
 systemd-based Linux distributions using `apt` or `yum` package managers,
 and Kubernetes clusters. The [automatic updates architecture 
-page](../../architecture/automatic-agent-update.mdx) describes how agent
+page](../../architecture/agent-update-management.mdx) describes how agent
 updating works.
 
 This guide covers how to set up the automatic update infrastructure. If this is
@@ -26,7 +26,8 @@ already done, or you are a Teleport Cloud user, you can directly
 ## Requirements
 
 - Self-hosted Teleport cluster running.
-- `tctl` admin rights.
+- `tctl` execution on the auth machine or a role allowing verbs `create`, `read`,
+  `update`, `delete` on the resource `cluster_maintenance_config`.
 - Either:
   - a public S3/GCS bucket,
   - a web server accessible from all agents with valid TLS certificates.

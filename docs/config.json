@@ -1388,7 +1388,7 @@
         },
         {
           "title": "Automatic Agent Update",
-          "slug": "/architecture/automatic-agent-update/",
+          "slug": "/architecture/agent-update-management/",
           "forScopes": ["enterprise", "cloud"]
         },
         {
