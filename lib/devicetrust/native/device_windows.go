@@ -12,15 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package enroll
+package native
 
-import "github.com/gravitational/teleport/lib/devicetrust/native"
+import "github.com/gravitational/teleport/lib/devicetrust"
 
-// vars below are used to fake OSes and switch implementations for tests.
-var (
-	collectDeviceData       = native.CollectDeviceData
-	enrollInit              = native.EnrollDeviceInit
-	getOSType               = getDeviceOSType
-	signChallenge           = native.SignChallenge
-	solveTPMEnrollChallenge = native.SolveTPMEnrollChallenge
-)
+func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+	return nil, nil
+}
+
+func solveTPMEnrollChallenge(
+	challenge *devicepb.TPMEnrollChallenge,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, nil
+}
+
+// Functions not implemented on windows
+
+func signChallenge(chal []byte) (sig []byte, err error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}

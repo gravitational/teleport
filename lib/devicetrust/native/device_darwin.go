@@ -142,3 +142,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 func statusErrorFromC(res C.int32_t) error {
 	return &statusError{status: int32(res)}
 }
+
+func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}

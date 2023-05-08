@@ -16,6 +16,7 @@ package enroll
 
 import (
 	"context"
+	"golang.org/x/exp/slices"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -28,7 +29,11 @@ import (
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
-	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
+	osType := getOSType()
+	if !slices.Contains([]devicepb.OSType{
+		devicepb.OSType_OS_TYPE_MACOS,
+		devicepb.OSType_OS_TYPE_WINDOWS,
+	}, osType) {
 		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
 	}
 
@@ -57,10 +62,20 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
-	// Only macOS is supported, see the guard at the beginning of the method.
-	if err := enrollDeviceMacOS(stream, resp); err != nil {
-		return nil, trace.Wrap(err)
+	switch osType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		if err := enrollDeviceMacOS(stream, resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		if err := enrollDeviceTPM(stream, resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		// This should be caught by the OSType guard at start of function
+		panic("no enrollment function provided for os")
 	}
+
 	resp, err = stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -88,6 +103,23 @@ func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, re
 			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
 				Signature: sig,
 			},
+		},
+	})
+	return trace.Wrap(err)
+}
+
+func enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
+	challenge := resp.GetTpmChallenge()
+	if challenge == nil {
+		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
+	}
+	challengeResponse, err := solveTPMEnrollChallenge(challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: challengeResponse,
 		},
 	})
 	return trace.Wrap(err)
