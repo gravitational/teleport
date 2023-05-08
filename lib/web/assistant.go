@@ -312,8 +312,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
-		// TODO(justinas): should we handle this error?
-		promptTokens, _, _ := tokenizerInstance.Encode(wsIncoming.Payload)
+		promptTokens, _, err := tokenizerInstance.Encode(wsIncoming.Payload)
+		if err != nil {
+			log.WithError(err).Warn("Failed to tokenize the prompt for token usage accounting")
+		}
 
 		completionTokens, err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws)
 		if err != nil {
