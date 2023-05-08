@@ -682,7 +682,8 @@
                 "pod",
                 "service",
                 "serviceAccount",
-                "certSecret"
+                "certSecret",
+                "ingress"
             ],
             "properties": {
                 "config": {
@@ -734,6 +735,13 @@
                     "type": "object",
                     "default": {}
                 }
+            }
+        },
+        "ingress": {
+            "enabled": {
+                "$id": "#/properties/ingress/enabled",
+                "type": "boolean",
+                "default": false
             }
         },
         "serviceAccount": {
