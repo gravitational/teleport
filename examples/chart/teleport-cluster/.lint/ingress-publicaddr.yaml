@@ -1,0 +1,4 @@
+clusterName: helm-lint
+publicAddr: "my-ingress-publicaddr.teleport.example.com:443"
+ingress:
+  enabled: true

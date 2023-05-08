@@ -1,6 +1,18 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if .Values.ingress.enabled }}
+  {{- if (not (eq .Values.proxyListenerMode "multiplex")) }}
+    {{- fail "Cannot set ingress.enabled=true unless proxyListenerMode=multiplex" }}
+  {{- end }}
 {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
+{{- /* Trim the ports from all public addresses */ -}}
+{{- range $publicAddr -}}
+  {{- $domain := . -}}
+  {{- if (contains ":" $domain) -}}
+    {{- $split := split ":" $domain -}}
+    {{- $domain := $split._0 -}}
+    {{- $publicAddr = append (without $publicAddr .) $domain -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -16,7 +28,6 @@ spec:
   {{- range $publicAddr }}
     - {{ . }}
   {{- end }}
-    #secretName: teleport-tls
   rules:
    {{- range $publicAddr }}
   - host: {{ . }}
