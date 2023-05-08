@@ -27,7 +27,7 @@ const appear = keyframes`
 `;
 
 export const ExampleItem = styled.div`
-  border: 1px solid #5130c9;
+  border: 1px solid ${p => p.theme.colors.text.main};
   margin-right: 20px;
   padding: 10px 15px;
   border-radius: 5px;
@@ -40,7 +40,7 @@ export const ExampleItem = styled.div`
   svg {
     margin-right: 15px;
     path {
-      fill: #5130c9;
+      fill: ${p => p.theme.colors.text.main};
     }
   }
 `;
