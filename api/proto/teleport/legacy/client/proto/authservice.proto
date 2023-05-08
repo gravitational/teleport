@@ -2340,7 +2340,13 @@ message GetAssistantConversationsResponse {
   repeated ConversationInfo conversations = 1;
 }
 
-message CreateAssistantConversationRequest {}
+message CreateAssistantConversationRequest {
+  // createdTime is the time when the conversation was created.
+  google.protobuf.Timestamp created_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
 
 message CreateAssistantConversationResponse {
   string id = 1;

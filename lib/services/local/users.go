@@ -1385,6 +1385,7 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
+// Conversation is a conversation entry in the backend.
 type Conversation struct {
 	Title          string    `json:"title,omitempty"`
 	ConversationID string    `json:"conversation_id"`
@@ -1392,7 +1393,8 @@ type Conversation struct {
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest,
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string,
+	req *proto.CreateAssistantConversationRequest,
 ) (*proto.CreateAssistantConversationResponse, error) {
 	if username == "" {
 		return nil, trace.BadParameter("missing parameter username")
@@ -1401,7 +1403,7 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	conversationID := uuid.New().String()
 	payload := &Conversation{
 		ConversationID: conversationID,
-		CreatedTime:    s.Clock().Now().UTC(),
+		CreatedTime:    req.CreatedTime,
 	}
 
 	value, err := json.Marshal(payload)
