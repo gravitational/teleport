@@ -204,7 +204,7 @@ function renderRoutes(
     }
 
     // add the route of the 'locked' variants of the features
-    if (feature.isLocked !== undefined && feature.isLocked(lockedFeatures)) {
+    if (feature.isLocked?.(lockedFeatures)) {
       if (!feature.lockedRoute) {
         continue;
       }
