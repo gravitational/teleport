@@ -25,7 +25,7 @@ import (
 
 // serviceCounter will count services seen in the inventory.
 type serviceCounter struct {
-	countMap *sync.Map
+	countMap sync.Map
 }
 
 // counts returns the count of each service seen in the counter.
@@ -58,6 +58,9 @@ func (s *serviceCounter) get(service types.SystemRole) uint64 {
 // load will load the underlying atomic value in the sync map. This should
 // only be used within the service counter.
 func (s *serviceCounter) load(service types.SystemRole) *atomic.Uint64 {
+	if result, ok := s.countMap.Load(service); ok {
+		return result.(*atomic.Uint64)
+	}
 	result, _ := s.countMap.LoadOrStore(service, &atomic.Uint64{})
 	return result.(*atomic.Uint64)
 }

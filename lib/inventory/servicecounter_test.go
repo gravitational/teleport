@@ -17,7 +17,6 @@ limitations under the License.
 package inventory
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
@@ -25,7 +24,7 @@ import (
 )
 
 func TestServiceCounter(t *testing.T) {
-	sc := serviceCounter{&sync.Map{}}
+	sc := serviceCounter{}
 
 	require.Equal(t, uint64(0), sc.get(types.RoleAuth))
 

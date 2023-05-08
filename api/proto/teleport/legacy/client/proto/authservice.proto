@@ -2154,16 +2154,13 @@ message InventoryStatusSummary {
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
 }
 
-// InventoryServiceCountsRequest requests inventory service counts.
-message InventoryServiceCountsRequest {}
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
 
-// InventoryServiceCounts is the service counts seen in the inventory.
-message InventoryServiceCounts {
-  // ServiceCounts is the count of each service seen in the inventory.
-  map<string, uint64> ServiceCounts = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"
-  ];
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
 }
 
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
@@ -2317,8 +2314,8 @@ service AuthService {
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
 
-  // GetInventoryServiceCounts returns the counts of each service seen in the inventory.
-  rpc GetInventoryServiceCounts(InventoryServiceCountsRequest) returns (InventoryServiceCounts);
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
