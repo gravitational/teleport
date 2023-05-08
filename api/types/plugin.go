@@ -19,8 +19,9 @@ package types
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // PluginType represents the type of the plugin
@@ -135,7 +136,7 @@ func (p *PluginV1) setStaticFields() {
 
 // Clone returns a copy of the Plugin instance
 func (p *PluginV1) Clone() Plugin {
-	return proto.Clone(p).(*PluginV1)
+	return utils.CloneProtoMsg(p)
 }
 
 // GetVersion returns resource version

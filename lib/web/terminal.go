@@ -116,6 +116,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		}),
 		ctx:                cfg.SessionCtx,
 		authProvider:       cfg.AuthProvider,
+		localAuthProvider:  cfg.LocalAuthProvider,
 		displayLogin:       cfg.DisplayLogin,
 		sessionData:        cfg.SessionData,
 		keepAliveInterval:  cfg.KeepAliveInterval,
@@ -132,29 +133,32 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 // TerminalHandlerConfig contains the configuration options necessary to
 // correctly setup the TerminalHandler
 type TerminalHandlerConfig struct {
-	// term is the initial PTY size.
+	// Term is the initial PTY size.
 	Term session.TerminalParams
-	// sctx is the context for the users web session.
+	// SessionCtx is the context for the users web session.
 	SessionCtx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
+	// AuthProvider is used to fetch nodes and sessions from the backend.
 	AuthProvider AuthProvider
-	// displayLogin is the login name to display in the UI.
+	// LocalAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	LocalAuthProvider agentless.AuthProvider
+	// DisplayLogin is the login name to display in the UI.
 	DisplayLogin string
-	// sessionData is the data to send to the client on the initial session creation.
+	// SessionData is the data to send to the client on the initial session creation.
 	SessionData session.Session
-	// keepAliveInterval is the interval for sending ping frames to web client.
+	// KeepAliveInterval is the interval for sending ping frames to web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
-	// proxyHostPort is the address of the server to connect to.
+	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
-	// interactiveCommand is a command to execute.
+	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
-	// ProxySigner is used to sign PROXY header and securely propagate client IP information
+	// PROXYSigner is used to sign PROXY header and securely propagate client IP information
 	PROXYSigner multiplexer.PROXYHeaderSigner
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
@@ -184,6 +188,10 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.AuthProvider == nil {
 		return trace.BadParameter("AuthProvider must be provided")
+	}
+
+	if t.LocalAuthProvider == nil {
+		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
 	if t.SessionCtx == nil {
@@ -226,6 +234,10 @@ type TerminalHandler struct {
 
 	// authProvider is used to fetch nodes and sessions from the backend.
 	authProvider AuthProvider
+
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
 
 	closeOnce sync.Once
 
@@ -366,7 +378,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC))
+	fileTransferRequestC := make(chan *session.FileTransferRequestParams, 1)
+	fileTransferDecisionC := make(chan *session.FileTransferDecisionParams, 1)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandlers(fileTransferRequestC, fileTransferDecisionC))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -405,6 +419,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// process window resizing
 	go t.handleWindowResize(resizeC)
+
+	// process file transfer requests/responses
+	go t.handleFileTransfer(fileTransferRequestC, fileTransferDecisionC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -631,12 +648,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	authClient, err := t.router.GetSiteClient(ctx, tc.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	signer := agentless.SignerFromSSHCertificate(cert, tc.Username, tc.SiteName, authClient)
+	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
 
 	type clientRes struct {
 		clt *client.NodeClient
@@ -738,7 +750,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
@@ -770,7 +782,7 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc)
 	if err != nil {
@@ -833,6 +845,30 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 		case <-t.terminalContext.Done():
 			return
 		}
+	}
+}
+
+// handleFileTransfer receives file transfer requests and responses and forwards them
+// to the SSH session
+func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *session.FileTransferRequestParams, fileTransferDecisionC <-chan *session.FileTransferDecisionParams) {
+	for {
+		select {
+		case <-t.terminalContext.Done():
+			return
+		case transferRequest := <-fileTransferRequestC:
+			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+				Download: transferRequest.Download,
+				Location: transferRequest.Location,
+				Filename: transferRequest.Filename,
+			})
+		case transferResponse := <-fileTransferDecisionC:
+			if transferResponse.Approved {
+				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			} else {
+				t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			}
+		}
+
 	}
 }
 
@@ -936,6 +972,15 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
+// WithTerminalStreamFileTransferHandlers provides two channels, one to subscribe to new file transfer requests, and
+// one to subscribe to file transfer decision requests, such as approve/deny
+func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session.FileTransferRequestParams, fileTransferDecisionC chan<- *session.FileTransferDecisionParams) func(stream *TerminalStream) {
+	return func(stream *TerminalStream) {
+		stream.fileTransferRequestC = fileTransferRequestC
+		stream.fileTransferDecisionC = fileTransferDecisionC
+	}
+}
+
 func NewWStream(ws WSConn) *WsStream {
 	return &WsStream{
 		ws:      ws,
@@ -993,6 +1038,16 @@ type TerminalStream struct {
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
+	// fileTransferRequestC is a channel to facilitate requesting a file transfer
+	fileTransferRequestC chan<- *session.FileTransferRequestParams
+	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
+	// with an approval or denial
+	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
+
+	// mu protects writes to ws
+	mu sync.Mutex
+	// ws the connection to the UI
+	ws *websocket.Conn
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
@@ -1198,6 +1253,49 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 
 		return 0, nil
+	case defaults.WebsocketFileTransferDecision:
+		if t.fileTransferDecisionC == nil {
+			return n, nil
+		}
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		approved, ok := e["approved"].(bool)
+		if !ok {
+			return 0, trace.BadParameter("Unable to find approved status on response")
+		}
+		select {
+		case t.fileTransferDecisionC <- &session.FileTransferDecisionParams{
+			RequestID: e.GetString("requestId"),
+			Approved:  approved,
+		}:
+		default:
+		}
+		return 0, nil
+	case defaults.WebsocketFileTransferRequest:
+		if t.fileTransferRequestC == nil {
+			return n, nil
+		}
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		download, ok := e["download"].(bool)
+		if !ok {
+			return 0, trace.BadParameter("Unable to find download param in response")
+		}
+		select {
+		case t.fileTransferRequestC <- &session.FileTransferRequestParams{
+			Location: e.GetString("location"),
+			Download: download,
+			Filename: e.GetString("filename"),
+		}:
+		default:
+		}
+		return 0, nil
 	default:
 		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
 	}
@@ -1222,6 +1320,18 @@ func (t *WsStream) Close() error {
 // Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
+	if t.fileTransferRequestC != nil {
+		t.once.Do(func() {
+			close(t.fileTransferRequestC)
+		})
+	}
+
+	if t.fileTransferDecisionC != nil {
+		t.once.Do(func() {
+			close(t.fileTransferDecisionC)
+		})
+	}
+
 	if t.resizeC != nil {
 		t.once.Do(func() {
 			close(t.resizeC)

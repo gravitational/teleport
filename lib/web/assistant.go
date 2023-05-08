@@ -35,13 +35,12 @@ import (
 	"github.com/tiktoken-go/tokenizer"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
 const (
@@ -145,7 +144,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 
 	conversationID := p.ByName("conversation_id")
 
-	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
+	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,10 +162,11 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	return conversationInfo, nil
 }
 
-func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
+	sctx *SessionContext, site reversetunnel.RemoteSite,
+) (any, error) {
 	// moved into a separate function for error management/debug purposes
-	err := runAssistant(h, w, r, sctx)
-	if err != nil {
+	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +190,8 @@ type partialFinalizePayload struct {
 }
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
-func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
+func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext, site reversetunnel.RemoteSite,
+) error {
 	// Initialize a tokenizer for prompt token accounting
 	tokenizerInstance, err := tokenizer.Get(tokenizer.Cl100kBase)
 	if err != nil {
@@ -199,6 +200,28 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	authClient, err := sctx.GetClient()
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	identity, err := createIdentityContext(sctx.GetUser(), sctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		h.log.WithError(err).Debug("Unable to get auth access point.")
+		return trace.Wrap(err)
+	}
+
+	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
 		return trace.Wrap(err)
 	}
 
@@ -216,9 +239,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	}
 
-	// Use the default interval as this handler doesn't have access to network config.
 	// Note: This time should be longer than OpenAI response time.
-	keepAliveInterval := defaults.KeepAliveInterval()
+	keepAliveInterval := netConfig.GetKeepAliveInterval()
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
@@ -232,9 +254,15 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	})
 
-	go startPingLoop(r.Context(), ws, keepAliveInterval, h.log, nil)
+	ws.SetCloseHandler(func(code int, text string) error {
+		h.log.Warnf("closing assistant websocket: %v %v", code, text)
+		return nil
+	})
 
-	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, sctx)
+	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
+
+	chat, err := getAssistantClient(ctx, h.cfg.ProxyClient,
+		h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -246,7 +274,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	}
 
 	// existing conversation, retrieve old messages
-	messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
+	messages, err := authClient.GetAssistantMessages(ctx, conversationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -261,7 +289,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	if len(messages.GetMessages()) == 0 {
 		// new conversation, generate hello message
-		if _, err := processComplete(h, r.Context(), chat, conversationID, ws, authClient); err != nil {
+		if _, err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -286,16 +314,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// TODO(justinas): should we handle this error?
 		promptTokens, _, _ := tokenizerInstance.Encode(wsIncoming.Payload)
 
-		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
-			ConversationId: conversationID,
-			Type:           messageKindUserMessage,
-			Payload:        wsIncoming.Payload,
-			CreatedTime:    h.clock.Now().UTC(),
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-
-		completionTokens, err := processComplete(h, r.Context(), chat, conversationID, ws, authClient)
+		completionTokens, err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -319,6 +338,35 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	h.log.Debugf("end assistant conversation loop")
 
 	return nil
+}
+
+func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContext, site reversetunnel.RemoteSite,
+	conversationID string, wsIncoming proto.AssistantMessage, chat *ai.Chat, ws *websocket.Conn,
+) (int, error) {
+	// Create a new auth client as the WS is a long-living connection
+	// and client created at the beginning will timeout at some point.
+	// TODO(jakule): Fix the timeout issue https://github.com/gravitational/teleport/issues/25758
+	authClient, err := newRemoteClient(ctx, sctx, site)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	if _, err := authClient.InsertAssistantMessage(ctx, &proto.AssistantMessage{
+		ConversationId: conversationID,
+		Type:           messageKindUserMessage,
+		Payload:        wsIncoming.Payload,
+		CreatedTime:    h.clock.Now().UTC(),
+	}); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	numTokens, err := processComplete(ctx, h, chat, conversationID, ws, authClient)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return numTokens, nil
 }
 
 func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.ClientI) (string, error) {
@@ -346,11 +394,13 @@ func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.Clien
 	return creds.Token, nil
 }
 
-func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *SessionContext) (*ai.Chat, error) {
+func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
+	proxySettings proxySettingsGetter, username string,
+) (*ai.Chat, error) {
 	token, err := getOpenAITokenFromDefaultPlugin(ctx, proxyClient)
 	if err == nil {
 		client := ai.NewClient(token)
-		chat := client.NewChat(sctx.cfg.User)
+		chat := client.NewChat(username)
 		return chat, nil
 	} else if !trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		// We ignore 2 types of errors here.
@@ -361,31 +411,23 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI, sctx *Ses
 		log.WithError(err).Error("Unexpected error fetching default OpenAI plugin")
 	}
 
-	prefs, err := proxyClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	keyGetter, found := proxySettings.(interface{ GetOpenAIAPIKey() string })
+	if !found {
+		return nil, trace.Errorf("GetOpenAIAPIKey is not implemented on %T", proxySettings)
 	}
 
-	prefsV2, ok := prefs.(*types.AuthPreferenceV2)
-	if !ok {
-		return nil, trace.Errorf("bad cast, expected AuthPreferenceV2 found %T", prefs)
+	apiKey := keyGetter.GetOpenAIAPIKey()
+	if apiKey == "" {
+		return nil, trace.Errorf("OpenAI API key is not set")
 	}
 
-	if prefsV2.Spec.Assist == nil {
-		return nil, trace.Errorf("assist spec is not set")
-	}
-
-	if prefsV2.Spec.Assist.OpenAI == nil {
-		return nil, trace.Errorf("assist openai backend is not configured")
-	}
-
-	client := ai.NewClient(prefsV2.Spec.Assist.OpenAI.APIToken)
-	chat := client.NewChat(sctx.cfg.User)
+	client := ai.NewClient(apiKey)
+	chat := client.NewChat(username)
 
 	return chat, nil
 }
 
-func processComplete(h *Handler, ctx context.Context, chat *ai.Chat, conversationID string,
+func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversationID string,
 	ws *websocket.Conn, authClient auth.ClientI,
 ) (int, error) {
 	// query the assistant and fetch an answer

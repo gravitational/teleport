@@ -127,9 +127,6 @@ type AuthPreference interface {
 	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
 	SetSAMLIdPEnabled(bool)
 
-	// IsAssistEnabled returns true if assistant feature is enabled in the Auth config.
-	IsAssistEnabled() bool
-
 	// String represents a human readable version of authentication settings.
 	String() string
 }
@@ -351,12 +348,6 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 
 func (c *AuthPreferenceV2) GetAllowHeadless() bool {
 	return c.Spec.AllowHeadless != nil && c.Spec.AllowHeadless.Value
-}
-
-func (c *AuthPreferenceV2) IsAssistEnabled() bool {
-	return c.Spec.Assist != nil &&
-		c.Spec.Assist.OpenAI != nil &&
-		c.Spec.Assist.OpenAI.APIToken != ""
 }
 
 func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {

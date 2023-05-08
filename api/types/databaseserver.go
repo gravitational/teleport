@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // DatabaseServer represents a database access server.
@@ -309,7 +309,7 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
-	return proto.Clone(s).(*DatabaseServerV3)
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to

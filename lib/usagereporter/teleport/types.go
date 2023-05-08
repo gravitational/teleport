@@ -292,6 +292,20 @@ func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymize
 	}
 }
 
+// UICallToActionClickEvent is a UI event sent when a user prints recovery codes.
+type UICallToActionClickEvent prehogv1a.UICallToActionClickEvent
+
+func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCallToActionClickEvent{
+			UiCallToActionClickEvent: &prehogv1a.UICallToActionClickEvent{
+				Cta:      u.Cta,
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -540,6 +554,12 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
+		return &UICallToActionClickEvent{
+			UserName: userMD.Username,
+			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
+		}, nil
+
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),

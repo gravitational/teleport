@@ -647,6 +647,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
+	h.GET("/webapi/scripts/databases/configure/sqlserver/:token/configure-ad.ps1", httplib.MakeHandler(h.sqlServerConfigureADScriptHandle))
 
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
@@ -741,8 +742,10 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
+
 	// WebSocket endpoint for the chat conversation
-	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
+	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuth(h.assistant))
 
 	// Sets the title for the conversation.
 	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
@@ -1071,11 +1074,6 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
 
-	mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
-
-	// TODO(jakule): Currently assist is disabled when MFA is enabled as this part is not implemented.
-	as.Assist.Enabled = !mfaRequired && authPreference.IsAssistEnabled()
-
 	return as, nil
 }
 
@@ -1153,6 +1151,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO: This part should be removed once the plugin support is added to OSS.
+	if proxyConfig.AssistEnabled {
+		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
+		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+		// Disable assistant support if per session MFA is enabled.
+		proxyConfig.AssistEnabled = !mfaRequired
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1378,6 +1388,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(h.ClusterFeatures),
+		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2450,7 +2461,8 @@ func (h *Handler) getClusterLocks(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2476,7 +2488,8 @@ func (h *Handler) createClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	var req *createLockReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2523,7 +2536,8 @@ func (h *Handler) deleteClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2628,6 +2642,7 @@ func (h *Handler) siteNodeConnect(
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		AuthProvider:       clt,
+		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
@@ -3423,7 +3438,6 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
-		h.log.WithError(err).Warn("Failed to authenticate.")
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -3530,17 +3544,14 @@ type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httpro
 func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx := r.Context()
-		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
 		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
@@ -3726,33 +3737,25 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
-	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 	cookie, err := r.Cookie(CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		if err != nil {
-			logger.Warn(err)
-		}
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	decodedCookie, err := DecodeCookie(cookie.Value)
 	if err != nil {
-		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
-			logger.WithError(err).Warn("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
