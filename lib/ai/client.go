@@ -16,7 +16,10 @@ limitations under the License.
 
 package ai
 
-import "github.com/sashabaranov/go-openai"
+import (
+	"github.com/sashabaranov/go-openai"
+	"github.com/tiktoken-go/tokenizer/codec"
+)
 
 type Client struct {
 	svc *openai.Client
@@ -35,5 +38,8 @@ func (client *Client) NewChat(username string) *Chat {
 				Content: promptCharacter(username),
 			},
 		},
+		// Initialize a tokenizer for prompt token accounting.
+		// Cl100k is used by GPT-3 and GPT-4.
+		tokenizer: codec.NewCl100kBase(),
 	}
 }

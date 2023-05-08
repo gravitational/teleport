@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
-	"github.com/tiktoken-go/tokenizer"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -192,13 +191,6 @@ type partialFinalizePayload struct {
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext, site reversetunnel.RemoteSite,
 ) error {
-	// Initialize a tokenizer for prompt token accounting.
-	// Cl100k is used by GPT-3 and GPT-4.
-	tokenizerInstance, err := tokenizer.Get(tokenizer.Cl100kBase)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
@@ -312,11 +304,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
-		promptTokens, _, err := tokenizerInstance.Encode(wsIncoming.Payload)
+		promptTokens, err := chat.PromptTokens()
 		if err != nil {
-			log.WithError(err).Warn("Failed to tokenize the prompt for token usage accounting")
+			log.WithError(err).Warn("Failed to calculate prompt tokens")
 		}
-
 		completionTokens, err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws)
 		if err != nil {
 			return trace.Wrap(err)
@@ -327,8 +318,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
 					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
 						ConversationId:   conversationID,
-						TotalTokens:      int64(len(promptTokens) + completionTokens),
-						PromptTokens:     int64(len(promptTokens)),
+						TotalTokens:      int64(promptTokens + completionTokens),
+						PromptTokens:     int64(promptTokens),
 						CompletionTokens: int64(completionTokens),
 					},
 				},
