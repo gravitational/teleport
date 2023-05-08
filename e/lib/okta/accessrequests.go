@@ -37,17 +37,26 @@ import (
 const (
 	accessRequestFormat = "access-request/%s"
 
-	maxAccessRequestRetryWait = 60 * time.Second
+	maxAccessRequestRetryWait = time.Minute
+
+	checkInventoryWait = time.Minute
+
+	// maxOktaServiceConnectionFailures is the number of connection failures to allow before
+	// considering the Okta service disconnected.
+	maxOktaServiceConnectionFailures = 5
 )
 
-// AccessRequestReconcilerClient is a client that consists of only the interfaces
+// AccessRequestReconcilerAccessPoint is a client that consists of only the interfaces
 // needed for the AccessRequestReconciler.
-type AccessRequestReconcilerClient interface {
+type AccessRequestReconcilerAccessPoint interface {
 	services.UserGroups
 	types.Events
 
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	// GetInventoryStatus returns the current inventory status.
+	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary
 }
 
 // AccessRequestReconcilerConfig is the configuration for the AccessRequestReconciler.
@@ -61,14 +70,18 @@ type AccessRequestReconcilerConfig struct {
 	// ClusterName is the name of the cluster.
 	ClusterName string
 
-	// Client is the client for the access request reconciler.
-	Client AccessRequestReconcilerClient
+	// AccessPoint is the access point for the access request reconciler.
+	AccessPoint AccessRequestReconcilerAccessPoint
 
 	// OktaClient is the Okta client for creating Okta assignment objects.
 	OktaClient services.OktaAssignments
 
 	// OnReconcile is called after each access request resource reconciliation.
 	OnReconcile func(types.AccessRequests)
+
+	// onServiceDisconnectedCh is a channel that will be signaled to when the service disconnects.
+	// This is to be used for testing.
+	onServiceDisconnectedCh chan struct{}
 
 	// onReconcileCh is a channel that will be signaled to when reconciliation completes.
 	// This is to be used for testing.
@@ -88,8 +101,8 @@ func (c *AccessRequestReconcilerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cluster name is missing")
 	}
 
-	if c.Client == nil {
-		return trace.BadParameter("client is missing")
+	if c.AccessPoint == nil {
+		return trace.BadParameter("access point is missing")
 	}
 
 	if c.OktaClient == nil {
@@ -108,10 +121,12 @@ type AccessRequestReconciler struct {
 	clock       clockwork.Clock
 	clusterName string
 
-	client      AccessRequestReconcilerClient
+	accessPoint AccessRequestReconcilerAccessPoint
 	oktaClient  services.OktaAssignments
 	onReconcile func(types.AccessRequests)
-	watcher     *services.AccessRequestWatcher
+
+	watcherMu sync.Mutex
+	watcher   *services.AccessRequestWatcher
 
 	reconcileCh chan struct{}
 	stopCh      chan struct{}
@@ -124,8 +139,9 @@ type AccessRequestReconciler struct {
 
 	retryer retryutils.Retry
 
-	// this is a channel used for testing.
-	onReconcileCh chan struct{}
+	// these channels are used for testing.
+	onServiceDisconnectedCh chan struct{}
+	onReconcileCh           chan struct{}
 }
 
 // NewAccessRequestReconciler creates a new AccessRequestReconciler.
@@ -144,18 +160,19 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 	}
 
 	a := &AccessRequestReconciler{
-		log:               config.Log,
-		clock:             config.Clock,
-		clusterName:       config.ClusterName,
-		client:            config.Client,
-		onReconcile:       config.OnReconcile,
-		oktaClient:        config.OktaClient,
-		reconcileCh:       make(chan struct{}),
-		stopCh:            make(chan struct{}, 1),
-		accessRequests:    map[string]types.AccessRequest{},
-		newAccessRequests: map[string]types.AccessRequest{},
-		retryer:           retryer,
-		onReconcileCh:     config.onReconcileCh,
+		log:                     config.Log,
+		clock:                   config.Clock,
+		clusterName:             config.ClusterName,
+		accessPoint:             config.AccessPoint,
+		onReconcile:             config.OnReconcile,
+		oktaClient:              config.OktaClient,
+		reconcileCh:             make(chan struct{}),
+		stopCh:                  make(chan struct{}, 1),
+		accessRequests:          map[string]types.AccessRequest{},
+		newAccessRequests:       map[string]types.AccessRequest{},
+		retryer:                 retryer,
+		onServiceDisconnectedCh: config.onServiceDisconnectedCh,
+		onReconcileCh:           config.onReconcileCh,
 	}
 
 	return a, nil
@@ -163,6 +180,63 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 
 // Start will start the reconciler.
 func (a *AccessRequestReconciler) Start(ctx context.Context) error {
+	go a.manageReconcilerStartStop(ctx)
+
+	return nil
+}
+
+func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context) {
+	ticker := a.clock.NewTicker(checkInventoryWait)
+	var cancel context.CancelFunc
+	defer ticker.Stop()
+	serviceStarted := false
+	var serviceConnectionFailures int
+
+	for {
+		newOktaServiceConnected := isOktaServiceConnected(ctx, a.accessPoint)
+		if newOktaServiceConnected {
+			serviceConnectionFailures = 0
+
+			if !serviceStarted {
+				a.log.Infof("Okta service connected to the auth server, starting the Okta access request reconciler.")
+
+				var err error
+				cancel, err = a.start(ctx)
+				if err != nil {
+					a.log.Errorf("Error starting access request reconciler: %v", err)
+					continue
+				}
+				a.log.Infof("Okta access request reconciler started.")
+				serviceStarted = true
+			}
+		} else if !newOktaServiceConnected && serviceStarted {
+			serviceConnectionFailures++
+			if serviceConnectionFailures >= maxOktaServiceConnectionFailures {
+				a.log.Infof("Okta service has disconnected, stopping the access request reconciler.")
+				cancel()
+				serviceStarted = false
+				a.log.Infof("Okta access request reconciler has stopped.")
+			} else {
+				a.log.Warnf("No Okta service connected (check %d/%d)", serviceConnectionFailures, maxOktaServiceConnectionFailures)
+			}
+
+			if a.onServiceDisconnectedCh != nil {
+				a.onServiceDisconnectedCh <- struct{}{}
+			}
+		}
+
+		select {
+		case <-ticker.Chan():
+		case <-a.stopCh:
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// start the reconciler.
+func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc, error) {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
 		Matcher: func(resource types.ResourceWithLabels) bool {
 			return a.matcher(ctx, resource)
@@ -175,18 +249,22 @@ func (a *AccessRequestReconciler) Start(ctx context.Context) error {
 		Log:                 a.log,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	watcher, err := a.startResourceWatcher(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		cancel()
+		return nil, trace.Wrap(err)
 	}
+	a.watcherMu.Lock()
 	a.watcher = watcher
+	a.watcherMu.Unlock()
 
 	go a.reconcile(ctx, reconciler)
 
-	return nil
+	return cancel, nil
 }
 
 // reconciler will reconcile access requests and transform them into OktaAssignments.
@@ -241,7 +319,12 @@ func (a *AccessRequestReconciler) Wait(ctx context.Context) {
 
 // Stop will stop and close any lingering resources in the AccessRequestReconciler.
 func (a *AccessRequestReconciler) Stop() {
-	a.watcher.Close()
+	a.watcherMu.Lock()
+	if a.watcher != nil {
+		a.watcher.Close()
+	}
+	a.watcherMu.Unlock()
+
 	close(a.stopCh)
 }
 
@@ -269,7 +352,7 @@ func (a *AccessRequestReconciler) startResourceWatcher(ctx context.Context) (*se
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentOktaAccessRequestReconciler,
 			Log:       a.log,
-			Client:    a.client,
+			Client:    a.accessPoint,
 		},
 	})
 	if err != nil {
@@ -409,7 +492,7 @@ func (a *AccessRequestReconciler) matcher(ctx context.Context, resource types.Re
 
 		switch resourceID.Kind {
 		case types.KindUserGroup:
-			resource, err = a.client.GetUserGroup(ctx, resourceID.Name)
+			resource, err = a.accessPoint.GetUserGroup(ctx, resourceID.Name)
 			if err != nil {
 				a.log.Debugf("Error getting user group: %v", err)
 			}
@@ -446,7 +529,7 @@ func (a *AccessRequestReconciler) accessRequestToOktaAssignment(ctx context.Cont
 
 		switch resourceID.Kind {
 		case types.KindUserGroup:
-			userGroup, err := a.client.GetUserGroup(ctx, resourceID.Name)
+			userGroup, err := a.accessPoint.GetUserGroup(ctx, resourceID.Name)
 			if err != nil {
 				// If the user group no longer exists, we'll try the next resource.
 				if trace.IsNotFound(err) {
@@ -521,7 +604,7 @@ func (a *AccessRequestReconciler) getAppServer(ctx context.Context, name string)
 		PredicateExpression: fmt.Sprintf(`name == %q`, name),
 	}
 
-	resp, err := a.client.ListResources(ctx, req)
+	resp, err := a.accessPoint.ListResources(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

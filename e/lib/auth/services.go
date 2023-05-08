@@ -62,7 +62,7 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 	}
 
 	oktaAccessRequestReconciler, err := okta.NewAccessRequestReconciler(ctx, &okta.AccessRequestReconcilerConfig{
-		Client:      plugin.authServer.AuthServer,
+		AccessPoint: plugin.authServer.AuthServer,
 		OktaClient:  plugin.authServer.AuthServer.OktaClient(),
 		ClusterName: clusterName.GetClusterName(),
 	})

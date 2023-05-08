@@ -29,8 +29,19 @@ import (
 
 // extendAuthServer extends the auth server with enterprise specific features.
 func extendAuthServer(process *service.TeleportProcess, licenseFile *licensefile.LicenseFile, authPlugin *auth.Plugin) (service.Process, error) {
-	// TODO(mdwn): Restore the start services/cleanup process. Revert the commit associated with the blame on
-	// this line.
+	process.Config.Log.Info("Starting enterprise auth services")
+	cleanup, err := auth.StartServices(process.ExitContext(), authPlugin)
+	if err != nil {
+		cleanup()
+		return nil, trace.Wrap(err)
+	}
+	process.Config.Log.Info("Finished starting enterprise auth services")
+
+	process.OnExit("enterprise.auth.services.stop", func(_ interface{}) {
+		process.Config.Log.Info("Cleaning up enterprise auth services.")
+		cleanup()
+		process.Config.Log.Info("Finished cleaning up enterprise auth services.")
+	})
 
 	// Initialize teleport cloud process
 	if modules.GetModules().Features().Cloud {

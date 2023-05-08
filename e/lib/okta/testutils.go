@@ -33,6 +33,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/e/lib/teleport"
@@ -74,6 +75,8 @@ type testAccessPoint struct {
 	services.UserGroups
 	services.WindowsDesktops
 	types.Events
+
+	summary proto.InventoryStatusSummary
 }
 
 var _ auth.OktaAccessPoint = (*testAccessPoint)(nil)
@@ -82,6 +85,10 @@ func (*testAccessPoint) NewKeepAliver(ctx context.Context) (types.KeepAliver, er
 
 func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
 	return nil, nil
+}
+
+func (t *testAccessPoint) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+	return t.summary
 }
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
@@ -135,6 +142,14 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 		UserGroups:            userGroups,
 		WindowsDesktops:       windowsDesktops,
 		Events:                events,
+	}
+	client.summary = proto.InventoryStatusSummary{
+		Connected: []proto.UpstreamInventoryHello{
+			{
+				ServerID: "okta-server",
+				Services: []types.SystemRole{types.RoleOkta},
+			},
+		},
 	}
 
 	return client

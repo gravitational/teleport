@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -28,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -37,13 +39,15 @@ func TestAccessRequestReconciler(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ap := newTestAccessPoint(t, clock)
 	onReconcileCh := make(chan struct{}, 1)
+	onServiceDisconnectedCh := make(chan struct{}, 1)
 
 	reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
-		Clock:         clock,
-		ClusterName:   testClusterName,
-		Client:        ap,
-		OktaClient:    ap,
-		onReconcileCh: onReconcileCh,
+		Clock:                   clock,
+		ClusterName:             testClusterName,
+		AccessPoint:             ap,
+		OktaClient:              ap,
+		onReconcileCh:           onReconcileCh,
+		onServiceDisconnectedCh: onServiceDisconnectedCh,
 	})
 	require.NoError(t, err)
 	require.NoError(t, reconciler.Start(ctx))
@@ -111,14 +115,43 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
-	// This access request should create an Okta assignment
+	// This access request should create an Okta assignment, but the Okta service is not connected.
+	ap.summary = proto.InventoryStatusSummary{
+		Connected: []proto.UpstreamInventoryHello{
+			{
+				ServerID: "no-okta-server",
+				Services: []types.SystemRole{types.RoleAuth},
+			},
+		},
+	}
+
+	// This will stop the reconciler.
+	for i := 0; i < maxOktaServiceConnectionFailures; i++ {
+		clock.Advance(10 * time.Minute)
+		waitForResult(t, onServiceDisconnectedCh, struct{}{}, 1)
+	}
+
 	accessRequest, err = types.NewAccessRequestWithResources(uuid.NewString(), user, roles,
 		[]types.ResourceID{{ClusterName: testClusterName, Kind: types.KindApp, Name: appServer.GetApp().GetName()}})
 	require.NoError(t, err)
 	accessRequest.SetState(types.RequestState_APPROVED)
 	require.NoError(t, ap.CreateAccessRequest(ctx, accessRequest))
-	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
+	// No reconcile will be triggered because the reconciler will be stopped.
+	require.Empty(t, reconciler.getAccessRequests())
+	require.Empty(t, reconciler.getNewAccessRequests())
+
+	// We'll reconnect the Okta service and the assignment should be created.
+	ap.summary = proto.InventoryStatusSummary{
+		Connected: []proto.UpstreamInventoryHello{
+			{
+				ServerID: "okta-server",
+				Services: []types.SystemRole{types.RoleOkta},
+			},
+		},
+	}
+	clock.Advance(10 * time.Minute) // This will restart the reconciler.
+	waitForResult(t, onReconcileCh, struct{}{}, 1)
 	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests())
 	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getNewAccessRequests())
 
@@ -265,7 +298,7 @@ func TestAccessRequestToOktaAssignment(t *testing.T) {
 			reconciler, err := NewAccessRequestReconciler(ctx, &AccessRequestReconcilerConfig{
 				Clock:       clock,
 				ClusterName: testClusterName,
-				Client:      ap,
+				AccessPoint: ap,
 				OktaClient:  ap,
 			})
 			require.NoError(t, err)
