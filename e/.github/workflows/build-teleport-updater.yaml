@@ -90,9 +90,10 @@ jobs:
           sudo apt install -y ruby binutils rpm gpg
           sudo gem install fpm
       - name: Create the default package configuration for the package manager type (${{ matrix.package.manager }}) that the service should use 
-        working-directory: ./assets/systemd-unit-upgrader/
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
         env:
-          CONFIG_FOLDER_PATH: "rootfs/etc/teleport-upgrade.d"
+          CONFIG_FOLDER_PATH: "etc/teleport-upgrade.d"
+          SCRIPT_PATH: "usr/sbin/teleport-upgrade"
         run: |
           INSTALLER_CONFIG_PATH="$CONFIG_FOLDER_PATH/installer"
           mkdir -pv -m755 "$CONFIG_FOLDER_PATH"
@@ -102,6 +103,21 @@ jobs:
 
           echo "$INSTALLER_CONFIG_PATH contents:"
           sudo cat "$INSTALLER_CONFIG_PATH"
+      - name: Set the script version number
+        working-directory: ./assets/systemd-unit-upgrader/rootfs
+        env:
+          SCRIPT_PATH: "usr/sbin/teleport-upgrade"
+          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
+        run: |
+          sed -e "s/self_version=.*/self_version=\"$ARTIFACT_VERSION\"/" -i "$SCRIPT_PATH"
+          echo "Updater version number: $("./$SCRIPT_PATH" version)"
+
+          if [ "$("./$SCRIPT_PATH" version)" != "$ARTIFACT_VERSION" ]; then
+            echo "Error: updater version number does not match artifact version ($ARTIFACT_VERSION)!"
+            exit 1
+          else
+            echo "Updater version number matches the artifact version ($ARTIFACT_VERSION)"
+          fi
       - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
         working-directory: ./assets/systemd-unit-upgrader/
         id: build-package

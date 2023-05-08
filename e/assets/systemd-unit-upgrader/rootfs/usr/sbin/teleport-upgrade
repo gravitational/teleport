@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-self_version="${self_version:-13.0.0}"
+self_version="v13.0.0-unset"
 
 
 # config dir is overridden in tests
