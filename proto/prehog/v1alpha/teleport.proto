@@ -412,10 +412,14 @@ message AssistCompletionEvent {
   // anonymized
   string user_name = 1;
 
+  // ConversationId is the UUID that identifies a single Assist conversation
   string conversation_id = 2;
 
+  // TotalTokens is the total amount of token used to satisfy this request
   int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
   int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
   int64 completion_tokens = 5;
 }
 
