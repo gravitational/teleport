@@ -538,6 +538,8 @@ func applyLogConfig(loggerConfig Log, cfg *service.Config) error {
 		logger.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
+	case "trace":
+		logger.SetLevel(log.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -1903,7 +1905,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			fileConf.Logger.Severity = teleport.DebugLevel
+			if fileConf.Logger.Severity != "trace" {
+				fileConf.Logger.Severity = teleport.DebugLevel
+			}
 		}
 	}
 
