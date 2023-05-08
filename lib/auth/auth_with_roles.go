@@ -1106,14 +1106,14 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.Inve
 	return a.authServer.GetInventoryStatus(ctx, req), nil
 }
 
-// GetInventoryServiceCounts returns the counts of each service seen in the inventory.
-func (a *ServerWithRoles) GetInventoryServiceCounts() (proto.InventoryServiceCounts, error) {
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
 	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
 	// the inventory APIs once they are more developed.
 	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
-		return proto.InventoryServiceCounts{}, trace.AccessDenied("requires builtin admin role")
+		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
 	}
-	return a.authServer.GetInventoryServiceCounts(), nil
+	return a.authServer.GetInventoryConnectedServiceCounts(), nil
 }
 
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {

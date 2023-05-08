@@ -20,7 +20,6 @@ import (
 	"context"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -164,7 +163,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
 		store:              NewStore(),
-		serviceCounter:     &serviceCounter{&sync.Map{}},
+		serviceCounter:     &serviceCounter{},
 		serverKeepAlive:    options.serverKeepAlive,
 		serverTTL:          apidefaults.ServerAnnounceTTL,
 		instanceHBInterval: options.instanceHBInterval,
@@ -210,8 +209,8 @@ func (c *Controller) Iter(fn func(UpstreamHandle)) {
 	c.store.Iter(fn)
 }
 
-// ServiceCounts returns the number of each service seen in the inventory.
-func (c *Controller) ServiceCounts() map[types.SystemRole]uint64 {
+// ConnectedServiceCounts returns the number of each connected service seen in the inventory.
+func (c *Controller) ConnectedServiceCounts() map[types.SystemRole]uint64 {
 	return c.serviceCounter.counts()
 }
 

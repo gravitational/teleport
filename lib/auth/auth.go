@@ -3444,10 +3444,10 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 	return rsp
 }
 
-// GetInventoryServiceCounts returns the counts of each service seen in the inventory.
-func (a *Server) GetInventoryServiceCounts() proto.InventoryServiceCounts {
-	return proto.InventoryServiceCounts{
-		ServiceCounts: a.inventory.ServiceCounts(),
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedServiceCounts {
+	return proto.InventoryConnectedServiceCounts{
+		ServiceCounts: a.inventory.ConnectedServiceCounts(),
 	}
 }
 
