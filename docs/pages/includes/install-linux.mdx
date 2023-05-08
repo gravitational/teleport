@@ -10,7 +10,8 @@ Currently supported distributions (and `ID`) are:
 - CentOS (`centos`)
 - Debian (`debian`)
 - Ubuntu (`ubuntu`)
-- AmazonLinux (`amzn`)``
+- AmazonLinux (`amzn`)
+
 </Admonition>
 
 
@@ -38,7 +39,7 @@ Currently supported distributions (and `ID`) are:
   ```
 
   </TabItem>
-  <TabItem label="AL 2/RHEL 7 (yum)" scope="oss">
+  <TabItem label="AmazonLinux 2/RHEL 7 (yum)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -52,7 +53,7 @@ Currently supported distributions (and `ID`) are:
   # echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
   ```
   </TabItem>
-  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="oss">
+  <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -118,7 +119,7 @@ Currently supported distributions (and `ID`) are:
   ```
 
   </TabItem>
-  <TabItem label="AL 2/RHEL 7 (yum)" scope="enterprise">
+  <TabItem label="AmazonLinux 2/RHEL 7 (yum)" scope="enterprise">
 
   ```code
   # Source variables about OS version
@@ -139,7 +140,7 @@ Currently supported distributions (and `ID`) are:
   ```
 
   </TabItem>
-  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="enterprise">
+  <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="enterprise">
 
   ```code
   # Source variables about OS version
@@ -164,6 +165,10 @@ Currently supported distributions (and `ID`) are:
 
   </TabItem>
   <TabItem label="Tarball" scope="enterprise">
+
+  In the example commands below, update `$SYSTEM_ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
 
   ```code
   $ curl https://get.gravitational.com/teleport-ent-v(=teleport.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
@@ -215,7 +220,7 @@ Currently supported distributions (and `ID`) are:
   ```
 
   </TabItem>
-  <TabItem label="AL 2/RHEL 7 (yum)" scope="cloud">
+  <TabItem label="AmazonLinux 2/RHEL 7 (yum)" scope="cloud">
 
   ```code
   # Source variables about OS version
@@ -229,7 +234,7 @@ Currently supported distributions (and `ID`) are:
   ```
 
   </TabItem>
-  <TabItem label="AL 2023/RHEL 8+ (dnf)" scope="oss">
+  <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="oss">
 
   ```code
   # Source variables about OS version
@@ -247,6 +252,10 @@ Currently supported distributions (and `ID`) are:
 
   </TabItem>
   <TabItem label="Tarball" scope="cloud">
+
+  In the example commands below, update `$SYSTEM_ARCH` with the appropriate
+  value (`amd64`, `arm64`, or `arm`). All example commands using this variable
+  will update after one is filled out.
 
   ```code
   $ curl https://get.gravitational.com/teleport-ent-v(=cloud.version=)-linux-<Var name="$SYSTEM_ARCH"/>-bin.tar.gz.sha256
