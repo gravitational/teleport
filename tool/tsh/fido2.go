@@ -134,6 +134,7 @@ func (c *fido2AttobjCommand) run(_ *CLIConf) error {
 
 				cert, err := x509.ParseCertificate(certDER)
 				if err != nil {
+					log.WithError(err).Warnf("Failed to parse X.509 from x5c[%v], continuing", i)
 					continue
 				}
 
