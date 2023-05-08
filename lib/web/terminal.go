@@ -1043,11 +1043,6 @@ type TerminalStream struct {
 	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
 	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
-
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
-	ws *websocket.Conn
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
