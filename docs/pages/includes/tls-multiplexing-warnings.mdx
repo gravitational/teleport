@@ -1,4 +1,4 @@
-Prior to Telport `13.0`, using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
+Prior to Teleport `13.0`, using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
 these proxies terminating TLS themselves and then rewriting their requests to the upstream service, stripping
 the additional SNI/ALPN parts of the request in the process.
 
