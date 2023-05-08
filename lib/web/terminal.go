@@ -532,6 +532,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 					NodeName:       t.sessionData.ServerID,
 					Usage:          authproto.UserCertsRequest_SSH,
 					Format:         tc.CertificateFormat,
+					SSHLogin:       t.sessionData.Login,
 				},
 			},
 		}); err != nil {
