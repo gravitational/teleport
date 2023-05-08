@@ -107,12 +107,14 @@ export function Chat(props: ChatProps) {
             // Set the title in the backend.
             await setConversationTitle(props.conversationId, title);
             // Update the title in the frontend.
-            setConversations(conversations => conversations.map(c => {
-              if(c.id === props.conversationId){
-                c.title = title;
-              }
-              return c;
-            }));
+            setConversations(conversations =>
+              conversations.map(c => {
+                if (c.id === props.conversationId) {
+                  c.title = title;
+                }
+                return c;
+              })
+            );
           })();
         }
       });

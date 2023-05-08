@@ -280,10 +280,9 @@ function findIntersection<T>(elems: T[][]): T[] {
 }
 
 export async function generateTitle(messageContent: string): Promise<string> {
-  const res = (await api.post(
-    `/v1/webapi/assistant/title/summary`,
-    { message: messageContent }
-  )) as { title: string };
+  const res = (await api.post(`/v1/webapi/assistant/title/summary`, {
+    message: messageContent,
+  })) as { title: string };
 
   return res.title;
 }
@@ -292,10 +291,9 @@ export async function setConversationTitle(
   conversationId: string,
   title: string
 ): Promise<void> {
-  await api.post(
-    `/v1/webapi/assistant/conversations/${conversationId}/title`,
-    { title: title }
-  );
+  await api.post(`/v1/webapi/assistant/conversations/${conversationId}/title`, {
+    title: title,
+  });
 }
 
 export function MessagesContextProvider(
