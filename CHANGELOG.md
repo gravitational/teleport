@@ -10,6 +10,9 @@ This release of Teleport contains multiple improvements and bug fixes.
   * Improved error message when Proxy is using untrusted certificate. [#25606](https://github.com/gravitational/teleport/pull/25606)
 * Database Access
   * Fixed issue with Postgres listener not supporting IP pinning. [#25529](https://github.com/gravitational/teleport/pull/25529)
+* Desktop Access
+  * Fixed issue with automatic user provisioning for local users
+    preventing existing local users passwordless login on first usage. [#1284](https://github.com/gravitational/teleport.e/pull/1284)
 
 ## 12.3.1 (05/02/23)
 
