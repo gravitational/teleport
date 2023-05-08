@@ -3974,17 +3974,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
-		// If a ssh proxy address is specified provide the address and specifics
 		sshListenerAddr := listeners.ssh.Addr().String()
-		sshListenerAddrDetails := sshListenerAddr
 		if cfg.Proxy.SSHAddr.Addr != "" {
 			sshListenerAddr = cfg.Proxy.SSHAddr.Addr
-			// will include address and type (tcp)
-			sshListenerAddrDetails = fmt.Sprintf("%v", cfg.Proxy.SSHAddr)
 		}
-		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",
-			teleport.Version, teleport.Gitref, sshListenerAddr)
-		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, sshListenerAddrDetails)
+		log.Infof("SSH proxy service %s:%s is starting on %v", teleport.Version, teleport.Gitref, sshListenerAddr)
 
 		// start ssh server
 		go func() {
