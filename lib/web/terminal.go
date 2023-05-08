@@ -883,16 +883,31 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+			if transferRequest == nil {
+				// channel closed
+				continue
+			}
+			if err := t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
 				Filename: transferRequest.Filename,
-			})
+			}); err != nil {
+				t.log.WithError(err).Error("Unable to request file transfer")
+			}
 		case transferResponse := <-fileTransferDecisionC:
+			if transferResponse == nil {
+				// channel closed
+				continue
+			}
+
+			var err error
 			if transferResponse.Approved {
-				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
 			} else {
-				t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			}
+			if err != nil {
+				t.log.WithError(err).Error("Unable to respond to file transfer request")
 			}
 		}
 
@@ -1041,13 +1056,19 @@ type TerminalStream struct {
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
 
-	// once ensures that resizeC is closed at most one time
-	once sync.Once
+	// ResizeOnce ensures that resizeC is closed at most one time
+	ResizeOnce sync.Once
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
+
+	// fileTransferRequestOnce ensures that fileTransferRequestC is closed at most one time
+	fileTransferRequestOnce sync.Once
 	// fileTransferRequestC is a channel to facilitate requesting a file transfer
 	fileTransferRequestC chan<- *session.FileTransferRequestParams
+
+	// fileTransferDecisionOnce ensures that fileTransferDecisionC is closed at most one time
+	fileTransferDecisionOnce sync.Once
 	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
 	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
@@ -1281,19 +1302,19 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
 	if t.resizeC != nil {
-		t.once.Do(func() {
+		t.ResizeOnce.Do(func() {
 			close(t.resizeC)
 		})
 	}
 
 	if t.fileTransferRequestC != nil {
-		t.once.Do(func() {
+		t.fileTransferRequestOnce.Do(func() {
 			close(t.fileTransferRequestC)
 		})
 	}
 
 	if t.fileTransferDecisionC != nil {
-		t.once.Do(func() {
+		t.fileTransferDecisionOnce.Do(func() {
 			close(t.fileTransferDecisionC)
 		})
 	}
