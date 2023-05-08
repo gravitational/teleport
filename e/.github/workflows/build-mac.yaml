@@ -76,51 +76,17 @@ jobs:
       GOCACHE: /tmp/gocache
       ARCH: ${{ inputs.arch }}
     steps:
-      # --- Checkout ----------------------------------------------------------
-      # TODO(camh/tcsc): Factor repo checkout steps into separate action.
-      # Deduplicate across workflows.
-      - id: fetch-token
-        name: Fetch installation token
-        uses: tibdex/github-app-token@v1
-        continue-on-error: true
-        with:
-          app_id: ${{ secrets.DEPLOY_APP_ID }}
-          private_key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
-          repository: ${{ inputs.oss-teleport-repo }}
-
-      - id: select-access-token
-        name: Select access token
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          APP_TOKEN: ${{ steps.fetch-token.outputs.token }}
-        run: |
-          echo token=${APP_TOKEN:-${GITHUB_TOKEN}} >> $GITHUB_OUTPUT
-
-      - id: checkout-oss
-        name: Checkout OSS Teleport
-        uses: actions/checkout@v3
-        with:
-          repository: ${{ inputs.oss-teleport-repo }}
-          ref: ${{ inputs.oss-teleport-ref }}
-          token: ${{ steps.select-access-token.outputs.token }}
-
-      - id: determine-enterprise-ref
-        name: Determine Enterprise Teleport reference
-        if: inputs.release == 'enterprise'
-        env:
-          e_ref: ${{ inputs.ent-teleport-ref }}
-        run: |
-          echo ref=${e_ref:-$(git rev-parse @:e)} >> $GITHUB_OUTPUT
-
-      - name: Checkout Enterprise Teleport
-        if: inputs.release == 'enterprise'
-        uses: actions/checkout@v3
-        with:
-          repository: gravitational/teleport.e
-          path: e
-          ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
-
       # --- Setup -------------------------------------------------------------
+      - name: Checkout Teleport
+        uses: ./.github/actions/checkout-teleport
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: ${{ inputs.release }}
+          ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
