@@ -5202,6 +5202,59 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 	return headlessAuthn, trace.Wrap(err)
 }
 
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *Server) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.GetAssistantMessages(ctx, username, id)
+	return resp, trace.Wrap(err)
+}
+
+// InsertAssistantMessage adds the message to the backend.
+func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, username, msg))
+}
+
+// SetAssistantConversationTitle stores the given conversation title in the DB.
+func (a *Server) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.Services.SetAssistantConversationTitle(ctx, username, msg))
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.CreateAssistantConversation(ctx, username, req)
+	return resp, trace.Wrap(err)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *Server) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.GetAssistantConversations(ctx, username, request)
+	return resp, trace.Wrap(err)
+}
+
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {

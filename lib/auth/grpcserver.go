@@ -4984,6 +4984,66 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
+// GetAssistantConversations returns all conversations started by a user.
+func (g *GRPCServer) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.GetAssistantConversations(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
+}
+
+// SetAssistantConversationTitle sets the given title as the assistant conversation title.
+func (g *GRPCServer) SetAssistantConversationTitle(ctx context.Context, request *proto.ConversationInfo) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = auth.SetAssistantConversationTitle(ctx, request)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (g *GRPCServer) CreateAssistantConversation(ctx context.Context, request *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := auth.CreateAssistantConversation(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantRequest) (*proto.GetAssistantMessagesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	messages, err := auth.GetAssistantMessages(ctx, request.ConversationId)
+	return messages, trace.Wrap(err)
+}
+
+// InsertAssistantMessage adds the message to the backend.
+func (g *GRPCServer) InsertAssistantMessage(ctx context.Context, assistantMessage *proto.AssistantMessage) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return &emptypb.Empty{}, trace.Wrap(err)
+	}
+	resp, err := auth.InsertAssistantMessage(ctx, assistantMessage)
+	return resp, trace.Wrap(err)
+}
+
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk

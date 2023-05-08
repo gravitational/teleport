@@ -2296,8 +2296,83 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+message AssistantRequest {
+  // conversation_id it's the ID of a conversation.
+  // It's used to tie all messages in a one conversation.
+  string conversation_id = 1;
+}
+
+message AssistantMessage {
+  // conversation_id used to tie all messages in a one conversation.
+  string conversation_id = 1;
+
+  // type is a type of message. It can be Chat response/query or a command to run.
+  string type = 2;
+
+  // createdTime is the time when the even occurred.
+  google.protobuf.Timestamp created_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+
+  // payload is a JSON message
+  string payload = 4;
+}
+
+message GetAssistantMessagesResponse {
+  // messages is a list of messages.
+  repeated AssistantMessage messages = 1;
+}
+
+message GetAssistantConversationsRequest {}
+
+message ConversationInfo {
+  // id is a unique conversation ID.
+  string id = 1;
+  // title is a title of the conversation.
+  string title = 2;
+  // createdTime is the time when the conversation was created.
+  google.protobuf.Timestamp created_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message GetAssistantConversationsResponse {
+  // conversations is a list of conversations.
+  repeated ConversationInfo conversations = 1;
+}
+
+message CreateAssistantConversationRequest {
+  // createdTime is the time when the conversation was created.
+  google.protobuf.Timestamp created_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message CreateAssistantConversationResponse {
+  // id is a unique conversation ID.
+  string id = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
+  // CreateNewConversation creates a new conversation and returns the UUID of it.
+  rpc CreateAssistantConversation(CreateAssistantConversationRequest) returns (CreateAssistantConversationResponse);
+
+  // GetAssistantConversations returns all conversations for the connected user.
+  rpc GetAssistantConversations(GetAssistantConversationsRequest) returns (GetAssistantConversationsResponse);
+
+  // GetAssistantMessages returns all messages associated with the given conversation ID.
+  rpc GetAssistantMessages(AssistantRequest) returns (GetAssistantMessagesResponse);
+
+  //InsertAssistantMessage adds a message to given conversation.
+  rpc InsertAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
+
+  // SetAssistantConversationTitle sets the given conversation title.
+  rpc SetAssistantConversationTitle(ConversationInfo) returns (google.protobuf.Empty);
+
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
   // presence/version/etc to the auth server.
   rpc InventoryControlStream(stream UpstreamInventoryOneOf) returns (stream DownstreamInventoryOneOf);
