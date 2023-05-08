@@ -5,6 +5,8 @@ import { Address } from 'e-teleport/Billing/InvoiceSettings/Address';
 import { Email } from 'e-teleport/Billing/InvoiceSettings/Email';
 
 import { InvoiceSettingsProps } from 'e-teleport/Billing/types';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+import { CanceledBanner } from 'e-teleport/Billing/common/CanceledBanner';
 
 export const InvoiceSettingsPage = ({
   data: {
@@ -13,6 +15,7 @@ export const InvoiceSettingsPage = ({
     stripeInvoiceEmail,
     stripeInvoicePurchaseOrderNumber,
     stripeCustomerName,
+    stripeSubscriptionStatus,
   },
 }: InvoiceSettingsProps) => {
   // todo (michellescripts) this should be filtered out at the Features.tsx level as part of https://github.com/gravitational/cloud/issues/3536
@@ -22,6 +25,9 @@ export const InvoiceSettingsPage = ({
 
   return (
     <>
+      {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
+        <CanceledBanner />
+      )}
       <Address
         address={stripeInvoiceBillingAddress}
         name={stripeCustomerName}

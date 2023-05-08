@@ -9,6 +9,7 @@ import { BillingInformation } from 'e-teleport/services/cloud';
 import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 describe('usageBasedUpgrade', () => {
   let props: UsageBasedUpgradeProps;
@@ -35,6 +36,17 @@ describe('usageBasedUpgrade', () => {
     renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
 
     expect(screen.queryByTestId('upgrade-banner')).not.toBeInTheDocument();
+  });
+
+  test('if canceled, renders cancel banner', () => {
+    props.billingInfo.usageBasedBilling = true;
+    props.billingInfo.stripeSubscriptionStatus =
+      StripeSubscriptionStatus.CANCELED;
+    renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
+
+    expect(
+      screen.getByText(/Your account has been canceled/i)
+    ).toBeInTheDocument();
   });
 
   it('opens modal on click', () => {
@@ -145,6 +157,7 @@ const makeBillingInfo = (
       stripeTrialEnd: 0,
       usageBasedBilling: false,
       stripeMissingPaymentMethod: false,
+      stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
     },
     overrides
   );

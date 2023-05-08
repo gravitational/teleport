@@ -3,7 +3,9 @@ import React from 'react';
 import { Cycle } from 'e-teleport/Billing/Summary/Cycle';
 import { SummaryProps } from 'e-teleport/Billing/types';
 import { PaymentBanner } from 'e-teleport/Billing/Payment/PaymentBanner';
-import { CancelBanner } from 'e-teleport/Billing/common/CancelBanner';
+import { StatusBanner } from 'e-teleport/Billing/common/StatusBanner';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+import { CanceledBanner } from 'e-teleport/Billing/common/CanceledBanner';
 
 export const SummaryPage = ({
   data: {
@@ -12,6 +14,7 @@ export const SummaryPage = ({
     stripeTrialEnd,
     stripeCurrentUsage,
     usageBasedBilling,
+    stripeSubscriptionStatus,
   },
   reload,
 }: SummaryProps) => {
@@ -22,6 +25,9 @@ export const SummaryPage = ({
 
   return (
     <>
+      {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
+        <CanceledBanner />
+      )}
       {stripeMissingPaymentMethod && (
         <PaymentBanner
           productName={productName}
@@ -30,10 +36,11 @@ export const SummaryPage = ({
         />
       )}
       {stripeCurrentUsage && <Cycle currentUsage={stripeCurrentUsage} />}
-      <CancelBanner
+      <StatusBanner
         productName={productName}
-        stripeMissingPaymentMethod={stripeMissingPaymentMethod}
         stripeTrialEnd={stripeTrialEnd}
+        stripeSubscriptionStatus={stripeSubscriptionStatus}
+        stripeMissingPaymentMethod={stripeMissingPaymentMethod}
       />
     </>
   );

@@ -5,6 +5,7 @@ import { screen } from 'design/utils/testing';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { SummaryProps } from 'e-teleport/Billing/types';
 import { SummaryPage } from 'e-teleport/Billing/Summary/SummaryPage';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 describe('summaryPage', () => {
   let props: SummaryProps;
@@ -19,6 +20,7 @@ describe('summaryPage', () => {
         stripeTrialEnd: 1682989632,
         stripeMissingPaymentMethod: false,
         productName: 'some-productName',
+        stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
       },
       reload: jest.fn(),
     };
@@ -31,6 +33,13 @@ describe('summaryPage', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  test('if canceled, renders cancel banner', () => {
+    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
+    renderWithElementsAndContext(<SummaryPage {...props} />);
+
+    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
   });
 
   test('renders payment CTA if missing payment method', () => {

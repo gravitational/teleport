@@ -53,6 +53,8 @@ type MockedClient struct {
 	MockUpdateEmail func(ctx context.Context, in *v1.UpdateEmailRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 	// MockUpdatePurchaseOrderPrefix updates purchase order prefix
 	MockUpdatePurchaseOrderPrefix func(ctx context.Context, in *v1.UpdatePurchaseOrderPrefixRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
+	// MockCancelSubscription cancels the customers subscription
+	MockCancelSubscription func(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -222,4 +224,12 @@ func (m *MockedClient) UpdatePurchaseOrderPrefix(ctx context.Context, in *v1.Upd
 	}
 
 	return nil, trace.NotImplemented("UpdatePurchaseOrderPrefix is not implemented")
+}
+
+func (m *MockedClient) CancelSubscription(ctx context.Context, in *v1.EmptyRequest, _ ...grpc.CallOption) (*v1.EmptyResponse, error) {
+	if m.MockCancelSubscription != nil {
+		return m.MockCancelSubscription(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("CancelSubscription is not implemented")
 }

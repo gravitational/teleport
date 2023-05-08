@@ -5,6 +5,7 @@ import { screen } from 'design/utils/testing';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { InvoiceSettingsPage } from 'e-teleport/Billing/InvoiceSettings/InvoiceSettingsPage';
 import { InvoiceSettingsProps } from 'e-teleport/Billing/types';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 describe('invoiceSettingsPage', () => {
   let props: InvoiceSettingsProps;
@@ -18,6 +19,7 @@ describe('invoiceSettingsPage', () => {
         stripeInvoicePurchaseOrderNumber:
           'some-stripeInvoicePurchaseOrderNumber',
         stripeCustomerName: 'some-stripeCustomerName',
+        stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
       },
       reload: jest.fn(),
     };
@@ -38,5 +40,12 @@ describe('invoiceSettingsPage', () => {
     expect(screen.getByText('Invoice Billing Address')).toBeInTheDocument();
     expect(screen.getByText('Invoice Email Recipient')).toBeInTheDocument();
     expect(screen.getByText('Invoice Purchase Order')).toBeInTheDocument();
+  });
+
+  test('if canceled, renders cancel banner', () => {
+    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
+    renderWithElementsAndContext(<InvoiceSettingsPage {...props} />);
+
+    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
   });
 });

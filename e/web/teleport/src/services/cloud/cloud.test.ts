@@ -1,5 +1,7 @@
 import api from 'teleport/services/api';
 
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+
 import CloudSvc from './cloud';
 import { BillingCycle, BillingInformation, Invoice } from './types';
 
@@ -103,6 +105,7 @@ const getDefaultBillingInfo = (): BillingInformation => ({
   stripeTrialEnd: 0,
   stripeMissingPaymentMethod: false,
   stripeCustomerId: '6e5357a5-e7e9-4770-9235-aab26936b5b0',
+  stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
 });
 
 const invoices: Invoice[] = [

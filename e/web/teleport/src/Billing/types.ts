@@ -74,9 +74,10 @@ export interface PaymentBannerProps {
   stripeTrialEnd: number;
 }
 
-export interface CancelBannerProps {
+export interface StatusBannerProps {
   productName: string;
   stripeTrialEnd: number;
+  stripeSubscriptionStatus: string;
   stripeMissingPaymentMethod: boolean;
 }
 

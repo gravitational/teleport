@@ -167,6 +167,16 @@ func (ac *cloudWithRoles) GetBillingSummaryInformation(ctx context.Context, req 
 	return ac.plugin.cloudClient.GetBillingSummaryInformation(ctx, req)
 }
 
+// CancelSubscription cancels the customers subscription
+func (ac *cloudWithRoles) CancelSubscription(ctx context.Context, req *v1.EmptyRequest) (*v1.EmptyResponse, error) {
+	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ac.plugin.cloudClient.CancelSubscription(ctx, req)
+}
+
 // GetPaymentsInvoicesInformation returns users the Payments Invoices Information
 func (ac *cloudWithRoles) GetPaymentsInvoicesInformation(ctx context.Context, req *v1.EmptyRequest) (*v1.GetPaymentsInvoicesInformationResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbRead)

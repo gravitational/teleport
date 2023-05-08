@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { ButtonPrimary, Flex, Text } from 'design';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
 
 import { displayShortDate } from 'shared/services/loc/loc';
 
 import { add, differenceInDays, fromUnixTime } from 'date-fns';
 
+import { Warning } from 'design/Icon';
+
+import { useTheme } from 'styled-components';
+
+import Link from 'design/Link';
+
 import { PaymentAddDialog } from 'e-teleport/Billing/Payment/PaymentAddDialog';
 
 import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 // todo (michellescripts) we need to listen for payment methods being added, otherwise the banner won't reload; part of https://github.com/gravitational/cloud/issues/3536
 export const UsageBasedUpgrade = ({
@@ -17,9 +24,12 @@ export const UsageBasedUpgrade = ({
     stripeTrial,
     stripeTrialEnd,
     usageBasedBilling,
+    stripeSubscriptionStatus,
   },
   reload,
 }: UsageBasedUpgradeProps) => {
+  const theme = useTheme();
+
   const trialEndDate = fromUnixTime(stripeTrialEnd);
   const dayAfterTrial = displayShortDate(add(trialEndDate, { days: 1 }));
   // remaining days should include the final day in addition to the days between
@@ -30,6 +40,40 @@ export const UsageBasedUpgrade = ({
       : `Your trial expires in ${remainingDays} days`;
 
   const [open, setOpen] = useState<boolean>(false);
+
+  if (
+    usageBasedBilling === true &&
+    stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED
+  ) {
+    return (
+      <Box
+        bg={theme.colors.error.main}
+        color={theme.colors.text.primaryInverse}
+        p={1}
+        pl={2}
+      >
+        <Flex alignItems="center">
+          <Warning
+            mr={3}
+            fontSize="3"
+            role="icon"
+            color={theme.colors.text.primaryInverse}
+          />
+          <Text>
+            Your account has been canceled. Your account will be deleted once
+            the grace period is over. To cancel this process, please&nbsp;
+            <Link
+              color={theme.colors.text.primaryInverse}
+              href="https://goteleport.com/support/"
+              target="_blank"
+            >
+              contact us.
+            </Link>
+          </Text>
+        </Flex>
+      </Box>
+    );
+  }
 
   if (usageBasedBilling === false || stripeTrial === false) {
     return null;

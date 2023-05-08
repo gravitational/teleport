@@ -276,6 +276,9 @@ export class GetBillingInformationResponse extends jspb.Message {
   getStripeCustomerId(): string;
   setStripeCustomerId(value: string): void;
 
+  getStripeSubscriptionStatus(): string;
+  setStripeSubscriptionStatus(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingInformationResponse): GetBillingInformationResponse.AsObject;
@@ -300,6 +303,7 @@ export namespace GetBillingInformationResponse {
     stripeTrialEnd: number,
     stripeMissingPaymentMethod: boolean,
     stripeCustomerId: string,
+    stripeSubscriptionStatus: string,
   }
 }
 
@@ -846,6 +850,9 @@ export class GetFeaturesResponse extends jspb.Message {
   getIsUsageBased(): boolean;
   setIsUsageBased(value: boolean): void;
 
+  getAssist(): boolean;
+  setAssist(value: boolean): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetFeaturesResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetFeaturesResponse): GetFeaturesResponse.AsObject;
@@ -872,6 +879,7 @@ export namespace GetFeaturesResponse {
     accessControls: boolean,
     hsm: boolean,
     isUsageBased: boolean,
+    assist: boolean,
   }
 }
 
@@ -946,6 +954,9 @@ export class GetBillingSummaryInformationResponse extends jspb.Message {
   getProductName(): string;
   setProductName(value: string): void;
 
+  getStripeSubscriptionStatus(): string;
+  setStripeSubscriptionStatus(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingSummaryInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingSummaryInformationResponse): GetBillingSummaryInformationResponse.AsObject;
@@ -966,6 +977,7 @@ export namespace GetBillingSummaryInformationResponse {
     stripeTrialEnd: number,
     stripeMissingPaymentMethod: boolean,
     productName: string,
+    stripeSubscriptionStatus: string,
   }
 }
 
@@ -1001,6 +1013,9 @@ export class GetPaymentsInvoicesInformationResponse extends jspb.Message {
   getStripeDefaultSourceId(): string;
   setStripeDefaultSourceId(value: string): void;
 
+  getStripeSubscriptionStatus(): string;
+  setStripeSubscriptionStatus(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetPaymentsInvoicesInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetPaymentsInvoicesInformationResponse): GetPaymentsInvoicesInformationResponse.AsObject;
@@ -1022,6 +1037,7 @@ export namespace GetPaymentsInvoicesInformationResponse {
     productName: string,
     stripeTrialEnd: number,
     stripeDefaultSourceId: string,
+    stripeSubscriptionStatus: string,
   }
 }
 
@@ -1049,6 +1065,9 @@ export class GetInvoiceSettingsInformationResponse extends jspb.Message {
   getStripeCustomerName(): string;
   setStripeCustomerName(value: string): void;
 
+  getStripeSubscriptionStatus(): string;
+  setStripeSubscriptionStatus(value: string): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetInvoiceSettingsInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetInvoiceSettingsInformationResponse): GetInvoiceSettingsInformationResponse.AsObject;
@@ -1068,6 +1087,7 @@ export namespace GetInvoiceSettingsInformationResponse {
     stripeInvoiceEmail: string,
     stripeInvoicePurchaseOrderNumber: string,
     stripeCustomerName: string,
+    stripeSubscriptionStatus: string,
   }
 }
 

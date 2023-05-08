@@ -6,6 +6,8 @@ import { CardList } from 'e-teleport/Billing/PaymentsAndInvoices/CardList';
 import { InvoiceEmptyState } from 'e-teleport/Billing/PaymentsAndInvoices/InvoiceEmptyState';
 import { InvoiceList } from 'e-teleport/Billing/PaymentsAndInvoices/InvoiceList';
 import { PaymentsInvoicesInformation } from 'e-teleport/services/cloud';
+import { CanceledBanner } from 'e-teleport/Billing/common/CanceledBanner';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 export const PaymentsAndInvoicesPage = ({
   data,
@@ -20,6 +22,7 @@ export const PaymentsAndInvoicesPage = ({
     stripeTrialEnd,
     stripeDefaultSourceId,
     usageBasedBilling,
+    stripeSubscriptionStatus,
   } = pageState;
 
   // todo (michellescripts) this should be filtered out at the Features.tsx level as part of https://github.com/gravitational/cloud/issues/3536
@@ -29,6 +32,9 @@ export const PaymentsAndInvoicesPage = ({
 
   return (
     <>
+      {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
+        <CanceledBanner />
+      )}
       {stripeMissingPaymentMethod && (
         <PaymentBanner
           productName={productName}

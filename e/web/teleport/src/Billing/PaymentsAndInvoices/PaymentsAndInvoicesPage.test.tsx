@@ -5,6 +5,7 @@ import { screen } from 'design/utils/testing';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { PaymentsAndInvoicesPage } from 'e-teleport/Billing/PaymentsAndInvoices/PaymentsAndInvoicesPage';
 import { PaymentsAndInvoicesProps } from 'e-teleport/Billing/types';
+import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 describe('paymentsAndInvoicesPage', () => {
   let props: PaymentsAndInvoicesProps;
@@ -20,6 +21,7 @@ describe('paymentsAndInvoicesPage', () => {
         productName: 'some-productName',
         stripeTrialEnd: 0,
         stripeDefaultSourceId: 'some-stripeDefaultSourceId',
+        stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
       },
       reload: jest.fn(),
     };
@@ -32,6 +34,13 @@ describe('paymentsAndInvoicesPage', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  test('if canceled, renders cancel banner', () => {
+    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
+    renderWithElementsAndContext(<PaymentsAndInvoicesPage {...props} />);
+
+    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
   });
 
   test('renders payment CTA if missing payment method', () => {
