@@ -57,13 +57,11 @@ export interface TeleportFeature {
   route?: TeleportFeatureRoute;
   navigationItem?: TeleportFeatureNavigationItem;
   topMenuItem?: TeleportFeatureNavigationItem;
-  // isLockedAndUpdatedRouteAndNavigationItem will update this feature's
-  // `route` and `navigationItem` to an alternate route and component if
-  // this feature is locked. Returns true to indicate feature was locked
-  // and changes have been made.
-  isLockedAndUpdatedRouteAndNavigationItem?(
-    lockedFeatures: LockedFeatures
-  ): boolean;
+  // alternative items to display when the user has permissions (RBAC)
+  // but the cluster lacks the feature:
+  isLocked?(lockedFeatures: LockedFeatures): boolean;
+  lockedNavigationItem?: TeleportFeatureNavigationItem;
+  lockedRoute?: TeleportFeatureRoute;
 }
 
 export type StickyCluster = {
