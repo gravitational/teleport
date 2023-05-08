@@ -99,17 +99,17 @@ func (c *fido2AttobjCommand) run(_ *CLIConf) error {
 
 	ao := &protocol.AttestationObject{}
 	if err := webauthncbor.Unmarshal(aoRaw, ao); err != nil {
-		return fmt.Errorf("attestation object unmarshal: %w", err)
+		return trace.Wrap(err, "attestation object unmarshal")
 	}
 	if err := ao.AuthData.Unmarshal(ao.RawAuthData); err != nil {
-		return fmt.Errorf("authdata unmarshal: %w", err)
+		return trace.Wrap(err, "authdata unmarshal")
 	}
 
 	// Print attestation object as JSON.
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(ao); err != nil {
-		return fmt.Errorf("encode attestation object to JSON: %w", err)
+		return trace.Wrap(err, "encode attestation object to JSON")
 	}
 
 	// Print public key.
@@ -118,7 +118,7 @@ func (c *fido2AttobjCommand) run(_ *CLIConf) error {
 		if err == nil {
 			fmt.Println("\nAuthData.AttData.public_key:")
 			if err := enc.Encode(pubKey); err != nil {
-				return fmt.Errorf("encode public key: %w", err)
+				return trace.Wrap(err, "encode public key")
 			}
 		}
 	}
