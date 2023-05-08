@@ -1,0 +1,33 @@
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
+{{- if .Values.ingress.enabled }}
+{{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-proxy
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  {{- if $proxy.annotations.ingress }}
+  annotations: {{- toYaml $proxy.annotations.ingress | nindent 4 }}
+  {{- end }}
+spec:
+  tls:
+  - hosts:
+  {{- range $publicAddr }}
+    - {{ . }}
+  {{- end }}
+    #secretName: teleport-tls
+  rules:
+   {{- range $publicAddr }}
+  - host: {{ . }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $.Release.Name }}
+            port:
+              number: 443
+    {{- end }}
+{{- end }}
