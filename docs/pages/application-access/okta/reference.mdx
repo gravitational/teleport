@@ -22,9 +22,7 @@ Full YAML spec of Okta import rule resources managed by `tctl` resource commands
 kind: okta_import_rule
 version: v1
 metadata:
-  # Okta import rule name.
   name: test-rule
-  # Okta import rule description.
   description: "Okta import rule for admins"
 spec:
   # Mappings describes a list of match directives that describe what lavels to
@@ -35,7 +33,7 @@ spec:
     # Individual application IDs can be used to create matches. Imported Okta
     # applications will be matched based on the app IDs listed here.
     - app_ids: ["app1", "app2"]
-    # These lablels will be added to matching applications.
+    # These labels will be added to matching applications.
     add_labels:
       app_label: app_label_value
   - match:
@@ -70,7 +68,6 @@ Full YAML spec of Okta assignment resources queried by `tctl` resource commands:
 kind: okta_assignment
 version: v1
 metadata:
-  # The name of the Okta assignment.
   name: test-assignment
 spec:
   # The user that the Okta assignment is granting access for.
@@ -78,13 +75,13 @@ spec:
   # The list of targets to grant access to.
   targets:
   # An application target.
-  - type: 1
+  - type: application
     id: "123456"
   # A group target.
-  - type: 2
+  - type: group
     id: "234567"
   # The current status of the Okta assignment.
-  status: 1
+  status: pending
 ```
 
 These objects are internally facing and are not intended to be modified by users. However,
@@ -94,44 +91,44 @@ you can query them for informational or debugging purposes.
 
 This section shows CLI commands relevant for application access.
 
-### tsh get okta_import_rules
+### tctl get okta_import_rules
 
 Lists available Okta import rules.
 
 ```code
-$ tsh get okta_import_rules
+$ tctl get okta_import_rules
 ```
 
-### tsh get okta_import_rules/NAME
+### tctl get okta_import_rules/NAME
 
 Gets an individual Okta import rule.
 
 ```code
-$ tsh get okta_import_rules/my-import-rule
+$ tctl get okta_import_rules/my-import-rule
 ```
 
-### tsh rm okta_import_rules/NAME
+### tctl rm okta_import_rules/NAME
 
 Removes an individual Okta import rule.
 
 ```code
-$ tsh rm okta_import_rules/my-import-rule
+$ tctl rm okta_import_rules/my-import-rule
 ```
 
-### tsh get okta_assignments
+### tctl get okta_assignments
 
 Lists available Okta assignments.
 
 ```code
-$ tsh get okta_assignments
+$ tctl get okta_assignments
 ```
 
-### tsh get okta_assignments/NAME
+### tctl get okta_assignments/NAME
 
 Gets an individual Okta assignment.
 
 ```code
-$ tsh get okta_assignments/my-assignment
+$ tctl get okta_assignments/my-assignment
 ```
 
 ## Troubleshooting
