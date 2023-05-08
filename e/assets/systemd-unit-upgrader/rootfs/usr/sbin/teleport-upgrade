@@ -320,16 +320,35 @@ do_upgrade() {
                 -o Dir::Etc::sourceparts="-" \
                 -o APT::Get::List-Cleanup="0"
             # restart the service if it is currently running
-            apt install -y "$package_name=$target_version"
+            apt install -y --allow-downgrades "$package_name=$target_version"
             systemctl try-restart teleport.service
             return 0
             ;;
         yum)
-            log_info "attempting yum install $package_name=$target_version..."
+            # yum version strings have '-' replaced with '_'
+            yum_target_version="${target_version//-/_}"
+
+            log_info "attempting yum install $package_name-$yum_target_version..."
+
             # update cache for teleport repo
             yum makecache --disablerepo="*" --enablerepo="teleport"
             # attempt installation
-            yum install  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$target_version"
+            yum install  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$yum_target_version"
+
+            # attempt to detect post-install version
+            if ! post_install_version="$(get_current_version)"; then
+                post_install_version="unknown"
+            fi
+
+            # yum silently ignores downgrades, so if it looks like the install was inefectual we attempt an
+            # explicit downgrade. this is safe to do even if we are wrong (e.g. due to undetectable version),
+            # since the downgrade command will similarly ignore upgrades.
+            if [[ "$post_install_version" != "$target_version" ]]; then
+                log_info "install may have been inefectual (post_install_version=$post_install_version)."
+                log_info "attempting downgrade command variant..."
+                yum downgrade  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$yum_target_version"
+            fi
+
             # restart the service if it is currently running
             systemctl try-restart teleport.service
             return 0
