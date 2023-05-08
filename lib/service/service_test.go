@@ -79,6 +79,99 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
 }
 
+func TestAdditionalExpectedRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           func() *servicecfg.Config
+		expectedRoles map[types.SystemRole]string
+	}{
+		{
+			name: "everything enabled",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+			},
+		},
+		{
+			name: "everything enabled with additional roles",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+
+				cfg.AdditionalExpectedRoles = []servicecfg.RoleAndIdentityEvent{
+					{
+						Role:          types.RoleOkta,
+						IdentityEvent: "some-identity-event",
+					},
+					{
+						Role:          types.RoleBot,
+						IdentityEvent: "some-other-identity-event",
+					},
+				}
+
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+				types.RoleOkta:           "some-identity-event",
+				types.RoleBot:            "some-other-identity-event",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process, err := NewTeleport(test.cfg())
+			require.NoError(t, err)
+			require.Equal(t, test.expectedRoles, process.instanceRoles)
+		})
+	}
+}
+
 func TestMonitor(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()

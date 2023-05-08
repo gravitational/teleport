@@ -23,6 +23,8 @@ import "time"
 // * a package with the tsh binary.
 // * a disk image (dmg) of Teleport Connect containing the signed tsh package.
 // These build assets are signed and notarized.
+// The tarballs are build for amd64, arm64 and universal. The packages and
+// disk image are build for universal only.
 func darwinTagPipelineGHA() pipeline {
 	bt := ghaBuildType{
 		buildType:    buildType{os: "darwin", arch: "amd64"},
@@ -30,7 +32,7 @@ func darwinTagPipelineGHA() pipeline {
 		pipelineName: "build-darwin-amd64",
 		workflows: []ghaWorkflow{
 			{
-				name:              "release-mac-amd64.yaml",
+				name:              "release-mac.yaml",
 				srcRefVar:         "DRONE_TAG",
 				ref:               "${DRONE_TAG}",
 				timeout:           150 * time.Minute,

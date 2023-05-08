@@ -4205,7 +4205,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 2h30m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 2h30m0s -workflow release-mac.yaml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
     "build-packages=true" -input "release-artifacts=true" '
   environment:
@@ -17106,6 +17106,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 86ea61230c3dd7f71b48cbdf4923332c5c04c6738f9e5129bd6f0bc246bdbfad
+hmac: 6285c96c5277bc0aacb843eddff886b22b72c5f3761d96109b8b3562a7442e70
 
 ...
