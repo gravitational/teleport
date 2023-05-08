@@ -1387,11 +1387,6 @@
           "slug": "/architecture/authorization/"
         },
         {
-          "title": "Automatic Agent Update",
-          "slug": "/architecture/agent-update-management/",
-          "forScopes": ["enterprise", "cloud"]
-        },
-        {
           "title": "Teleport Proxy",
           "slug": "/architecture/proxy/"
         },
@@ -1414,6 +1409,11 @@
         {
           "title": "Proxy Peering (Preview)",
           "slug": "/architecture/proxy-peering/"
+        },
+        {
+          "title": "Agent Update Management",
+          "slug": "/architecture/agent-update-management/",
+          "forScopes": ["enterprise", "cloud"]
         }
       ]
     },
