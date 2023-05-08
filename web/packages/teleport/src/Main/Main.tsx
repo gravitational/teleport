@@ -186,9 +186,13 @@ function renderRoutes(
       continue;
     }
 
-    // add regular feature routes
-    if (feature.route) {
-      const { path, title, exact, component: Component } = feature.route;
+    // add the route of the 'locked' variants of the features
+    if (feature.isLocked?.(lockedFeatures)) {
+      if (!feature.lockedRoute) {
+        throw new Error('a locked feature without a locked route was found');
+      }
+
+      const { path, title, exact, component: Component } = feature.lockedRoute;
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
@@ -198,15 +202,14 @@ function renderRoutes(
           </CatchError>
         </Route>
       );
+
+      // return early so we don't add the original route
+      continue;
     }
 
-    // add the route of the 'locked' variants of the features
-    if (feature.isLocked?.(lockedFeatures)) {
-      if (!feature.lockedRoute) {
-        continue;
-      }
-
-      const { path, title, exact, component: Component } = feature.lockedRoute;
+    // add regular feature routes
+    if (feature.route) {
+      const { path, title, exact, component: Component } = feature.route;
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
