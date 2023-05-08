@@ -13057,7 +13057,7 @@ func (m *InventoryStatusSummary) GetConnected() []UpstreamInventoryHello {
 	return nil
 }
 
-// InventoryConnectedServiceCountsRequest requests inventory service counts.
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
 type InventoryConnectedServiceCountsRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -13099,9 +13099,9 @@ func (m *InventoryConnectedServiceCountsRequest) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_InventoryConnectedServiceCountsRequest proto.InternalMessageInfo
 
-// InventoryConnectedServiceCounts is the service counts seen in the inventory.
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
 type InventoryConnectedServiceCounts struct {
-	// ServiceCounts is the count of each service seen in the inventory.
+	// ServiceCounts is the count of each connected service seen in the inventory.
 	ServiceCounts        map[github_com_gravitational_teleport_api_types.SystemRole]uint64 `protobuf:"bytes,1,rep,name=ServiceCounts,proto3,castkey=github.com/gravitational/teleport/api/types.SystemRole" json:"ServiceCounts,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"varint,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}                                                          `json:"-"`
 	XXX_unrecognized     []byte                                                            `json:"-"`
@@ -15217,7 +15217,7 @@ type AuthServiceClient interface {
 	InventoryControlStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_InventoryControlStreamClient, error)
 	// GetInventoryStatus gets information about current instance inventory.
 	GetInventoryStatus(ctx context.Context, in *InventoryStatusRequest, opts ...grpc.CallOption) (*InventoryStatusSummary, error)
-	// GetInventoryConnectedServiceCounts returns the counts of each service seen in the inventory.
+	// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
 	GetInventoryConnectedServiceCounts(ctx context.Context, in *InventoryConnectedServiceCountsRequest, opts ...grpc.CallOption) (*InventoryConnectedServiceCounts, error)
 	// PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
 	PingInventory(ctx context.Context, in *InventoryPingRequest, opts ...grpc.CallOption) (*InventoryPingResponse, error)
@@ -18303,7 +18303,7 @@ type AuthServiceServer interface {
 	InventoryControlStream(AuthService_InventoryControlStreamServer) error
 	// GetInventoryStatus gets information about current instance inventory.
 	GetInventoryStatus(context.Context, *InventoryStatusRequest) (*InventoryStatusSummary, error)
-	// GetInventoryConnectedServiceCounts returns the counts of each service seen in the inventory.
+	// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
 	GetInventoryConnectedServiceCounts(context.Context, *InventoryConnectedServiceCountsRequest) (*InventoryConnectedServiceCounts, error)
 	// PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
 	PingInventory(context.Context, *InventoryPingRequest) (*InventoryPingResponse, error)
