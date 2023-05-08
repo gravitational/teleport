@@ -175,12 +175,9 @@ function renderRoutes(
 ) {
   const routes = [];
 
-  const lockedParents = getLockedParents(features, lockedFeatures);
-
   for (const [index, feature] of features.entries()) {
-    const isParentLocked = lockedParents.find(
-      parent => feature.parent && parent === feature.parent.name
-    );
+    const isParentLocked =
+      feature.parent && new feature.parent().isLocked?.(lockedFeatures);
 
     // remove features with parents locked.
     // The parent itself will be rendered if it has a lockedRoute,
@@ -230,23 +227,6 @@ function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   const routes = renderRoutes(features, lockedFeatures);
 
   return <Switch>{routes}</Switch>;
-}
-
-function getLockedParents(
-  features: TeleportFeature[],
-  lockedFeatures: LockedFeatures
-): string[] {
-  const lockedParents = new Set<string>();
-  features.forEach(feature => {
-    if (feature.parent) {
-      const parent = new feature.parent();
-      if (parent.isLocked(lockedFeatures)) {
-        lockedParents.add(parent.constructor.name);
-      }
-    }
-  });
-
-  return Array.from(lockedParents);
 }
 
 export const ContentMinWidth = styled.div`
