@@ -35,6 +35,7 @@ PWD ?= `pwd`
 GIT ?= git
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
+GITREF=$(shell git describe --tags --long --match "v[0-9]*")
 CGOFLAG ?= CGO_ENABLED=1
 
 # RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
@@ -48,6 +49,8 @@ BUILDFLAGS ?= $(ADDFLAGS) -gcflags=all="-N -l"
 else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
+
+BUILDFLAGS += -ldflags '-X github.com/gravitational/teleport.Gitref=$(GITREF)'
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
