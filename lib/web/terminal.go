@@ -1056,19 +1056,13 @@ type TerminalStream struct {
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
 
-	// ResizeOnce ensures that resizeC is closed at most one time
-	ResizeOnce sync.Once
+	// once ensures that all channels are closed at most one time.
+	once sync.Once
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
-
-	// fileTransferRequestOnce ensures that fileTransferRequestC is closed at most one time
-	fileTransferRequestOnce sync.Once
 	// fileTransferRequestC is a channel to facilitate requesting a file transfer
 	fileTransferRequestC chan<- *session.FileTransferRequestParams
-
-	// fileTransferDecisionOnce ensures that fileTransferDecisionC is closed at most one time
-	fileTransferDecisionOnce sync.Once
 	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
 	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
@@ -1301,23 +1295,19 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 // Close send a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
-	if t.resizeC != nil {
-		t.ResizeOnce.Do(func() {
+	t.once.Do(func() {
+		if t.resizeC != nil {
 			close(t.resizeC)
-		})
-	}
+		}
 
-	if t.fileTransferRequestC != nil {
-		t.fileTransferRequestOnce.Do(func() {
+		if t.fileTransferRequestC != nil {
 			close(t.fileTransferRequestC)
-		})
-	}
+		}
 
-	if t.fileTransferDecisionC != nil {
-		t.fileTransferDecisionOnce.Do(func() {
+		if t.fileTransferDecisionC != nil {
 			close(t.fileTransferDecisionC)
-		})
-	}
+		}
+	})
 
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{
