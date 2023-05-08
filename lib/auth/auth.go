@@ -5203,55 +5203,30 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (a *Server) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := a.Services.GetAssistantMessages(ctx, username, id)
+func (a *Server) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+	resp, err := a.Services.GetAssistantMessages(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *Server) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, username, msg))
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
 }
 
-// SetAssistantConversationTitle stores the given conversation title in the DB.
-func (a *Server) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(a.Services.SetAssistantConversationTitle(ctx, username, msg))
+// UpdateAssistantConversationInfo stores the given conversation title in the DB.
+func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *proto.UpdateAssistantConversationInfoRequest) error {
+	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := a.Services.CreateAssistantConversation(ctx, username, req)
+	resp, err := a.Services.CreateAssistantConversation(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // GetAssistantConversations returns all conversations started by a user.
 func (a *Server) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := a.Services.GetAssistantConversations(ctx, username, request)
+	resp, err := a.Services.GetAssistantConversations(ctx, request)
 	return resp, trace.Wrap(err)
 }
 

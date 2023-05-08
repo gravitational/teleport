@@ -4999,14 +4999,14 @@ func (g *GRPCServer) GetAssistantConversations(ctx context.Context, request *pro
 	return resp, nil
 }
 
-// SetAssistantConversationTitle sets the given title as the assistant conversation title.
-func (g *GRPCServer) SetAssistantConversationTitle(ctx context.Context, request *proto.ConversationInfo) (*emptypb.Empty, error) {
+// UpdateAssistantConversationInfo updates the conversation info for a conversation.
+func (g *GRPCServer) UpdateAssistantConversationInfo(ctx context.Context, request *proto.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = auth.SetAssistantConversationTitle(ctx, request)
+	err = auth.UpdateAssistantConversationInfo(ctx, request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5025,12 +5025,12 @@ func (g *GRPCServer) CreateAssistantConversation(ctx context.Context, request *p
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantRequest) (*proto.GetAssistantMessagesResponse, error) {
+func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	messages, err := auth.GetAssistantMessages(ctx, request.ConversationId)
+	messages, err := auth.GetAssistantMessages(ctx, request)
 	return messages, trace.Wrap(err)
 }
 

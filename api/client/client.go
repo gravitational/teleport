@@ -3663,10 +3663,8 @@ func (c *Client) CreateAssistantConversation(ctx context.Context, req *proto.Cre
 }
 
 // GetAssistantMessages retrieves assistant messages with given conversation ID.
-func (c *Client) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
-	messages, err := c.grpc.GetAssistantMessages(ctx, &proto.AssistantRequest{
-		ConversationId: id,
-	})
+func (c *Client) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+	messages, err := c.grpc.GetAssistantMessages(ctx, req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -3691,9 +3689,9 @@ func (c *Client) CreateAssistantMessage(ctx context.Context, in *proto.Assistant
 	return resp, nil
 }
 
-// SetAssistantConversationTitle set the given assistant conversation title.
-func (c *Client) SetAssistantConversationTitle(ctx context.Context, in *proto.ConversationInfo) error {
-	_, err := c.grpc.SetAssistantConversationTitle(ctx, in)
+// UpdateAssistantConversationInfo updates conversation info.
+func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *proto.UpdateAssistantConversationInfoRequest) error {
+	_, err := c.grpc.UpdateAssistantConversationInfo(ctx, in)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

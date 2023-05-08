@@ -6097,12 +6097,12 @@ func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetAssistantMessages(ctx, id)
+	return a.authServer.GetAssistantMessages(ctx, req)
 }
 
 // CreateAssistantMessage adds the message to the backend.
@@ -6114,13 +6114,13 @@ func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *proto
 	return &emptypb.Empty{}, a.authServer.CreateAssistantMessage(ctx, msg)
 }
 
-// SetAssistantConversationTitle set the given title as the assistant conversation title.
-func (a *ServerWithRoles) SetAssistantConversationTitle(ctx context.Context, msg *proto.ConversationInfo) error {
+// UpdateAssistantConversationInfo updates the conversation info.
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *proto.UpdateAssistantConversationInfoRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAssistantConversationTitle(ctx, msg)
+	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

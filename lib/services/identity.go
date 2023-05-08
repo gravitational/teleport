@@ -268,19 +268,19 @@ type Identity interface {
 	DeleteHeadlessAuthentication(ctx context.Context, name string) error
 
 	// GetAssistantMessages returns all messages with given conversation ID.
-	GetAssistantMessages(ctx context.Context, username, id string) (*proto.GetAssistantMessagesResponse, error)
+	GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error)
 
 	// CreateAssistantMessage adds the message to the backend.
-	CreateAssistantMessage(ctx context.Context, username string, msg *proto.AssistantMessage) error
+	CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error
 
 	// CreateAssistantConversation creates a new conversation entry in the backend.
-	CreateAssistantConversation(ctx context.Context, username string, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
+	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 
 	// GetAssistantConversations returns all conversations started by a user.
-	GetAssistantConversations(ctx context.Context, username string, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
+	GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
 
-	// SetAssistantConversationTitle sets the given title as the assistant conversation title.
-	SetAssistantConversationTitle(ctx context.Context, username string, msg *proto.ConversationInfo) error
+	// UpdateAssistantConversationInfo updates conversation info.
+	UpdateAssistantConversationInfo(ctx context.Context, msg *proto.UpdateAssistantConversationInfoRequest) error
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

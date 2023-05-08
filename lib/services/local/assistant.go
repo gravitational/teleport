@@ -39,10 +39,10 @@ type Conversation struct {
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string,
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context,
 	req *proto.CreateAssistantConversationRequest,
 ) (*proto.CreateAssistantConversationResponse, error) {
-	if username == "" {
+	if req.Username == "" {
 		return nil, trace.BadParameter("missing parameter username")
 	}
 
@@ -58,7 +58,7 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(assistantConversationPrefix, username, conversationID),
+		Key:   backend.Key(assistantConversationPrefix, req.Username, conversationID),
 		Value: value,
 	}
 
@@ -84,13 +84,19 @@ func (s *IdentityService) getConversation(ctx context.Context, username, convers
 	return &conversation, nil
 }
 
-// SetAssistantConversationTitle sets the given title as the assistant conversation title.
-func (s *IdentityService) SetAssistantConversationTitle(ctx context.Context, username string, request *proto.ConversationInfo) error {
-	if request.Id == "" || request.Title == "" {
-		return trace.BadParameter("missing conversation ID or title")
+// UpdateAssistantConversationInfo updates the conversation title.
+func (s *IdentityService) UpdateAssistantConversationInfo(ctx context.Context, request *proto.UpdateAssistantConversationInfoRequest) error {
+	if request.ConversationId == "" {
+		return trace.BadParameter("missing conversation ID")
+	}
+	if request.Username == "" {
+		return trace.BadParameter("missing username")
+	}
+	if request.Title == "" {
+		return trace.BadParameter("missing title")
 	}
 
-	msg, err := s.getConversation(ctx, username, request.Id)
+	msg, err := s.getConversation(ctx, request.Username, request.GetConversationId())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +110,7 @@ func (s *IdentityService) SetAssistantConversationTitle(ctx context.Context, use
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(assistantConversationPrefix, username, request.Id),
+		Key:   backend.Key(assistantConversationPrefix, request.GetUsername(), request.GetConversationId()),
 		Value: payload,
 	}
 
@@ -116,8 +122,11 @@ func (s *IdentityService) SetAssistantConversationTitle(ctx context.Context, use
 }
 
 // GetAssistantConversations returns all conversations started by a user.
-func (s *IdentityService) GetAssistantConversations(ctx context.Context, username string, _ *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
-	startKey := backend.Key(assistantConversationPrefix, username)
+func (s *IdentityService) GetAssistantConversations(ctx context.Context, req *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+	startKey := backend.Key(assistantConversationPrefix, req.Username)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -147,16 +156,16 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, usernam
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
-	if username == "" {
+func (s *IdentityService) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+	if req.Username == "" {
 		return nil, trace.BadParameter("missing username")
 	}
 
-	if conversationId == "" {
+	if req.ConversationId == "" {
 		return nil, trace.BadParameter("missing conversation ID")
 	}
 
-	startKey := backend.Key(assistantMessagePrefix, username, conversationId)
+	startKey := backend.Key(assistantMessagePrefix, req.Username, req.ConversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -182,8 +191,8 @@ func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, co
 }
 
 // CreateAssistantMessage adds the message to the backend.
-func (s *IdentityService) CreateAssistantMessage(ctx context.Context, username string, msg *proto.AssistantMessage) error {
-	if username == "" {
+func (s *IdentityService) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+	if msg.Username == "" {
 		return trace.BadParameter("missing username")
 	}
 
@@ -195,7 +204,7 @@ func (s *IdentityService) CreateAssistantMessage(ctx context.Context, username s
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantMessagePrefix, username, msg.ConversationId, messageID),
+		Key:   backend.Key(assistantMessagePrefix, msg.Username, msg.ConversationId, messageID),
 		Value: value,
 	}
 

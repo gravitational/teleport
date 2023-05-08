@@ -655,15 +655,15 @@ type IdentityService interface {
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
 
 	// GetAssistantMessages returns all messages with given conversation ID.
-	GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error)
+	GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error)
 	// GetAssistantConversations returns all conversations started by a user.
 	GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
 	// CreateAssistantConversation creates a new conversation entry in the backend.
 	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 	// CreateAssistantMessage adds the message to the backend.
 	CreateAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
-	// SetAssistantConversationTitle sets the given title as the conversation title.
-	SetAssistantConversationTitle(ctx context.Context, in *proto.ConversationInfo) error
+	// UpdateAssistantConversationInfo updates the conversation info.
+	UpdateAssistantConversationInfo(ctx context.Context, in *proto.UpdateAssistantConversationInfoRequest) error
 }
 
 // ProvisioningService is a service in control

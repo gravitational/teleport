@@ -41,10 +41,11 @@ func TestAssistantCRUD(t *testing.T) {
 
 	t.Run("create conversation", func(t *testing.T) {
 		req := &proto.CreateAssistantConversationRequest{
+			Username:    username,
 			CreatedTime: time.Now(),
 		}
 
-		conversationResp, err := identity.CreateAssistantConversation(ctx, username, req)
+		conversationResp, err := identity.CreateAssistantConversation(ctx, req)
 		require.NoError(t, err)
 		require.NotEmpty(t, conversationResp.Id)
 
@@ -52,7 +53,10 @@ func TestAssistantCRUD(t *testing.T) {
 	})
 
 	t.Run("get conversation", func(t *testing.T) {
-		conversations, err := identity.GetAssistantConversations(ctx, username, nil)
+		req := &proto.GetAssistantConversationsRequest{
+			Username: username,
+		}
+		conversations, err := identity.GetAssistantConversations(ctx, req)
 		require.NoError(t, err)
 		require.Len(t, conversations.Conversations, 1)
 		require.Equal(t, conversationID, conversations.Conversations[0].Id)
@@ -60,32 +64,42 @@ func TestAssistantCRUD(t *testing.T) {
 
 	t.Run("create message", func(t *testing.T) {
 		msg := &proto.AssistantMessage{
+			Username:       username,
 			CreatedTime:    time.Now(),
 			ConversationId: conversationID,
 			Payload:        "foo",
 			Type:           "USER_MSG",
 		}
-		err := identity.CreateAssistantMessage(ctx, username, msg)
+		err := identity.CreateAssistantMessage(ctx, msg)
 		require.NoError(t, err)
 	})
 
 	t.Run("get messages", func(t *testing.T) {
-		messages, err := identity.GetAssistantMessages(ctx, username, conversationID)
+		req := &proto.AssistantMessageRequest{
+			Username:       username,
+			ConversationId: conversationID,
+		}
+		messages, err := identity.GetAssistantMessages(ctx, req)
 		require.NoError(t, err)
 		require.Len(t, messages.Messages, 1)
 		require.Equal(t, "foo", messages.Messages[0].Payload)
 	})
 
 	t.Run("set conversation title", func(t *testing.T) {
-		titleReq := &proto.ConversationInfo{
-			Title: "bar",
-			Id:    conversationID,
+		titleReq := &proto.UpdateAssistantConversationInfoRequest{
+			Title:          "bar",
+			Username:       username,
+			ConversationId: conversationID,
 		}
 		title := "bar"
-		err := identity.SetAssistantConversationTitle(ctx, username, titleReq)
+		err := identity.UpdateAssistantConversationInfo(ctx, titleReq)
 		require.NoError(t, err)
 
-		conversations, err := identity.GetAssistantConversations(ctx, username, nil)
+		req := &proto.GetAssistantConversationsRequest{
+			Username: username,
+		}
+
+		conversations, err := identity.GetAssistantConversations(ctx, req)
 		require.NoError(t, err)
 		require.Len(t, conversations.Conversations, 1)
 		require.Equal(t, title, conversations.Conversations[0].Title)
@@ -93,14 +107,19 @@ func TestAssistantCRUD(t *testing.T) {
 
 	t.Run("conversations are sorted by created_time", func(t *testing.T) {
 		req := &proto.CreateAssistantConversationRequest{
+			Username:    username,
 			CreatedTime: time.Now().Add(time.Hour),
 		}
 
-		conversationResp, err := identity.CreateAssistantConversation(ctx, username, req)
+		conversationResp, err := identity.CreateAssistantConversation(ctx, req)
 		require.NoError(t, err)
 		require.NotEmpty(t, conversationResp.Id)
 
-		conversations, err := identity.GetAssistantConversations(ctx, username, nil)
+		reqConversations := &proto.GetAssistantConversationsRequest{
+			Username: username,
+		}
+
+		conversations, err := identity.GetAssistantConversations(ctx, reqConversations)
 		require.NoError(t, err)
 		require.Len(t, conversations.Conversations, 2)
 		require.Equal(t, conversationID, conversations.Conversations[0].Id)

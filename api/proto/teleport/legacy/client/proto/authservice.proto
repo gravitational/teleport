@@ -2296,11 +2296,14 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
-// AssistantRequest is a request to the assistant service.
-message AssistantRequest {
+// AssistantMessageRequest is a request to the assistant service.
+message AssistantMessageRequest {
   // conversationId it's the ID of a conversation.
   // It's used to tie all messages in a one conversation.
   string conversation_id = 1;
+
+  // username is a username of the user who sent the message.
+  string username = 2;
 }
 
 // AssistantMessage is a message sent to the assistant service. The conversation
@@ -2309,17 +2312,20 @@ message AssistantMessage {
   // conversationId used to tie all messages in a one conversation.
   string conversation_id = 1;
 
+  // username is a username of the user who sent the message.
+  string username = 2;
+
   // type is a type of message. It can be Chat response/query or a command to run.
-  string type = 2;
+  string type = 3;
 
   // createdTime is the time when the even occurred.
-  google.protobuf.Timestamp created_time = 3 [
+  google.protobuf.Timestamp created_time = 4 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
 
   // payload is a JSON message
-  string payload = 4;
+  string payload = 5;
 }
 
 // GetAssistantMessagesResponse is a response from the assistant service.
@@ -2329,7 +2335,10 @@ message GetAssistantMessagesResponse {
 }
 
 // GetAssistantConversationsRequest is a request to get a list of conversations.
-message GetAssistantConversationsRequest {}
+message GetAssistantConversationsRequest {
+  // username is a username of the user who created the conversation.
+  string username = 1;
+}
 
 // ConversationInfo is a conversation info. It contains a conversation
 // information like ID, title, created time.
@@ -2353,8 +2362,10 @@ message GetAssistantConversationsResponse {
 
 // CreateAssistantConversationRequest is a request to create a new conversation.
 message CreateAssistantConversationRequest {
+  // username is a username of the user who created the conversation.
+  string username = 1;
   // createdTime is the time when the conversation was created.
-  google.protobuf.Timestamp created_time = 1 [
+  google.protobuf.Timestamp created_time = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -2366,6 +2377,15 @@ message CreateAssistantConversationResponse {
   string id = 1;
 }
 
+message UpdateAssistantConversationInfoRequest {
+  // conversationId is a unique conversation ID.
+  string conversation_id = 1;
+  // username is a username of the user who created the conversation.
+  string username = 2;
+  // title is a title of the conversation.
+  string title = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -2375,13 +2395,13 @@ service AuthService {
   rpc GetAssistantConversations(GetAssistantConversationsRequest) returns (GetAssistantConversationsResponse);
 
   // GetAssistantMessages returns all messages associated with the given conversation ID.
-  rpc GetAssistantMessages(AssistantRequest) returns (GetAssistantMessagesResponse);
+  rpc GetAssistantMessages(AssistantMessageRequest) returns (GetAssistantMessagesResponse);
 
   // CreateAssistantMessage creates a new message in the given conversation.
   rpc CreateAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
 
-  // SetAssistantConversationTitle sets the given conversation title.
-  rpc SetAssistantConversationTitle(ConversationInfo) returns (google.protobuf.Empty);
+  // UpdateAssistantConversationInfo updates the conversation info.
+  rpc UpdateAssistantConversationInfo(UpdateAssistantConversationInfoRequest) returns (google.protobuf.Empty);
 
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
   // presence/version/etc to the auth server.
