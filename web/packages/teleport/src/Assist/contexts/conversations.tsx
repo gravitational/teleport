@@ -33,7 +33,7 @@ interface Conversation {
 interface MessageContextValue {
   create: () => Promise<string>;
   conversations: Conversation[];
-  setConversations: (conversations: Conversation[]) => void;
+  setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
 }
 
 interface CreateConversationResponse {
@@ -96,7 +96,9 @@ export function ConversationsContextProvider(
   }, []);
 
   return (
-    <ConversationsContext.Provider value={{ conversations, create, setConversations }}>
+    <ConversationsContext.Provider
+      value={{ conversations, create, setConversations }}
+    >
       {props.children}
     </ConversationsContext.Provider>
   );

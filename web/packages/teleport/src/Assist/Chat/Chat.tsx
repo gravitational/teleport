@@ -99,21 +99,21 @@ export function Chat(props: ChatProps) {
   const handleSubmit = useCallback(
     (message: string) => {
       send(message).then(() => {
-        if (messages.length >= 1) {
+        if (messages.length == 1) {
+          // Use the second message/first message from a user to generate the title.
           (async () => {
-            console.log('sending the first message to generate the title ');
+            // Generate title using the last message and OpenAI API.
             const title = await generateTitle(message);
-            console.log('title is ', title);
+            // Set the title in the backend.
             await setConversationTitle(props.conversationId, title);
-
-            conversations.find(
-              conversation => conversation.id === props.conversationId
-            ).title = title;
-            console.log('conversations is ', conversations, setConversations)
-            setConversations(conversations);
+            // Update the title in the frontend.
+            setConversations(conversations => conversations.map(c => {
+              if(c.id === props.conversationId){
+                c.title = title;
+              }
+              return c;
+            }));
           })();
-        } else {
-          console.log('messages is not empty', messages.length);
         }
       });
     },
