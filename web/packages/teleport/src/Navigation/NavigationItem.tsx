@@ -33,7 +33,10 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { useTeleport } from 'teleport';
 
-import type { TeleportFeature } from 'teleport/types';
+import type {
+  TeleportFeature,
+  TeleportFeatureNavigationItem,
+} from 'teleport/types';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -183,40 +186,34 @@ export function NavigationItem(props: NavigationItemProps) {
       );
     }
 
+    let navigationItemVersion: TeleportFeatureNavigationItem;
     if (route) {
-      return (
-        <Link
-          {...linkProps}
-          onKeyDown={handleKeyDown}
-          tabIndex={props.visible ? 0 : -1}
-          to={navigationItem.getLink(clusterId)}
-          exact={navigationItem.exact}
-        >
-          <LinkContent size={props.size}>
-            {getIcon(props.feature, props.size)}
-            {navigationItem.title}
-          </LinkContent>
-        </Link>
-      );
+      navigationItemVersion = navigationItem;
     }
 
-    if (isLocked(ctx.lockedFeatures)) {
-      if (!lockedNavigationItem || !lockedRoute) {
-        console.error('locked feature without an alternative route');
-        return null;
+    // use locked item version if feature is locked
+    if (lockedRoute) {
+      if (isLocked && isLocked(ctx.lockedFeatures)) {
+        if (!lockedNavigationItem || !lockedRoute) {
+          console.error('locked feature without an alternative route');
+          return null;
+        }
+        navigationItemVersion = lockedNavigationItem;
       }
+    }
 
+    if (navigationItemVersion) {
       return (
         <Link
           {...linkProps}
           onKeyDown={handleKeyDown}
           tabIndex={props.visible ? 0 : -1}
-          to={lockedNavigationItem.getLink(clusterId)}
-          exact={lockedNavigationItem.exact}
+          to={navigationItemVersion.getLink(clusterId)}
+          exact={navigationItemVersion.exact}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
-            {lockedNavigationItem.title}
+            {navigationItemVersion.title}
           </LinkContent>
         </Link>
       );
