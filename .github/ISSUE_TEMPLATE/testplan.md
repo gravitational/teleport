@@ -709,7 +709,7 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Migrating a software cluster to YubiHSM2 works
   - [ ] CA rotation works
 - [ ] AWS CloudHSM Support
-  - [ ] Make sure docs/links are up to date (they currently aren't https://github.com/gravitational/teleport/issues/24503)
+  - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
   - [ ] CA rotation works

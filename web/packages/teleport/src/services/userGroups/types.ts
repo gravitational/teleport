@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Gravitational, Inc.
+Copyright 2021-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { storiesOf } from '@storybook/react';
-import { MenuLoginExamples } from 'shared/components/MenuLogin/MenuLogin.story';
+import { AgentLabel } from 'teleport/services/agents';
 
-import { MenuLoginTheme } from 'teleterm/ui/DocumentCluster/ClusterResources/MenuLoginTheme';
+// UserGroup is a remote user group.
+export type UserGroup = {
+  // Name is name of the user group.
+  name: string;
+  // Description is the description of the user group.
+  description: string;
+  // Labels for the user group.
+  labels: AgentLabel[];
+};
 
-storiesOf('Shared/MenuLogin', module).add(
-  'MenuLogin in Teleport Connect',
-  () => {
-    return (
-      <MenuLoginTheme>
-        <MenuLoginExamples />
-      </MenuLoginTheme>
-    );
-  }
-);
+export type UserGroupsResponse = {
+  userGroups: UserGroup[];
+  startKey?: string;
+  totalCount?: number;
+};

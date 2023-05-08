@@ -54,10 +54,6 @@ import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
 
-const MUTED_WHITE_COLOR = 'rgba(255, 255, 255, 0.72)';
-// TODO(gzdunek): replace with theme color after theme update
-const BRAND_PRIMARY_COLOR = '#9f85ff';
-
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
   const { clustersService, modalsService } = ctx;
@@ -69,7 +65,6 @@ export function ActionPicker(props: { input: ReactElement }) {
     close,
     inputValue,
     resetInput,
-    closeAndResetInput,
     filters,
     removeFilter,
     addWindowEventListener,
@@ -112,17 +107,16 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        if (action.preventAutoClose === true) {
-          resetInput();
-        } else {
-          closeAndResetInput();
+        resetInput();
+        if (!action.preventAutoClose) {
+          close();
         }
       }
       if (action.type === 'parametrized-action') {
         changeActivePicker(getParameterPicker(action));
       }
     },
-    [changeActivePicker, closeAndResetInput, resetInput]
+    [changeActivePicker, close, resetInput]
   );
 
   const filterButtons = filters.map(s => {
@@ -251,7 +245,11 @@ const ExtraTopComponents = (props: {
 
   switch (status.status) {
     case 'no-input': {
-      return status.hasNoRemainingFilterActions && <TypeToSearchItem />;
+      return (
+        <TypeToSearchItem
+          hasNoRemainingFilterActions={status.hasNoRemainingFilterActions}
+        />
+      );
     }
     case 'processing': {
       return null;
@@ -399,7 +397,7 @@ function Item(
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
-    <Item Icon={icons.Lan} iconColor={MUTED_WHITE_COLOR}>
+    <Item Icon={icons.Lan} iconColor="text.slightlyMuted">
       <Text typography="body1">
         Search only in{' '}
         <strong>
@@ -432,7 +430,7 @@ function ResourceTypeFilterItem(
   return (
     <Item
       Icon={resourceIcons[props.searchResult.resource]}
-      iconColor={MUTED_WHITE_COLOR}
+      iconColor="text.slightlyMuted"
     >
       <Text typography="body1">
         Search only for{' '}
@@ -455,7 +453,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <Item Icon={icons.Server} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Server} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -529,7 +527,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <Item Icon={icons.Database} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Database} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -568,7 +566,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <Item Icon={icons.Kubernetes} iconColor={BRAND_PRIMARY_COLOR}>
+    <Item Icon={icons.Kubernetes} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -615,7 +613,7 @@ export function NoResultsItem(props: {
 
   return (
     <NonInteractiveItem>
-      <Item Icon={icons.Info} iconColor={MUTED_WHITE_COLOR}>
+      <Item Icon={icons.Info} iconColor="text.slightlyMuted">
         <Text typography="body1">No matching results found.</Text>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
       </Item>
@@ -623,11 +621,17 @@ export function NoResultsItem(props: {
   );
 }
 
-export function TypeToSearchItem() {
+export function TypeToSearchItem({
+  hasNoRemainingFilterActions,
+}: {
+  hasNoRemainingFilterActions: boolean;
+}) {
   return (
     <NonInteractiveItem>
-      <Text typography="body1" color="text.main">
-        Type something to search.
+      <Text typography="body2">
+        Enter space-separated search terms.
+        {hasNoRemainingFilterActions ||
+          ' Select a filter to narrow down the search.'}
       </Text>
     </NonInteractiveItem>
   );

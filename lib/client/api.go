@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -940,6 +941,9 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 // dtAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
 type dtAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
+// dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
+type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
+
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
@@ -959,14 +963,20 @@ type TeleportClient struct {
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
 
-	// dtAttemptLoginIgnorePing allows tests to override AttemptDeviceLogin's Ping
-	// response validation.
-	dtAttemptLoginIgnorePing bool
+	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
+	// tests to ignore Ping responses.
+	// Useful to force flows that only typically happen on Teleport Enterprise.
+	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.RunCeremony].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
+
+	// dtAutoEnroll allows tests to override the default device auto-enroll
+	// function.
+	// Defaults to [dtenroll.AutoEnroll].
+	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -2790,8 +2800,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
-		ProxyWebAddress:    tc.WebProxyAddr,
-		ProxySSHAddress:    cfg.proxyAddress,
+		ProxyAddress:       cfg.proxyAddress,
 		TLSRoutingEnabled:  tc.TLSRoutingEnabled,
 		TLSConfig:          tlsConfig,
 		DialOpts:           tc.Config.DialOpts,
@@ -2830,7 +2839,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 	}, nil
 }
 
-// clientConfig wraps ssh.ClientConfig with additional
+// clientConfig wraps [ssh.ClientConfig] with additional
 // information about a cluster.
 type clientConfig struct {
 	*ssh.ClientConfig
@@ -2841,14 +2850,17 @@ type clientConfig struct {
 // generateClientConfig returns clientConfig that can be used to establish a
 // connection to a cluster.
 func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConfig, error) {
-	sshProxyAddr := tc.Config.SSHProxyAddr
+	proxyAddr := tc.Config.SSHProxyAddr
+	if tc.TLSRoutingEnabled {
+		proxyAddr = tc.Config.WebProxyAddr
+	}
 
 	hostKeyCallback := tc.HostKeyCallback
 	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
-		sshProxyAddr = tc.JumpHosts[0].Addr.Addr
+		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
 			// Wrap host key and auth callbacks using clusterGuesser.
@@ -2901,7 +2913,7 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			Auth:            authMethods,
 			Timeout:         apidefaults.DefaultIOTimeout,
 		},
-		proxyAddress: sshProxyAddr,
+		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
 	}, nil
 }
@@ -3167,7 +3179,9 @@ func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) err
 		eventsCh:                 make(chan events.EventFields, 1024),
 		lastPing:                 tc.lastPing,
 		dtAttemptLoginIgnorePing: tc.dtAttemptLoginIgnorePing,
+		dtAutoEnrollIgnorePing:   tc.dtAutoEnrollIgnorePing,
 		dtAuthnRunCeremony:       tc.dtAuthnRunCeremony,
+		dtAutoEnroll:             tc.dtAutoEnroll,
 	}
 	tcNoJump.JumpHosts = nil
 
@@ -3364,8 +3378,11 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 }
 
 // DeviceLogin attempts to authenticate the current device with Teleport.
+//
 // The device must be previously registered and enrolled for the authentication
-// to succeed (see `tsh device enroll`).
+// to succeed (see `tsh device enroll`). Alternatively, if the cluster supports
+// auto-enrollment, then DeviceLogin will attempt to auto-enroll the device on
+// certain failures and login again.
 //
 // DeviceLogin may fail for a variety of reasons, some of them legitimate
 // (non-Enterprise cluster, Device Trust is disabled, etc). Because of that, a
@@ -3389,11 +3406,36 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 		runCeremony = dtauthn.RunCeremony
 	}
 
-	newCerts, err := runCeremony(ctx, authClient.DevicesClient(), certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Login without a previous auto-enroll attempt.
+	devicesClient := authClient.DevicesClient()
+	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
+	// Success or auto-enroll impossible.
+	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
+		return newCerts, trace.Wrap(loginErr)
 	}
-	return newCerts, nil
+
+	// Is auto-enroll enabled?
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		log.WithError(err).Debug("Device Trust: swallowing Ping error for previous Login error")
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+	if !tc.dtAutoEnrollIgnorePing && !pingResp.Auth.DeviceTrust.AutoEnroll {
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+
+	autoEnroll := tc.dtAutoEnroll
+	if autoEnroll == nil {
+		autoEnroll = dtenroll.AutoEnroll
+	}
+
+	// Auto-enroll and Login again.
+	if _, err := autoEnroll(ctx, devicesClient); err != nil {
+		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+	newCerts, err = runCeremony(ctx, devicesClient, certs)
+	return newCerts, trace.Wrap(err)
 }
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.

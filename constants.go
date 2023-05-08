@@ -267,6 +267,9 @@ const (
 	// ComponentAthena represents athena clients.
 	ComponentAthena = "athena"
 
+	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	ComponentProxySecureGRPC = "proxy:secure-grpc"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 

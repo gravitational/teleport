@@ -31,6 +31,7 @@ import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
 import DatabaseService from './services/databases';
 import desktopService from './services/desktops';
+import userGroupService from './services/userGroups';
 import MfaService from './services/mfa';
 import { agentService } from './services/agents';
 import localStorage from './services/localStorage';
@@ -53,6 +54,7 @@ class TeleportContext implements types.Context {
   kubeService = new KubeService();
   databaseService = new DatabaseService();
   desktopService = desktopService;
+  userGroupService = userGroupService;
   mfaService = new MfaService();
 
   isEnterprise = cfg.isEnterprise;

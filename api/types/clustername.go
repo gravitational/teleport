@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration
@@ -130,7 +131,7 @@ func (c *ClusterNameV2) GetClusterID() string {
 
 // Clone performs a deep copy.
 func (c *ClusterNameV2) Clone() ClusterName {
-	return proto.Clone(c).(*ClusterNameV2)
+	return utils.CloneProtoMsg(c)
 }
 
 // setStaticFields sets static resource header and metadata fields.
