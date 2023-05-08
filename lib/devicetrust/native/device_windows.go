@@ -16,14 +16,39 @@ package native
 
 import (
 	"bytes"
+	"crypto/x509"
 	"github.com/google/go-attestation/attest"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"os"
 	"os/exec"
+	"path"
 	"strings"
 )
+
+const (
+	akFile = "/.teleport-device/attestation.key"
+)
+
+func deviceStatePath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return path.Join(home, "teleport-device/"), nil
+}
+
+func attestationKeyPath() (string, error) {
+	statePath, err := deviceStatePath()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return path.Join(statePath, "attestation.key"), nil
+}
 
 func openTPM() (*attest.TPM, error) {
 	cfg := &attest.OpenConfig{
@@ -39,16 +64,88 @@ func openTPM() (*attest.TPM, error) {
 	return tpm, nil
 }
 
-func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	cd, err := collectDeviceData()
+// getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
+func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
+	eks, err := tpm.EKs()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(eks) == 0 {
+		return nil, trace.BadParameter("no endorsement keys found in tpm")
+	}
+	// TODO: Marshal EK Certificate instead of key if present.
+	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return encodedEK, nil
+}
+
+func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
+	path, err := attestationKeyPath()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ref, err := os.ReadFile(path); err == nil {
+		ak, err := tpm.LoadAK(ref)
+		if err == nil {
+			return ak, nil
+		}
+
+		return ak, nil
+	}
+	// If no AK found on disk, create one.
+	ak, err := tpm.NewAK(nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ref, err := ak.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO: Check perms
+	err = os.WriteFile(path, ref, 0644)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ak, nil
+}
+
+func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+	tpm, err := openTPM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer tpm.Close()
+
+	marshaledEK, err := getMarshaledEK(tpm)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ak, err := getOrCreateAK(tpm)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deviceData, err := collectDeviceData()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &devicepb.EnrollDeviceInit{
 		CredentialId: "", // TODO: Fetch cred id
-		DeviceData:   cd,
-		Tpm:          &devicepb.TPMEnrollPayload{
-			// TODO: Fill this out
+		DeviceData:   deviceData,
+		Tpm: &devicepb.TPMEnrollPayload{
+			Ek: &devicepb.TPMEnrollPayload_EkKey{
+				EkKey: marshaledEK,
+			},
+			AttestationParameters: &devicepb.TPMAttestationParameters{
+				// TODO: Fill this out
+			},
 		},
 	}, nil
 }
