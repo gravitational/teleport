@@ -204,6 +204,41 @@ $ kubectl logs <your-agent-release>-updater
 </TabItem>
 </Tabs>
 
+## Troubleshooting
+
+If the agent is not automatically updated, you can:
+
+<Tabs>
+<TabItem label="systemd">
+
+Invoke manually the updater and look at its logs.
+
+```code
+$ teleport-upgrade
+```
+
+</TabItem>
+<TabItem label="teleport-kube-agent chart">
+
+Consult the `teleport-kube-agent-updater` logs:
+
+```code
+$ kubectl logs <your-agent-release>-updater
+```
+
+<Admonition type="note">
+The kubernetes updater responds to events, or is woken up every 30 minutes.
+If you don't want to wait until the next reconciliation, you can trigger an
+event. Any deployment update will sends an event, so the updater can be
+triggered by annotating the resource:
+
+```code
+kubectl annotate statefulset/<your-agent-release> 'debug.teleport.dev/trigger-event=1'
+```
+</Admonition>
+</TabItem>
+</Tabs>
+
 ## Next steps
 
 You can temporarily suspend automatic updates for an agent:
@@ -214,7 +249,7 @@ You can temporarily suspend automatic updates for an agent:
 Disable the systemd timer:
 
 ```code
-$ systemctl disable teleport-upgrade.timer
+$ systemctl disable --now teleport-upgrade.timer
 ```
 
 </TabItem>
