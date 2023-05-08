@@ -91,7 +91,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 		t.Skip("Skipping Kubernetes test suite.")
 	}
 	suite := &KubeSuite{
-		kubeConfigPath: os.Getenv("KUBECONFIG"),
+		kubeConfigPath: os.Getenv(teleport.EnvKubeConfig),
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 	var err error
@@ -1633,14 +1633,12 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		// session manager's WaitUntilExists method because it doesn't work for
 		// kubernetes sessions.
 		sessions, err := teleport.Process.GetAuthServer().GetActiveSessionTrackers(context.Background())
-		if err != nil {
+		if err != nil || len(sessions) == 0 {
 			return false
 		}
-		for _, s := range sessions {
-			session = s
-			return true
-		}
-		return false
+
+		session = sessions[0]
+		return true
 	}, 10*time.Second, time.Second)
 
 	stream, err := kubeJoin(kube.ProxyConfig{
@@ -1666,7 +1664,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	// Terminate the session after a moment to allow for the IO to reach the second client.
 	time.AfterFunc(5*time.Second, func() {
 		term.Type("\aexit\n\r\a")
-		participantStdoutW.CloseWithError(nil)
+		participantStdoutW.Close()
 	})
 
 	participantOutput, err := io.ReadAll(participantStdoutR)
