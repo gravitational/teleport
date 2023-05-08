@@ -25,7 +25,7 @@ import { useAppContext } from '../appContextProvider';
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
-import { MoreOptions } from './MoreOptions';
+import { AdditionalActions } from './AdditionalActions';
 
 export function TopBar() {
   const { configService } = useAppContext();
@@ -41,7 +41,7 @@ export function TopBar() {
         {isSearchBarEnabled ? <SearchBar /> : <QuickInput />}
       </CentralContainer>
       <JustifyRight>
-        <MoreOptions />
+        <AdditionalActions />
         <Identity />
       </JustifyRight>
     </Grid>
