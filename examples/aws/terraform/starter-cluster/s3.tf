@@ -14,8 +14,8 @@ resource "aws_s3_bucket" "storage" {
 
 resource "aws_s3_bucket_acl" "storage" {
   depends_on = [aws_s3_bucket_ownership_controls.storage]
-  bucket = aws_s3_bucket.storage.bucket
-  acl    = "private"
+  bucket     = aws_s3_bucket.storage.bucket
+  acl        = "private"
 }
 
 resource "aws_s3_bucket_ownership_controls" "storage" {
