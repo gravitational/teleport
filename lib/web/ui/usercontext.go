@@ -197,7 +197,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
-	assistAccess := newAccess(userRoles, ctx, types.KindAssistant)
+
+	var assistAccess access
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
 
 	var billingAccess access
 	if features.Cloud {
