@@ -72,7 +72,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 			return nil, trace.Wrap(err)
 		}
 	default:
-		// This should be caught by the OSType guard at start of function
+		// This should be caught by the OSType guard at start of function.
 		panic("no enrollment function provided for os")
 	}
 
@@ -110,9 +110,15 @@ func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, re
 
 func enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
 	challenge := resp.GetTpmChallenge()
-	if challenge == nil {
+	switch {
+	case challenge == nil:
 		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
+	case challenge.EncryptedCredential == nil:
+		return trace.BadParameter("missing encrypted_credential in challenge from server")
+	case len(challenge.AttestationNonce) == 0:
+		return trace.BadParameter("missing attestation_nonce in challenge from server")
 	}
+
 	challengeResponse, err := solveTPMEnrollChallenge(challenge)
 	if err != nil {
 		return trace.Wrap(err)
