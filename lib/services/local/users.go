@@ -1538,6 +1538,6 @@ const (
 	recoveryCodesPrefix         = "recoverycodes"
 	recoveryAttemptsPrefix      = "recoveryattempts"
 	attestationsPrefix          = "key_attestations"
-	assistantMessagePrefix      = "assistant_message"
-	assistantConversationPrefix = "assistant_conversation"
+	assistantMessagePrefix      = "assistant_messages"
+	assistantConversationPrefix = "assistant_conversations"
 )
