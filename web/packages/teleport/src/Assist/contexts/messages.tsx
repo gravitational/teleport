@@ -151,6 +151,7 @@ async function convertServerMessage(
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     const newMessage: Message = {
       author: Author.Teleport,
+      timestamp: message.created_time,
       content: {
         type: Type.Message,
         value: message.payload,
@@ -171,6 +172,7 @@ async function convertServerMessage(
       } else {
         const newMessage: Message = {
           author: Author.Teleport,
+          timestamp: message.created_time,
           content: {
             type: Type.Message,
             value: partial.content,
@@ -209,6 +211,7 @@ async function convertServerMessage(
 
     const newMessage: Message = {
       author: Author.Teleport,
+      timestamp: message.created_time,
       content: {
         type: Type.ExecuteCommandOutput,
         nodeId: payload.node_id,
@@ -223,6 +226,7 @@ async function convertServerMessage(
   if (message.type === 'CHAT_MESSAGE_USER') {
     const newMessage: Message = {
       author: Author.User,
+      timestamp: message.created_time,
       content: {
         type: Type.Message,
         value: message.payload,
@@ -249,6 +253,7 @@ async function convertServerMessage(
     const newMessage = {
       author: Author.Teleport,
       isNew: true,
+      timestamp: message.created_time,
       content: executionContent,
     };
 
@@ -338,6 +343,7 @@ export function MessagesContextProvider(
         ...messages,
         {
           author: Author.User,
+          timestamp: new Date().toISOString(),
           isNew: true,
           content: { type: Type.Message, value: message } as const,
         },

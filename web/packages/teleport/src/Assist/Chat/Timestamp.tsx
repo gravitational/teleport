@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 
-export function Timestamp() {
-  const [date] = useState(() => new Date());
+import { formatRelative } from 'date-fns';
+
+interface TimestampProps {
+  isoTimestamp: string;
+}
+
+export function Timestamp(props: TimestampProps) {
+  const [date] = useState(() => new Date(props.isoTimestamp));
   const [, setCounter] = useState(0);
 
   useEffect(() => {
@@ -15,7 +21,7 @@ export function Timestamp() {
     };
   }, []);
 
-  return <span>{formatDate(date)}</span>;
+  return <span title={date.toLocaleString()}>{formatDate(date)}</span>;
 }
 
 function formatDate(date: Date) {
@@ -30,6 +36,20 @@ function formatDate(date: Date) {
 
   if (minutes === 1) {
     return 'a minute ago';
+  }
+
+  if (minutes > 59 && minutes < 120) {
+    return 'an hour ago';
+  }
+
+  if (minutes >= 120) {
+    const hours = Math.floor(minutes / 60);
+
+    if (hours >= 24) {
+      return formatRelative(date, Date.now());
+    }
+
+    return `${hours} hours ago`;
   }
 
   return `${minutes} minutes ago`;

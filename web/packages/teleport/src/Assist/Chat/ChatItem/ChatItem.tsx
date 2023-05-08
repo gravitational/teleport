@@ -251,7 +251,7 @@ export function ChatItem(props: ChatItemProps) {
 
       <strong>Teleport</strong>
 
-      <Timestamp />
+      <Timestamp isoTimestamp={props.message.timestamp} />
     </TeleportAvatarContainer>
   );
 
@@ -264,7 +264,7 @@ export function ChatItem(props: ChatItemProps) {
 
         <strong>You</strong>
 
-        <Timestamp />
+        <Timestamp isoTimestamp={props.message.timestamp} />
       </UserAvatarContainer>
     );
   }

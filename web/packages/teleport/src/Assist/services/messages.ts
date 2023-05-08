@@ -69,6 +69,7 @@ export interface Message {
   content: MessageContent;
   author: Author;
   idx?: number;
+  timestamp: string;
 }
 
 export interface ExecOutput {
