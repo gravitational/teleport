@@ -47,7 +47,7 @@ import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { TeleportFeature } from 'teleport/types';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -72,29 +72,10 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
-  const features = useMemo(() => {
-    const lockedParentFeatures: TeleportFeature[] = props.features.filter(
-      feature =>
-        feature.hasAccess &&
-        feature.isLockedAndUpdatedRouteAndNavigationItem && // check if its defined
-        feature.isLockedAndUpdatedRouteAndNavigationItem(ctx.lockedFeatures)
-    );
-
-    return props.features.filter(feature => {
-      if (!feature.hasAccess(featureFlags)) {
-        return false;
-      }
-      if (!feature.parent) {
-        return true;
-      }
-      // This feature is a child of a parent feature.
-      // Check if the parent is locked, which means
-      // the children should also be locked from access.
-      return !lockedParentFeatures.some(
-        lockedParent => lockedParent instanceof feature.parent
-      );
-    });
-  }, [featureFlags, props.features]);
+  const features = useMemo(
+    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
+    [featureFlags, props.features]
+  );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
@@ -175,7 +156,7 @@ export function Main(props: MainProps) {
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />
-                <FeatureRoutes />
+                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
@@ -188,13 +169,47 @@ export function Main(props: MainProps) {
   );
 }
 
-function renderRoutes(features: TeleportFeature[]) {
+function renderRoutes(
+  features: TeleportFeature[],
+  lockedFeatures: LockedFeatures
+) {
   const routes = [];
 
+  const lockedParents = getLockedParents(features, lockedFeatures);
+
   for (const [index, feature] of features.entries()) {
+    const isParentLocked = lockedParents.find(
+      parent => feature.parent && parent === feature.parent.name
+    );
+
+    // remove features with parents locked.
+    // The parent itself will be rendered if it has a lockedRoute,
+    // but the children shouldn't be.
+    if (isParentLocked) {
+      continue;
+    }
+
+    // add regular feature routes
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
-      // add regular feature routes
+      routes.push(
+        <Route title={title} key={index} path={path} exact={exact}>
+          <CatchError>
+            <Suspense fallback={null}>
+              <Component />
+            </Suspense>
+          </CatchError>
+        </Route>
+      );
+    }
+
+    // add the route of the 'locked' variants of the features
+    if (feature.isLocked !== undefined && feature.isLocked(lockedFeatures)) {
+      if (!feature.lockedRoute) {
+        continue;
+      }
+
+      const { path, title, exact, component: Component } = feature.lockedRoute;
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
@@ -210,11 +225,28 @@ function renderRoutes(features: TeleportFeature[]) {
   return routes;
 }
 
-function FeatureRoutes() {
+function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   const features = useFeatures();
-  const routes = renderRoutes(features);
+  const routes = renderRoutes(features, lockedFeatures);
 
   return <Switch>{routes}</Switch>;
+}
+
+function getLockedParents(
+  features: TeleportFeature[],
+  lockedFeatures: LockedFeatures
+): string[] {
+  const lockedParents = new Set<string>();
+  features.forEach(feature => {
+    if (feature.parent) {
+      const parent = new feature.parent();
+      if (parent.isLocked(lockedFeatures)) {
+        lockedParents.add(parent.constructor.name);
+      }
+    }
+  });
+
+  return Array.from(lockedParents);
 }
 
 export const ContentMinWidth = styled.div`
