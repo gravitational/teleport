@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -249,18 +250,7 @@ func (o *OktaAssignmentV1) SetCleanupTime(cleanupTime time.Time) {
 
 // GetStatus gets the status of the assignment.
 func (o *OktaAssignmentV1) GetStatus() string {
-	switch o.Spec.Status {
-	case OktaAssignmentSpecV1_PENDING:
-		return constants.OktaAssignmentStatusPending
-	case OktaAssignmentSpecV1_PROCESSING:
-		return constants.OktaAssignmentStatusProcessing
-	case OktaAssignmentSpecV1_SUCCESSFUL:
-		return constants.OktaAssignmentStatusSuccessful
-	case OktaAssignmentSpecV1_FAILED:
-		return constants.OktaAssignmentStatusFailed
-	default:
-		return constants.OktaAssignmentStatusUnknown
-	}
+	return OktaAssignmentStatusProtoToString(o.Spec.Status)
 }
 
 // SetStatus sets the status of the eassignment. Only allows valid transitions.
@@ -390,14 +380,7 @@ type OktaAssignmentTarget interface {
 
 // GetTargetType returns the target type.
 func (o *OktaAssignmentTargetV1) GetTargetType() string {
-	switch o.Type {
-	case OktaAssignmentTargetV1_APPLICATION:
-		return constants.OktaAssignmentTargetApplication
-	case OktaAssignmentTargetV1_GROUP:
-		return constants.OktaAssignmentTargetGroup
-	default:
-		return constants.OktaAssignmentTargetUnknown
-	}
+	return OktaAssignmentTargetTypeProtoToString(o.Type)
 }
 
 // GetID returns the ID of the action target.
@@ -467,4 +450,80 @@ func OktaAssignmentStatusProtoToString(status OktaAssignmentSpecV1_OktaAssignmen
 	default:
 		return constants.OktaAssignmentStatusUnknown
 	}
+}
+
+// OktaAssignmentTargetTypeToProto will convert the internal notion of an Okta target type into the Okta target
+// message understood by protobuf.
+func OktaAssignmentTargetTypeToProto(targetType string) OktaAssignmentTargetV1_OktaAssignmentTargetType {
+	switch targetType {
+	case constants.OktaAssignmentTargetApplication:
+		return OktaAssignmentTargetV1_APPLICATION
+	case constants.OktaAssignmentTargetGroup:
+		return OktaAssignmentTargetV1_GROUP
+	default:
+		return OktaAssignmentTargetV1_UNKNOWN
+	}
+}
+
+// OktaAssignmentTargetTypeProtoToString will convert the Okta target type known to protobuf into the internal notion
+// of an Okta target type.
+func OktaAssignmentTargetTypeProtoToString(targetType OktaAssignmentTargetV1_OktaAssignmentTargetType) string {
+	switch targetType {
+	case OktaAssignmentTargetV1_APPLICATION:
+		return constants.OktaAssignmentTargetApplication
+	case OktaAssignmentTargetV1_GROUP:
+		return constants.OktaAssignmentTargetGroup
+	default:
+		return constants.OktaAssignmentTargetUnknown
+	}
+}
+
+// MarshalJSON is a custom JSON marshaler for the Okta assignment status.
+func (s OktaAssignmentSpecV1_OktaAssignmentStatus) MarshalJSON() ([]byte, error) {
+	targetType := OktaAssignmentStatusProtoToString(s)
+	return json.Marshal(targetType)
+}
+
+// UnmarshalJSON is a custom JSON unmarshaler for the Okta assignment status.
+func (s *OktaAssignmentSpecV1_OktaAssignmentStatus) UnmarshalJSON(data []byte) error {
+	var status string
+	if err := json.Unmarshal(data, &status); err != nil {
+		// For backwards compatibility, we'll check if this can be unmarshaled directly
+		// into the proto object and use that if we can.
+		var statusProto int32
+		if protoErr := json.Unmarshal(data, &statusProto); protoErr != nil {
+			return trace.NewAggregate(protoErr, err)
+		}
+
+		*s = OktaAssignmentSpecV1_OktaAssignmentStatus(statusProto)
+		return nil
+	}
+
+	*s = OktaAssignmentStatusToProto(status)
+	return nil
+}
+
+// MarshalJSON is a custom JSON marshaler for the Okta assignment target type.
+func (t OktaAssignmentTargetV1_OktaAssignmentTargetType) MarshalJSON() ([]byte, error) {
+	targetType := OktaAssignmentTargetTypeProtoToString(t)
+	return json.Marshal(targetType)
+}
+
+// UnmarshalJSON is a custom JSON unmarshaler for the Okta assignment target type.
+func (t *OktaAssignmentTargetV1_OktaAssignmentTargetType) UnmarshalJSON(data []byte) error {
+	var targetType string
+	err := json.Unmarshal(data, &targetType)
+	if err != nil {
+		// For backwards compatibility, we'll check if this can be unmarshaled directly
+		// into the proto object and use that if we can.
+		var targetTypeProto int32
+		if protoErr := json.Unmarshal(data, &targetTypeProto); protoErr != nil {
+			return trace.NewAggregate(protoErr, err)
+		}
+		*t = OktaAssignmentTargetV1_OktaAssignmentTargetType(targetTypeProto)
+		return nil
+	}
+
+	*t = OktaAssignmentTargetTypeToProto(targetType)
+	return nil
 }

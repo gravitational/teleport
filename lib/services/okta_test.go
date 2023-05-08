@@ -130,6 +130,12 @@ func TestOktaAssignmentUnmarshal(t *testing.T) {
 	actual, err := UnmarshalOktaAssignment(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+
+	data, err = utils.ToJSON([]byte(oktaAssignmentYAMLBackwardsCompatible))
+	require.NoError(t, err)
+	actual, err = UnmarshalOktaAssignment(data)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
 }
 
 // TestOktaAssignmentMarshal verifies a marshaled Okta assignment resource can be unmarshaled back.
@@ -181,6 +187,21 @@ spec:
 `
 
 	oktaAssignmentYAML = `---
+kind: okta_assignment
+version: v1
+metadata:
+  name: test-assignment
+spec:
+  user: test-user@test.user
+  targets:
+  - type: application
+    id: "123456"
+  - type: group
+    id: "234567"
+  status: pending
+`
+
+	oktaAssignmentYAMLBackwardsCompatible = `---
 kind: okta_assignment
 version: v1
 metadata:
