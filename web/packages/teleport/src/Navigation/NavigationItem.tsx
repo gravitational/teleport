@@ -193,8 +193,10 @@ export function NavigationItem(props: NavigationItemProps) {
     // use locked item version if feature is locked
     if (lockedRoute) {
       if (isLocked && isLocked(ctx.lockedFeatures)) {
-        if (!lockedNavigationItem || !lockedRoute) {
-          console.error('locked feature without an alternative route');
+        if (!lockedNavigationItem) {
+          console.error(
+            'locked feature without an alternative navigation item'
+          );
           return null;
         }
         navigationItemVersion = lockedNavigationItem;
