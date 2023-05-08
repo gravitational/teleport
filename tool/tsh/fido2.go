@@ -48,7 +48,10 @@ func newFIDO2Command(app *kingpin.Application) *fido2Command {
 	root.diag.CmdClause = diag
 
 	attObj := f2.Command("attobj", "Parse a stored attestation object").Hidden()
-	attObj.Arg("att-obj", "Attestation object encoded in base64 standard or RawURL").StringVar(&root.attobj.attObjB64)
+	attObj.
+		Arg("att-obj", "Attestation object encoded in base64 standard or RawURL").
+		Required().
+		StringVar(&root.attobj.attObjB64)
 	root.attobj.CmdClause = attObj
 
 	return root
