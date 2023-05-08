@@ -192,7 +192,8 @@ type partialFinalizePayload struct {
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext, site reversetunnel.RemoteSite,
 ) error {
-	// Initialize a tokenizer for prompt token accounting
+	// Initialize a tokenizer for prompt token accounting.
+	// Cl100k is used by GPT-3 and GPT-4.
 	tokenizerInstance, err := tokenizer.Get(tokenizer.Cl100kBase)
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,7 +333,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			},
 		}
 		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
-			h.log.WithError(err).Error("Failed to emit usage event")
+			h.log.WithError(err).Warn("Failed to emit usage event")
 		}
 	}
 
