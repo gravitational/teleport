@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { Type } from 'teleport/Assist/services/messages';
 
 export const Container = styled.div`
-  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid ${p => p.theme.colors.spotBackground[2]};
   border-radius: 10px;
   padding: 15px 20px;
   position: relative;
@@ -30,7 +30,7 @@ export const Container = styled.div`
 `;
 
 export const Title = styled.div`
-  font-size: 15px;
+  font-size: 14px;
   margin-bottom: 10px;
 `;
 

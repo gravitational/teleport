@@ -20,28 +20,18 @@ import styled from 'styled-components';
 import { useParams } from 'react-router';
 
 import { MessagesContextProvider } from 'teleport/Assist/contexts/messages';
-import { Sidebar } from 'teleport/Assist/Sidebar';
 import { Chat } from 'teleport/Assist/Chat';
 import { ConversationsContextProvider } from 'teleport/Assist/contexts/conversations';
 import { NewChat } from 'teleport/Assist/Chat/Chat';
 
 const Container = styled.div`
   display: flex;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: 100vh;
-  background: #0c143d;
-  background-size: cover;
-  justify-content: center;
 `;
 
-const Width = styled.div`
+const ChatContainer = styled.div`
   display: flex;
   max-width: 1600px;
+  height: calc(100vh - 72px);
   width: 100%;
 `;
 
@@ -50,22 +40,20 @@ export function Assist() {
 
   return (
     <ConversationsContextProvider>
-      <Container>
-        <Width>
-          <Sidebar />
-
-          {params.conversationId ? (
-            <MessagesContextProvider
-              conversationId={params.conversationId}
-              key={params.conversationId}
-            >
+      {params.conversationId ? (
+        <MessagesContextProvider
+          conversationId={params.conversationId}
+          key={params.conversationId}
+        >
+          <Container>
+            <ChatContainer>
               <Chat />
-            </MessagesContextProvider>
-          ) : (
-            <NewChat />
-          )}
-        </Width>
-      </Container>
+            </ChatContainer>
+          </Container>
+        </MessagesContextProvider>
+      ) : (
+        <NewChat />
+      )}
     </ConversationsContextProvider>
   );
 }

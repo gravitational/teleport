@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 import {
@@ -39,7 +39,7 @@ interface ActionsProps {
 
 const Container = styled.div`
   width: 100%;
-  margin-top: 30px;
+  padding-bottom: 15px;
 `;
 
 const Title = styled.div`
@@ -55,16 +55,16 @@ const Buttons = styled.div`
 
 const Button = styled.div`
   display: flex;
-  padding: 10px 20px 10px 15px;
+  padding: 5px 15px 5px 10px;
   border-radius: 5px;
   font-weight: bold;
-  font-size: 18px;
+  font-size: 15px;
   align-items: center;
-  margin-left: 20px;
+  margin-left: 10px;
   cursor: pointer;
 
   svg {
-    margin-right: 5px;
+    margin-right: 10px;
   }
 `;
 
@@ -72,14 +72,17 @@ const ButtonRun = styled(Button)<{ disabled: boolean }>`
   border: 2px solid ${p => (p.disabled ? '#cccccc' : '#20b141')};
   opacity: ${p => (p.disabled ? 0.8 : 1)};
   cursor: ${p => (p.disabled ? 'not-allowed' : 'pointer')};
+  color: ${p => (p.theme.name === 'light' ? '#20b141' : 'white')};
 
   &:hover {
     background: ${p => (p.disabled ? 'none' : '#20b141')};
-  }
-`;
+    color: white;
 
-const ButtonCancel = styled(Button)`
-  color: #e85654;
+    svg,
+    path {
+      fill: white;
+    }
+  }
 `;
 
 const Spacer = styled.div`
@@ -89,11 +92,11 @@ const Spacer = styled.div`
 `;
 
 export function Actions(props: ActionsProps) {
+  const theme = useTheme();
+
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
   const { clusterId } = useStickyClusterId();
-
-  console.log(actions);
 
   const [result] = useState(false);
 
@@ -151,8 +154,6 @@ export function Actions(props: ActionsProps) {
     [actions]
   );
 
-  console.log(actions.command);
-
   return (
     <Container>
       {actions.errorMsg && <ErrorMessage message={actions.errorMsg} />}
@@ -176,9 +177,11 @@ export function Actions(props: ActionsProps) {
 
       {!result && !running && (
         <Buttons>
-          {!running && <ButtonCancel>Cancel</ButtonCancel>}
           <ButtonRun onClick={() => run()}>
-            <RunIcon size={30} />
+            <RunIcon
+              size={30}
+              fill={theme.name === 'light' ? '#20b141' : 'white'}
+            />
             Run
           </ButtonRun>
         </Buttons>

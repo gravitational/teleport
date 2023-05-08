@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { ReactElement, useCallback, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { UserIcon } from 'design/SVGIcon';
 
@@ -37,10 +37,11 @@ interface ActionProps {
 
 const Item = styled.div`
   padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${p => p.theme.colors.spotBackground[0]};
+  border: 1px solid ${p => p.theme.colors.spotBackground[0]};
   border-radius: 5px;
   margin-right: 10px;
-  font-size: 16px;
+  font-size: 14px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
     monospace;
   font-weight: bold;
@@ -69,13 +70,16 @@ const EditButton = styled.div`
 
 const Query = styled.div`
   padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${p => p.theme.colors.spotBackground[0]};
+  border: 1px solid ${p => p.theme.colors.spotBackground[0]};
   border-radius: 5px;
-  margin-right: 10px;
-  font-size: 16px;
-  font-weight: bold;
-  display: flex;
   align-items: center;
+  display: flex;
+  margin-right: 10px;
+  font-size: 14px;
+  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
+    monospace;
+  font-weight: bold;
 
   svg {
     margin-right: 10px;
@@ -84,11 +88,13 @@ const Query = styled.div`
 
 const As = styled.div`
   padding: 10px 15px;
+  margin-left: -10px;
 `;
 
 const User = styled.div`
   padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${p => p.theme.colors.spotBackground[0]};
+  border: 1px solid ${p => p.theme.colors.spotBackground[0]};
   border-radius: 5px;
   display: flex;
   align-items: center;
@@ -204,7 +210,8 @@ function propsToState(props: NodesAndLabelsProps): ActionState[] {
 
 function stateToItems(
   updateUser: (state: ActionState[]) => void,
-  formState: ActionState[]
+  formState: ActionState[],
+  lightMode: boolean
 ) {
   const items = [];
 
@@ -216,7 +223,7 @@ function stateToItems(
     if (state.type === 'query') {
       items.push(
         <Query key={`query-${index}`}>
-          <SearchIcon size={16} />
+          <SearchIcon size={16} fill={lightMode ? 'black' : 'white'} />
           {state.value}
         </Query>
       );
@@ -245,12 +252,12 @@ function stateToItems(
     }
   }
 
-  console.log('elements', items);
-
   return items;
 }
 
 export function NodesAndLabels(props: NodesAndLabelsProps) {
+  const theme = useTheme();
+
   const [editing, setEditing] = useState(false);
 
   const state = propsToState(props);
@@ -285,7 +292,7 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
         </Buttons>
       )}
 
-      <Items>{stateToItems(handleSave, state)}</Items>
+      <Items>{stateToItems(handleSave, state, theme.name === 'light')}</Items>
     </Container>
   );
 }
@@ -297,6 +304,8 @@ interface CommandProps {
 }
 
 export function Command(props: CommandProps) {
+  const theme = useTheme();
+
   const [editing, setEditing] = useState(false);
 
   const state: ActionState[] = [{ type: 'command', value: props.command }];
@@ -339,7 +348,7 @@ export function Command(props: CommandProps) {
         </Buttons>
       )}
 
-      <Items>{stateToItems(handleSave, state)}</Items>
+      <Items>{stateToItems(handleSave, state, theme.name === 'light')}</Items>
     </Container>
   );
 }

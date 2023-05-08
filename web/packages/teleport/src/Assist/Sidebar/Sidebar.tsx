@@ -15,176 +15,110 @@ limitations under the License.
 */
 
 import React, { useCallback } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
-import { Link, NavLink } from 'react-router-dom';
-
-import { CaretLeft } from 'design/Icon';
+import { NavLink } from 'react-router-dom';
 
 import { useHistory } from 'react-router';
 
-import { useTeleport } from 'teleport';
-
-import { useConversations } from 'teleport/Assist/contexts/conversations';
+import {
+  ConversationsContextProvider,
+  useConversations,
+} from 'teleport/Assist/contexts/conversations';
 
 import { ChatIcon } from '../Icons/ChatIcon';
 import { PlusIcon } from '../Icons/PlusIcon';
 
-import logo from './logo.png';
-
 const Container = styled.div`
-  flex: 0 0 370px;
-  padding-top: 30px;
-  padding-left: 40px;
   display: flex;
   flex-direction: column;
-  padding-bottom: 40px;
-`;
-
-const Logo = styled.div`
-  background: url(${logo}) no-repeat;
-  background-size: cover;
-  width: 43px;
-  height: 40px;
-  flex: 0 0 40px;
-  position: relative;
-  margin: 10px 30px 40px 0;
-
-  &:before {
-    position: absolute;
-    content: 'Teleport';
-    top: 7px;
-    right: -145px;
-    font-size: 34px;
-    font-weight: bold;
-  }
-
-  &:after {
-    position: absolute;
-    content: 'Assist';
-    top: 7px;
-    right: -252px;
-    font-size: 34px;
-    font-weight: bold;
-    text-shadow: 0 0 5px rgba(255, 255, 255, 0.4),
-      0 0 10px rgba(255, 255, 255, 0.4), 0 0 15px rgba(255, 255, 255, 0.4),
-      0 0 20px rgba(255, 255, 255, 0.1);
-  }
+  margin-top: 10px;
+  height: calc(100vh - 230px);
 `;
 
 const ChatHistoryTitle = styled.div`
-  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  line-height: 14px;
+  color: ${props => props.theme.colors.text.main};
   font-weight: bold;
-  font-size: 16px;
-  margin-bottom: 20px;
-  margin-top: 60px;
+  margin-left: 32px;
+  margin-bottom: 13px;
 `;
 
 const ChatHistoryItem = styled(NavLink)`
-  color: white;
   display: flex;
-  margin-bottom: 15px;
-  border-radius: 10px;
-  padding: 13px 20px 12px;
+  color: ${props => props.theme.colors.text.main};
+  padding: 7px 0px 7px 30px;
   line-height: 1.4;
+  align-items: center;
   cursor: pointer;
   text-decoration: none;
+  border-left: 4px solid transparent;
+  opacity: 0.7;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.2);
+    opacity: 1;
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
   }
 `;
 
 const ChatHistoryItemTitle = styled.div`
-  font-size: 18px;
+  font-size: 15px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-right: 20px;
 `;
 
 const NewChatButton = styled.div`
-  padding: 15px 30px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  border-radius: 10px;
-  font-size: 18px;
+  padding: 10px 20px;
+  border-radius: 7px;
+  font-size: 15px;
   font-weight: bold;
   display: flex;
-  justify-content: center;
   cursor: pointer;
+  margin: 0 15px;
+  background: ${p => p.theme.colors.buttons.primary.default};
+  color: ${p => p.theme.colors.buttons.primary.text};
+  align-items: center;
 
   svg {
     position: relative;
-    top: 2px;
-    margin-right: 12px;
+    margin-right: 10px;
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: ${p => p.theme.colors.buttons.primary.hover};
   }
 `;
 
 const ChatHistoryItemIcon = styled.div`
-  flex: 0 0 33px;
+  flex: 0 0 14px;
+  margin-right: 10px;
   padding-top: 4px;
 `;
 
-const UserInfoAvatar = styled.div`
-  background: #5130c9;
-  width: 32px;
-  height: 32px;
-  border-radius: 5px;
-  overflow: hidden;
-  font-size: 18px;
-  color: white;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-size: cover;
-`;
-
-const UserInfo = styled.div`
-  justify-self: flex-end;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 15px 20px;
-  display: flex;
-  align-items: center;
-`;
-
-const UserInfoContent = styled.div`
-  font-size: 20px;
-  font-weight: bold;
-  margin-left: 20px;
-`;
-
-const BackToTeleport = styled(Link)`
-  color: white;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 5px;
-  padding: 5px 10px;
-  margin-left: -10px;
-  margin-top: -5px;
-  cursor: pointer;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  span {
-    margin-right: 10px;
-  }
-`;
-
-const ChatHistoryList = styled.div`
+const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
   overflow-y: auto;
+  flex: 1;
 `;
 
 export function Sidebar() {
-  const ctx = useTeleport();
+  return (
+    <ConversationsContextProvider>
+      <SidebarContent />
+    </ConversationsContextProvider>
+  );
+}
+
+function SidebarContent() {
+  const theme = useTheme();
+
   const history = useHistory();
 
   const { create, conversations } = useConversations();
@@ -199,7 +133,7 @@ export function Sidebar() {
       to={`/web/assist/${conversation.id}`}
     >
       <ChatHistoryItemIcon>
-        <ChatIcon size={18} />
+        <ChatIcon size={14} fill={theme.name === 'light' ? 'black' : 'white'} />
       </ChatHistoryItemIcon>
       <ChatHistoryItemTitle>{conversation.title}</ChatHistoryItemTitle>
     </ChatHistoryItem>
@@ -207,29 +141,13 @@ export function Sidebar() {
 
   return (
     <Container>
-      <div>
-        <BackToTeleport to={`/web`}>
-          <CaretLeft /> Back to Teleport
-        </BackToTeleport>
-      </div>
-
-      <Logo />
-
-      <NewChatButton onClick={() => handleNewChat()}>
-        <PlusIcon size={22} />
-        New Chat
-      </NewChatButton>
-
       <ChatHistoryTitle>Chat History</ChatHistoryTitle>
       <ChatHistoryList>{chatHistory}</ChatHistoryList>
 
-      <UserInfo>
-        <UserInfoAvatar>
-          {ctx.storeUser.state.username.slice(0, 1).toUpperCase()}
-        </UserInfoAvatar>
-
-        <UserInfoContent>{ctx.storeUser.state.username}</UserInfoContent>
-      </UserInfo>
+      <NewChatButton onClick={() => handleNewChat()}>
+        <PlusIcon size={16} fill={theme.colors.buttons.primary.text} />
+        New Conversation
+      </NewChatButton>
     </Container>
   );
 }

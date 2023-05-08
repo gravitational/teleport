@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
@@ -27,7 +27,16 @@ import { useHistory } from 'react-router';
 import { useTeleport } from 'teleport';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
-import icon from './teleport-icon.png';
+import {
+  TeleportIcon,
+  Tooltip,
+  TooltipButton,
+  TooltipFooter,
+  TooltipLogos,
+  TooltipLogosSpacer,
+  TooltipTitle,
+  TooltipTitleBackground,
+} from './AssistTooltip';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
@@ -111,8 +120,8 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-    fill: ${props => props.theme.colors.text.main}
-  }
+      fill: ${props => props.theme.colors.text.main}
+    }
   }
 `;
 
@@ -133,6 +142,10 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     'show-assist',
     assistEnabled
   );
+
+  const theme = useTheme();
+
+  console.log(theme);
 
   const [open, setOpen] = useState(showAssist);
 
@@ -235,21 +248,22 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
         props.onChange(value);
       }
 
+      if (value === NavigationCategory.Assist) {
+        history.push('/web/assist');
+      }
+
       setOpen(false);
     },
     [props.value]
   );
 
-  const handleOpenAssist = useCallback(() => {
-    setShowAssist(false);
-    setOpen(false);
-
-    history.push('/web/assist');
-  }, []);
-
   const items = [];
 
   for (const [index, item] of props.items.entries()) {
+    if (item === NavigationCategory.Assist && !assistEnabled) {
+      continue;
+    }
+
     items.push(
       <DropdownItem
         ref={index === 0 ? firstValueRef : null}
@@ -261,14 +275,6 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
         active={item === props.value}
       >
         {item}
-      </DropdownItem>
-    );
-  }
-
-  if (assistEnabled) {
-    items.push(
-      <DropdownItem key="assist" open={open} onClick={() => handleOpenAssist()}>
-        Assist
       </DropdownItem>
     );
   }
@@ -285,9 +291,12 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
             Connect Teleport to ChatGPT and try out our new Assist integration
             <TooltipFooter>
               <TooltipLogos>
-                <ChatGPTIcon size={30} />
+                <ChatGPTIcon
+                  size={30}
+                  fill={theme.name === 'light' ? 'black' : 'white'}
+                />
                 <TooltipLogosSpacer>+</TooltipLogosSpacer>
-                <TeleportIcon />
+                <TeleportIcon light={theme.name === 'light'} />
               </TooltipLogos>
 
               <TooltipButton onClick={() => setShowAssist(false)}>
@@ -316,73 +325,3 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     </Container>
   );
 }
-
-const TooltipLogosSpacer = styled.div`
-  padding: 0 8px;
-`;
-
-const TeleportIcon = styled.div`
-  background: url(${icon}) no-repeat;
-  width: 30px;
-  height: 30px;
-  background-size: contain;
-`;
-
-const TooltipLogos = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const TooltipFooter = styled.div`
-  margin-top: 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
-
-const Tooltip = styled.div`
-  position: absolute;
-  z-index: 100;
-  top: 150px;
-  left: 210px;
-  background: #3e4b7e;
-  border-radius: 5px;
-  width: 270px;
-  font-size: 15px;
-  padding: 20px 20px 15px;
-  display: flex;
-  flex-direction: column;
-
-  &:after {
-    content: '';
-    position: absolute;
-    width: 0;
-    height: 0;
-    border-style: solid;
-    border-width: 10px 10px 10px 0;
-    border-color: transparent #3e4b7e transparent transparent;
-    left: -10px;
-    top: 20px;
-  }
-`;
-
-const TooltipTitle = styled.div`
-  font-size: 18px;
-  font-weight: bold;
-  border-radius: 5px;
-  margin-bottom: 15px;
-`;
-
-const TooltipTitleBackground = styled.span`
-  background: linear-gradient(-45deg, #ee7752, #e73c7e);
-  padding: 5px;
-  border-radius: 5px;
-`;
-
-const TooltipButton = styled.div`
-  cursor: pointer;
-  display: inline-flex;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 5px;
-  padding: 8px 15px;
-`;

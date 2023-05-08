@@ -24,9 +24,13 @@ import { marked } from 'marked';
 
 import { useTeleport } from 'teleport';
 
+import { getBorderRadius } from 'teleport/Assist/Chat/ChatItem/utils';
+
 import { ExampleList } from '../Examples/ExampleList';
 
 import { Author, Message, Type } from '../../services/messages';
+
+import { Timestamp } from '../Timestamp';
 
 import teleport from './teleport-icon.png';
 
@@ -37,9 +41,11 @@ import { Actions } from './Action';
 
 interface ChatItemProps {
   message: Message;
-  isLast: boolean;
   isNew: boolean;
   scrollTextarea: () => void;
+  hideAvatar: boolean;
+  isFirstFromUser: boolean;
+  isLastFromUser: boolean;
 }
 
 const appear = keyframes`
@@ -49,68 +55,105 @@ const appear = keyframes`
   }
 `;
 
+const Content = styled.div`
+  padding: 20px 25px 4px;
+  box-shadow: 0 6px 12px -2px rgba(50, 50, 93, 0.05),
+    0 3px 7px -3px rgba(0, 0, 0, 0.1);
+  max-width: 90%;
+`;
+
 const Container = styled.div<{
   teleport?: boolean;
   isLast: boolean;
   isNew: boolean;
 }>`
-  padding: 20px 30px;
-  background: ${p => (p.teleport ? '#0c143d' : 'rgba(255, 255, 255, 0.1)')};
   display: flex;
-  border-radius: 10px;
-  margin-bottom: ${p => (p.isLast ? 0 : '70px')};
+  flex-direction: column;
+  align-items: ${p => (p.teleport ? 'flex-start' : 'flex-end')};
+  justify-content: ${p => (p.teleport ? '' : 'flex-end')};
+  margin: 0 30px ${p => (p.hasSpacing ? '25px' : '15px')} 30px;
   position: relative;
   animation: ${appear} 0.6s linear forwards;
   transform: ${p => (p.isNew ? 'translate3d(0, 30px, 0)' : 'none')};
   opacity: ${p => (p.isNew ? 0 : 1)};
-`;
+  font-size: 14px;
 
-const ChatItemAvatar = styled.div`
-  position: absolute;
-  bottom: -30px;
-  right: 30px;
-`;
-
-const ChatItemAvatarTeleport = styled(ChatItemAvatar)`
-  background: #1b254d;
-  padding: 10px;
-  left: 30px;
-  border-radius: 10px;
-  right: auto;
-`;
-
-const ChatItemContent = styled.div`
-  font-size: 18px;
-  padding-top: 8px;
-  width: 100%;
-  position: relative;
-
-  ${markdownCSS}
-  ${codeCSS}
+  ${Content} {
+    background: ${p =>
+      p.teleport
+        ? p.theme.colors.levels.popout
+        : p.theme.colors.buttons.primary.default};
+    color: ${p =>
+      p.teleport
+        ? p.theme.colors.text.main
+        : p.theme.colors.buttons.primary.text};
+    border-radius: ${p =>
+      getBorderRadius(p.teleport, p.isFirstFromUser, p.isLastFromUser)};
+  }
 `;
 
 const ChatItemAvatarUser = styled.div`
-  background: #5130c9;
-  width: 62px;
-  height: 62px;
-  border-radius: 5px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   overflow: hidden;
-  font-size: 24px;
-  color: white;
+  font-size: 14px;
   font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
   background-size: cover;
+  margin-right: 10px;
+  background: ${props => props.theme.colors.brand};
+  color: ${p => p.theme.colors.buttons.primary.text};
 `;
 
 const ChatItemAvatarImage = styled.div<{ backgroundImage: string }>`
   background: url(${p => p.backgroundImage}) no-repeat;
-  width: 42px;
-  height: 42px;
-  border-radius: 5px;
+  width: 22px;
+  height: 22px;
   overflow: hidden;
   background-size: cover;
+`;
+
+const AvatarContainer = styled.div`
+  display: flex;
+  align-items: center;
+  color: ${props => props.theme.colors.text.slightlyMuted};
+  margin-top: 20px;
+
+  strong {
+    display: block;
+    margin-right: 10px;
+    color: ${props => props.theme.colors.text.main};
+  }
+`;
+
+const UserAvatarContainer = styled(AvatarContainer)`
+  right: 0;
+`;
+
+const TeleportAvatarContainer = styled(AvatarContainer)`
+  left: 0;
+`;
+
+const ChatItemAvatarTeleport = styled.div`
+  background: ${props => props.theme.colors.brand};
+  color: ${p => p.theme.colors.buttons.primary.text};
+  padding: 4px;
+  border-radius: 10px;
+  left: 0;
+  right: auto;
+  margin-right: 10px;
+`;
+
+const ChatItemContent = styled.div`
+  font-size: 15px;
+  width: 100%;
+  position: relative;
+
+  ${markdownCSS}
+  ${codeCSS}
 `;
 
 // TODO(jakule || ryan): Remove duplicated styles.
@@ -201,36 +244,42 @@ export function ChatItem(props: ChatItemProps) {
   }
 
   let avatar = (
-    <ChatItemAvatarTeleport>
-      <ChatItemAvatarImage backgroundImage={teleport} />
-    </ChatItemAvatarTeleport>
+    <TeleportAvatarContainer>
+      <ChatItemAvatarTeleport>
+        <ChatItemAvatarImage backgroundImage={teleport} />
+      </ChatItemAvatarTeleport>
+
+      <strong>Teleport</strong>
+
+      <Timestamp />
+    </TeleportAvatarContainer>
   );
 
   if (props.message.author === Author.User) {
     avatar = (
-      <ChatItemAvatar>
+      <UserAvatarContainer>
         <ChatItemAvatarUser>
           {ctx.storeUser.state.username.slice(0, 1).toUpperCase()}
         </ChatItemAvatarUser>
-      </ChatItemAvatar>
+
+        <strong>You</strong>
+
+        <Timestamp />
+      </UserAvatarContainer>
     );
   }
 
   return (
     <Container
       teleport={props.message.author === Author.Teleport}
-      isLast={props.isLast}
       isNew={props.isNew}
+      isFirstFromUser={props.isFirstFromUser}
+      isLastFromUser={props.isLastFromUser}
+      hasSpacing={!props.hideAvatar}
     >
-      {avatar}
+      <Content>{content}</Content>
 
-      <div
-        style={{
-          width: '100%',
-        }}
-      >
-        {content}
-      </div>
+      {!props.hideAvatar && avatar}
     </Container>
   );
 }
@@ -239,18 +288,22 @@ export function ExampleChatItem() {
   const ctx = useTeleport();
 
   return (
-    <Container teleport={true} isLast={false} isNew={false}>
-      <ChatItemAvatarTeleport>
-        <ChatItemAvatarImage backgroundImage={teleport} />
-      </ChatItemAvatarTeleport>
-      <ChatItemContent>
+    <Container teleport={true} isNew={false}>
+      <Content isFirstFromUser={true} isLastFromUser={true}>
         Hey {ctx.storeUser.state.username}, I'm Teleport - a powerful tool that
         can assist you in managing your Teleport cluster via ChatGPT. <br />
         <br />
         Start a new chat with me on the left to get started! Here's some of the
         things I can do:
         <ExampleList />
-      </ChatItemContent>
+      </Content>
+      <TeleportAvatarContainer>
+        <ChatItemAvatarTeleport>
+          <ChatItemAvatarImage backgroundImage={teleport} />
+        </ChatItemAvatarTeleport>
+
+        <strong>Teleport</strong>
+      </TeleportAvatarContainer>
     </Container>
   );
 }

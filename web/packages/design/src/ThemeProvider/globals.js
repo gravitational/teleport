@@ -36,17 +36,21 @@ const GlobalStyle = createGlobalStyle`
   }
 
   // custom scrollbars
-  ::-webkit-scrollbar {
+  :not([data-scrollbar="default"])::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
-  ::-webkit-scrollbar-thumb {
+  :not([data-scrollbar="default"])::-webkit-scrollbar-thumb {
     background: #757575;
   }
 
-  ::-webkit-scrollbar-corner {
+  :not([data-scrollbar="default"])::-webkit-scrollbar-corner {
     background: rgba(0,0,0,0.5);
+  }
+
+  :root {
+    color-scheme: ${props => props.theme.name};
   }
 
   // remove dotted Firefox outline

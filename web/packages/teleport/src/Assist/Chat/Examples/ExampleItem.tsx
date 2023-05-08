@@ -27,17 +27,20 @@ const appear = keyframes`
 `;
 
 export const ExampleItem = styled.div`
-  background: #222c5a;
+  border: 1px solid #5130c9;
   margin-right: 20px;
   padding: 10px 15px;
   border-radius: 5px;
   display: flex;
   align-items: center;
-  font-size: 16px;
+  font-size: 14px;
   opacity: 0;
   animation: ${appear} linear 0.6s forwards;
 
   svg {
     margin-right: 15px;
+    path {
+      fill: #5130c9;
+    }
   }
 `;

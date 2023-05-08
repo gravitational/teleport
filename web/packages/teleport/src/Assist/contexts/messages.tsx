@@ -88,6 +88,10 @@ const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   }
 
   if (cmd.labels) {
+    if (cmd.nodes) {
+      query += ' || ';
+    }
+
     query += cmd.labels
       .map(label => `labels["${label.key}"] == "${label.value}"`)
       .join(' || ');
@@ -144,7 +148,6 @@ async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
-  console.log(message);
   if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
     const newMessage: Message = {
       author: Author.Teleport,
@@ -343,7 +346,6 @@ export function MessagesContextProvider(
       setMessages(newMessages);
 
       const data = JSON.stringify({ payload: message });
-      console.log('data', data);
       sendMessage(data);
     },
     [messages]

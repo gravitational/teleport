@@ -110,6 +110,8 @@ export function Navigation() {
       NavigationCategory.Resources
   );
 
+  console.log('view', view);
+
   const [previousRoute, setPreviousRoute] = useState<{
     [category: string]: string;
   }>({});
@@ -120,6 +122,8 @@ export function Navigation() {
 
       const category = getCategoryForRoute(features, next);
       const previousCategory = getCategoryForRoute(features, location);
+
+      console.log('category', features, previousCategory);
 
       if (category && category !== view) {
         setView(category);
@@ -157,6 +161,8 @@ export function Navigation() {
       if (view === category) {
         return;
       }
+
+      console.log('');
 
       history.push(
         previousRoute[category] || getFirstRouteForCategory(features, category)

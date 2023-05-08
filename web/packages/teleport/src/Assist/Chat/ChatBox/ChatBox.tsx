@@ -31,28 +31,28 @@ interface ChatBoxProps {
 }
 
 const Container = styled.div`
-  padding: 30px;
+  padding: 0 30px 30px;
 `;
 
 const TextArea = styled.textarea`
-  background: #222c5a;
   width: 100%;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  background: ${props => props.theme.colors.levels.popout};
+  color: ${props => props.theme.colors.text.main};
+  border: 2px solid ${props => props.theme.colors.spotBackground[1]};
   border-radius: 10px;
   resize: none;
   padding: 20px 20px 5px 30px;
   font-size: 16px;
-  color: white;
   line-height: 24px;
   box-sizing: border-box;
 
   &:focus {
     outline: none;
-    border-color: rgba(255, 255, 255, 0.3);
+    border-color: ${props => props.theme.colors.spotBackground[2]};
   }
 
   ::placeholder {
-    color: rgba(255, 255, 255, 0.5);
+    color: ${props => props.theme.colors.text.muted};
   }
 `;
 
