@@ -159,8 +159,7 @@ export class FeatureSummary implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
-    return flags.billing;
+    return flags.billing && cfg.oss.isUsageBasedBilling;
   }
 
   navigationItem = {
@@ -183,8 +182,7 @@ export class FeaturePaymentsAndInvoices implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
-    return flags.billing;
+    return flags.billing && cfg.oss.isUsageBasedBilling;
   }
 
   navigationItem = {
@@ -207,8 +205,7 @@ export class FeatureInvoiceSettings implements TeleportFeature {
   };
 
   hasAccess(flags: FeatureFlags) {
-    // todo (michellescripts) add feature flag checks as part of https://github.com/gravitational/cloud/issues/3536
-    return flags.billing;
+    return flags.billing && cfg.oss.isUsageBasedBilling;
   }
 
   navigationItem = {

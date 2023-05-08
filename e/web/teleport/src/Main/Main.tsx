@@ -10,6 +10,7 @@ import SwitchBack from 'e-teleport/Banner/Switchback';
 import { getEnterpriseFeatures } from 'e-teleport/features';
 import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
 import { BillingInformation } from 'e-teleport/services/cloud';
+import cfg from 'e-teleport/config';
 
 export function MainE() {
   const ctx = useTeleport();
@@ -43,8 +44,13 @@ export function MainE() {
     );
   }
 
-  const upgradeBanner = useMemo(
-    () => (
+  const billable = cfg.oss.isUsageBasedBilling && ctx.getFeatureFlags().billing;
+  const upgradeBanner = useMemo(() => {
+    if (!billable) {
+      return null;
+    }
+
+    return (
       <StripeLoader
         key={'stripe-upgrade'}
         dataSource={(CloudService): Promise<BillingInformation> =>
@@ -57,10 +63,12 @@ export function MainE() {
           <UsageBasedUpgrade billingInfo={data} reload={reload} />
         )}
       />
-    ),
-    []
-  );
-  customBanners.push(upgradeBanner);
+    );
+  }, [billable]);
+
+  if (billable) {
+    customBanners.push(upgradeBanner);
+  }
 
   return (
     <Main

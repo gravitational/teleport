@@ -21,14 +21,8 @@ export const PaymentsAndInvoicesPage = ({
     productName,
     stripeTrialEnd,
     stripeDefaultSourceId,
-    usageBasedBilling,
     stripeSubscriptionStatus,
   } = pageState;
-
-  // todo (michellescripts) this should be filtered out at the Features.tsx level as part of https://github.com/gravitational/cloud/issues/3536
-  if (!usageBasedBilling) {
-    return null;
-  }
 
   return (
     <>

@@ -25,15 +25,6 @@ describe('invoiceSettingsPage', () => {
     };
   });
 
-  test('if not usage based, does not render', () => {
-    props.data.usageBasedBilling = false;
-    const { container } = renderWithElementsAndContext(
-      <InvoiceSettingsPage {...props} />
-    );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
   test('renders address, email and purchase order', () => {
     renderWithElementsAndContext(<InvoiceSettingsPage {...props} />);
 

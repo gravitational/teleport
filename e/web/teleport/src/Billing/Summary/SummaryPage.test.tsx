@@ -26,15 +26,6 @@ describe('summaryPage', () => {
     };
   });
 
-  test('if not usage based, does not render', () => {
-    props.data.usageBasedBilling = false;
-    const { container } = renderWithElementsAndContext(
-      <SummaryPage {...props} />
-    );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
   test('if canceled, renders cancel banner', () => {
     props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
     renderWithElementsAndContext(<SummaryPage {...props} />);
