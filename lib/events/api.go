@@ -640,6 +640,27 @@ const (
 	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
 	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
 
+	// OktaGroupsUpdate event is emitted when the groups synced from Okta have been updated.
+	OktaGroupsUpdateEvent = "okta.groups.update"
+
+	// OktaApplicationsUpdateEvent is emitted when the applications synced from Okta have been updated.
+	OktaApplicationsUpdateEvent = "okta.applications.update"
+
+	// OktaSyncFailureEvent is emitted when the Okta synchronization fails.
+	OktaSyncFailureEvent = "okta.sync.failure"
+
+	// OktaAssignmentProcessSuccessEvent is emitted when an assignment is successfully processed.
+	OktaAssignmentProcessSuccessEvent = "okta.assignment.process"
+
+	// OktaAssignmentProcessFailureEvent is emitted when an assignment is unsuccessfully processed.
+	OktaAssignmentProcessFailureEvent = "okta.assignment.process.failure"
+
+	// OktaAssignmentCleanupSuccessEvent is emitted when an assignment is successfully cleaned up.
+	OktaAssignmentCleanupSuccessEvent = "okta.assignment.cleanup"
+
+	// OktaAssignmentCleanupFailureEvent is emitted when an assignment is unsuccessfully cleaned up.
+	OktaAssignmentCleanupFailureEvent = "okta.assignment.cleanup.failure"
+
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
 )
