@@ -2296,14 +2296,17 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
+// AssistantRequest is a request to the assistant service.
 message AssistantRequest {
-  // conversation_id it's the ID of a conversation.
+  // conversationId it's the ID of a conversation.
   // It's used to tie all messages in a one conversation.
   string conversation_id = 1;
 }
 
+// AssistantMessage is a message sent to the assistant service. The conversation
+// must be created first.
 message AssistantMessage {
-  // conversation_id used to tie all messages in a one conversation.
+  // conversationId used to tie all messages in a one conversation.
   string conversation_id = 1;
 
   // type is a type of message. It can be Chat response/query or a command to run.
@@ -2319,13 +2322,17 @@ message AssistantMessage {
   string payload = 4;
 }
 
+// GetAssistantMessagesResponse is a response from the assistant service.
 message GetAssistantMessagesResponse {
   // messages is a list of messages.
   repeated AssistantMessage messages = 1;
 }
 
+// GetAssistantConversationsRequest is a request to get a list of conversations.
 message GetAssistantConversationsRequest {}
 
+// ConversationInfo is a conversation info. It contains a conversation
+// information like ID, title, created time.
 message ConversationInfo {
   // id is a unique conversation ID.
   string id = 1;
@@ -2338,11 +2345,13 @@ message ConversationInfo {
   ];
 }
 
+// GetAssistantConversationsResponse is a response from the assistant service.
 message GetAssistantConversationsResponse {
   // conversations is a list of conversations.
   repeated ConversationInfo conversations = 1;
 }
 
+// CreateAssistantConversationRequest is a request to create a new conversation.
 message CreateAssistantConversationRequest {
   // createdTime is the time when the conversation was created.
   google.protobuf.Timestamp created_time = 1 [
@@ -2351,6 +2360,7 @@ message CreateAssistantConversationRequest {
   ];
 }
 
+// CreateAssistantConversationResponse is a response from the assistant service.
 message CreateAssistantConversationResponse {
   // id is a unique conversation ID.
   string id = 1;
@@ -2367,8 +2377,8 @@ service AuthService {
   // GetAssistantMessages returns all messages associated with the given conversation ID.
   rpc GetAssistantMessages(AssistantRequest) returns (GetAssistantMessagesResponse);
 
-  //InsertAssistantMessage adds a message to given conversation.
-  rpc InsertAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
+  // CreateAssistantMessage creates a new message in the given conversation.
+  rpc CreateAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
 
   // SetAssistantConversationTitle sets the given conversation title.
   rpc SetAssistantConversationTitle(ConversationInfo) returns (google.protobuf.Empty);

@@ -5213,8 +5213,8 @@ func (a *Server) GetAssistantMessages(ctx context.Context, id string) (*proto.Ge
 	return resp, trace.Wrap(err)
 }
 
-// InsertAssistantMessage adds the message to the backend.
-func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+// CreateAssistantMessage adds the message to the backend.
+func (a *Server) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return trace.Wrap(err)

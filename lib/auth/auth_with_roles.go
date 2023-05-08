@@ -6105,13 +6105,13 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (
 	return a.authServer.GetAssistantMessages(ctx, id)
 }
 
-// InsertAssistantMessage adds the message to the backend.
-func (a *ServerWithRoles) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
+// CreateAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &emptypb.Empty{}, a.authServer.InsertAssistantMessage(ctx, msg)
+	return &emptypb.Empty{}, a.authServer.CreateAssistantMessage(ctx, msg)
 }
 
 // SetAssistantConversationTitle set the given title as the assistant conversation title.

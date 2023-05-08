@@ -5034,13 +5034,13 @@ func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.As
 	return messages, trace.Wrap(err)
 }
 
-// InsertAssistantMessage adds the message to the backend.
-func (g *GRPCServer) InsertAssistantMessage(ctx context.Context, assistantMessage *proto.AssistantMessage) (*emptypb.Empty, error) {
+// CreateAssistantMessage adds the message to the backend.
+func (g *GRPCServer) CreateAssistantMessage(ctx context.Context, assistantMessage *proto.AssistantMessage) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return &emptypb.Empty{}, trace.Wrap(err)
 	}
-	resp, err := auth.InsertAssistantMessage(ctx, assistantMessage)
+	resp, err := auth.CreateAssistantMessage(ctx, assistantMessage)
 	return resp, trace.Wrap(err)
 }
 

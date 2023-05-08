@@ -3682,9 +3682,9 @@ func (c *Client) GetAssistantConversations(ctx context.Context, request *proto.G
 	return messages, nil
 }
 
-// InsertAssistantMessage saves a new conversation message.
-func (c *Client) InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error) {
-	resp, err := c.grpc.InsertAssistantMessage(ctx, in)
+// CreateAssistantMessage saves a new conversation message.
+func (c *Client) CreateAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error) {
+	resp, err := c.grpc.CreateAssistantMessage(ctx, in)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

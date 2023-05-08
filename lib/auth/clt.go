@@ -660,8 +660,8 @@ type IdentityService interface {
 	GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
 	// CreateAssistantConversation creates a new conversation entry in the backend.
 	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
-	// InsertAssistantMessage adds the message to the backend.
-	InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
+	// CreateAssistantMessage adds the message to the backend.
+	CreateAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
 	// SetAssistantConversationTitle sets the given title as the conversation title.
 	SetAssistantConversationTitle(ctx context.Context, in *proto.ConversationInfo) error
 }
