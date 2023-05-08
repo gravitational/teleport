@@ -307,6 +307,18 @@ const ExtraTopComponents = (props: {
   }
 };
 
+/**
+ * ActionPickerStatus helps with displaying ExtraTopComponents. It has two goals:
+ *
+ *   * Encapsulate business logic so that anything that ExtraTopComponents renders can just read
+ *     ActionPickerStatus fields.
+ *   * Represent only valid UI states. For example, inputState 'no-input' doesn't have hasNoResults
+ *     field as this field would make no sense in a situation where no search requests were made.
+ *
+ * As you may notice, ActionPickerStatus doesn't say whether the search request is in progress or
+ * not, simply because displaying the progress bar is handled by another component. The questions
+ * answered by ActionPickerStatus are valid to ask no matter what the state of the request is.
+ */
 type ActionPickerStatus =
   | {
       // no-input: The input is empty.
