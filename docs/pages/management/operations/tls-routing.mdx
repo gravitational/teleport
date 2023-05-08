@@ -140,18 +140,6 @@ proxy_service:
 Config version `v2` will prevent other listeners from being created unless
 they are explicitly set in the proxy service configuration.
 
-## Migrating from dual load balancer setups
-
-One common setup for legacy separate listeners mode consists a layer 7 load
-balancer for the Proxy web port and a layer 4 load balancer for other Proxy
-ports.
-
-Once performed the above migration steps, all connections should be directed to
-the web port on the layer 7 load balancer.
-
-Verify that there is no traffic on the layer 4 load balancer for Teleport Proxy
-and then the layer 4 load balancer can be safely removed.
-
 ## Rollback
 
 To go back to the legacy separate listeners mode, perform the following steps:
