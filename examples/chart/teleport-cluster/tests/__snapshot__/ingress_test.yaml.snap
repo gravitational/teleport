@@ -1,0 +1,17 @@
+exposes all publicAddrs via Ingress when enabled and multiple publicAddrs are set:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+      - helm-lint-second-domain.example.com
+trims ports from publicAddr and uses it as the hostname when Ingress is enabled and publicAddr is set:
+  1: |
+    - hosts:
+      - helm-lint.example.com
+uses the clusterName as the hostname when Ingress is enabled:
+  1: |
+    - hosts:
+      - teleport.example.com
+uses the publicAddr as the hostname when Ingress is enabled and publicAddr is set:
+  1: |
+    - hosts:
+      - helm-lint.example.com

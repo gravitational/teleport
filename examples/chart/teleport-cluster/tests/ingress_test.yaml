@@ -1,0 +1,203 @@
+suite: Proxy Ingress
+templates:
+  - proxy/ingress.yaml
+tests:
+  - it: does not create an Ingress by default
+    set:
+      clusterName: teleport.example.com
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates an Ingress when ingress.enabled=true
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+
+  - it: wears annotations when set
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      annotations:
+        ingress:
+          test-annotation: test-annotation-value
+          another-annotation: some-other-value
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.annotations.test-annotation
+          value: test-annotation-value
+      - equal:
+          path: metadata.annotations.another-annotation
+          value: some-other-value
+
+  - it: uses the clusterName as the hostname when Ingress is enabled
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: teleport.example.com
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - teleport.example.com
+      - equal:
+          path: spec.rules[0].host
+          value: teleport.example.com
+      - contains:
+          path: spec.rules
+          content:
+            host: teleport.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: uses the publicAddr as the hostname when Ingress is enabled and publicAddr is set
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      publicAddr: ["helm-lint.example.com"]
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: helm-lint.example.com
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - helm-lint.example.com
+      - equal:
+          path: spec.rules[0].host
+          value: helm-lint.example.com
+      - contains:
+          path: spec.rules
+          content:
+            host: helm-lint.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: trims ports from publicAddr and uses it as the hostname when Ingress is enabled and publicAddr is set
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      publicAddr: ["helm-lint.example.com:443"]
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: helm-lint.example.com
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - helm-lint.example.com
+      - equal:
+          path: spec.rules[0].host
+          value: helm-lint.example.com
+      - contains:
+          path: spec.rules
+          content:
+            host: helm-lint.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: exposes all publicAddrs via Ingress when enabled and multiple publicAddrs are set
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      publicAddr: ["helm-lint.example.com", "helm-lint-second-domain.example.com"]
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: helm-lint.example.com
+      - equal:
+          path: spec.tls[0].hosts[1]
+          value: helm-lint-second-domain.example.com
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - helm-lint.example.com
+              - helm-lint-second-domain.example.com
+      - equal:
+          path: spec.rules[0].host
+          value: helm-lint.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: helm-lint-second-domain.example.com
+      - contains:
+          path: spec.rules
+          content:
+            host: helm-lint.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: helm-lint-second-domain.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
