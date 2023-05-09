@@ -303,13 +303,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.OktaResourcesUpdate{}
 	case OktaSyncFailureEvent:
 		e = &events.OktaSyncFailure{}
-	case OktaAssignmentProcessSuccessEvent:
+	case OktaAssignmentProcessEvent:
 		e = &events.OktaAssignmentResult{}
-	case OktaAssignmentProcessFailureEvent:
-		e = &events.OktaAssignmentResult{}
-	case OktaAssignmentCleanupSuccessEvent:
-		e = &events.OktaAssignmentResult{}
-	case OktaAssignmentCleanupFailureEvent:
+	case OktaAssignmentCleanupEvent:
 		e = &events.OktaAssignmentResult{}
 	case UnknownEvent:
 		e = &events.Unknown{}
