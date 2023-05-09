@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -41,6 +42,11 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Do the ALPN handshake test to decide if connection upgrades are required
+	// for TLS Routing. Only do the test once Ping verifies the cluster is
+	// reachable.
+	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
