@@ -55,7 +55,7 @@ const MenuItem = styled.div`
   overflow: hidden;
   text-decoration: none;
   white-space: nowrap;
-  color: ${props => props.theme.colors.text.slightlyMuted};
+  color: ${props => props.theme.colors.text.main};
 
   &:hover,
   &:focus {

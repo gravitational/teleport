@@ -1636,7 +1636,8 @@ func (process *TeleportProcess) initAuthService() error {
 		FIPS:                    cfg.FIPS,
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
-	}, append(cfg.Auth.ServerOptions, func(as *auth.Server) error {
+		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
 		}
@@ -1654,7 +1655,7 @@ func (process *TeleportProcess) initAuthService() error {
 		as.Cache = cache
 
 		return nil
-	})...)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1714,6 +1715,7 @@ func (process *TeleportProcess) initAuthService() error {
 		ClusterName: clusterName,
 		AccessPoint: authServer,
 		LockWatcher: lockWatcher,
+		Logger:      log,
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -3904,6 +3906,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		Logger:      log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3973,8 +3976,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.log.WithField(trace.Component, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		SignerFn: func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+			return agentless.SignerFromAuthzContext(authzCtx, accessPoint, clusterName)
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -4048,6 +4051,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
+			Logger:      log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4061,6 +4065,20 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		kubeServiceType := kubeproxy.ProxyService
 		if cfg.Proxy.Kube.LegacyKubeProxy {
 			kubeServiceType = kubeproxy.LegacyProxyService
+		}
+
+		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
+		// and feed them to the kube proxy server so it can route the requests to
+		// the correct kubernetes server.
+		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: component,
+				Log:       log,
+				Client:    accessPoint,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
@@ -4089,13 +4107,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ConnTLSConfig:   tlsConfig.Clone(),
 				ClusterFeatures: process.getClusterFeatures,
 			},
-			TLS:             tlsConfig.Clone(),
-			LimiterConfig:   cfg.Proxy.Limiter,
-			AccessPoint:     accessPoint,
-			GetRotation:     process.GetRotation,
-			OnHeartbeat:     process.OnHeartbeat(component),
-			Log:             log,
-			IngressReporter: ingressReporter,
+			TLS:                      tlsConfig.Clone(),
+			LimiterConfig:            cfg.Proxy.Limiter,
+			AccessPoint:              accessPoint,
+			GetRotation:              process.GetRotation,
+			OnHeartbeat:              process.OnHeartbeat(component),
+			Log:                      log,
+			IngressReporter:          ingressReporter,
+			KubernetesServersWatcher: kubeServerWatcher,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4123,6 +4142,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
+			Logger:      log,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -4669,6 +4689,12 @@ func (process *TeleportProcess) waitForAppDepend() {
 
 // registerExpectedServices sets up the instance role -> identity event mapping.
 func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config) {
+	// Register additional expected services for this Teleport instance.
+	// Meant for enterprise support.
+	for _, r := range cfg.AdditionalExpectedRoles {
+		process.SetExpectedInstanceRole(r.Role, r.IdentityEvent)
+	}
+
 	if cfg.Auth.Enabled {
 		process.SetExpectedInstanceRole(types.RoleAuth, AuthIdentityEvent)
 	}
@@ -4862,6 +4888,7 @@ func (process *TeleportProcess) initApps() {
 			ClusterName: clusterName,
 			AccessPoint: accessPoint,
 			LockWatcher: lockWatcher,
+			Logger:      log,
 			// Device authorization breaks browser-based access.
 			DisableDeviceAuthorization: true,
 		})
@@ -5503,6 +5530,9 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 		ClusterName: clusterName,
 		AccessPoint: cfg.accessPoint,
 		LockWatcher: cfg.lockWatcher,
+		Logger: process.log.WithFields(logrus.Fields{
+			trace.Component: teleport.Component(teleport.ComponentProxySecureGRPC, process.id),
+		}),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

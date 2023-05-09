@@ -2440,20 +2440,30 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 
 	mfaRequired := proto.MFARequired_MFA_REQUIRED_UNSPECIFIED
-	if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
-		// If MFA is not required to gain access to the resource then let the client
-		// know and abort the ceremony.
-		if !required {
-			return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
-				Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
-					MFAChallenge: &proto.MFAAuthenticateChallenge{
-						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-					},
-				},
-			}))
-		}
+	clusterName, err := actx.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+	// Only check if MFA is required for resources within the current cluster. Determining if
+	// MFA is required for a resource in a leaf cluster will result in a not found error and
+	// prevent users from accessing resources in leaf clusters.
+	if initReq.RouteToCluster == "" || clusterName.GetClusterName() == initReq.RouteToCluster {
+		if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
+			// If MFA is not required to gain access to the resource then let the client
+			// know and abort the ceremony.
+			if !required {
+				return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
+					Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
+						MFAChallenge: &proto.MFAAuthenticateChallenge{
+							MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+						},
+					},
+				}))
+			}
+
+			mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+		}
 	}
 
 	// 2. send MFAChallenge
@@ -2512,11 +2522,11 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
-	if isDBLocalProxyTunnelCertReq(req) {
-		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+	if isLocalProxyCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy tunnel process.
+		// time is bounded by the lifetime of the local proxy process.
 		return nil
 	}
 
@@ -2559,12 +2569,18 @@ func isMFARequiredForSingleUseCertRequest(ctx context.Context, actx *grpcContext
 	return resp.Required, nil
 }
 
-// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// isLocalProxyCertReq returns whether a cert request is for
 // a database cert and the requester is a local proxy tunnel.
-func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
-	return req.Usage == proto.UserCertsRequest_Database &&
-		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
+func isLocalProxyCertReq(req *proto.UserCertsRequest) bool {
+	return (req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
+		(req.Usage == proto.UserCertsRequest_Kubernetes &&
+			req.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
 }
+
+// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+// complete the challenge with.
+var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer, mfaRequired proto.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
@@ -2577,7 +2593,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+		return nil, ErrNoMFADevices
 	}
 
 	challenge.MFARequired = mfaRequired
@@ -4216,6 +4232,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("user group has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}

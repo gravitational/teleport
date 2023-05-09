@@ -65,8 +65,6 @@ type Client struct {
 	*APIClient
 	// HTTPClient is used to make http requests to the server
 	*HTTPClient
-	// oktaClient is used to make Okta resoruce requests to the server.
-	oktaClient services.Okta
 }
 
 // Make sure Client implements all the necessary methods.
@@ -125,15 +123,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	oktaClient, err := client.NewOktaClient(cfg.Context, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &Client{
 		APIClient:  apiClient,
 		HTTPClient: httpClient,
-		oktaClient: oktaClient,
 	}, nil
 }
 
@@ -472,7 +464,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 }
 
 func (c *Client) OktaClient() services.Okta {
-	return c.oktaClient
+	return c.APIClient.OktaClient()
 }
 
 // WebService implements features used by Web UI clients

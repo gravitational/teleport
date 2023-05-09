@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -337,7 +336,7 @@ func (o *OktaAssignmentV1) SetFinalized(finalized bool) {
 
 // Copy returns a copy of this Okta assignment resource.
 func (o *OktaAssignmentV1) Copy() OktaAssignment {
-	return proto.Clone(o).(*OktaAssignmentV1)
+	return utils.CloneProtoMsg(o)
 }
 
 // String returns the Okta assignment rule string representation.

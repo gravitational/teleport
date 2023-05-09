@@ -101,5 +101,5 @@ export function Clusters() {
 }
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.elevated};
 `;

@@ -413,4 +413,19 @@ const (
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
+)
+
+const (
+	// InitiateFileTransfer is used when creating a new file transfer request
+	InitiateFileTransfer string = "file-transfer@goteleport.com"
+	// FileTransferDecision is a request that will approve or deny an active file transfer.
+	// Multiple decisions can be sent for the same request if the policy requires it.
+	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )

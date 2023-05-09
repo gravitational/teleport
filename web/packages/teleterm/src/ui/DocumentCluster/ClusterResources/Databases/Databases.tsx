@@ -26,7 +26,6 @@ import { GatewayProtocol } from 'teleterm/services/tshd/types';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
 import { DatabaseUri } from 'teleterm/ui/uri';
 
-import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
 
@@ -129,24 +128,22 @@ function ConnectButton({
 
   return (
     <Cell align="right">
-      <MenuLoginTheme>
-        <MenuLogin
-          {...getMenuLoginOptions(protocol)}
-          width="195px"
-          getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
-          onSelect={(_, user) => {
-            onConnect(user);
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          anchorOrigin={{
-            vertical: 'center',
-            horizontal: 'right',
-          }}
-        />
-      </MenuLoginTheme>
+      <MenuLogin
+        {...getMenuLoginOptions(protocol)}
+        width="195px"
+        getLoginItems={() => getDatabaseUsers(appContext, dbUri)}
+        onSelect={(_, user) => {
+          onConnect(user);
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        anchorOrigin={{
+          vertical: 'center',
+          horizontal: 'right',
+        }}
+      />
     </Cell>
   );
 }

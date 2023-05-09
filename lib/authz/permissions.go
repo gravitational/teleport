@@ -59,6 +59,7 @@ type AuthorizerOpts struct {
 	ClusterName string
 	AccessPoint AuthorizerAccessPoint
 	LockWatcher *services.LockWatcher
+	Logger      logrus.FieldLogger
 
 	// DisableDeviceAuthorization disables device authorization via [Authorizer].
 	// It is meant for services that do explicit device authorization, like the
@@ -74,10 +75,15 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if opts.AccessPoint == nil {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
+	}
 	return &authorizer{
 		clusterName:                opts.ClusterName,
 		accessPoint:                opts.AccessPoint,
 		lockWatcher:                opts.LockWatcher,
+		logger:                     logger,
 		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
 	}, nil
 }
@@ -132,6 +138,7 @@ type authorizer struct {
 	accessPoint                AuthorizerAccessPoint
 	lockWatcher                *services.LockWatcher
 	disableDeviceAuthorization bool
+	logger                     logrus.FieldLogger
 }
 
 // Context is authorization context
@@ -232,8 +239,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(),
-		logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})); err != nil {
+	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1226,6 +1232,12 @@ type RemoteBuiltinRole struct {
 // GetIdentity returns client identity
 func (r RemoteBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
+}
+
+// IsRemoteServer returns true if the primary role is either RoleRemoteProxy, or one of
+// the local service roles (e.g. proxy) from the remote cluster.
+func (r RemoteBuiltinRole) IsRemoteServer() bool {
+	return r.Role == types.RoleInstance || r.Role == types.RoleRemoteProxy || r.Role.IsLocalService()
 }
 
 // RemoteUser defines encoded remote user.
