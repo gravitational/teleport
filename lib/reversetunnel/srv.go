@@ -571,24 +571,20 @@ func (s *server) handleNetConfigRequest(ctx context.Context, req *ssh.Request) {
 		return
 	}
 
-	s.log.Debugf("david: handling netconfig request")
 	// On error, reply with true to indicate that the server is able to handle the request
 	// but a server side error occurred, this lets the agent differentiate between a server
 	// that does not support the request and a transient error.
 	netconfig, err := s.localAccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		s.log.Debugf("david: failed to get netconfig")
 		req.Reply(true, []byte(fmt.Sprintf("failed to get cluster networking config: %v", err)))
 	}
 	payload, err := json.Marshal(netconfig)
 	if err != nil {
-		s.log.Debugf("david: failed to marshal netconfig")
 		req.Reply(true, []byte(fmt.Sprintf("failed to marshal cluster networking config: %v", err)))
 	}
 
 	err = req.Reply(true, payload)
 	if err != nil {
-		s.log.Debugf("david: failed to send netconfig")
 		log.Debugf("Failed to reply to netconfig request: %v", trace.DebugReport(err))
 	}
 }
