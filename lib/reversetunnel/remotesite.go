@@ -872,7 +872,8 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 	// If the proxy is in recording mode and a SSH connection is being
 	// requested or the target server is a registered OpenSSH node, build
 	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig, false) {
+	const isLocalSite = false
+	if shouldDialAndForward(params, recConfig, isLocalSite) {
 		return s.dialAndForward(params, sconn)
 	}
 
