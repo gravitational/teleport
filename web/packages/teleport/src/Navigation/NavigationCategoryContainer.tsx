@@ -62,7 +62,7 @@ export function NavigationCategoryContainer(props: NavigationCategoryProps) {
     if (SidebarComponent) {
       return (
         <Container visible={props.visible}>
-          <SidebarComponent/>
+          <SidebarComponent />
         </Container>
       );
     }
