@@ -137,10 +137,11 @@ export function AdditionalActions() {
 
   const items = useMenuItems().map(item => {
     return (
-      <React.Fragment key={item.title}>
-        {item.prependSeparator && <Separator />}
-        <MenuItem item={item} closeMenu={() => setIsPopoverOpened(false)} />
-      </React.Fragment>
+      <MenuItem
+        key={item.title}
+        item={item}
+        closeMenu={() => setIsPopoverOpened(false)}
+      />
     );
   });
 
@@ -197,32 +198,35 @@ function MenuItem({
   };
 
   return (
-    <StyledListItem as="button" type="button" onClick={handleClick}>
-      <item.Icon fontSize={2} />
-      <Flex
-        gap={2}
-        flex="1"
-        alignItems="baseline"
-        justifyContent="space-between"
-      >
-        <Text>{item.title}</Text>
+    <>
+      {item.prependSeparator && <Separator />}
+      <StyledListItem as="button" type="button" onClick={handleClick}>
+        <item.Icon fontSize={2} />
+        <Flex
+          gap={2}
+          flex="1"
+          alignItems="baseline"
+          justifyContent="space-between"
+        >
+          <Text>{item.title}</Text>
 
-        {item.keyboardShortcutAction && (
-          <Text
-            fontSize={1}
-            css={`
-              border-radius: 4px;
-              width: fit-content;
-              padding: ${props => props.theme.space[1]}px
-                ${props => props.theme.space[1]}px;
-            `}
-            bg="levels.surface"
-          >
-            {getAccelerator(item.keyboardShortcutAction)}
-          </Text>
-        )}
-      </Flex>
-    </StyledListItem>
+          {item.keyboardShortcutAction && (
+            <Text
+              fontSize={1}
+              css={`
+                border-radius: 4px;
+                width: fit-content;
+                padding: ${props => props.theme.space[1]}px
+                  ${props => props.theme.space[1]}px;
+              `}
+              bg="levels.surface"
+            >
+              {getAccelerator(item.keyboardShortcutAction)}
+            </Text>
+          )}
+        </Flex>
+      </StyledListItem>
+    </>
   );
 }
 
