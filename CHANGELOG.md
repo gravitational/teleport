@@ -1,5 +1,19 @@
 # Changelog
 
+## 12.3.3 (05/08/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Access Management UI
+  * Added new AWS integration and RDS database enrollment flow. [#25604](https://github.com/gravitational/teleport/pull/25604), [#25594](https://github.com/gravitational/teleport/pull/25594)
+* API client
+  * Improve API client connection failure feedback. [#25563](https://github.com/gravitational/teleport/pull/25563)
+* Server Access
+  * Improved `InvalidInstanceID` error feedback during EC2 discovery. [#25641](https://github.com/gravitational/teleport/pull/25641)
+* Web UI
+  * Fixed incorrect error message when connecting to a node that is offline. [#25661](https://github.com/gravitational/teleport/pull/25661)
+  * Fixed issue with connecting to resources in leaf clusters with per-session MFA. [#25862](https://github.com/gravitational/teleport/pull/25862)
+
 ## 12.3.2 (05/04/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
