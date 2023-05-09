@@ -52,13 +52,13 @@ func TestPlatformParametersProto(t *testing.T) {
 		PCRs: []attest.PCR{
 			{
 				Index:     0,
-				Digest:    []byte("digest_0"),
+				Digest:    []byte("digest_sha256_0"),
 				DigestAlg: crypto.SHA256,
 			},
 			{
 				Index:     0,
-				Digest:    []byte("digest_1"),
-				DigestAlg: crypto.SHA256,
+				Digest:    []byte("digest_sha1_0"),
+				DigestAlg: crypto.SHA1,
 			},
 		},
 	}
