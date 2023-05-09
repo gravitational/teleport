@@ -302,7 +302,7 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
 		if isUnknownGroupError(err, types.TeleportServiceGroup) {
-			log.Debugf("'teleport-service' group not found, not deleting users")
+			log.Debugf("%q group not found, not deleting users", types.TeleportServiceGroup)
 			return nil
 		}
 		return trace.Wrap(err)
