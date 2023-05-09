@@ -30,7 +30,7 @@ export type Props = {
 };
 
 const salesUrl = 'https://goteleport.com/signup/enterprise/';
-
+//
 export function ButtonLockedFeature({
   children,
   noIcon = false,
