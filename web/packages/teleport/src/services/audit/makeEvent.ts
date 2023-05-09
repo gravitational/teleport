@@ -1383,8 +1383,7 @@ export const formatters: Formatters = {
   [eventCodes.OKTA_SYNC_FAILURE]: {
     type: 'okta.sync.failure',
     desc: 'Okta synchronization failed',
-    format: () =>
-      `Okta synchronization failed`,
+    format: () => `Okta synchronization failed`,
   },
   [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
     type: 'okta.assignment.process',
