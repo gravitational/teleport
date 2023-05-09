@@ -148,6 +148,8 @@ function actionStateToItems(formState: ActionState[]) {
 export function Action(props: ActionProps) {
   const [editing, setEditing] = useState(false);
 
+  const theme = useTheme();
+
   const handleSave = useCallback(
     (state: ActionState[]) => {
       props.onStateUpdate(state);
@@ -173,7 +175,10 @@ export function Action(props: ActionProps) {
       {!editing && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon
+              size={18}
+              fill={theme.name === 'light' ? 'black' : 'white'}
+            />
           </EditButton>
         </Buttons>
       )}
@@ -287,7 +292,10 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon
+              size={18}
+              fill={theme.name === 'light' ? 'black' : 'white'}
+            />
           </EditButton>
         </Buttons>
       )}
@@ -343,7 +351,10 @@ export function Command(props: CommandProps) {
       {!editing && !props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon size={18} />
+            <EditIcon
+              size={18}
+              fill={theme.name === 'light' ? 'black' : 'white'}
+            />
           </EditButton>
         </Buttons>
       )}
