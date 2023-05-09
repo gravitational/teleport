@@ -14,6 +14,7 @@ describe('paymentAddDialog', () => {
       open: true,
       setOpen: jest.fn(),
       title: 'some-title',
+      stripeMissingPaymentMethod: false,
     };
   });
 

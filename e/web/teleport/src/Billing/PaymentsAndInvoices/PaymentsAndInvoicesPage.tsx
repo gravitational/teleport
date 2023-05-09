@@ -41,6 +41,7 @@ export const PaymentsAndInvoicesPage = ({
           cards={stripeCardsList}
           setPageState={setPageState}
           defaultSourceID={stripeDefaultSourceId}
+          stripeMissingPaymentMethod={stripeMissingPaymentMethod}
         />
       )}
       {(!stripeInvoicesList || stripeInvoicesList.length === 0) && (

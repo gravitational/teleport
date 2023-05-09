@@ -39,6 +39,7 @@ export const PaymentBanner = ({
           reload={reload}
           setOpen={setOpen}
           makeDefault={true}
+          stripeMissingPaymentMethod={true}
           title={`Upgrade to ${productName}`}
           description={`Add a payment method to automatically upgrade your account to the 
           ${productName} plan when your trial ends on ${displayShortDate(

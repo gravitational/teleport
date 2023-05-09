@@ -109,6 +109,15 @@ func (p *Plugin) getBillingInformationHandle(w http.ResponseWriter, r *http.Requ
 	return res, nil
 }
 
+func (p *Plugin) cancelSubscriptionHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
+	response, err := client.CancelSubscription(r.Context(), &cloudapi.EmptyRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return response, nil
+}
+
 func (p *Plugin) getBillingSummaryInformationHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
 	res, err := client.GetBillingSummaryInformation(r.Context(), &cloudapi.EmptyRequest{})
 	if err != nil {

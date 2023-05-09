@@ -1,11 +1,15 @@
 import React from 'react';
 
-import { screen } from 'design/utils/testing';
+import { screen, userEvent } from 'design/utils/testing';
 
 import { StatusBannerProps } from 'e-teleport/Billing/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { StatusBanner } from 'e-teleport/Billing/common/StatusBanner';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'cluster-name', isLeafCluster: false }))
+);
 
 describe('statusBanner', () => {
   let props: StatusBannerProps;
@@ -27,6 +31,21 @@ describe('statusBanner', () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  test('opens delete dialog on click', async () => {
+    props.stripeSubscriptionStatus = StripeSubscriptionStatus.ACTIVE;
+    renderWithElementsAndContext(<StatusBanner {...props} />);
+
+    expect(
+      screen.queryByText('Close Teleport Account')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Cancel Plan' })
+    ).toBeInTheDocument();
+
+    userEvent.click(screen.getByRole('button', { name: 'Cancel Plan' }));
+    await screen.findByText('Close Teleport Account');
   });
 
   describe('title/description is set based on status', () => {

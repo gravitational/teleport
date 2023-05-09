@@ -28,6 +28,7 @@ describe('cardList', () => {
     props = {
       cards: [],
       setPageState: jest.fn(),
+      stripeMissingPaymentMethod: false,
     };
   });
 

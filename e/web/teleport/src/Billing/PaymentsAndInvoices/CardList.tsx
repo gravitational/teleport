@@ -17,6 +17,7 @@ import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 export const CardList = ({
   cards,
   setPageState,
+  stripeMissingPaymentMethod,
   defaultSourceID = '',
 }: CardsListProps) => {
   const theme = useTheme();
@@ -166,6 +167,7 @@ export const CardList = ({
             reload={reload}
             title={`Add Payment Method`}
             showDefaultOption={true}
+            stripeMissingPaymentMethod={stripeMissingPaymentMethod}
           />
         )}
         {openDelete && (

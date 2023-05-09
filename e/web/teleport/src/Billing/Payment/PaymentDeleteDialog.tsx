@@ -59,6 +59,7 @@ export const PaymentDeleteDialog = ({
       )}
       <DialogFooter>
         <ButtonPrimary
+          mr="3"
           disabled={!stripe || networkState.status == 'loading'}
           onClick={handleDelete}
         >

@@ -186,6 +186,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 		h.POST("/enterprise/cloud/card", p.withCloudAuth(p.addCardHandle))
 		h.PUT("/enterprise/cloud/card", p.withCloudAuth(p.updateCardHandle))
 		h.GET("/enterprise/cloud/billing", p.withCloudAuth(p.getBillingInformationHandle))
+		h.DELETE("/enterprise/cloud/billing", p.withCloudAuth(p.cancelSubscriptionHandle))
 		h.GET("/enterprise/cloud/billing-summary", p.withCloudAuth(p.getBillingSummaryInformationHandle))
 		h.GET("/enterprise/cloud/payments-invoices", p.withCloudAuth(p.getPaymentsInvoicesInformationHandle))
 		h.GET("/enterprise/cloud/invoice-settings", p.withCloudAuth(p.getInvoiceSettingsInformationHandle))

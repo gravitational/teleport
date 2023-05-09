@@ -1,11 +1,14 @@
 import { Box, ButtonSecondary, Text } from 'design';
-import React from 'react';
+import React, { useState } from 'react';
 import { useTheme } from 'styled-components';
 
 import { displayUnixShortDate } from 'shared/services/loc/loc';
 
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import { StatusBannerProps } from 'e-teleport/Billing/types';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+import { CancelAccountDialog } from 'e-teleport/Billing/common/CancelAccountDialog';
 
 export const StatusBanner = ({
   productName,
@@ -14,6 +17,8 @@ export const StatusBanner = ({
   stripeMissingPaymentMethod,
 }: StatusBannerProps) => {
   const theme = useTheme();
+  const [open, setOpen] = useState<boolean>(false);
+  const { clusterId } = useStickyClusterId();
 
   if (stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED) {
     return null;
@@ -58,21 +63,35 @@ export const StatusBanner = ({
     }
   };
 
+  // upgradedTrial means the user will be auto charged starting the billing cycle after the end of their trial period
+  const upgradedTrial =
+    stripeSubscriptionStatus === StripeSubscriptionStatus.TRIALING &&
+    !stripeMissingPaymentMethod;
+  // activeAccount means the user will be auto charged every billing cycle;
+  // an upgraded trial will become an active account once the trial period ends
+  const activeAccount =
+    stripeSubscriptionStatus === StripeSubscriptionStatus.ACTIVE;
+  const cancelable = activeAccount || upgradedTrial;
+
   return (
-    <Box
-      bg={theme.colors.spotBackground[0]}
-      borderRadius="12px"
-      m="20px 0 0 0"
-      p="20px 0 20px 40px"
-    >
-      <h2>{title()}</h2>
-      <Text color={theme.colors.text.secondary}>{description()}</Text>
-      {(stripeSubscriptionStatus === StripeSubscriptionStatus.ACTIVE ||
-        (stripeSubscriptionStatus === StripeSubscriptionStatus.TRIALING &&
-          !stripeMissingPaymentMethod)) && (
-        //   todo (michellescripts) tie into new cancel flow (timothyb89)
-        <ButtonSecondary mt="12px">Cancel Plan</ButtonSecondary>
+    <>
+      <Box
+        bg={theme.colors.spotBackground[0]}
+        borderRadius="12px"
+        m="20px 0 0 0"
+        p="20px 0 20px 40px"
+      >
+        <h2>{title()}</h2>
+        <Text color={theme.colors.text.secondary}>{description()}</Text>
+        {cancelable && (
+          <ButtonSecondary mt="12px" onClick={() => setOpen(true)}>
+            Cancel Plan
+          </ButtonSecondary>
+        )}
+      </Box>
+      {open && (
+        <CancelAccountDialog open={open} setOpen={setOpen} tenant={clusterId} />
       )}
-    </Box>
+    </>
   );
 };

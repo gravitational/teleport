@@ -25,6 +25,7 @@ export const PaymentAddDialog = ({
   reload,
   title,
   description,
+  stripeMissingPaymentMethod,
   makeDefault = false,
   showDefaultOption = false,
 }: PaymentAddDialogProps) => {
@@ -91,7 +92,13 @@ export const PaymentAddDialog = ({
         // TODO(mcbattirola): capture user event.
         setOpen(false);
         setNetworkState({ status: undefined });
-        reload();
+        if (stripeMissingPaymentMethod) {
+          // rerender the page to trigger a refresh for both the banner CTA and the page CTA
+          window.location.reload();
+        } else {
+          // rerender only the parent component
+          reload();
+        }
       })
       .catch(error => {
         setNetworkState({ status: 'error', error: error });
@@ -131,6 +138,7 @@ export const PaymentAddDialog = ({
       )}
       <DialogFooter>
         <ButtonPrimary
+          mr="3"
           disabled={!stripe || !valid || networkState.status == 'loading'}
           onClick={handleClick}
         >

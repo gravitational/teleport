@@ -43,6 +43,7 @@ export interface CardsListProps {
   cards: StripeCardList;
   defaultSourceID?: string;
   setPageState: Dispatch<SetStateAction<PaymentsInvoicesInformation>>;
+  stripeMissingPaymentMethod: boolean;
 }
 
 export interface InvoiceListProps {
@@ -63,6 +64,7 @@ export interface PaymentAddDialogProps {
   reload?: () => void;
   setOpen: Dispatch<SetStateAction<boolean>>;
   title: string;
+  stripeMissingPaymentMethod: boolean;
   description?: string;
   makeDefault?: boolean;
   showDefaultOption?: boolean;
@@ -93,4 +95,10 @@ export interface ExistingPaymentProps {
   setOpen: Dispatch<SetStateAction<boolean>>;
   card: StripeCard;
   reload?: () => void;
+}
+
+export interface CancelDialogProps {
+  open: boolean;
+  setOpen: Dispatch<SetStateAction<boolean>>;
+  tenant: string;
 }

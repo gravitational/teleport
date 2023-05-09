@@ -81,6 +81,10 @@ class CloudService {
   updatePurchaseOrderPrefix(req: UpdatePurchaseOrderRequest) {
     return api.put(cfg.api.poPath, req);
   }
+
+  cancelSubscription() {
+    return api.delete(cfg.api.billingPath);
+  }
 }
 
 export default CloudService;

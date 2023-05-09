@@ -18,7 +18,6 @@ import { PaymentAddDialog } from 'e-teleport/Billing/Payment/PaymentAddDialog';
 import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
-// todo (michellescripts) we need to listen for payment methods being added, otherwise the banner won't reload; part of https://github.com/gravitational/cloud/issues/3536
 export const UsageBasedUpgrade = ({
   billingInfo: {
     productName,
@@ -113,6 +112,7 @@ export const UsageBasedUpgrade = ({
           reload={reload}
           setOpen={setOpen}
           makeDefault={stripeMissingPaymentMethod}
+          stripeMissingPaymentMethod={stripeMissingPaymentMethod}
           title={`Upgrade to ${productName}`}
           description={`Add a payment method to automatically upgrade your account to the 
           ${productName} plan when your trial ends on ${displayShortDate(

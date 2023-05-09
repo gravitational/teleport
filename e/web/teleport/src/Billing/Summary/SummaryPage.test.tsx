@@ -7,6 +7,10 @@ import { SummaryProps } from 'e-teleport/Billing/types';
 import { SummaryPage } from 'e-teleport/Billing/Summary/SummaryPage';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'cluster-name', isLeafCluster: false }))
+);
+
 describe('summaryPage', () => {
   let props: SummaryProps;
 
