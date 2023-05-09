@@ -2973,7 +2973,7 @@ export const events = [
   },
   {
     code: 'TOK004E',
-    event: 'okta.assignment.process.failure',
+    event: 'okta.assignment.process',
     time: '2023-05-08T19:21:36.144Z',
     name: 'assignment-id',
     source: 'source',
@@ -2989,7 +2989,7 @@ export const events = [
   },
   {
     code: 'TOK005E',
-    event: 'okta.assignment.cleanup.failure',
+    event: 'okta.assignment.cleanup',
     time: '2023-05-08T19:21:36.144Z',
     name: 'assignment-id',
     source: 'source',

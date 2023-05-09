@@ -649,17 +649,11 @@ const (
 	// OktaSyncFailureEvent is emitted when the Okta synchronization fails.
 	OktaSyncFailureEvent = "okta.sync.failure"
 
-	// OktaAssignmentProcessSuccessEvent is emitted when an assignment is successfully processed.
-	OktaAssignmentProcessSuccessEvent = "okta.assignment.process"
+	// OktaAssignmentProcessEvent is emitted when an assignment is processed.
+	OktaAssignmentProcessEvent = "okta.assignment.process"
 
-	// OktaAssignmentProcessFailureEvent is emitted when an assignment is unsuccessfully processed.
-	OktaAssignmentProcessFailureEvent = "okta.assignment.process.failure"
-
-	// OktaAssignmentCleanupSuccessEvent is emitted when an assignment is successfully cleaned up.
-	OktaAssignmentCleanupSuccessEvent = "okta.assignment.cleanup"
-
-	// OktaAssignmentCleanupFailureEvent is emitted when an assignment is unsuccessfully cleaned up.
-	OktaAssignmentCleanupFailureEvent = "okta.assignment.cleanup.failure"
+	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
+	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
