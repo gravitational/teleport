@@ -1654,7 +1654,6 @@
     }
   ],
   "variables": {
-    "version": "7.0",
     "ansible": {
       "min_version": "2.9.6"
     },
@@ -1709,9 +1708,9 @@
       "last_report": "August 9th, 2022"
     },
     "teleport": {
-      "major_version": "12",
-      "version": "12.1.1",
-      "golang": "1.19",
+      "major_version": "13",
+      "version": "13.0.0",
+      "golang": "1.20",
       "plugin": {
         "version": "12.1.1"
       },
