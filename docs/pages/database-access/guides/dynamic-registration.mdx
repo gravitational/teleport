@@ -15,7 +15,7 @@ description: Register/unregister databases without restarting Teleport.
 
 Dynamic database registration allows Teleport administrators to register new
 databases (or update/unregister existing ones) without having to update the
-static configuration and restarting the Teleport Database Services.
+static configuration and restarting Teleport Database Service instances.
 
 To enable dynamic registration, include a `resources` section in your database
 service configuration with a list of resource label selectors you'd like this
@@ -60,7 +60,7 @@ spec:
 
 The user creating the dynamic registration needs to have a role with access to the 
 database labels and the `db` resource.  In this example role the user can only
-create and maintain Database Services labeled `env: prod` and `engine: postgres`.
+create and maintain databases labeled `env: prod` and `engine: postgres`.
 ```yaml
 kind: role
 metadata:
@@ -102,7 +102,7 @@ To update an existing database resource, run:
 $ tctl create -f database.yaml
 ```
 
-If the updated resource's labels no longer match a particular Database Service, it
+If the updated resource's labels no longer match a particular database, it
 will unregister and stop proxying it.
 
 To delete a database resource, run:
