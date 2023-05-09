@@ -114,28 +114,26 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	return encodedEK, nil
 }
 
-// loadOrCreateAK attempts to load an AK from disk. If it does not exist and
-// allowCreation is true, then the AK will be created in the TPM and then
-// persisted to disk.
-func loadOrCreateAK(
+// loadOrCreateAK attempts to load an AK from disk. A NotFound error will be
+// returned if no such file exists.
+func loadAK(
 	tpm *attest.TPM,
-	attestationKeyPath string,
-	allowCreation bool,
+	persistencePath string,
 ) (*attest.AK, error) {
-	if ref, err := os.ReadFile(attestationKeyPath); err == nil {
-		ak, err := tpm.LoadAK(ref)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return ak, nil
-	}
-	if !allowCreation {
-		return nil, trace.NotFound(
-			"no attestation key found at %q and creation disabled",
-			attestationKeyPath,
-		)
+	ref, err := os.ReadFile(persistencePath)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 
+	ak, err := tpm.LoadAK(ref)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ak, nil
+}
+
+func createAK(tpm *attest.TPM, persistencePath string) (*attest.AK, error) {
 	// If no AK found on disk, create one.
 	ak, err := tpm.NewAK(nil)
 	if err != nil {
@@ -147,7 +145,7 @@ func loadOrCreateAK(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = os.WriteFile(attestationKeyPath, ref, 600)
+	err = os.WriteFile(persistencePath, ref, 600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -167,9 +165,15 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer tpm.Close()
 
-	ak, err := loadOrCreateAK(tpm, akPath, true)
+	ak, err := loadAK(tpm, akPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		ak, err = createAK(tpm, akPath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	defer ak.Close(tpm)
 
@@ -256,7 +260,7 @@ func solveTPMEnrollChallenge(
 
 	// Attempt to load the AK from well-known location, do not create one if
 	// it does not exist - this would be invalid for solving a challenge.
-	ak, err := loadOrCreateAK(tpm, akPath, false)
+	ak, err := loadAK(tpm, akPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
