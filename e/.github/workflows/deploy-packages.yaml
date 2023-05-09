@@ -109,6 +109,7 @@ jobs:
           echo "BUCKET_NAME=${{ vars.APT_S3_BUCKET }}" >> "$GITHUB_ENV"
           echo "TOOL_ARGUMENTS=-aptly-root-dir $APT_CACHE_PATH/aptly" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.APT_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DISTRIBUTION=${{ vars.APT_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
       - name: Derive and set repo type-specific variables for YUM
         if: inputs.repo-type == 'yum'
         run: |
@@ -117,6 +118,7 @@ jobs:
           echo "BUCKET_NAME=${{ vars.YUM_S3_BUCKET }}" >> "$GITHUB_ENV"
           echo "TOOL_ARGUMENTS=-cache-dir $YUM_CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_DOMAIN_NAME }}" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.YUM_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
+          echo "CLOUDFRONT_DISTRIBUTION=${{ vars.YUM_CLOUDFRONT_DISTRIBUTION }}" >> "$GITHUB_ENV"
       - name: Log set variables
         run: |
           echo "Set variables:"
@@ -301,7 +303,7 @@ jobs:
           # rm -rf "$CACHE_PATH"/*
       - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
         env:
-          LOG_LEVEL: 6
+          LOG_LEVEL: 4
         run: >
             "./$TOOL_BINARY_PATH" ${{ inputs.repo-type }}
             -bucket "$BUCKET_NAME"
@@ -325,6 +327,51 @@ jobs:
           do
             echo "* $(basename "$package")" | tee -a "$GITHUB_STEP_SUMMARY"
           done
+      - name: Invalidate the CDN cache
+        env:
+          TIMEOUT_SECONDS: 600
+          WAIT_TIME_SECONDS: 5
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+            --paths "/*" \
+            --query "Invalidation.Id" \
+            --output "text" \
+          )
+          echo "Created cache invalidation $INVALIDATION_ID for Cloudfront distribution $CLOUDFRONT_DISTRIBUTION"
+
+          ELAPSED_TIME_SECONDS=0
+          while true; do
+            INVALIDATION_STATUS=$(aws cloudfront get-invalidation \
+              --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+              --id "$INVALIDATION_ID" \
+              --query "Invalidation.Status" \
+              --output "text" \
+            )
+
+            if [ "$INVALIDATION_STATUS" != "InProgress" ]; then
+              break
+            fi
+            
+            if [ "$ELAPSED_TIME_SECONDS" -gt "$TIMEOUT_SECONDS" ]; then
+              echo "Cache invalidation still in progress after timeout ($TIMEOUT_SECONDS seconds) elapsed!"
+              exit 1
+            fi
+
+            echo "Cache invalidation still in progress ($ELAPSED_TIME_SECONDS seconds passed). Waiting $WAIT_TIME_SECONDS seconds before checking again..."
+            sleep "$WAIT_TIME_SECONDS"
+            ELAPSED_TIME_SECONDS=$(( ELAPSED_TIME_SECONDS + WAIT_TIME_SECONDS ))
+          done
+
+          if [ "$INVALIDATION_STATUS" != "Completed" ]; then
+            echo "Cache invalidation failed! Full invalidation information:"
+            aws cloudfront get-invalidation \
+              --distribution-id "$CLOUDFRONT_DISTRIBUTION" \
+              --id "$INVALIDATION_ID"
+              exit 1
+          fi
+
+          echo "Cache invalidation succeeded!"
       - name: ${{ inputs.workflow-tag }}
         run: |
           # This is a do-nothing step so that agents calling this workflow can identify the run ID associated
