@@ -148,10 +148,6 @@ Teleport proxy's web listener and don't require a local proxy or any special
 ALPN/SNI negotiation. These web connections use standard `http1.1` and `h2`
 protocols for ALPN.
 
-Application access for TCP applications connects through a local proxy by `tsh
-proxy app` where the local proxy forwards the traffic to Teleport Proxy service
-using the `teleport-tcp` ALPN protocol.
-
 ## Working with layer 7 load balancers or reverse proxies (Preview)
 
 Starting from version `13.0`, TLS routing can now be enabled allowing the
@@ -172,9 +168,52 @@ request through the upgraded connection.
 
 ![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
 
-Non-Teleport clients require local proxies that can perform the connection
-upgrade. For example, the `tsh proxy kube` command creates a local proxy and an
-ephemeral kubeconfig for Kubernetes clients like `kubectl` to connect to.
+Non-Teleport clients should require local proxies that can perform the
+special connection upgrades.
+
+Let's take a closer look at how each protocol functions in this configuration.
+
+### SSH
+
+When transporting SSH protocol over TLS routing, `tsh` make connection upgrades
+seamlessly. This is applicable to `tsh ssh/scp` commands, as well as `tsh proxy
+ssh` when connected via `ProxyCommand` using OpenSSH clients.
+
+### Kubernetes
+
+The `tsh proxy kube` command creates a local proxy and an ephemeral kubeconfig
+for Kubernetes clients like `kubectl` to connect to. The local proxy generates
+a self-signed certificate to secure local communications with the Kubernetes
+clients.
+
+When forwarding the requests to the Proxy service, the local proxy performs
+necessary connection upgrades and sets the required SNI for the TLS handshake.
+
+### Databases
+
+In TLS routing mode, `tsh db connect` starts a local proxy which database
+client connection is tunneled through. The local proxy initiates a connection
+to the Proxy service with the connection upgrade then uses database specific
+ALPN values for the TLS handshake.
+
+Similarly, native and GUI clients can connect through `tsh proxy db` which
+starts a local proxy that handles the connection upgrades.
+
+### Web UI and Desktops
+
+The Teleport web UI, along with all its features such as Desktops and AWS
+Console, is fully functional with standard browsers, without any special
+ALPN/SNI values or special connection upgrades.
+
+### Apps
+
+For both HTTP and TCP apps, `tsh proxy app` can launch a local proxy that
+handles the connection upgrades and sets appropriate ALPN value for TLS
+routing.
+
+`tsh` Cloud CLI commands like `tsh aws` transparently starts a local proxy that
+performs connection upgrades for TLS routing. To start local proxies for native
+applications, one may use commands such as "tsh proxy aws" and similar ones.
 
 ## Next steps
 
