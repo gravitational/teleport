@@ -40,7 +40,7 @@ export default function Container({
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
-      showPremiumSupportCTA={ctx.ctas.premiumSupport}
+      showPremiumSupportCTA={ctx.lockedFeatures.premiumSupport}
       children={children}
     />
   );

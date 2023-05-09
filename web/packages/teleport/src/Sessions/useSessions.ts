@@ -51,6 +51,6 @@ export default function useSessions(ctx: Ctx, clusterId: string) {
   return {
     attempt,
     sessions,
-    showActiveSessionsCTA: ctx.ctas.activeSessions,
+    showActiveSessionsCTA: ctx.lockedFeatures.activeSessions,
   };
 }
