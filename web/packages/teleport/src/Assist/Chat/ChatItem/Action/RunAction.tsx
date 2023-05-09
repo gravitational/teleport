@@ -110,11 +110,7 @@ export function RunCommand(props: RunCommandProps) {
             const data = JSON.parse(msg.payload) as RawPayload;
             const payload = atob(data.payload);
 
-            console.log('hello');
-            console.log(payload);
             setState(state => {
-              console.log('state!!!', state);
-
               const results = state.find(node => node.nodeId == data.node_id);
               if (!results) {
                 state.push({
@@ -124,12 +120,6 @@ export function RunCommand(props: RunCommandProps) {
               }
 
               const s = state.map(item => {
-                console.log(
-                  'item.nodeId',
-                  item.nodeId,
-                  'data.node_id',
-                  data.node_id
-                );
                 if (item.nodeId === data.node_id) {
                   if (!item.stdout) {
                     item.stdout = '';
@@ -143,8 +133,6 @@ export function RunCommand(props: RunCommandProps) {
 
                 return item;
               });
-
-              console.log(s);
 
               return s;
             });

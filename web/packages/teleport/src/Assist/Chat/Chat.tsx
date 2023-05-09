@@ -19,6 +19,20 @@ import styled from 'styled-components';
 
 import { Dots } from 'teleport/Assist/Dots';
 
+import teleport from 'teleport/Assist/Chat/ChatItem/teleport-icon.png';
+
+import {
+  Typing,
+  TypingContainer,
+  TypingDot,
+} from 'teleport/Assist/Chat/Typing';
+
+import {
+  AvatarContainer,
+  ChatItemAvatarImage,
+  ChatItemAvatarTeleport,
+} from 'teleport/Assist/Chat/Avatar';
+
 import { useMessages } from '../contexts/messages';
 
 import { ChatBox } from './ChatBox';
@@ -28,31 +42,17 @@ import { ExampleChatItem } from './ChatItem/ChatItem';
 const Container = styled.div`
   flex: 1;
   position: relative;
-  background: #222c5a;
   overflow: hidden;
   display: flex;
-  margin: 40px;
-  border-radius: 20px;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 `;
 
-const Header = styled.div`
-  padding: 30px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
-  color: white;
-  position: relative;
-  z-index: 100;
-  font-size: 22px;
-  font-weight: bold;
-`;
-
-const Content = styled.div`
+const Content = styled.div.attrs({ 'data-scrollbar': 'default' })`
   flex: 1 1 auto;
   overflow-y: auto;
-  min-height: 100px;
+  padding-top: 30px;
+  display: flex;
+  justify-content: center;
 `;
 
 const Padding = styled.div`
@@ -68,10 +68,9 @@ const LoadingContainer = styled.div`
   justify-content: center;
 `;
 
-const RespondingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 30px;
+const Width = styled.div`
+  max-width: 1200px;
+  width: 100%;
 `;
 
 export function Chat() {
@@ -100,7 +99,19 @@ export function Chat() {
       key={index}
       message={message}
       isNew={message.isNew}
-      isLast={index === messages.length - 1}
+      hideAvatar={
+        messages[index + 1] && messages[index + 1].author === message.author
+      }
+      isLastFromUser={
+        messages[index + 1]
+          ? messages[index + 1].author !== message.author
+          : true
+      }
+      isFirstFromUser={
+        messages[index - 1]
+          ? messages[index - 1].author !== message.author
+          : true
+      }
     />
   ));
 
@@ -117,9 +128,19 @@ export function Chat() {
         {items}
 
         {responding && (
-          <RespondingContainer>
-            <Dots />
-          </RespondingContainer>
+          <Typing>
+            <AvatarContainer>
+              <ChatItemAvatarTeleport>
+                <ChatItemAvatarImage backgroundImage={teleport} />
+              </ChatItemAvatarTeleport>
+
+              <TypingContainer>
+                <TypingDot style={{ animationDelay: '0s' }} />
+                <TypingDot style={{ animationDelay: '0.2s' }} />
+                <TypingDot style={{ animationDelay: '0.4s' }} />
+              </TypingContainer>
+            </AvatarContainer>
+          </Typing>
         )}
 
         <div ref={ref} />
@@ -129,11 +150,15 @@ export function Chat() {
 
   return (
     <Container>
-      <Header>New Chat</Header>
+      <Content>
+        <Width>{content}</Width>
+      </Content>
 
-      <Content>{content}</Content>
-
-      <ChatBox onSubmit={handleSubmit} />
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <Width>
+          <ChatBox onSubmit={handleSubmit} />
+        </Width>
+      </div>
     </Container>
   );
 }
@@ -141,8 +166,6 @@ export function Chat() {
 export function NewChat() {
   return (
     <Container>
-      <Header>New Chat</Header>
-
       <Content>
         <Padding>
           <ExampleChatItem />

@@ -14,33 +14,33 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 
-const appear = keyframes`
-  0% {
-    opacity: 0;
-  }
+export const AvatarContainer = styled.div`
+  display: flex;
+  align-items: center;
+  color: rgba(0, 0, 0, 0.5);
 
-  100% {
-    opacity: 1;
+  strong {
+    display: block;
+    margin-right: 10px;
+    color: rgba(0, 0, 0, 0.9);
   }
 `;
 
-export const ExampleItem = styled.div`
-  border: 1px solid ${p => p.theme.colors.text.main};
-  margin-right: 20px;
-  padding: 10px 15px;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  opacity: 0;
-  animation: ${appear} linear 0.6s forwards;
+export const ChatItemAvatarImage = styled.div<{ backgroundImage: string }>`
+  background: url(${p => p.backgroundImage}) no-repeat;
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+  background-size: cover;
+`;
 
-  svg {
-    margin-right: 15px;
-    path {
-      fill: ${p => p.theme.colors.text.main};
-    }
-  }
+export const ChatItemAvatarTeleport = styled.div`
+  background: ${props => props.theme.colors.brand};
+  padding: 4px;
+  border-radius: 10px;
+  left: 0;
+  right: auto;
+  margin-right: 10px;
 `;

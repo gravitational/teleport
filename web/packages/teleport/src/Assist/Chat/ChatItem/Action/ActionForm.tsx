@@ -128,6 +128,7 @@ const FooterButtons = styled.div``;
 
 const As = styled.div`
   padding: 10px 15px;
+  margin-left: -10px;
 `;
 
 export function ActionForm(props: ActionFormProps) {
@@ -175,7 +176,6 @@ export function ActionForm(props: ActionFormProps) {
   const items = [];
 
   for (const [index, stateItem] of formState.entries()) {
-    console.log('stateItem', stateItem);
     if (stateItem.type === 'command') {
       items.push(
         <CommandInput

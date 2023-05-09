@@ -51,6 +51,7 @@ export interface TeleportFeature {
   route?: TeleportFeatureRoute;
   navigationItem?: TeleportFeatureNavigationItem;
   topMenuItem?: TeleportFeatureNavigationItem;
+  sidebarComponent?: React.FunctionComponent;
 }
 
 export type StickyCluster = {

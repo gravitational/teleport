@@ -14,28 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export enum NavigationCategory {
-  Resources = 'Resources',
-  Management = 'Management',
-  Assist = 'Assist',
+export function getBorderRadius(
+  isTeleport: boolean,
+  isFirst: boolean,
+  isLast: boolean
+) {
+  if (isTeleport) {
+    return `${isFirst ? '14px' : '5px'} 14px 14px ${isLast ? '14px' : '5px'}`;
+  }
+
+  return `14px ${isFirst ? '14px' : '5px'} ${isLast ? '14px' : '5px'} 14px`;
 }
-
-export enum ManagementSection {
-  Access = 'Access',
-  Activity = 'Activity',
-  Billing = 'Billing',
-  Clusters = 'Clusters',
-}
-
-export const MANAGEMENT_NAVIGATION_SECTIONS = [
-  ManagementSection.Access,
-  ManagementSection.Activity,
-  ManagementSection.Billing,
-  ManagementSection.Clusters,
-];
-
-export const NAVIGATION_CATEGORIES = [
-  NavigationCategory.Resources,
-  NavigationCategory.Management,
-  NavigationCategory.Assist,
-];

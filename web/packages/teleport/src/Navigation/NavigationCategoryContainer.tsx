@@ -56,6 +56,16 @@ export function NavigationCategoryContainer(props: NavigationCategoryProps) {
     .filter(feature => feature.category === props.category)
     .filter(feature => !feature.parent);
 
+  if (props.category === NavigationCategory.Assist) {
+    const SidebarComponent = items[0].sidebarComponent;
+
+    return (
+      <Container visible={props.visible}>
+        <SidebarComponent />
+      </Container>
+    );
+  }
+
   if (props.category === NavigationCategory.Resources) {
     const transitionDelayPerItem = TRANSITION_TOTAL_TIME / items.length;
 
