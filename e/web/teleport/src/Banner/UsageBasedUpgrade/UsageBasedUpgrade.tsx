@@ -5,6 +5,8 @@ import { displayShortDate } from 'shared/services/loc/loc';
 
 import { add, differenceInDays, fromUnixTime } from 'date-fns';
 
+import { CtaEvent, userEventService } from 'teleport/services/userEvent';
+
 import { Warning } from 'design/Icon';
 
 import { useTheme } from 'styled-components';
@@ -29,6 +31,11 @@ export const UsageBasedUpgrade = ({
   reload,
 }: UsageBasedUpgradeProps) => {
   const theme = useTheme();
+
+  function handleClick() {
+    userEventService.captureCtaEvent(CtaEvent.CTA_UPGRADE_BANNER);
+    setOpen(true);
+  }
 
   const trialEndDate = fromUnixTime(stripeTrialEnd);
   const dayAfterTrial = displayShortDate(add(trialEndDate, { days: 1 }));
@@ -92,7 +99,7 @@ export const UsageBasedUpgrade = ({
             {remainingDaysText}. To maintain access Upgrade{' '}
             <b>{productName} Trial</b> to <b>{productName} Plan</b>.
           </Text>
-          <ButtonPrimary onClick={() => setOpen(true)}>Upgrade</ButtonPrimary>
+          <ButtonPrimary onClick={handleClick}>Upgrade</ButtonPrimary>
         </Flex>
       ) : (
         <Text mr={1} data-testid="message">

@@ -13,6 +13,8 @@ import Flex from 'design/Flex';
 
 import Image from 'design/Image';
 
+import { CtaEvent } from 'teleport/services/userEvent';
+
 import step1 from './assets/step1.png';
 import step2 from './assets/step2.png';
 import step3 from './assets/step3.png';
@@ -23,7 +25,10 @@ export function RequestFeatureLocked() {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Just In Time Access Requests</FeatureHeaderTitle>
         <Box>
-          <ButtonLockedFeature height="36px">
+          <ButtonLockedFeature
+            height="36px"
+            event={CtaEvent.CTA_ACCESS_REQUESTS}
+          >
             Unlock Access Requests With Teleport Enterprise
           </ButtonLockedFeature>
         </Box>
@@ -66,7 +71,7 @@ export function RequestFeatureLocked() {
               transform: translate(-50%, 50%);
             `}
           >
-            <ButtonLockedFeature>
+            <ButtonLockedFeature event={CtaEvent.CTA_ACCESS_REQUESTS}>
               Unlock Access Requests with Teleport Enterprise
             </ButtonLockedFeature>
           </Box>

@@ -13,6 +13,8 @@ import { Lock } from 'design/Icon';
 
 import Link from 'design/Link';
 
+import { CtaEvent } from 'teleport/services/userEvent';
+
 import {
   TrustedDevice,
   TrustedDeviceOSType,
@@ -61,7 +63,7 @@ export function DeviceTrustLocked() {
           .
         </Text>
         <Box width="400px">
-          <ButtonLockedFeature>
+          <ButtonLockedFeature event={CtaEvent.CTA_TRUSTED_DEVICES}>
             Unlock Device Trust with Teleport Enterprise
           </ButtonLockedFeature>
         </Box>

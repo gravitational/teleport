@@ -88,6 +88,7 @@ export const PaymentAddDialog = ({
     ctx.cloudService
       .addCard({ cardId: cardID, isDefault: primary })
       .then(() => {
+        // TODO(mcbattirola): capture user event.
         setOpen(false);
         setNetworkState({ status: undefined });
         reload();

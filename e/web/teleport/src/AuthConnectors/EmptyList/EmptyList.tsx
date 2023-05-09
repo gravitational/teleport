@@ -7,6 +7,8 @@ import { State as ResourceState } from 'teleport/components/useResources';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
+import { CtaEvent } from 'teleport/services/userEvent';
+
 import getSsoIcon from '../getSsoIcon';
 
 export default function EmptyList({ onCreate, showLockedFeature }: Props) {
@@ -36,7 +38,7 @@ export default function EmptyList({ onCreate, showLockedFeature }: Props) {
           {renderItem('saml', onCreate, showLockedFeature, showLockedFeature)}
           {showLockedFeature && (
             <LockedFeatureContainer>
-              <ButtonLockedFeature>
+              <ButtonLockedFeature event={CtaEvent.CTA_AUTH_CONNECTOR}>
                 Unlock OIDC & SAML with Teleport Enterprise
               </ButtonLockedFeature>
             </LockedFeatureContainer>
