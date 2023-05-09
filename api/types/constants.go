@@ -341,7 +341,8 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
-	// KindAssistant is a Teleport Assist role.
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
 	KindAssistant = "assistant"
 
 	// KindIntegration is a connection to a 3rd party system API.
