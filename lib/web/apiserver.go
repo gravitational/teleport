@@ -323,16 +323,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	h.auth = sessionCache
-	sshPort := strconv.Itoa(defaults.SSHProxyListenPort)
+	sshPortValue := strconv.Itoa(defaults.SSHProxyListenPort)
 	if cfg.ProxySSHAddr.String() != "" {
-		_, sshPort, err = net.SplitHostPort(cfg.ProxySSHAddr.String())
+		_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 		if err != nil {
-			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
-				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
+			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v %v.",
+				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort, sshPort)
 
+		} else {
+			sshPortValue = sshPort
 		}
 	}
-	h.sshPort = sshPort
+
+	h.sshPort = sshPortValue
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
