@@ -537,7 +537,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-warning c14 c20"
                 font-size="3"
               />
               Okta assignment failed to clean up
@@ -573,7 +573,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Okta assignment has been cleaned up
@@ -609,7 +609,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-warning c14 c20"
                 font-size="3"
               />
               Okta assignment failed to process
@@ -645,7 +645,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Okta assignment has been processed
@@ -681,7 +681,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-warning c14 c20"
                 font-size="3"
               />
               Okta synchronization failed
@@ -717,7 +717,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Okta applications have been updated
@@ -753,7 +753,7 @@ exports[`list of all events 1`] = `
               class="c19"
             >
               <span
-                class="c14 c20 icon icon-list c14 c20"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Okta groups have been updated
