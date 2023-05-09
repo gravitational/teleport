@@ -401,7 +401,7 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 	return chat, nil
 }
 
-var jsonBlockPattern = regexp.MustCompile(`(?s)\x60\x60\x60{.+}\x60\x60\x60`)
+var jsonBlockPattern = regexp.MustCompile(`(?s){.+}`)
 
 func tryFindEmbeddedCommand(message string) *ai.CompletionCommand {
 	fmt.Println("invoked tryfind with data: " + message)
