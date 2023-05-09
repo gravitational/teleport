@@ -33,6 +33,8 @@ import {
   ChatItemAvatarTeleport,
 } from 'teleport/Assist/Chat/Avatar';
 
+import { useConversations } from 'teleport/Assist/contexts/conversations';
+
 import {
   generateTitle,
   setConversationTitle,
@@ -42,7 +44,6 @@ import {
 import { ChatBox } from './ChatBox';
 import { ChatItem } from './ChatItem';
 import { ExampleChatItem } from './ChatItem/ChatItem';
-import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 const Container = styled.div`
   flex: 1;

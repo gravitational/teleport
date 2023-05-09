@@ -47,7 +47,7 @@ export function Assist() {
         >
           <Container>
             <ChatContainer>
-              <Chat conversationId={params.conversationId}/>
+              <Chat conversationId={params.conversationId} />
             </ChatContainer>
           </Container>
         </MessagesContextProvider>
