@@ -210,7 +210,6 @@ function renderRoutes(
     // add regular feature routes
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
-
       routes.push(
         <Route title={title} key={index} path={path} exact={exact}>
           <CatchError>
