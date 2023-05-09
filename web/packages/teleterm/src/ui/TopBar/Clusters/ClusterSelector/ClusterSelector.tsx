@@ -66,7 +66,7 @@ const Container = styled.button`
   flex-shrink: 2;
   min-width: calc(${props => props.theme.space[7]}px * 2);
   height: 100%;
-  border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;
+  border: 1px ${props => props.theme.colors.buttons.border.border} solid;
   border-radius: 4px;
   display: flex;
   justify-content: space-between;
@@ -78,15 +78,6 @@ const Container = styled.button`
   &:hover,
   &:focus {
     opacity: 1;
-    border-color: ${props => props.theme.colors.light};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
-
-  ${props => {
-    if (props.isOpened) {
-      return {
-        borderColor: props.theme.colors.brand.main,
-        opacity: 1,
-      };
-    }
-  }}
 `;

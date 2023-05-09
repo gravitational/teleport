@@ -41,7 +41,8 @@ CSC_NAME = $(DEVELOPER_ID_APPLICATION)
 
 # Don't export DEVELOPER_ID_APPLICATION, DEVELOPER_ID_INSTALLER or CSC_NAME as
 # it causes them to be evaluated, which shells out to the `security` command.
-# They should only be evaluated if used.
+# They should only be evaluated if used. Any variables below that reference
+# these are also unexported for the same reason.
 unexport CSC_NAME DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER
 
 # Bundle IDs identify packages/images. We use different bundle IDs for
@@ -94,18 +95,33 @@ SHOULD_NOTARIZE = $(if $(and $(APPLE_USERNAME),$(APPLE_PASSWORD)),true)
 # to not evaluate its arguments (DEVELOPER_ID_APPLICATION) if we are not
 # goint to use them, preventing a missing key error defined above.
 NOTARIZE_BINARIES = $(if $(SHOULD_NOTARIZE),$(notarize_binaries_cmd),$(not_notarizing_cmd))
-
-define notarize_binaries_cmd
-	cd build.assets/tooling && \
-	go run ./cmd/notarize-apple-binaries \
-		--developer-id=$(DEVELOPER_ID_APPLICATION) \
-		--bundle-id=$(TELEPORT_BUNDLEID) \
-		--log-level=debug \
-		$(ABSOLUTE_BINARY_PATHS)
-endef
+unexport NOTARIZE_BINARIES
 
 not_notarizing_cmd = echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSWORD not set.
 
-# Dont export not_notarizing_cmd since it contains DEVELOPER_ID_APPLICATION
-# and we do not want that evaluated.
+notary_dir = $(BUILDDIR)/notarize
+notary_file = $(BUILDDIR)/notarize.zip
+
+# notarize_binaries_cmd must be a single command - multiple commands must be
+# joined with "&& \". This is so the command can be prefixed with "cd .. &&"
+# for the enterprise invocation.
+define notarize_binaries_cmd
+	codesign \
+		--sign $(DEVELOPER_ID_APPLICATION) \
+		--force \
+		--verbose \
+		--timestamp \
+		--options runtime \
+		$(ABSOLUTE_BINARY_PATHS) && \
+	rm -rf $(notary_dir) && \
+	mkdir $(notary_dir) && \
+	ditto $(ABSOLUTE_BINARY_PATHS) $(notary_dir) && \
+	ditto -c -k $(notary_dir) $(notary_file) && \
+	xcrun notarytool submit $(notary_file) \
+		--team-id="$(TEAMID)" \
+		--apple-id="$(APPLE_USERNAME)" \
+		--password="$(APPLE_PASSWORD)" \
+		--wait && \
+	rm -rf $(notary_dir) $(notary_file)
+endef
 unexport notarize_binaries_cmd

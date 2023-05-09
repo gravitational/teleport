@@ -522,6 +522,10 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if haveProxyServer {
+			if fc.Proxy.Enabled() {
+				return trace.BadParameter("proxy_server can not be specified when proxy service is enabled")
+			}
+
 			addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
 			if err != nil {
 				return trace.Wrap(err)
@@ -570,6 +574,8 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		logger.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
+	case "trace":
+		logger.SetLevel(log.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -1051,10 +1057,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.PeerPublicAddr = *addr
 	}
 
-	if fc.Proxy.IdP.SAMLIdP.Enabled() {
-		cfg.Proxy.IdP.SAMLIdP.Enabled = true
-	}
-
+	cfg.Proxy.IdP.SAMLIdP.Enabled = fc.Proxy.IdP.SAMLIdP.Enabled()
 	cfg.Proxy.IdP.SAMLIdP.BaseURL = fc.Proxy.IdP.SAMLIdP.BaseURL
 
 	acme, err := fc.Proxy.ACME.Parse()
@@ -1211,6 +1214,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
@@ -1838,7 +1842,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			fileConf.Logger.Severity = teleport.DebugLevel
+			if fileConf.Logger.Severity != "trace" {
+				fileConf.Logger.Severity = teleport.DebugLevel
+			}
 		}
 	}
 

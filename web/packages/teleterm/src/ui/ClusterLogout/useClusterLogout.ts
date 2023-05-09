@@ -15,13 +15,16 @@
  */
 
 import { useAsync } from 'shared/hooks/useAsync';
-import { useEffect } from 'react';
 
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { useAppContext } from '../appContextProvider';
 
-export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
+export function useClusterLogout({
+  clusterUri,
+}: {
+  clusterUri: RootClusterUri;
+}) {
   const ctx = useAppContext();
   const [{ status, statusText }, removeCluster] = useAsync(async () => {
     await ctx.clustersService.logout(clusterUri);
@@ -35,30 +38,18 @@ export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
         await ctx.workspacesService.setActiveWorkspace(null);
       }
     }
-    ctx.workspacesService.removeWorkspace(clusterUri);
-    ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
-  });
 
-  useEffect(() => {
-    if (status === 'success') {
-      onClose();
-    }
-  }, [status]);
+    // remove connections first, they depend both on the cluster and the workspace
+    ctx.connectionTracker.removeItemsBelongingToRootCluster(clusterUri);
+    // remove the workspace next, because it depends on the cluster
+    ctx.workspacesService.removeWorkspace(clusterUri);
+    // remove the cluster, it does not depend on anything
+    await ctx.clustersService.removeClusterAndResources(clusterUri);
+  });
 
   return {
     status,
     statusText,
     removeCluster,
-    onClose,
-    clusterUri,
-    clusterTitle,
   };
 }
-
-export type Props = {
-  onClose?(): void;
-  clusterTitle?: string;
-  clusterUri: RootClusterUri;
-};
-
-export type State = ReturnType<typeof useClusterLogout>;

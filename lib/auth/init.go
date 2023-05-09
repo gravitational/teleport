@@ -222,6 +222,10 @@ type InitConfig struct {
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
+
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -676,7 +680,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner:
+			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

@@ -25,15 +25,17 @@ function error({ hasError, theme }) {
 
   return {
     border: `2px solid ${theme.colors.error.main}`,
+    '&:hover, &:focus': {
+      border: `2px solid ${theme.colors.error.main}`,
+    },
     padding: '10px 14px',
   };
 }
 
 const Input = styled.input`
   appearance: none;
-  border: none;
+  border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -41,13 +43,22 @@ const Input = styled.input`
   padding: 0 16px;
   outline: none;
   width: 100%;
+  background: ${props => props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
+
+  &:hover,
+  &:focus,
+  &:active {
+    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
+  }
 
   ::-ms-clear {
     display: none;
   }
 
   ::placeholder {
-    opacity: 0.4;
+    color: ${props => props.theme.colors.text.muted};
+    opacity: 1;
   }
 
   :read-only {
@@ -55,7 +66,8 @@ const Input = styled.input`
   }
 
   :disabled {
-    color: rgba(0, 0, 0, 0.5);
+    color: ${props => props.theme.colors.text.disabled};
+    border-color: ${props => props.theme.colors.text.disabled};
   }
 
   ${color} ${space} ${width} ${height} ${error};
@@ -66,11 +78,6 @@ Input.displayName = 'Input';
 Input.propTypes = {
   placeholder: PropTypes.string,
   hasError: PropTypes.bool,
-};
-
-Input.defaultProps = {
-  bg: 'light',
-  color: 'text.primaryInverse',
 };
 
 export default Input;

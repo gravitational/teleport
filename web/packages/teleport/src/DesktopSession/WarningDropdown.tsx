@@ -19,7 +19,6 @@ import { Text, Flex, Button, Card, ButtonIcon } from 'design';
 import styled from 'styled-components';
 import { Notification } from 'shared/components/Notification';
 import { Warning, Close } from 'design/Icon';
-import { orange } from 'design/theme/palette';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
 
 import type { NotificationItem } from 'shared/components/Notification';
@@ -76,12 +75,12 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
           </Flex>
           <StyledOverflow flexWrap="wrap" gap={2}>
             {warnings.map(warning => (
-              <Notification
+              <StyledNotification
                 key={warning.id}
                 item={warning}
                 onRemove={() => onRemoveWarning(warning.id)}
                 Icon={Warning}
-                getColor={theme => theme.colors.warning}
+                getColor={theme => theme.colors.warning.main}
                 isAutoRemovable={false}
               />
             ))}
@@ -95,20 +94,25 @@ export function WarningDropdown({ warnings, onRemoveWarning }: Props) {
 const StyledWarningIcon = styled(Warning)`
   font-weight: ${({ theme }) => theme.fontWeights.bold};
   font-size: ${({ theme }) => theme.fontSizes[2] + 'px'};
+  color: inherit;
+  transition: none;
   align-self: 'center';
 `;
 
 const StyledButton = styled(Button)`
+  color: ${({ theme }) => theme.colors.light};
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
   background-color: ${props =>
     props.hasWarnings
-      ? props.theme.colors.warning
-      : props.theme.colors.action.disabled};
+      ? props.theme.colors.warning.main
+      : props.theme.colors.spotBackground[1]};
   &:hover,
   &:focus {
     background-color: ${props =>
-      props.hasWarnings ? orange.A700 : props.theme.colors.action.disabled};
+      props.hasWarnings
+        ? props.theme.colors.warning.hover
+        : props.theme.colors.spotBackground[2]};
   }
 `;
 
@@ -118,7 +122,14 @@ const StyledCard = styled(Card)`
   position: absolute;
   right: 0;
   top: ${({ theme }) => theme.fontSizes[7] + 'px'};
-  background-color: ${({ theme }) => theme.colors.levels.surfaceSecondary};
+  background-color: ${({ theme }) => theme.colors.levels.elevated};
+`;
+
+const StyledNotification = styled(Notification)`
+  background: ${({ theme }) => theme.colors.spotBackground[0]};
+  ${({ theme }) =>
+    theme.name === 'light' && `border: 1px solid ${theme.colors.text.muted};`}
+  box-shadow: none;
 `;
 
 const StyledRelative = styled.div`
