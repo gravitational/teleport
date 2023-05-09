@@ -546,7 +546,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 
 			payloadJson, err := json.Marshal(payload)
 			if err != nil {
-				return trace.Wrap(err)
+				return numTokens, trace.Wrap(err)
 			}
 
 			msg := &proto.AssistantMessage{
@@ -557,11 +557,11 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 			}
 
 			if _, err := authClient.InsertAssistantMessage(ctx, msg); err != nil {
-				return trace.Wrap(err)
+				return numTokens, trace.Wrap(err)
 			}
 
 			if err := ws.WriteJSON(msg); err != nil {
-				return trace.Wrap(err)
+				return numTokens, trace.Wrap(err)
 			}
 		}
 	case *ai.Message:
