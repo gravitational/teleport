@@ -892,16 +892,31 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+			if transferRequest == nil {
+				// channel closed
+				continue
+			}
+			if err := t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
 				Filename: transferRequest.Filename,
-			})
+			}); err != nil {
+				t.log.WithError(err).Error("Unable to request file transfer")
+			}
 		case transferResponse := <-fileTransferDecisionC:
+			if transferResponse == nil {
+				// channel closed
+				continue
+			}
+
+			var err error
 			if transferResponse.Approved {
-				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
 			} else {
-				t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			}
+			if err != nil {
+				t.log.WithError(err).Error("Unable to respond to file transfer request")
 			}
 		}
 
@@ -1050,7 +1065,7 @@ type TerminalStream struct {
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
 
-	// once ensures that resizeC is closed at most one time
+	// once ensures that all channels are closed at most one time.
 	once sync.Once
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
@@ -1289,23 +1304,19 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 // Close send a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
-	if t.resizeC != nil {
-		t.once.Do(func() {
+	t.once.Do(func() {
+		if t.resizeC != nil {
 			close(t.resizeC)
-		})
-	}
+		}
 
-	if t.fileTransferRequestC != nil {
-		t.once.Do(func() {
+		if t.fileTransferRequestC != nil {
 			close(t.fileTransferRequestC)
-		})
-	}
+		}
 
-	if t.fileTransferDecisionC != nil {
-		t.once.Do(func() {
+		if t.fileTransferDecisionC != nil {
 			close(t.fileTransferDecisionC)
-		})
-	}
+		}
+	})
 
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{

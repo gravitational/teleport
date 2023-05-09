@@ -40,12 +40,7 @@ type MenuItem = {
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
-  const {
-    workspacesService,
-    mainProcessClient,
-    configService,
-    notificationsService,
-  } = ctx;
+  const { workspacesService, mainProcessClient, notificationsService } = ctx;
   workspacesService.useState();
   ctx.clustersService.useState();
   const documentsService =
@@ -61,12 +56,11 @@ function useMenuItems(): MenuItem[] {
 
   const { platform } = mainProcessClient.getRuntimeSettings();
   const isDarwin = platform === 'darwin';
-  const isSearchBarEnabled = configService.get('feature.searchBar').value;
 
   const menuItems: MenuItem[] = [
     {
       title: 'Open new terminal',
-      isVisible: isSearchBarEnabled,
+      isVisible: true,
       Icon: icons.Terminal,
       keyboardShortcutAction: 'newTerminalTab',
       onNavigate: openTerminalTab,
@@ -82,7 +76,7 @@ function useMenuItems(): MenuItem[] {
     },
     {
       title: 'Install tsh in PATH',
-      isVisible: isSearchBarEnabled && isDarwin,
+      isVisible: isDarwin,
       Icon: icons.Link,
       onNavigate: () => {
         ctx.commandLauncher.executeCommand('tsh-install', undefined);
@@ -90,7 +84,7 @@ function useMenuItems(): MenuItem[] {
     },
     {
       title: 'Remove tsh from PATH',
-      isVisible: isSearchBarEnabled && isDarwin,
+      isVisible: isDarwin,
       Icon: icons.Unlink,
       onNavigate: () => {
         ctx.commandLauncher.executeCommand('tsh-uninstall', undefined);
