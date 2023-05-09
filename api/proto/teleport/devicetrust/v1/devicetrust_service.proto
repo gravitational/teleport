@@ -445,9 +445,9 @@ message TPMPCR {
   int32 index = 1;
   // the digest currently held in the PCR
   bytes digest = 2;
-  // hash algorithm associated with the PCR bank. This value is the underlying
-  // value of the crypto.Hash type.
-  uint64 hash = 3;
+  // the hash algorithm used to produce the digest in this PCR bank. This value
+  // is the underlying value of the Go crypto.Hash type.
+  uint64 digest_alg = 3;
 }
 
 // Encapsulates the result of a quote operation against the TPM over a PCR

@@ -96,9 +96,9 @@ func pcrsToProto(in []attest.PCR) []*devicepb.TPMPCR {
 	out := make([]*devicepb.TPMPCR, len(in))
 	for i, pcr := range in {
 		out[i] = &devicepb.TPMPCR{
-			Index:  int32(pcr.Index),
-			Digest: pcr.Digest,
-			Hash:   uint64(pcr.DigestAlg),
+			Index:     int32(pcr.Index),
+			Digest:    pcr.Digest,
+			DigestAlg: uint64(pcr.DigestAlg),
 		}
 	}
 	return out
@@ -110,7 +110,7 @@ func pcrsFromProto(in []*devicepb.TPMPCR) []attest.PCR {
 		out[i] = attest.PCR{
 			Index:     int(pcr.Index),
 			Digest:    pcr.Digest,
-			DigestAlg: crypto.Hash(pcr.Hash),
+			DigestAlg: crypto.Hash(pcr.DigestAlg),
 		}
 	}
 	return out
