@@ -759,16 +759,16 @@
           ]
         },
         {
-          "title": "Integrating with Okta",
+          "title": "Protect Okta Applications and Groups with Teleport",
           "slug": "/application-access/okta/",
           "entries": [
             {
-              "title": "Introduction",
-              "slug": "/application-access/okta/introduction/"
-            },
-            {
               "title": "Guide",
               "slug": "/application-access/okta/guide/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/application-access/okta/architecture/"
             },
             {
               "title": "Reference",
