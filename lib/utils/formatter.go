@@ -130,7 +130,7 @@ func (tf *TextFormatter) Format(e *log.Entry) ([]byte, error) {
 			color := noColor
 			if tf.EnableColors {
 				switch e.Level {
-				case log.DebugLevel:
+				case log.DebugLevel, log.TraceLevel:
 					color = gray
 				case log.WarnLevel:
 					color = yellow
