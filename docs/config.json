@@ -959,6 +959,24 @@
           ]
         },
         {
+          "title": "Protect Okta Applications and Groups with Teleport",
+          "slug": "/application-access/okta/",
+          "entries": [
+            {
+              "title": "Guide",
+              "slug": "/application-access/okta/guide/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/application-access/okta/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/application-access/okta/reference/"
+            }
+          ]
+        },
+        {
           "title": "Access Controls",
           "slug": "/application-access/controls/"
         },
