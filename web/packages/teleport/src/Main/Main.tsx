@@ -47,7 +47,11 @@ import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { TeleportFeature } from 'teleport/types';
+import type {
+  LockedFeatures,
+  TeleportFeature,
+  TeleportFeature,
+} from 'teleport/types';
 
 interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -156,7 +160,7 @@ export function Main(props: MainProps) {
             <ContentMinWidth>
               <Suspense fallback={null}>
                 <TopBar />
-                <FeatureRoutes />
+                <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
               </Suspense>
             </ContentMinWidth>
           </HorizontalSplit>
@@ -169,10 +173,45 @@ export function Main(props: MainProps) {
   );
 }
 
-function renderRoutes(features: TeleportFeature[]) {
+function renderRoutes(
+  features: TeleportFeature[],
+  lockedFeatures: LockedFeatures
+) {
   const routes = [];
 
   for (const [index, feature] of features.entries()) {
+    const isParentLocked =
+      feature.parent && new feature.parent().isLocked?.(lockedFeatures);
+
+    // remove features with parents locked.
+    // The parent itself will be rendered if it has a lockedRoute,
+    // but the children shouldn't be.
+    if (isParentLocked) {
+      continue;
+    }
+
+    // add the route of the 'locked' variants of the features
+    if (feature.isLocked?.(lockedFeatures)) {
+      if (!feature.lockedRoute) {
+        throw new Error('a locked feature without a locked route was found');
+      }
+
+      const { path, title, exact, component: Component } = feature.lockedRoute;
+      routes.push(
+        <Route title={title} key={index} path={path} exact={exact}>
+          <CatchError>
+            <Suspense fallback={null}>
+              <Component />
+            </Suspense>
+          </CatchError>
+        </Route>
+      );
+
+      // return early so we don't add the original route
+      continue;
+    }
+
+    // add regular feature routes
     if (feature.route) {
       const { path, title, exact, component: Component } = feature.route;
 
@@ -191,9 +230,9 @@ function renderRoutes(features: TeleportFeature[]) {
   return routes;
 }
 
-function FeatureRoutes() {
+function FeatureRoutes({ lockedFeatures }: { lockedFeatures: LockedFeatures }) {
   const features = useFeatures();
-  const routes = renderRoutes(features);
+  const routes = renderRoutes(features, lockedFeatures);
 
   return <Switch>{routes}</Switch>;
 }
