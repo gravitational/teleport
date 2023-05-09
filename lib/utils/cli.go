@@ -149,7 +149,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
