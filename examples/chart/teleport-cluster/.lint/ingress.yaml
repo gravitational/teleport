@@ -1,3 +1,4 @@
 clusterName: helm-lint
 ingress:
   enabled: true
+proxyListenerMode: multiplex
