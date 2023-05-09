@@ -355,8 +355,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	if cfg.ProxySSHAddr.String() != "" {
 		_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 		if err != nil {
-			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v %v.",
-				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort, sshPort)
+			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
+				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
 
 		} else {
 			sshPortValue = sshPort
