@@ -361,6 +361,9 @@ const (
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
 
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
