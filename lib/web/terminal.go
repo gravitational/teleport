@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -705,14 +706,22 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	mfaCancel()
 	directCancel()
 
-	// Only return the error from connecting with mfa if the error
-	// originates from the mfa ceremony. If mfa is not required then
-	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	switch {
+	// No MFA errors, return any errors from the direct connection
+	case mfaErr == nil:
+		return nil, trace.Wrap(directErr)
+	// Any direct connection errors other than access denied, which should be returned
+	// if MFA is required, take precedent over MFA errors due to users not having any
+	// enrolled devices.
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+		return nil, trace.Wrap(directErr)
+	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
+		!errors.Is(mfaErr, client.MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
 		return nil, trace.Wrap(mfaErr)
+	default:
+		return nil, trace.Wrap(directErr)
 	}
-
-	return nil, trace.Wrap(directErr)
 }
 
 // streamTerminal opens a SSH connection to the remote host and streams
@@ -856,16 +865,31 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+			if transferRequest == nil {
+				// channel closed
+				continue
+			}
+			if err := t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
 				Filename: transferRequest.Filename,
-			})
+			}); err != nil {
+				t.log.WithError(err).Error("Unable to request file transfer")
+			}
 		case transferResponse := <-fileTransferDecisionC:
+			if transferResponse == nil {
+				// channel closed
+				continue
+			}
+
+			var err error
 			if transferResponse.Approved {
-				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
 			} else {
-				t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+				err = t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			}
+			if err != nil {
+				t.log.WithError(err).Error("Unable to respond to file transfer request")
 			}
 		}
 
@@ -1033,7 +1057,7 @@ type WsStream struct {
 type TerminalStream struct {
 	WsStream
 
-	// once ensures that resizeC is closed at most one time
+	// once ensures that all channels are closed at most one time.
 	once sync.Once
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
@@ -1315,23 +1339,19 @@ func (t *WsStream) Close() error {
 // Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
-	if t.fileTransferRequestC != nil {
-		t.once.Do(func() {
-			close(t.fileTransferRequestC)
-		})
-	}
-
-	if t.fileTransferDecisionC != nil {
-		t.once.Do(func() {
-			close(t.fileTransferDecisionC)
-		})
-	}
-
-	if t.resizeC != nil {
-		t.once.Do(func() {
+	t.once.Do(func() {
+		if t.resizeC != nil {
 			close(t.resizeC)
-		})
-	}
+		}
+
+		if t.fileTransferRequestC != nil {
+			close(t.fileTransferRequestC)
+		}
+
+		if t.fileTransferDecisionC != nil {
+			close(t.fileTransferDecisionC)
+		}
+	})
 
 	return t.WsStream.Close()
 }

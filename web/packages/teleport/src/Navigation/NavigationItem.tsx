@@ -31,7 +31,12 @@ import {
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
-import type { TeleportFeature } from 'teleport/types';
+import { useTeleport } from 'teleport';
+
+import type {
+  TeleportFeature,
+  TeleportFeatureNavigationItem,
+} from 'teleport/types';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -76,9 +81,11 @@ const ExternalLinkIndicator = styled.div`
 `;
 
 export function NavigationItem(props: NavigationItemProps) {
+  const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
 
-  const { navigationItem, route } = props.feature;
+  const { navigationItem, route, isLocked, lockedNavigationItem, lockedRoute } =
+    props.feature;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -179,18 +186,33 @@ export function NavigationItem(props: NavigationItemProps) {
       );
     }
 
+    let navigationItemVersion: TeleportFeatureNavigationItem;
     if (route) {
+      navigationItemVersion = navigationItem;
+    }
+
+    // use locked item version if feature is locked
+    if (lockedRoute && isLocked?.(ctx.lockedFeatures)) {
+      if (!lockedNavigationItem) {
+        throw new Error(
+          'locked feature without an alternative navigation item'
+        );
+      }
+      navigationItemVersion = lockedNavigationItem;
+    }
+
+    if (navigationItemVersion) {
       return (
         <Link
           {...linkProps}
           onKeyDown={handleKeyDown}
           tabIndex={props.visible ? 0 : -1}
-          to={navigationItem.getLink(clusterId)}
-          exact={navigationItem.exact}
+          to={navigationItemVersion.getLink(clusterId)}
+          exact={navigationItemVersion.exact}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
-            {navigationItem.title}
+            {navigationItemVersion.title}
           </LinkContent>
         </Link>
       );
