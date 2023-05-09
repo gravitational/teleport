@@ -21,8 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
@@ -454,12 +452,7 @@ func (u *UserV2) ResetLocks() {
 
 // DeepCopy creates a clone of this user value.
 func (u *UserV2) DeepCopy() User {
-	// github.com/golang/protobuf/proto.Clone panics when trying to
-	// copy a map[K]V where the type of V is a slice of anything
-	// other than byte. See https://github.com/gogo/protobuf/issues/14
-	uV2 := protoadapt.MessageV2Of(u)
-	uV2Copy := proto.Clone(uV2)
-	return protoadapt.MessageV1Of(uV2Copy).(*UserV2)
+	return utils.CloneProtoMsg(u)
 }
 
 // IsEmpty returns true if there's no info about who created this user

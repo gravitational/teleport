@@ -320,8 +320,10 @@ message UserCertsRequest {
   enum Requester {
     // UNSPECIFIED is set when the requester in unknown.
     UNSPECIFIED = 0;
-    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh db local proxy tunnel.
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+    // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
+    TSH_KUBE_LOCAL_PROXY = 2;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -2152,6 +2154,15 @@ message InventoryStatusSummary {
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
 }
 
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
+}
+
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
 // if it has a control stream registered.
 message InventoryPingRequest {
@@ -2302,6 +2313,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
