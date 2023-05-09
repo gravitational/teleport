@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -197,10 +198,10 @@ type agent struct {
 	// serverHandlesGlobalRequests indicates the ssh server the agent is connected to
 	// can handle global requests properly.
 	serverHandlesGlobalRequests bool
-	// checkServerVersion ensures the server version is checked once.
-	checkServerVersion sync.Once
-	// globalRequestMu ensures a single global request is sent at a time.
-	globalRequestMu sync.Mutex
+	// checkServerVersion indicates whether the server version has been successfully checked.
+	checkedServerVersion bool
+	// serverVersionMu ensures that a single server version check happens at a time.
+	serverVersionMu sync.Mutex
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -605,25 +606,32 @@ func (a *agent) handleDrainChannels() error {
 // GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
 // trace.NotImplemented is returned when the proxy rejects the request.
 func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	a.checkServerVersion.Do(func() {
+	a.serverVersionMu.Lock()
+	defer a.serverVersionMu.Unlock()
+	notHandledErr := trace.NotImplemented("the proxy server does not support global requests")
+
+	if !a.checkedServerVersion {
 		// Check to see if client -> server global requests are handled properly.
 		// REMOVE IN V14: In v14 proxy servers will be guarenteed to properly handle
 		// global requests.
 		v2Chan, v2Reqs, err := a.client.OpenChannel(a.ctx, teleport.ReverseTunnelServerV2Channel, nil)
-		if err != nil {
-			return
-		}
-		defer v2Chan.Close()
-		go ssh.DiscardRequests(v2Reqs)
-		a.serverHandlesGlobalRequests = true
-	})
+		if errors.Is(err, &ssh.OpenChannelError{}) {
+			a.checkedServerVersion = true
+			return nil, notHandledErr
 
-	if !a.serverHandlesGlobalRequests {
-		return nil, trace.NotImplemented("the proxy server does not support netconfig requests")
+		} else if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		v2Chan.Close()
+		go ssh.DiscardRequests(v2Reqs)
+		a.checkedServerVersion = true
+		a.serverHandlesGlobalRequests = true
 	}
 
-	a.globalRequestMu.Lock()
-	defer a.globalRequestMu.Unlock()
+	if !a.serverHandlesGlobalRequests {
+		return nil, notHandledErr
+	}
 
 	ok, payload, err := a.client.SendRequest(ctx, teleport.NetconfigRequest, true, nil)
 	if err != nil {
