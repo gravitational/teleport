@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -70,6 +71,12 @@ func init() {
 	}
 }
 
+// AuthServiceClient keeps the interfaces implemented by the auth service.
+type AuthServiceClient struct {
+	proto.AuthServiceClient
+	assist.AssistServiceClient
+}
+
 // Client is a gRPC Client that connects to a Teleport Auth server either
 // locally or over ssh through a Teleport web proxy or tunnel proxy.
 //
@@ -86,7 +93,7 @@ type Client struct {
 	// conn is a grpc connection to the auth server.
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
-	grpc proto.AuthServiceClient
+	grpc AuthServiceClient
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
@@ -458,7 +465,10 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	}
 
 	c.conn = conn
-	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.grpc = AuthServiceClient{
+		AuthServiceClient:   proto.NewAuthServiceClient(c.conn),
+		AssistServiceClient: assist.NewAssistServiceClient(c.conn),
+	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
@@ -3650,4 +3660,50 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 		return nil, trail.FromGRPC(err)
 	}
 	return headlessAuthn, nil
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	resp, err := c.grpc.CreateAssistantConversation(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+// GetAssistantMessages retrieves assistant messages with given conversation ID.
+func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	messages, err := c.grpc.GetAssistantMessages(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (c *Client) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	messages, err := c.grpc.GetAssistantConversations(ctx, request)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// CreateAssistantMessage saves a new conversation message.
+func (c *Client) CreateAssistantMessage(ctx context.Context, in *assist.CreateAssistantMessageRequest) error {
+	_, err := c.grpc.CreateAssistantMessage(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateAssistantConversationInfo updates conversation info.
+func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist.UpdateAssistantConversationInfoRequest) error {
+	_, err := c.grpc.UpdateAssistantConversationInfo(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }
