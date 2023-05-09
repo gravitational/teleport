@@ -36,7 +36,10 @@ type MenuItem = {
   onNavigate: () => void;
   prependSeparator?: boolean;
   keyboardShortcutAction?: KeyboardShortcutAction;
-};
+} & (MenuItemAlwaysEnabled | MenuItemConditionallyDisabled);
+
+type MenuItemAlwaysEnabled = { isDisabled?: false };
+type MenuItemConditionallyDisabled = { isDisabled: true; disabledText: string };
 
 function useMenuItems(): MenuItem[] {
   const ctx = useAppContext();
@@ -51,6 +54,7 @@ function useMenuItems(): MenuItem[] {
     localClusterUri: workspacesService.getActiveWorkspace()?.localClusterUri,
   });
 
+  const hasNoActiveWorkspace = !documentsService;
   const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
 
@@ -61,6 +65,9 @@ function useMenuItems(): MenuItem[] {
     {
       title: 'Open new terminal',
       isVisible: true,
+      isDisabled: hasNoActiveWorkspace,
+      disabledText:
+        'You need to be logged in to a cluster to open new terminals.',
       Icon: icons.Terminal,
       keyboardShortcutAction: 'newTerminalTab',
       onNavigate: openTerminalTab,
@@ -169,7 +176,7 @@ export function AdditionalActions() {
   );
 }
 
-const Menu = styled.menu`
+export const Menu = styled.menu`
   list-style: none;
   padding: 0;
   margin: 0;
@@ -184,7 +191,7 @@ const Separator = styled.div`
   height: 1px;
 `;
 
-function MenuItem({
+export function MenuItem({
   item,
   closeMenu,
 }: {
@@ -200,7 +207,13 @@ function MenuItem({
   return (
     <>
       {item.prependSeparator && <Separator />}
-      <StyledListItem as="button" type="button" onClick={handleClick}>
+      <StyledListItem
+        as="button"
+        type="button"
+        disabled={item.isDisabled}
+        title={item.isDisabled && item.disabledText}
+        onClick={handleClick}
+      >
         <item.Icon fontSize={2} />
         <Flex
           gap={2}
@@ -238,4 +251,10 @@ const StyledListItem = styled(ListItem)`
   gap: ${props => props.theme.space[3]}px;
   padding: 0 ${props => props.theme.space[3]}px;
   border-radius: 0;
+
+  &:disabled {
+    cursor: not-allowed;
+    color: ${props => props.theme.colors.buttons.textDisabled};
+    background-color: ${props => props.theme.colors.buttons.bgDisabled};
+  }
 `;
