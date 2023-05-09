@@ -17,6 +17,7 @@ limitations under the License.
 package postgres
 
 import (
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -46,11 +47,16 @@ type ServiceFile struct {
 func Load() (*ServiceFile, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
-	user, err := utils.CurrentUser()
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		user, err := utils.CurrentUser()
+		if err != nil {
+			return nil, trace.ConvertSystemError(err)
+		}
+		home = user.HomeDir
 	}
-	return LoadFromPath(filepath.Join(user.HomeDir, pgServiceFile))
+
+	return LoadFromPath(filepath.Join(home, pgServiceFile))
 }
 
 // LoadFromPath loads Posrtgres connection service file from the specified path.
