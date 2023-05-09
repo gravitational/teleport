@@ -345,13 +345,17 @@ export function MessagesContextProvider(
   useEffect(() => {
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
+
+      if (value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE') {
+        setResponding(false);
+      }
+
       convertServerMessage(value, clusterId).then(res => {
         setMessages(prev => {
           const curr = [...prev];
           res(curr);
           return curr;
         });
-        setResponding(false);
       });
     }
   }, [lastMessage, setMessages, conversationId]);
