@@ -27,6 +27,8 @@ import { useHistory } from 'react-router';
 import { useTeleport } from 'teleport';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
+import { KeysEnum } from 'teleport/services/localStorage';
+
 import {
   TeleportIcon,
   Tooltip,
@@ -139,7 +141,7 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const ctx = useTeleport();
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
   const [showAssist, setShowAssist] = useLocalStorage(
-    'show-assist',
+    KeysEnum.SHOW_ASSIST_POPUP,
     assistEnabled
   );
 
