@@ -126,6 +126,64 @@ describe('getActionPickerStatus', () => {
         status.inputState === 'some-input' && status;
       expect([...clustersWithExpiredCerts]).toEqual(['/clusters/foo']);
     });
+
+    describe('when there are no results', () => {
+      it('lists only the filtered offline cluster if a cluster filter is selected and the filtered cluster is offline', () => {
+        const filteredCluster = makeRootCluster({
+          connected: false,
+          uri: '/clusters/filtered-cluster',
+        });
+        const otherOfflineCluster = makeRootCluster({
+          connected: false,
+          uri: '/clusters/other-offline-cluster',
+        });
+        const status = getActionPickerStatus({
+          inputValue: 'foo',
+          filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
+          filterActionsAttempt: makeSuccessAttempt([]),
+          allClusters: [filteredCluster, otherOfflineCluster],
+          actionAttempts: [makeSuccessAttempt([])],
+          resourceSearchAttempt: makeSuccessAttempt({
+            errors: [],
+            results: [],
+            search: 'foo',
+          }),
+        });
+
+        expect(status.inputState).toBe('some-input');
+        const { clustersWithExpiredCerts } =
+          status.inputState === 'some-input' && status;
+        expect([...clustersWithExpiredCerts]).toEqual([filteredCluster.uri]);
+      });
+
+      it('does not list offline clusters if a cluster filter is selected and that cluster is online and there are no results', () => {
+        const filteredCluster = makeRootCluster({
+          connected: true,
+          uri: '/clusters/filtered-cluster',
+        });
+        const otherOfflineCluster = makeRootCluster({
+          connected: false,
+          uri: '/clusters/other-offline-cluster',
+        });
+        const status = getActionPickerStatus({
+          inputValue: 'foo',
+          filters: [{ filter: 'cluster', clusterUri: filteredCluster.uri }],
+          filterActionsAttempt: makeSuccessAttempt([]),
+          allClusters: [filteredCluster, otherOfflineCluster],
+          actionAttempts: [makeSuccessAttempt([])],
+          resourceSearchAttempt: makeSuccessAttempt({
+            errors: [],
+            results: [],
+            search: 'foo',
+          }),
+        });
+
+        expect(status.inputState).toBe('some-input');
+        const { clustersWithExpiredCerts } =
+          status.inputState === 'some-input' && status;
+        expect([...clustersWithExpiredCerts]).toHaveLength(0);
+      });
+    });
   });
 
   describe('no-input search mode', () => {
