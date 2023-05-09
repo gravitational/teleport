@@ -15,10 +15,10 @@ description: Register/unregister apps without restarting Teleport.
 
 Dynamic app registration allows Teleport administrators to register new apps
 (or update/unregister existing ones) without having to update the static
-configuration and restarting the Teleport Application Services.
+configuration and restarting Teleport Application Service instances.
 
-To enable dynamic registration, include a `resources` section in your application
-service configuration with a list of resource label selectors you'd like this
+To enable dynamic registration, include a `resources` section in your Application
+Service configuration with a list of resource label selectors you'd like this
 service to monitor for registering:
 
 ```yaml
