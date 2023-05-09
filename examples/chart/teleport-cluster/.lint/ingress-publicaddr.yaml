@@ -2,3 +2,4 @@ clusterName: helm-lint
 publicAddr: ["my-teleport-ingress.example.com:443"]
 ingress:
   enabled: true
+proxyListenerMode: multiplex
