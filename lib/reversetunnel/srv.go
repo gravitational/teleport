@@ -556,10 +556,8 @@ func (s *server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	case teleport.NetconfigRequest:
 		s.handleNetConfigRequest(ctx, r)
 	default:
-		if r.WantReply {
-			if err := r.Reply(false, nil); err != nil {
-				s.log.Warnf("Failed to reply to %q request: %v", r.Type, err)
-			}
+		if err := r.Reply(false, nil); err != nil {
+			s.log.Warnf("Failed to reply to %q request: %v", r.Type, err)
 		}
 		s.log.Debugf("Discarding %q global request: %+v", r.Type, r)
 	}
