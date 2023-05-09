@@ -280,10 +280,11 @@ function findIntersection<T>(elems: T[][]): T[] {
 }
 
 export async function generateTitle(messageContent: string): Promise<string> {
-  const res = (await api.post(`/v1/webapi/assistant/title/summary`, {
+  const res: {
+    title: string;
+  } = await api.post(`/v1/webapi/assistant/title/summary`, {
     message: messageContent,
-  })) as { title: string };
-
+  });
   return res.title;
 }
 
