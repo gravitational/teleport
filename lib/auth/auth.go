@@ -3451,6 +3451,11 @@ func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedSe
 	}
 }
 
+// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	return a.inventory.ConnectedServiceCount(service)
+}
+
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	const pingAttempt = "ping-attempt"
 	const pingSuccess = "ping-success"
