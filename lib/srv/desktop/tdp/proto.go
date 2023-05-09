@@ -675,8 +675,16 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
+	// TODO(isaiah): The completionID here is a copy-paste error, but we need to keep it
+	// for now in order that the proxy stay compatible with previous versions of the wds.
+	var completionID uint32
+	err := binary.Read(in, binary.BigEndian, &completionID)
+	if err != nil {
+		return SharedDirectoryAnnounce{}, trace.Wrap(err)
+	}
+
 	var directoryID uint32
-	err := binary.Read(in, binary.BigEndian, &directoryID)
+	err = binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}
