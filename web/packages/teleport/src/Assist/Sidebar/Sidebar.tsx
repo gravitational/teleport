@@ -21,10 +21,7 @@ import { NavLink } from 'react-router-dom';
 
 import { useHistory } from 'react-router';
 
-import {
-  ConversationsContextProvider,
-  useConversations,
-} from 'teleport/Assist/contexts/conversations';
+import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 import { ChatIcon } from '../Icons/ChatIcon';
 import { PlusIcon } from '../Icons/PlusIcon';

@@ -111,8 +111,6 @@ const IntegrationEnroll = React.lazy(
 );
 const Assist = React.lazy(() => import('./Assist'));
 
-const AssistSidebar = React.lazy(() => import('./Assist/Sidebar'));
-
 // ****************************
 // Resource Features
 // ****************************
@@ -629,8 +627,6 @@ export class FeatureAssist implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.assist;
   }
-
-  sidebarComponent = AssistSidebar;
 }
 
 export function getOSSFeatures(): TeleportFeature[] {
