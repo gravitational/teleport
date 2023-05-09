@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
+	"github.com/tiktoken-go/tokenizer"
 )
 
 const maxResponseTokens = 2000
@@ -39,8 +40,9 @@ type Message struct {
 
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
-	client   *Client
-	messages []openai.ChatCompletionMessage
+	client    *Client
+	messages  []openai.ChatCompletionMessage
+	tokenizer tokenizer.Codec
 }
 
 // Insert inserts a message into the conversation. This is commonly in the
@@ -56,6 +58,32 @@ func (chat *Chat) Insert(role string, content string) Message {
 		Content: content,
 		Idx:     len(chat.messages) - 1,
 	}
+}
+
+// PromptTokens uses the chat's tokenizer to calculate
+// the total number of tokens in the prompt
+//
+// Ref: https://github.com/openai/openai-cookbook/blob/594fc6c952425810e9ea5bd1a275c8ca5f32e8f9/examples/How_to_count_tokens_with_tiktoken.ipynb
+func (chat *Chat) PromptTokens() (int, error) {
+	// perRequest is the amount of tokens used up for each completion request
+	const perRequest = 3
+	// perRole is the amount of tokens used to encode a message's role
+	const perRole = 1
+	// perMessage is the token "overhead" for each message
+	const perMessage = 3
+
+	sum := perRequest
+	for _, m := range chat.messages {
+		tokens, _, err := chat.tokenizer.Encode(m.Content)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		sum += len(tokens)
+		sum += perRole
+		sum += perMessage
+	}
+
+	return sum, nil
 }
 
 type Label struct {
@@ -106,14 +134,17 @@ type StreamingMessage struct {
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context) (any, error) {
+// On success, it returns the message and the number of tokens used for the completion.
+func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
+	var numTokens int
+
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &Message{
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: initialAIResponse,
 			Idx:     len(chat.messages) - 1,
-		}, nil
+		}, numTokens, nil
 	}
 
 	// if not, copy the current chat log to a new slice and append the suffix instruction
@@ -136,7 +167,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, numTokens, trace.Wrap(err)
 	}
 
 	// fetch the first delta to check for a possible JSON payload
@@ -144,8 +175,9 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 top:
 	response, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, numTokens, trace.Wrap(err)
 	}
+	numTokens++
 
 	trimmed := strings.TrimSpace(response.Choices[0].Delta.Content)
 	if len(trimmed) == 0 {
@@ -162,8 +194,9 @@ top:
 			case errors.Is(err, io.EOF):
 				break outer
 			case err != nil:
-				return nil, trace.Wrap(err)
+				return nil, numTokens, trace.Wrap(err)
 			}
+			numTokens++
 
 			payload += response.Choices[0].Delta.Content
 		}
@@ -173,13 +206,13 @@ top:
 		err = json.Unmarshal([]byte(payload), &c)
 		switch err {
 		case nil:
-			return &c, nil
+			return &c, numTokens, nil
 		default:
 			return &Message{
 				Role:    openai.ChatMessageRoleAssistant,
 				Content: payload,
 				Idx:     len(chat.messages) - 1,
-			}, nil
+			}, numTokens, nil
 		}
 	}
 
@@ -213,5 +246,5 @@ top:
 		Idx:    len(chat.messages) - 1,
 		Chunks: chunks,
 		Error:  errCh,
-	}, nil
+	}, numTokens, nil
 }

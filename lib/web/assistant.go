@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -281,7 +282,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 	if len(messages.GetMessages()) == 0 {
 		// new conversation, generate hello message
-		if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
+		if _, err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -303,8 +304,29 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
-		if err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws); err != nil {
+		promptTokens, err := chat.PromptTokens()
+		if err != nil {
+			log.Warnf("Failed to calculate prompt tokens: %v", err)
+		}
+		completionTokens, err := insertAssistantMessage(ctx, h, sctx, site, conversationID, wsIncoming, chat, ws)
+		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		usageEventReq := &proto.SubmitUsageEventRequest{
+			Event: &usageeventsv1.UsageEventOneOf{
+				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
+					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
+						ConversationId:   conversationID,
+						TotalTokens:      int64(promptTokens + completionTokens),
+						PromptTokens:     int64(promptTokens),
+						CompletionTokens: int64(completionTokens),
+					},
+				},
+			},
+		}
+		if err := authClient.SubmitUsageEvent(r.Context(), usageEventReq); err != nil {
+			h.log.WithError(err).Warn("Failed to emit usage event")
 		}
 	}
 
@@ -315,13 +337,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContext, site reversetunnel.RemoteSite,
 	conversationID string, wsIncoming proto.AssistantMessage, chat *ai.Chat, ws *websocket.Conn,
-) error {
+) (int, error) {
 	// Create a new auth client as the WS is a long-living connection
 	// and client created at the beginning will timeout at some point.
 	// TODO(jakule): Fix the timeout issue https://github.com/gravitational/teleport/issues/25758
 	authClient, err := newRemoteClient(ctx, sctx, site)
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	defer authClient.Close()
 
@@ -331,14 +353,15 @@ func insertAssistantMessage(ctx context.Context, h *Handler, sctx *SessionContex
 		Payload:        wsIncoming.Payload,
 		CreatedTime:    h.clock.Now().UTC(),
 	}); err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	if err := processComplete(ctx, h, chat, conversationID, ws, authClient); err != nil {
-		return trace.Wrap(err)
+	numTokens, err := processComplete(ctx, h, chat, conversationID, ws, authClient)
+	if err != nil {
+		return 0, trace.Wrap(err)
 	}
 
-	return nil
+	return numTokens, nil
 }
 
 func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.ClientI) (string, error) {
@@ -401,11 +424,11 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 
 func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversationID string,
 	ws *websocket.Conn, authClient auth.ClientI,
-) error {
+) (int, error) {
 	// query the assistant and fetch an answer
-	message, err := chat.Complete(ctx)
+	message, numTokens, err := chat.Complete(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return numTokens, trace.Wrap(err)
 	}
 
 	switch message := message.(type) {
@@ -426,6 +449,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 					continue outer
 				}
 
+				numTokens++
 				content += chunk
 				payload := partialMessagePayload{
 					Content: chunk,
@@ -434,7 +458,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 
 				payloadJSON, err := json.Marshal(payload)
 				if err != nil {
-					return trace.Wrap(err)
+					return numTokens, trace.Wrap(err)
 				}
 
 				protoMsg := &proto.AssistantMessage{
@@ -445,10 +469,10 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 				}
 
 				if err := ws.WriteJSON(protoMsg); err != nil {
-					return trace.Wrap(err)
+					return numTokens, trace.Wrap(err)
 				}
 			case err = <-message.Error:
-				return trace.Wrap(err)
+				return numTokens, trace.Wrap(err)
 			}
 		}
 
@@ -459,7 +483,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 
 		finalizePayloadJSON, err := json.Marshal(finalizePayload)
 		if err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 
 		finalizeProtoMsg := &proto.AssistantMessage{
@@ -470,7 +494,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 		}
 
 		if err := ws.WriteJSON(finalizeProtoMsg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 
 		// write the entire message to both in-memory chain and persistent storage
@@ -483,7 +507,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 		}
 
 		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 	case *ai.Message:
 		// write assistant message to both in-memory chain and persistent storage
@@ -495,11 +519,11 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 			CreatedTime:    h.clock.Now().UTC(),
 		}
 		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 
 		if err := ws.WriteJSON(protoMsg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 	case *ai.CompletionCommand:
 		payload := commandPayload{
@@ -510,7 +534,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 
 		payloadJson, err := json.Marshal(payload)
 		if err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 
 		msg := &proto.AssistantMessage{
@@ -521,17 +545,17 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 		}
 
 		if _, err := authClient.InsertAssistantMessage(ctx, msg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 
 		if err := ws.WriteJSON(msg); err != nil {
-			return trace.Wrap(err)
+			return numTokens, trace.Wrap(err)
 		}
 	default:
-		return trace.Errorf("unknown message type")
+		return numTokens, trace.Errorf("unknown message type")
 	}
 
-	return nil
+	return numTokens, nil
 }
 
 func kindToRole(kind string) string {
