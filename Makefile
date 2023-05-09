@@ -49,8 +49,12 @@ else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
