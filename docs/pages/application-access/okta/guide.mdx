@@ -1,6 +1,6 @@
 ---
 title: Setting up the Okta Service
-description: How to set up the Okta Service with some basic configurations.
+description: How to set up the Okta Service with some basic configurations
 ---
 
 Teleport can import and grant access to Okta applications and user groups. Okta applications
@@ -21,7 +21,7 @@ configurations to enable it.
 - An instance where you will run the Okta Service. This can live anywhere
   with outbound access to Okta and must be running Linux.
 
-## Step 1/3. Create Okta import rules.
+## Step 1/3. Create Okta import rules
 
 Before setting up the Okta Service, you should create Okta import rules in order
 to ensure that our Okta applications are set up with appropriate labeling before
@@ -103,7 +103,7 @@ spec:
 This will ensure that the applications and groups, once synchronized to Teleport,
 will be given the specified labels.
 
-## Step 2/3. Set up the Okta Service.
+## Step 2/3. Set up the Okta Service
 
 In this step, you'll set up the Okta Service. The Okta Service will interact with Okta's
 API to import applications and groups, as well as update memberships to those applications
