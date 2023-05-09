@@ -59,11 +59,13 @@ export function NavigationCategoryContainer(props: NavigationCategoryProps) {
   if (props.category === NavigationCategory.Assist && items.length) {
     const SidebarComponent = items[0].sidebarComponent;
 
-    return (
-      <Container visible={props.visible}>
-        <SidebarComponent />
-      </Container>
-    );
+    if (SidebarComponent) {
+      return (
+        <Container visible={props.visible}>
+          <SidebarComponent/>
+        </Container>
+      );
+    }
   }
 
   if (props.category === NavigationCategory.Resources) {
