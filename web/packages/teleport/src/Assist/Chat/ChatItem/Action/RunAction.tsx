@@ -164,9 +164,9 @@ interface NodeOutputProps {
 
 const NodeContainer = styled.div`
   margin-bottom: 20px;
-  background: #0a0e31;
+  background: ${p => p.theme.colors.spotBackground[0]};
   border-radius: 5px;
-  padding: 10px 15px;
+  padding: 10px 15px 10px;
 `;
 
 const NodeTitle = styled.div`
@@ -177,9 +177,10 @@ const NodeTitle = styled.div`
 
 const NodeContent = styled.div`
   background: #020308;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   border-radius: 5px;
   padding: 1px 20px;
+  color: white;
 `;
 
 const LoadingContainer = styled.div`

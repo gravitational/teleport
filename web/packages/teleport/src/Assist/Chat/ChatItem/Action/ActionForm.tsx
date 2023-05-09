@@ -15,7 +15,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { UserIcon } from 'design/SVGIcon';
 import { Cross } from 'design/Icon';
@@ -36,7 +36,7 @@ interface ActionFormProps {
 
 const CommandInput = styled.input`
   padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${p => p.theme.colors.spotBackground[0]};
   border-radius: 5px;
   font-size: 16px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
@@ -62,24 +62,29 @@ const CancelButton = styled.div`
   margin-right: 10px;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: ${p => p.theme.colors.spotBackground[0]};
   }
 `;
 
 const SaveButton = styled.div`
   margin-top: 10px;
-  background: #5130c9;
+  background: ${p => p.theme.colors.buttons.primary.default};
   font-weight: bold;
+  color: ${p => p.theme.colors.buttons.primary.text};
   border-radius: 5px;
   padding: 5px 15px;
   display: inline-flex;
   align-self: flex-end;
   cursor: pointer;
+
+  &:hover {
+    background: ${p => p.theme.colors.buttons.primary.hover};
+  }
 `;
 
 const LabelForm = styled.div`
   display: flex;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${p => p.theme.colors.spotBackground[0]};
   align-items: center;
   padding: 1px 15px;
   border-radius: 5px;
@@ -101,6 +106,7 @@ const Input = styled.input`
   border: none;
   width: 340px;
   box-sizing: border-box;
+  color: ${p => p.theme.colors.text.main};
 
   &:focus {
     outline: none;
@@ -132,6 +138,8 @@ const As = styled.div`
 `;
 
 export function ActionForm(props: ActionFormProps) {
+  const theme = useTheme();
+
   const currentSelectedUser = props.initialState.find(e => e.type === 'user');
   const [formState, setFormState] = useState<ActionState[]>(props.initialState);
   const [currentUser, setCurrentUser] = useState<string>(
@@ -191,13 +199,15 @@ export function ActionForm(props: ActionFormProps) {
       items.push(
         <LabelForm key={`query-${index}`}>
           <LabelFormContent>
-            <SearchIcon size={16} />
+            <SearchIcon
+              size={16}
+              fill={theme.name === 'light' ? 'black' : 'white'}
+            />
 
             <Input
               key="query"
               value={stateItem.value}
               onChange={event => handleChange(index, event.target.value)}
-              style={{ color: 'white' }}
             />
           </LabelFormContent>
 
@@ -213,14 +223,17 @@ export function ActionForm(props: ActionFormProps) {
         <As key={`as-${index}`}>as</As>,
         <LabelForm key={`user-${index}`}>
           <LabelFormContent>
-            <UserIcon size={16} />
+            <UserIcon
+              size={16}
+              fill={theme.name === 'light' ? 'black' : 'white'}
+            />
             <Select
               onChange={event => handleUserChange(index, event['value'])}
               value={{ value: currentUser, label: currentUser }}
               options={stateItem.value.map(option => {
                 return { label: option, value: option };
               })}
-              css={'width: 20vh; padding: 5px'}
+              css={'width: 20vh; padding: 5px; margin-left: 10px;'}
             />
           </LabelFormContent>
 
