@@ -133,8 +133,10 @@ func loadAK(
 	return ak, nil
 }
 
-func createAK(tpm *attest.TPM, persistencePath string) (*attest.AK, error) {
-	// If no AK found on disk, create one.
+func createAndSaveAK(
+	tpm *attest.TPM,
+	persistencePath string,
+) (*attest.AK, error) {
 	ak, err := tpm.NewAK(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -165,12 +167,14 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer tpm.Close()
 
+	// Try to load an existing AK in the case of re-enrollment, but, if the
+	// AK does not exist, create one and persist it.
 	ak, err := loadAK(tpm, akPath)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		ak, err = createAK(tpm, akPath)
+		ak, err = createAndSaveAK(tpm, akPath)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -266,6 +270,8 @@ func solveTPMEnrollChallenge(
 	}
 	defer ak.Close(tpm)
 
+	// First perform the credential activation challenge provided by the
+	// auth server.
 	activationSolution, err := ak.ActivateCredential(
 		tpm,
 		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
@@ -274,8 +280,23 @@ func solveTPMEnrollChallenge(
 		return nil, trace.Wrap(err)
 	}
 
+	// Next perform a platform attestation using the AK.
+	platformsParams, err := tpm.AttestPlatform(
+		ak,
+		challenge.AttestationNonce,
+		&attest.PlatformAttestConfig{
+			EventLog: nil,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
+		PlatformParameters: devicetrust.PlatformParametersToProto(
+			platformsParams,
+		),
 	}, nil
 }
 

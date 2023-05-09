@@ -15,6 +15,7 @@
 package devicetrust
 
 import (
+	"crypto"
 	"github.com/google/go-attestation/attest"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
@@ -49,4 +50,68 @@ func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) attest.En
 		Credential: in.CredentialBlob,
 		Secret:     in.Secret,
 	}
+}
+
+func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatformParameters {
+	return &devicepb.TPMPlatformParameters{
+		EventLog: in.EventLog,
+		Quotes:   quotesToProto(in.Quotes),
+		Pcrs:     pcrsToProto(in.PCRs),
+	}
+}
+
+func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.PlatformParameters {
+	return attest.PlatformParameters{
+		TPMVersion: attest.TPMVersion20,
+		Quotes:     quotesFromProto(in.Quotes),
+		PCRs:       pcrsFromProto(in.Pcrs),
+		EventLog:   in.EventLog,
+	}
+}
+
+func quotesToProto(in []attest.Quote) []*devicepb.TPMQuote {
+	out := make([]*devicepb.TPMQuote, len(in))
+	for i, q := range in {
+		out[i] = &devicepb.TPMQuote{
+			Quote:     q.Quote,
+			Signature: q.Signature,
+		}
+	}
+	return out
+}
+
+func quotesFromProto(in []*devicepb.TPMQuote) []attest.Quote {
+	out := make([]attest.Quote, len(in))
+	for i, q := range in {
+		out[i] = attest.Quote{
+			Version:   attest.TPMVersion20,
+			Quote:     q.Quote,
+			Signature: q.Signature,
+		}
+	}
+	return out
+}
+
+func pcrsToProto(in []attest.PCR) []*devicepb.TPMPCR {
+	out := make([]*devicepb.TPMPCR, len(in))
+	for i, pcr := range in {
+		out[i] = &devicepb.TPMPCR{
+			Index:  int32(pcr.Index),
+			Digest: pcr.Digest,
+			Hash:   uint64(pcr.DigestAlg),
+		}
+	}
+	return out
+}
+
+func pcrsFromProto(in []*devicepb.TPMPCR) []attest.PCR {
+	out := make([]attest.PCR, len(in))
+	for i, pcr := range in {
+		out[i] = attest.PCR{
+			Index:     int(pcr.Index),
+			Digest:    pcr.Digest,
+			DigestAlg: crypto.Hash(pcr.Hash),
+		}
+	}
+	return out
 }
