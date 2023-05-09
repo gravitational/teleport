@@ -99,6 +99,9 @@ func GetDefaultContentSecurityPolicy() string {
 		"frame-ancestors 'none'",
 		// additional default restrictions
 		"object-src 'none'",
+		// auto-pay plans in Cloud use stripe.com to manage billing information
+		"script-src 'self' https://js.stripe.com",
+		"frame-src https://js.stripe.com",
 	}, ";")
 }
 
