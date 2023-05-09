@@ -106,14 +106,6 @@ const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
 `;
 
 export function Sidebar() {
-  return (
-    <ConversationsContextProvider>
-      <SidebarContent />
-    </ConversationsContextProvider>
-  );
-}
-
-function SidebarContent() {
   const theme = useTheme();
 
   const history = useHistory();
