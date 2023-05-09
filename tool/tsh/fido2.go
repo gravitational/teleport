@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
-	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncbor"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
