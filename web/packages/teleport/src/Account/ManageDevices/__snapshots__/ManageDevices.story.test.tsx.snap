@@ -140,7 +140,9 @@ exports[`render device dashboard 1`] = `
 
 .c11 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -204,8 +206,8 @@ exports[`render device dashboard 1`] = `
   line-height: 16px;
 }
 
-.c11 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c11 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c11 tbody tr:hover {
@@ -682,7 +684,9 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 
 .c12 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -746,8 +750,8 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   line-height: 16px;
 }
 
-.c12 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c12 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c12 tbody tr:hover {

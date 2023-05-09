@@ -51,7 +51,7 @@ import { CrossClusterResourceSearchResult } from '../useSearch';
 
 import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
-import { ResultList, NonInteractiveItem } from './ResultList';
+import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
 import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
@@ -65,7 +65,6 @@ export function ActionPicker(props: { input: ReactElement }) {
     close,
     inputValue,
     resetInput,
-    closeAndResetInput,
     filters,
     removeFilter,
     addWindowEventListener,
@@ -108,17 +107,16 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        if (action.preventAutoClose === true) {
-          resetInput();
-        } else {
-          closeAndResetInput();
+        resetInput();
+        if (!action.preventAutoClose) {
+          close();
         }
       }
       if (action.type === 'parametrized-action') {
         changeActivePicker(getParameterPicker(action));
       }
     },
-    [changeActivePicker, closeAndResetInput, resetInput]
+    [changeActivePicker, close, resetInput]
   );
 
   const filterButtons = filters.map(s => {
@@ -376,30 +374,9 @@ type SearchResultItem<T> = {
   getOptionalClusterName: (uri: uri.ResourceUri) => string;
 };
 
-function Item(
-  props: React.PropsWithChildren<{
-    Icon: React.ComponentType<{
-      color: string;
-      fontSize: string;
-      lineHeight: string;
-    }>;
-    iconColor: string;
-  }>
-) {
-  return (
-    <Flex alignItems="flex-start" gap={2}>
-      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
-      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
-      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
-        {props.children}
-      </Flex>
-    </Flex>
-  );
-}
-
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
-    <Item Icon={icons.Lan} iconColor="text.slightlyMuted">
+    <IconAndContent Icon={icons.Lan} iconColor="text.slightlyMuted">
       <Text typography="body1">
         Search only in{' '}
         <strong>
@@ -409,7 +386,7 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
           />
         </strong>
       </Text>
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -430,7 +407,7 @@ function ResourceTypeFilterItem(
   props: SearchResultItem<SearchResultResourceType>
 ) {
   return (
-    <Item
+    <IconAndContent
       Icon={resourceIcons[props.searchResult.resource]}
       iconColor="text.slightlyMuted"
     >
@@ -443,7 +420,7 @@ function ResourceTypeFilterItem(
           />
         </strong>
       </Text>
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -455,7 +432,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <Item Icon={icons.Server} iconColor="brand">
+    <IconAndContent Icon={icons.Server} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -495,7 +472,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
           )}
         </ResourceFields>
       </Labels>
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -529,7 +506,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <Item Icon={icons.Database} iconColor="brand">
+    <IconAndContent Icon={icons.Database} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -560,7 +537,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
       ) : (
         <Labels searchResult={searchResult}>{$resourceFields}</Labels>
       )}
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -568,7 +545,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <Item Icon={icons.Kubernetes} iconColor="brand">
+    <IconAndContent Icon={icons.Kubernetes} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -589,7 +566,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
       </Flex>
 
       <Labels searchResult={searchResult} />
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -615,10 +592,10 @@ export function NoResultsItem(props: {
 
   return (
     <NonInteractiveItem>
-      <Item Icon={icons.Info} iconColor="text.slightlyMuted">
+      <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
         <Text typography="body1">No matching results found.</Text>
         {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
-      </Item>
+      </IconAndContent>
     </NonInteractiveItem>
   );
 }
@@ -662,7 +639,7 @@ export function ResourceSearchErrorsItem(props: {
 
   return (
     <NonInteractiveItem>
-      <Item Icon={icons.Warning} iconColor="#f3af3d">
+      <IconAndContent Icon={icons.Warning} iconColor="warning.main">
         <Text typography="body1">
           Some of the search results are incomplete.
         </Text>
@@ -689,7 +666,7 @@ export function ResourceSearchErrorsItem(props: {
             Show details
           </ButtonBorder>
         </Flex>
-      </Item>
+      </IconAndContent>
     </NonInteractiveItem>
   );
 }
