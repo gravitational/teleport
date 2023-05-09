@@ -370,33 +370,6 @@ func (t *TerminalHandler) Close() error {
 	return nil
 }
 
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
-	tickerCh := time.NewTicker(t.keepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// A short deadline is used here to detect a broken connection quickly.
-			// If this is just a temporary issue, we will retry shortly anyway.
-			deadline := time.Now().Add(time.Second)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.WithError(err).Error("Unable to send ping frame to web client")
-				t.Close()
-				return
-			}
-		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
-	}
-}
-
 // handler is the main websocket loop. It creates a Teleport client and then
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
@@ -439,7 +412,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go t.startPingLoop(ws)
+	go startPingLoop(t.terminalContext, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -1032,6 +1005,14 @@ func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session
 	}
 }
 
+func NewWStream(ws WSConn) *WsStream {
+	return &WsStream{
+		ws:      ws,
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	}
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
@@ -1041,9 +1022,11 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	}
 
 	t := &TerminalStream{
-		ws:      ws,
-		encoder: unicode.UTF8.NewEncoder(),
-		decoder: unicode.UTF8.NewDecoder(),
+		WsStream: WsStream{
+			ws:      ws,
+			encoder: unicode.UTF8.NewEncoder(),
+			decoder: unicode.UTF8.NewDecoder(),
+		},
 	}
 
 	for _, opt := range opts {
@@ -1053,9 +1036,7 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	return t, nil
 }
 
-// TerminalStream manages the [websocket.Conn] to the web UI
-// for a terminal session.
-type TerminalStream struct {
+type WsStream struct {
 	// encoder is used to encode UTF-8 strings.
 	encoder *encoding.Encoder
 	// decoder is used to decode UTF-8 strings.
@@ -1064,6 +1045,17 @@ type TerminalStream struct {
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
+
+	// mu protects writes to ws
+	mu sync.Mutex
+	// ws the connection to the UI
+	ws WSConn
+}
+
+// TerminalStream manages the [websocket.Conn] to the web UI
+// for a terminal session.
+type TerminalStream struct {
+	WsStream
 
 	// once ensures that all channels are closed at most one time.
 	once sync.Once
@@ -1075,25 +1067,20 @@ type TerminalStream struct {
 	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
 	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
-
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
-	ws *websocket.Conn
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
 // writeError displays an error in the terminal window.
-func (t *TerminalStream) writeError(err error) error {
+func (t *WsStream) writeError(err error) error {
 	_, writeErr := replacer.WriteString(t, err.Error())
 	return trace.Wrap(writeErr)
 }
 
 // writeChallenge encodes and writes the challenge to the
 // websocket in the correct format.
-func (t *TerminalStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+func (t *WsStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
 	// Send the challenge over the socket.
 	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
 	if err != nil {
@@ -1107,7 +1094,7 @@ func (t *TerminalStream) writeChallenge(challenge *client.MFAAuthenticateChallen
 
 // readChallenge reads and decodes the challenge response from the
 // websocket in the correct format.
-func (t *TerminalStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
+func (t *WsStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	// Read the challenge response.
 	ty, bytes, err := t.ws.ReadMessage()
 	if err != nil {
@@ -1124,7 +1111,7 @@ func (t *TerminalStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthentica
 
 // writeAuditEvent encodes and writes the audit event to the
 // websocket in the correct format.
-func (t *TerminalStream) writeAuditEvent(event []byte) error {
+func (t *WsStream) writeAuditEvent(event []byte) error {
 	// UTF-8 encode the error message and then wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(event))
 	if err != nil {
@@ -1149,7 +1136,7 @@ func (t *TerminalStream) writeAuditEvent(event []byte) error {
 }
 
 // Write wraps the data bytes in a raw envelope and sends.
-func (t *TerminalStream) Write(data []byte) (n int, err error) {
+func (t *WsStream) Write(data []byte) (n int, err error) {
 	// UTF-8 encode data and wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(data))
 	if err != nil {
@@ -1176,9 +1163,7 @@ func (t *TerminalStream) Write(data []byte) (n int, err error) {
 	return len(data), nil
 }
 
-// Read unwraps the envelope and either fills out the passed in bytes or
-// performs an action on the connection (sending window-change request).
-func (t *TerminalStream) Read(out []byte) (n int, err error) {
+func (t *WsStream) readMessage(out []byte) (string, []byte, int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1186,7 +1171,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		} else {
 			t.buffer = t.buffer[n:]
 		}
-		return n, nil
+		return "", nil, n, nil
 	}
 
 	ty, bytes, err := t.ws.ReadMessage()
@@ -1195,29 +1180,63 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		// the websocket copy loop
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
 			websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-			return 0, io.EOF
+			return "", nil, 0, io.EOF
 		}
 
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
 	if ty != websocket.BinaryMessage {
-		return 0, trace.BadParameter("expected binary message, got %v", ty)
+		return "", nil, 0, trace.BadParameter("expected binary message, got %v", ty)
 	}
 
 	var envelope Envelope
 	err = proto.Unmarshal(bytes, &envelope)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
 	var data []byte
 	data, err = t.decoder.Bytes([]byte(envelope.GetPayload()))
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
-	switch envelope.GetType() {
+	return envelope.Type, data, 0, nil
+}
+
+// Read unwraps the envelope and either fills out the passed in bytes or
+// performs an action on the connection (sending window-change request).
+func (t *WsStream) Read(out []byte) (n int, err error) {
+	messageType, data, n, err := t.readMessage(out)
+	if err != nil || n > 0 {
+		return n, err
+	}
+
+	switch messageType {
+	// the session was closed
+	case defaults.WebsocketClose:
+		return 0, io.EOF
+	case defaults.WebsocketRaw:
+		n := copy(out, data)
+		// if payload size is greater than [out], store the remaining
+		// part in the buffer to be processed on the next Read call
+		if len(data) > n {
+			t.buffer = data[n:]
+		}
+		return n, nil
+	default:
+		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
+	}
+}
+
+func (t *TerminalStream) Read(out []byte) (n int, err error) {
+	messageType, data, n, err := t.readMessage(out)
+	if err != nil || n > 0 {
+		return n, err
+	}
+
+	switch messageType {
 	// the session was closed
 	case defaults.WebsocketClose:
 		return 0, io.EOF
@@ -1297,11 +1316,27 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 		return 0, nil
 	default:
-		return 0, trace.BadParameter("unknown prefix type: %v", envelope.GetType())
+		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
 	}
 }
 
-// Close send a close message on the web socket
+func (t *WsStream) Close() error {
+	// Send close envelope to web terminal upon exit without an error.
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.NewAggregate(err, t.ws.Close())
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
+}
+
+// Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
 	t.once.Do(func() {
@@ -1318,19 +1353,7 @@ func (t *TerminalStream) Close() error {
 		}
 	})
 
-	// Send close envelope to web terminal upon exit without an error.
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketClose,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return trace.NewAggregate(err, t.ws.Close())
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
+	return t.WsStream.Close()
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.
