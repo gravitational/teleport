@@ -22,7 +22,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -404,9 +403,7 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 var jsonBlockPattern = regexp.MustCompile(`(?s){.+}`)
 
 func tryFindEmbeddedCommand(message string) *ai.CompletionCommand {
-	fmt.Println("invoked tryfind with data: " + message)
 	candidates := jsonBlockPattern.FindAllString(message, -1)
-	fmt.Printf("found %v candidates\n", len(candidates))
 
 	for _, candidate := range candidates {
 		var c ai.CompletionCommand
