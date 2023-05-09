@@ -18,7 +18,7 @@ package types
 
 import (
 	"fmt"
-	"net/netip"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -429,7 +429,7 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
 		}
 
-		_, err := netip.ParseAddrPort(s.Spec.Addr)
+		_, _, err := net.SplitHostPort(s.Spec.Addr)
 		if err != nil {
 			return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
 		}
