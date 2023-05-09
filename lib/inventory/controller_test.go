@@ -506,6 +506,14 @@ func TestInstanceHeartbeat(t *testing.T) {
 		)
 	}
 
+	// verify the service counter shows the correct number for the given services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  1,
+		types.RoleNode: 1,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleApp))
+
 	// verify that none of the qualified events were ever heartbeat because
 	// a reset always occurred.
 	var unqualifiedIncludes int
@@ -550,9 +558,13 @@ func TestInstanceHeartbeat(t *testing.T) {
 	auth.mu.Unlock()
 	require.Greater(t, logSize, 2)
 
-	// verify the service counter shows the correct number for the given services.
-	require.Equal(t, uint64(0), controller.serviceCounter.get(types.RoleNode))
-	require.Equal(t, uint64(0), controller.serviceCounter.get(types.RoleApp))
+	// verify the service counter now shows no connected services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  0,
+		types.RoleNode: 0,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleApp))
 }
 
 type eventOpts struct {

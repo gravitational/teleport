@@ -214,6 +214,11 @@ func (c *Controller) ConnectedServiceCounts() map[types.SystemRole]uint64 {
 	return c.serviceCounter.counts()
 }
 
+// ConnectedServiceCount returns the number of a particular connected service in the inventory.
+func (c *Controller) ConnectedServiceCount(systemRole types.SystemRole) uint64 {
+	return c.serviceCounter.get(systemRole)
+}
+
 func (c *Controller) testEvent(event testEvent) {
 	if c.testEvents == nil {
 		return

@@ -52,7 +52,10 @@ func (s *serviceCounter) decrement(service types.SystemRole) {
 
 // get will return the value of a counter for a service.
 func (s *serviceCounter) get(service types.SystemRole) uint64 {
-	return s.load(service).Load()
+	if result, ok := s.countMap.Load(service); ok {
+		return result.(*atomic.Uint64).Load()
+	}
+	return 0
 }
 
 // load will load the underlying atomic value in the sync map. This should

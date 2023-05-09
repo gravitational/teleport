@@ -35,8 +35,7 @@ func TestServiceCounter(t *testing.T) {
 	require.Equal(t, uint64(2), sc.get(types.RoleApp))
 
 	require.Equal(t, map[types.SystemRole]uint64{
-		types.RoleAuth: 0,
-		types.RoleApp:  2,
+		types.RoleApp: 2,
 	}, sc.counts())
 
 	sc.decrement(types.RoleApp)
