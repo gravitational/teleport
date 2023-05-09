@@ -47,11 +47,7 @@ import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type {
-  LockedFeatures,
-  TeleportFeature,
-  TeleportFeature,
-} from 'teleport/types';
+import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 interface MainProps {
   initialAlerts?: ClusterAlert[];
