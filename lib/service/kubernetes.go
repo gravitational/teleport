@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -251,14 +250,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	process.RegisterCriticalFunc("kube.serve", func() error {
 		if conn.UseTunnel() {
 			log.Info("Starting Kube service via proxy reverse tunnel.")
-			utils.Consolef(cfg.Console, log, teleport.ComponentKube,
-				"Kubernetes service %s:%s is starting via proxy reverse tunnel.",
-				teleport.Version, teleport.Gitref)
 		} else {
 			log.Infof("Starting Kube service on %v.", listener.Addr())
-			utils.Consolef(cfg.Console, log, teleport.ComponentKube,
-				"Kubernetes service %s:%s is starting on %v.",
-				teleport.Version, teleport.Gitref, listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: KubernetesReady, Payload: nil})
 		err := kubeServer.Serve(listener)
