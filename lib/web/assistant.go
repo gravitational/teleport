@@ -52,13 +52,17 @@ const (
 	messageKindSystemMessage            = "CHAT_MESSAGE_SYSTEM"
 )
 
-func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Request,
+	_ httprouter.Params, sctx *SessionContext,
+) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req := &proto.CreateAssistantConversationRequest{}
+	req := &proto.CreateAssistantConversationRequest{
+		CreatedTime: h.clock.Now().UTC(),
+	}
 
 	resp, err := authClient.CreateAssistantConversation(r.Context(), req)
 	if err != nil {
@@ -68,7 +72,9 @@ func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Req
 	return resp, nil
 }
 
-func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -90,7 +96,9 @@ func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Re
 	}, err
 }
 
-func (h *Handler) getAssistantConversations(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) getAssistantConversations(_ http.ResponseWriter, r *http.Request,
+	_ httprouter.Params, sctx *SessionContext,
+) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -104,9 +112,11 @@ func (h *Handler) getAssistantConversations(w http.ResponseWriter, r *http.Reque
 	return resp, err
 }
 
-func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
 	req := struct {
-		Message string `json:"message"`
+		Title string `json:"title"`
 	}{}
 
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -122,7 +132,7 @@ func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request, p ht
 
 	conversationInfo := &proto.ConversationInfo{
 		Id:    conversationID,
-		Title: req.Message,
+		Title: req.Title,
 	}
 
 	if err := authClient.SetAssistantConversationTitle(r.Context(), conversationInfo); err != nil {
@@ -132,7 +142,9 @@ func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request, p ht
 	return OK(), nil
 }
 
-func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
 	req := struct {
 		Message string `json:"message"`
 	}{}
@@ -140,8 +152,6 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	conversationID := p.ByName("conversation_id")
 
 	chat, err := getAssistantClient(r.Context(), h.cfg.ProxyClient, h.cfg.ProxySettings, sctx.cfg.User)
 	if err != nil {
@@ -154,7 +164,6 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	}
 
 	conversationInfo := &proto.ConversationInfo{
-		Id:    conversationID,
 		Title: titleSummary,
 	}
 
@@ -189,7 +198,8 @@ type partialFinalizePayload struct {
 }
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
-func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext, site reversetunnel.RemoteSite,
+func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
+	sctx *SessionContext, site reversetunnel.RemoteSite,
 ) error {
 	authClient, err := sctx.GetClient()
 	if err != nil {

@@ -1385,13 +1385,16 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
+// Conversation is a conversation entry in the backend.
 type Conversation struct {
-	Title          string `json:"title,omitempty"`
-	ConversationID string `json:"conversation_id"`
+	Title          string    `json:"title,omitempty"`
+	ConversationID string    `json:"conversation_id"`
+	CreatedTime    time.Time `json:"created_time"`
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest,
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string,
+	req *proto.CreateAssistantConversationRequest,
 ) (*proto.CreateAssistantConversationResponse, error) {
 	if username == "" {
 		return nil, trace.BadParameter("missing parameter username")
@@ -1400,6 +1403,7 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	conversationID := uuid.New().String()
 	payload := &Conversation{
 		ConversationID: conversationID,
+		CreatedTime:    req.CreatedTime,
 	}
 
 	value, err := json.Marshal(payload)
@@ -1420,16 +1424,33 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	return &proto.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
+func (s *IdentityService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
+	item, err := s.Get(ctx, backend.Key(assistantConversationPrefix, username, conversationID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var conversation Conversation
+	if err := json.Unmarshal(item.Value, &conversation); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &conversation, nil
+}
+
 // SetAssistantConversationTitle sets the given title as the assistant conversation title.
 func (s *IdentityService) SetAssistantConversationTitle(ctx context.Context, username string, request *proto.ConversationInfo) error {
 	if request.Id == "" || request.Title == "" {
 		return trace.BadParameter("missing conversation ID or title")
 	}
 
-	msg := &Conversation{
-		Title:          request.Title,
-		ConversationID: request.Id,
+	msg, err := s.getConversation(ctx, username, request.Id)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	// Only update the title, leave the rest of the fields intact.
+	msg.Title = request.Title
 
 	payload, err := json.Marshal(msg)
 	if err != nil {
@@ -1464,10 +1485,15 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, usernam
 		}
 
 		conversationsIDs = append(conversationsIDs, &proto.ConversationInfo{
-			Id:    payload.ConversationID,
-			Title: payload.Title,
+			Id:          payload.ConversationID,
+			Title:       payload.Title,
+			CreatedTime: payload.CreatedTime,
 		})
 	}
+
+	sort.Slice(conversationsIDs, func(i, j int) bool {
+		return conversationsIDs[i].CreatedTime.Before(conversationsIDs[j].GetCreatedTime())
+	})
 
 	return &proto.GetAssistantConversationsResponse{
 		Conversations: conversationsIDs,

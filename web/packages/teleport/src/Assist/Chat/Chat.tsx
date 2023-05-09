@@ -33,7 +33,13 @@ import {
   ChatItemAvatarTeleport,
 } from 'teleport/Assist/Chat/Avatar';
 
-import { useMessages } from '../contexts/messages';
+import { useConversations } from 'teleport/Assist/contexts/conversations';
+
+import {
+  generateTitle,
+  setConversationTitle,
+  useMessages,
+} from '../contexts/messages';
 
 import { ChatBox } from './ChatBox';
 import { ChatItem } from './ChatItem';
@@ -73,10 +79,15 @@ const Width = styled.div`
   width: 100%;
 `;
 
-export function Chat() {
+class ChatProps {
+  conversationId: string;
+}
+
+export function Chat(props: ChatProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   const { send, messages, loading, responding } = useMessages();
+  const { conversations, setConversations } = useConversations();
 
   const scrollTextarea = useCallback(() => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,9 +99,28 @@ export function Chat() {
 
   const handleSubmit = useCallback(
     (message: string) => {
-      send(message);
+      send(message).then(() => {
+        if (messages.length == 1) {
+          // Use the second message/first message from a user to generate the title.
+          (async () => {
+            // Generate title using the last message and OpenAI API.
+            const title = await generateTitle(message);
+            // Set the title in the backend.
+            await setConversationTitle(props.conversationId, title);
+            // Update the title in the frontend.
+            setConversations(conversations =>
+              conversations.map(c => {
+                if (c.id === props.conversationId) {
+                  c.title = title;
+                }
+                return c;
+              })
+            );
+          })();
+        }
+      });
     },
-    [messages]
+    [messages, conversations, setConversations]
   );
 
   const items = messages.map((message, index) => (

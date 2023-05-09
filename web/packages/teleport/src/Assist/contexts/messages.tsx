@@ -279,6 +279,24 @@ function findIntersection<T>(elems: T[][]): T[] {
   return [...elems.map(e => new Set(e)).reduce(intersectSets)];
 }
 
+export async function generateTitle(messageContent: string): Promise<string> {
+  const res: {
+    title: string;
+  } = await api.post(`/v1/webapi/assistant/title/summary`, {
+    message: messageContent,
+  });
+  return res.title;
+}
+
+export async function setConversationTitle(
+  conversationId: string,
+  title: string
+): Promise<void> {
+  await api.post(`/v1/webapi/assistant/conversations/${conversationId}/title`, {
+    title: title,
+  });
+}
+
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
@@ -293,7 +311,10 @@ export function MessagesContextProvider(
     props.conversationId
   }`;
 
-  const { sendMessage, lastMessage } = useWebSocket(socketUrl);
+  const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
+    share: true,
+    retryOnError: true,
+  });
 
   const load = useCallback(async () => {
     setMessages([]);
