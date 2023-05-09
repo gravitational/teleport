@@ -30,7 +30,7 @@ flowchart TB
     AR[Access Requests]
   end
 
-  Teleport<-- Reverse Tunnel -->Svc
+  Teleport[Teleport Cluster]<-- Reverse Tunnel -->Svc
 
   Okta-- Import applications and groups-->Sync
   UA-- Longer lived permissions-->Okta
