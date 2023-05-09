@@ -71,6 +71,20 @@ The top bar of Teleport Connect consists of:
 
 Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
 
+## Opening a local terminal
+
+To open a terminal with a local shell session, either select "Open new terminal" from the additional
+actions menu or press `Ctrl/Cmd + Shift + T`.
+
+Any tsh command executed within the tab targets the current cluster. Teleport Connect accomplishes
+this by setting the environment variables `TELEPORT_PROXY` and `TELEPORT_CLUSTER` for the session.
+Additionally, Teleport Connect prepends the `PATH`/`Path` environment variable in the session with the
+directory containing the tsh binary, even if [tsh is not globally available](#using-tsh-outside-of-teleport-connect).
+
+When using [Trusted Clusters](../management/admin/trustedclusters.mdx), the cluster selector allows
+you to determine which cluster the shell session will be bound to. The selected cluster will be
+reflected in both the tab title and the status bar.
+
 ## Connecting to a Kubernetes cluster
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
