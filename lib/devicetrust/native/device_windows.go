@@ -29,25 +29,58 @@ import (
 )
 
 const (
-	akFile = "/.teleport-device/attestation.key"
+	deviceStateFolderName  = "teleport-device"
+	attestationKeyFileName = "attestation.key"
 )
 
-func deviceStatePath() (string, error) {
-	home, err := os.UserHomeDir()
+// Ensures that device state directory exists with the correct permissions and:
+// - If it does not exist, creates it.
+// - If it exists with the wrong permissions, errors.
+// ~/teleport-device/attestation.key
+func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
+	home, err := getHomeDir()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return path.Join(home, "teleport-device/"), nil
-}
+	deviceStateDirPath := path.Join(home, deviceStateFolderName)
+	keyPath := path.Join(deviceStateDirPath, attestationKeyFileName)
 
-func attestationKeyPath() (string, error) {
-	statePath, err := deviceStatePath()
+	stat, err := os.Stat(deviceStateDirPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			// If it doesn't exist, we can create it and return as we know
+			// the perms are correct as we created it.
+			if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
+				return "", trace.Wrap(err)
+			}
+			return keyPath, nil
+		}
 		return "", trace.Wrap(err)
 	}
 
-	return path.Join(statePath, "attestation.key"), nil
+	// As it already exists, we need to check the directory's perms
+	if !stat.IsDir() {
+		return "", trace.BadParameter("path %q is not a directory", deviceStateDirPath)
+	}
+	if stat.Mode().Perm() != 700 {
+		return "", trace.BadParameter("path %q has incorrect permissions, expected 700")
+	}
+
+	// Now check if the Attestation Key exists. If it doesn't, don't create it.
+	// If it does, we need to check its perms.
+	stat, err = os.Stat(keyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return keyPath, nil
+		}
+		return "", trace.Wrap(err)
+	}
+	if stat.Mode().Perm() != 600 {
+		return "", trace.BadParameter("path %q has incorrect permissions, expected 600")
+	}
+
+	return keyPath, nil
 }
 
 func openTPM() (*attest.TPM, error) {
@@ -81,12 +114,8 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	return encodedEK, nil
 }
 
-func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
-	path, err := attestationKeyPath()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if ref, err := os.ReadFile(path); err == nil {
+func getOrCreateAK(tpm *attest.TPM, attestationKeyPath string) (*attest.AK, error) {
+	if ref, err := os.ReadFile(attestationKeyPath); err == nil {
 		ak, err := tpm.LoadAK(ref)
 		if err == nil {
 			return ak, nil
@@ -105,8 +134,7 @@ func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: Check perms
-	err = os.WriteFile(path, ref, 0644)
+	err = os.WriteFile(attestationKeyPath, ref, 600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,23 +143,28 @@ func getOrCreateAK(tpm *attest.TPM) (*attest.AK, error) {
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
+	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tpm, err := openTPM()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer tpm.Close()
 
-	marshaledEK, err := getMarshaledEK(tpm)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ak, err := getOrCreateAK(tpm)
+	ak, err := getOrCreateAK(tpm, akPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	deviceData, err := collectDeviceData()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	marshaledEK, err := getMarshaledEK(tpm)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,9 +176,9 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 			Ek: &devicepb.TPMEnrollPayload_EkKey{
 				EkKey: marshaledEK,
 			},
-			AttestationParameters: &devicepb.TPMAttestationParameters{
-				// TODO: Fill this out
-			},
+			AttestationParameters: devicetrust.AttestationParametersToProto(
+				ak.AttestationParameters(),
+			),
 		},
 	}, nil
 }
@@ -196,7 +229,33 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 func solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	return nil, nil
+	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tpm, err := openTPM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer tpm.Close()
+
+	ak, err := getOrCreateAK(tpm, akPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	activationSolution, err := ak.ActivateCredential(
+		tpm,
+		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.TPMEnrollChallengeResponse{
+		Solution: activationSolution,
+	}, nil
 }
 
 // signChallenge is not implemented on windows as TPM platform attestation
