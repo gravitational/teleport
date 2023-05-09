@@ -631,6 +631,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				}(span)
 			} else {
 				span.End()
+				// Reject all global requests if there is not a handler present.
+				req.Reply(false, nil)
 			}
 			// handle channels:
 		case nch := <-chans:

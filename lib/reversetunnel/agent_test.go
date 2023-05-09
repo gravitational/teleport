@@ -186,24 +186,24 @@ func testAgent(t *testing.T) (*agent, *mockSSHClient) {
 	return agent, client
 }
 
-type callbackCounter struct {
+type counter struct {
 	calls  int
-	states []AgentState
+	values []string
 	recv   chan struct{}
 	mu     sync.Mutex
 }
 
-func newCallback() *callbackCounter {
-	return &callbackCounter{
+func newCounter() *counter {
+	return &counter{
 		recv: make(chan struct{}, 1),
 	}
 }
 
-func (c *callbackCounter) callback(state AgentState) {
+func (c *counter) callback(value string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls++
-	c.states = append(c.states, state)
+	c.values = append(c.values, value)
 
 	select {
 	case c.recv <- struct{}{}:
@@ -211,7 +211,7 @@ func (c *callbackCounter) callback(state AgentState) {
 	}
 }
 
-func (c *callbackCounter) waitForCount(t *testing.T, count int) {
+func (c *counter) waitForCount(t *testing.T, count int) {
 	timer := time.NewTimer(time.Second * 5)
 	for {
 		c.mu.Lock()
@@ -235,8 +235,8 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent, client := testAgent(t)
 	claimedProxy := "claimed-proxy"
 
-	callback := newCallback()
-	agent.stateCallback = callback.callback
+	callbackCounter := newCounter()
+	agent.stateCallback = func(state AgentState) { callbackCounter.callback(string(state)) }
 	agent.tracker.Claim(claimedProxy)
 
 	client.MockPrincipals = []string{claimedProxy}
@@ -248,11 +248,11 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "Failed to claim proxy", "Expected failed to claim proxy error.")
 
-	callback.waitForCount(t, 2)
-	require.Contains(t, callback.states, AgentConnecting)
-	require.Contains(t, callback.states, AgentClosed)
+	callbackCounter.waitForCount(t, 2)
+	require.Contains(t, callbackCounter.values, string(AgentConnecting))
+	require.Contains(t, callbackCounter.values, string(AgentClosed))
 
-	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
+	require.Equal(t, 2, callbackCounter.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentClosed, agent.GetState())
 }
 
@@ -260,10 +260,9 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 func TestAgentStart(t *testing.T) {
 	agent, client := testAgent(t)
 
-	callback := newCallback()
-	agent.stateCallback = callback.callback
+	callbackCounter := newCounter()
+	agent.stateCallback = func(state AgentState) { callbackCounter.callback(string(state)) }
 
-	openChannels := new(int32)
 	sentPings := new(int32)
 	versionReplies := new(int32)
 
@@ -274,13 +273,13 @@ func TestAgentStart(t *testing.T) {
 		}
 	}()
 
+	channelCounter := newCounter()
+
 	client.MockOpenChannel = func(ctx context.Context, name string, data []byte) (*tracessh.Channel, <-chan *ssh.Request, error) {
+		channelCounter.callback(name)
 		// Block until the version request is handled to ensure we handle
 		// global requests during startup.
 		<-waitForVersion
-
-		atomic.AddInt32(openChannels, 1)
-		assert.Equal(t, name, chanHeartbeat, "Unexpected channel opened during startup.")
 		return tracessh.NewTraceChannel(
 				&mockSSHChannel{
 					MockSendRequest: func(name string, wantReply bool, payload []byte) (bool, error) {
@@ -313,14 +312,18 @@ func TestAgentStart(t *testing.T) {
 	err := agent.Start(ctx)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, int(atomic.LoadInt32(openChannels)), "Expected only heartbeat channel to be opened.")
+
+	assert.Equal(t, channelCounter.calls, 2, "Unexpected number of opened channels")
+	assert.Contains(t, channelCounter.values, chanHeartbeat, "Missing expected opened channel")
+	assert.Contains(t, channelCounter.values, teleport.ReverseTunnelServerV2Channel, "Missing expected opened channel")
+
 	require.GreaterOrEqual(t, 1, int(atomic.LoadInt32(sentPings)), "Expected at least 1 ping to be sent.")
 	require.Equal(t, 1, int(atomic.LoadInt32(versionReplies)), "Expected 1 version reply.")
 
-	callback.waitForCount(t, 2)
-	require.Contains(t, callback.states, AgentConnecting)
-	require.Contains(t, callback.states, AgentConnected)
-	require.Equal(t, 2, callback.calls, "Unexpected number of state changes.")
+	callbackCounter.waitForCount(t, 2)
+	require.Contains(t, callbackCounter.values, string(AgentConnecting))
+	require.Contains(t, callbackCounter.values, string(AgentConnected))
+	require.Equal(t, 2, callbackCounter.calls, "Unexpected number of state changes.")
 	require.Equal(t, AgentConnected, agent.GetState())
 
 	unclaimed := false
@@ -332,9 +335,9 @@ func TestAgentStart(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, unclaimed, "Expected unclaim to be called.")
 
-	callback.waitForCount(t, 3)
-	require.Contains(t, callback.states, AgentClosed)
-	require.Equal(t, 3, callback.calls, "Unexpected number of state changes.")
+	callbackCounter.waitForCount(t, 3)
+	require.Contains(t, callbackCounter.values, string(AgentClosed))
+	require.Equal(t, 3, len(callbackCounter.values), "Unexpected number of state changes.")
 	require.Equal(t, AgentClosed, agent.GetState())
 }
 

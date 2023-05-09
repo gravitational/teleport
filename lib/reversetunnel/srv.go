@@ -609,6 +609,14 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// Server through the reverse tunnel.
 	case constants.ChanTransport:
 		s.handleTransport(sconn, nch)
+	// REMOVE IN V15: Agents will continue to make this request until v14 and we must
+	// support 1 major version back. Double check to ensure that v14 agents do not open
+	// open this channel before removing.
+	case teleport.ReverseTunnelServerV2Channel:
+		err := s.handleServerV2(nch)
+		if err != nil {
+			s.log.Warningf("failed to handle %s: %v", teleport.ReverseTunnelServerV2Channel, err)
+		}
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
@@ -623,6 +631,17 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
+}
+
+// handleServerV2 accepts a channel from a client to indicate global requests
+// are handled by the server properly.
+func (s *server) handleServerV2(nch ssh.NewChannel) error {
+	ch, reqs, err := nch.Accept()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go ssh.DiscardRequests(reqs)
+	return trace.Wrap(ch.Close())
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {

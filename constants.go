@@ -298,6 +298,11 @@ const (
 	// the latest cluster networking config.
 	NetconfigRequest = "netconfig@goteleport.com"
 
+	// ReverseTunnelServerV2Channel is an SSH channel name that if supported indicates the
+	// reversetunnel server will properly handle global SSH requests. If the channel is
+	// accepeted global requests may be sent from a client to server.
+	ReverseTunnelServerV2Channel = "reversetunnel-server-v2@goteleport.com"
+
 	// JSON means JSON serialization format
 	JSON = "json"
 

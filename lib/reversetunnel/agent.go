@@ -194,6 +194,13 @@ type agent struct {
 	drainWG sync.WaitGroup
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// serverHandlesGlobalRequests indicates the ssh server the agent is connected to
+	// can handle global requests properly.
+	serverHandlesGlobalRequests bool
+	// checkServerVersion ensures the server version is checked once.
+	checkServerVersion sync.Once
+	// globalRequestMu ensures a single global request is sent at a time.
+	globalRequestMu sync.Mutex
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -598,6 +605,26 @@ func (a *agent) handleDrainChannels() error {
 // GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
 // trace.NotImplemented is returned when the proxy rejects the request.
 func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	a.checkServerVersion.Do(func() {
+		// Check to see if client -> server global requests are handled properly.
+		// REMOVE IN V14: In v14 proxy servers will be guarenteed to properly handle
+		// global requests.
+		v2Chan, v2Reqs, err := a.client.OpenChannel(a.ctx, teleport.ReverseTunnelServerV2Channel, nil)
+		if err != nil {
+			return
+		}
+		defer v2Chan.Close()
+		go ssh.DiscardRequests(v2Reqs)
+		a.serverHandlesGlobalRequests = true
+	})
+
+	if !a.serverHandlesGlobalRequests {
+		return nil, trace.NotImplemented("the proxy server does not support netconfig requests")
+	}
+
+	a.globalRequestMu.Lock()
+	defer a.globalRequestMu.Unlock()
+
 	ok, payload, err := a.client.SendRequest(ctx, teleport.NetconfigRequest, true, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
