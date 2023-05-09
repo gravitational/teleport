@@ -1,26 +1,13 @@
 Use the appropriate commands for your environment to install your package.
 
-<Admonition type="note">
-`apt` and `yum` repos don't expose packages for all distribution variants.
-When following installation instructions, you might need to replace `ID` with
-`ID_LIKE` to install packages of the closest supported distribution.
-
-Currently supported distributions (and `ID`) are:
-- RHEL >= 7 (`rhel`)
-- CentOS >= 7 (`centos`)
-- Debian >= 8 (`debian`)
-- Ubuntu >= 16.04 (`ubuntu`)
-- Amazon Linux 2 and 2023 (`amzn`)
-
-</Admonition>
-
-
 <Tabs dropdownView dropdownCaption="Teleport Edition">
   <TabItem label="Open Source" scope="oss">
   <Tabs>
   <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="oss">
 
-  Add the Teleport repository to your repository list:
+  Distributions supported by Teleport's `apt` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
 
   ```code
   # Download Teleport's PGP public key
@@ -41,6 +28,10 @@ Currently supported distributions (and `ID`) are:
   </TabItem>
   <TabItem label="Amazon Linux 2/RHEL 7 (yum)" scope="oss">
 
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
+
   ```code
   # Source variables about OS version
   $ source /etc/os-release
@@ -54,6 +45,10 @@ Currently supported distributions (and `ID`) are:
   ```
   </TabItem>
   <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="oss">
+
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
 
   ```code
   # Source variables about OS version
@@ -94,7 +89,9 @@ Currently supported distributions (and `ID`) are:
   <Tabs>
   <TabItem label="Debian 8+/Ubuntu 16.04+ (apt)" scope="enterprise">
 
-  Add the Teleport repository to your repository list:
+  Distributions supported by Teleport's `apt` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
 
   ```code
   # Download Teleport's PGP public key
@@ -121,6 +118,10 @@ Currently supported distributions (and `ID`) are:
   </TabItem>
   <TabItem label="AmazonLinux 2/RHEL 7 (yum)" scope="enterprise">
 
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
+
   ```code
   # Source variables about OS version
   $ source /etc/os-release
@@ -141,6 +142,10 @@ Currently supported distributions (and `ID`) are:
 
   </TabItem>
   <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="enterprise">
+
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
 
   ```code
   # Source variables about OS version
@@ -204,6 +209,10 @@ Currently supported distributions (and `ID`) are:
 
   Add the Teleport repository to your repository list:
 
+  Distributions supported by Teleport's `apt` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
+
   ```code
   # Download Teleport's PGP public key
   $ sudo curl https://apt.releases.teleport.dev/gpg \
@@ -222,6 +231,10 @@ Currently supported distributions (and `ID`) are:
   </TabItem>
   <TabItem label="AmazonLinux 2/RHEL 7 (yum)" scope="cloud">
 
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
+
   ```code
   # Source variables about OS version
   $ source /etc/os-release
@@ -235,6 +248,10 @@ Currently supported distributions (and `ID`) are:
 
   </TabItem>
   <TabItem label="AmazonLinux 2023/RHEL 8+ (dnf)" scope="oss">
+
+  Distributions supported by Teleport's `yum` repository [are listed here
+  ](../installation.mdx#feature-support). If your distribution `$ID` is not
+  supported, you can use `$ID_LIKE` instead.
 
   ```code
   # Source variables about OS version
