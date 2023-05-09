@@ -1605,14 +1605,22 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	mfaCancel()
 	directCancel()
 
-	// Only return the error from connecting with mfa if the error
-	// originates from the mfa ceremony. If mfa is not required then
-	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	switch {
+	// No MFA errors, return any errors from the direct connection
+	case mfaErr == nil:
+		return nil, trace.Wrap(directErr)
+	// Any direct connection errors other than access denied, which should be returned
+	// if MFA is required, take precedent over MFA errors due to users not having any
+	// enrolled devices.
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+		return nil, trace.Wrap(directErr)
+	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
+		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
 		return nil, trace.Wrap(mfaErr)
+	default:
+		return nil, trace.Wrap(directErr)
 	}
-
-	return nil, trace.Wrap(directErr)
 }
 
 // MFARequiredUnknownErr indicates that connections to an instance failed
@@ -2817,7 +2825,12 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		cluster = connected
 	}
 
-	aclt, err := auth.NewClient(pclt.ClientConfig(ctx, cluster))
+	cltConfig := pclt.ClientConfig(ctx, cluster)
+	cltConfig.DialOpts = append(cltConfig.DialOpts,
+		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+	)
+	aclt, err := auth.NewClient(cltConfig)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}

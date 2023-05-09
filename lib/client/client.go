@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -576,7 +575,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
 		// certs without MFA.
-		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+		if errors.Is(err, auth.ErrNoMFADevices) {
 			if params.usage() != proto.UserCertsRequest_SSH {
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
@@ -1135,6 +1134,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
+		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

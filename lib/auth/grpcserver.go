@@ -2440,20 +2440,30 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 
 	mfaRequired := proto.MFARequired_MFA_REQUIRED_UNSPECIFIED
-	if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
-		// If MFA is not required to gain access to the resource then let the client
-		// know and abort the ceremony.
-		if !required {
-			return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
-				Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
-					MFAChallenge: &proto.MFAAuthenticateChallenge{
-						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-					},
-				},
-			}))
-		}
+	clusterName, err := actx.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+	// Only check if MFA is required for resources within the current cluster. Determining if
+	// MFA is required for a resource in a leaf cluster will result in a not found error and
+	// prevent users from accessing resources in leaf clusters.
+	if initReq.RouteToCluster == "" || clusterName.GetClusterName() == initReq.RouteToCluster {
+		if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
+			// If MFA is not required to gain access to the resource then let the client
+			// know and abort the ceremony.
+			if !required {
+				return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
+					Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
+						MFAChallenge: &proto.MFAAuthenticateChallenge{
+							MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+						},
+					},
+				}))
+			}
+
+			mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+		}
 	}
 
 	// 2. send MFAChallenge
