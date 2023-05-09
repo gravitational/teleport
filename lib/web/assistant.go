@@ -97,6 +97,11 @@ func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Re
 	}, err
 }
 
+// ConversationsResponse is a response for GET conversation response.
+type ConversationsResponse struct {
+	Conversations []*proto.ConversationInfo `json:"conversations"`
+}
+
 func (h *Handler) getAssistantConversations(_ http.ResponseWriter, r *http.Request,
 	_ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
@@ -110,7 +115,14 @@ func (h *Handler) getAssistantConversations(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	return resp, err
+	if resp.Conversations == nil {
+		// If there are no conversations, return an empty array instead of null.
+		resp.Conversations = []*proto.ConversationInfo{}
+	}
+
+	return &ConversationsResponse{
+		Conversations: resp.Conversations,
+	}, err
 }
 
 func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
