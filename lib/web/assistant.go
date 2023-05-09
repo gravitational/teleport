@@ -25,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gorilla/websocket"
@@ -399,6 +400,21 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 	return chat, nil
 }
 
+var jsonBlockPattern = regexp.MustCompile("\x60\x60\x60{.+}\x60\x60\x60")
+
+func tryFindEmbeddedCommand(message string) *ai.CompletionCommand {
+	candidates := jsonBlockPattern.FindAllString(message, -1)
+
+	for _, candidate := range candidates {
+		var c ai.CompletionCommand
+		if err := json.Unmarshal([]byte(candidate), &c); err == nil {
+			return &c
+		}
+	}
+
+	return nil
+}
+
 func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversationID string,
 	ws *websocket.Conn, authClient auth.ClientI,
 ) error {
@@ -484,6 +500,35 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 
 		if _, err := authClient.InsertAssistantMessage(ctx, protoMsg); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// check if there's any embedded command in the response, if so, send a suggestion with it
+		if command := tryFindEmbeddedCommand(content); command != nil {
+			payload := commandPayload{
+				Command: command.Command,
+				Nodes:   command.Nodes,
+				Labels:  command.Labels,
+			}
+
+			payloadJson, err := json.Marshal(payload)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			msg := &proto.AssistantMessage{
+				Type:           messageKindCommand,
+				ConversationId: conversationID,
+				Payload:        string(payloadJson),
+				CreatedTime:    h.clock.Now().UTC(),
+			}
+
+			if _, err := authClient.InsertAssistantMessage(ctx, msg); err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := ws.WriteJSON(msg); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	case *ai.Message:
 		// write assistant message to both in-memory chain and persistent storage
