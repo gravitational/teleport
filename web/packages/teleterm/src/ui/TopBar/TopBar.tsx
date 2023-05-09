@@ -18,9 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { Flex } from 'design';
 
-import QuickInput from '../QuickInput';
 import { SearchBar } from '../Search';
-import { useAppContext } from '../appContextProvider';
 
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
@@ -28,9 +26,6 @@ import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
 
 export function TopBar() {
-  const { configService } = useAppContext();
-  const isSearchBarEnabled = configService.get('feature.searchBar').value;
-
   return (
     <Grid>
       <JustifyLeft>
@@ -38,7 +33,7 @@ export function TopBar() {
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
-        {isSearchBarEnabled ? <SearchBar /> : <QuickInput />}
+        <SearchBar />
       </CentralContainer>
       <JustifyRight>
         <AdditionalActions />
