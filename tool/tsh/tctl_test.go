@@ -33,7 +33,6 @@ import (
 )
 
 func TestLoadConfigFromProfile(t *testing.T) {
-	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 
 	alice, err := types.NewUser("alice@example.com")
@@ -48,18 +47,7 @@ func TestLoadConfigFromProfile(t *testing.T) {
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--auth", connector.GetName(),
-		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
+	tshHome, _, _ := mustLoginHome(t, authServer, proxyAddr.String(), alice.GetName(), connector.GetName())
 	tests := []struct {
 		name string
 		ccf  *common.GlobalCLIFlags
@@ -70,7 +58,7 @@ func TestLoadConfigFromProfile(t *testing.T) {
 			name: "teleportHome is valid dir",
 			ccf:  &common.GlobalCLIFlags{},
 			cfg: &servicecfg.Config{
-				TeleportHome: tmpHomePath,
+				TeleportHome: tshHome,
 			},
 			want: nil,
 		}, {
@@ -114,12 +102,8 @@ func TestRemoteTctlWithProfile(t *testing.T) {
 		"login",
 		"--insecure",
 		"--debug",
-		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	}, setHomePath(tmpHomePath), setMockSSOLogin(t, authServer, alice.GetName(), connector.GetName()))
 	require.NoError(t, err)
 
 	t.Setenv(types.HomeEnvVar, tmpHomePath)
@@ -182,10 +166,7 @@ func TestSetAuthServerFlagWhileLoggedIn(t *testing.T) {
 		"--debug",
 		"--auth", connector.GetName(),
 		"--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	}, setHomePath(tmpHomePath), setMockSSOLogin(t, authServer, alice.GetName(), connector.GetName()))
 	require.NoError(t, err)
 	// we're now logged in with a profile in tmpHomePath.
 

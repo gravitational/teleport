@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -112,11 +113,8 @@ func TestDatabaseLogin(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(t, authServer, alice.GetName(), connector.GetName()))
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -225,6 +223,61 @@ func TestDatabaseLogin(t *testing.T) {
 	}
 }
 
+// mustCloneTempDir is a test helper that clones a given directory recursively.
+// Useful for parallelizing tests that rely on a ~/.tsh dir, since FSKeystore
+// races with multiple tsh clients working in the same profile dir.
+func mustCloneTempDir(t *testing.T, srcDir string) string {
+	t.Helper()
+	dstDir := t.TempDir()
+	err := filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if srcPath == srcDir {
+			// special case: root of the walk. skip copying.
+			return nil
+		}
+
+		// Construct the corresponding path in the destination directory.
+		relPath, err := filepath.Rel(srcDir, srcPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dstPath := filepath.Join(dstDir, relPath)
+
+		info, err := d.Info()
+		require.NoError(t, err)
+
+		if d.IsDir() {
+			// If the current item is a directory, create it in the destination directory.
+			if err := os.Mkdir(dstPath, info.Mode().Perm()); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			// If the current item is a file, copy it to the destination directory.
+			srcFile, err := os.Open(srcPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer srcFile.Close()
+
+			dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer dstFile.Close()
+
+			if _, err := io.Copy(dstFile, srcFile); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return dstDir
+}
+
 func TestLocalProxyRequirement(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -247,11 +300,8 @@ func TestLocalProxyRequirement(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(t, authServer, alice.GetName(), connector.GetName()))
 	require.NoError(t, err)
 
 	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
@@ -360,7 +410,7 @@ func TestListDatabase(t *testing.T) {
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	s.mustLoginSetEnv(t)
 
 	captureStdout := new(bytes.Buffer)
 	err := Run(context.Background(), []string{

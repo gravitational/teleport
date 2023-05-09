@@ -181,7 +181,7 @@ func TestAccessRequestSearch(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mustLoginSetEnv(t, s, tc.args.teleportCluster)
+			s.mustLoginSetEnv(t, setClusterName(tc.args.teleportCluster))
 			captureStdout := new(bytes.Buffer)
 			err := Run(
 				context.Background(),

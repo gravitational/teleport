@@ -57,11 +57,8 @@ func TestAWS(t *testing.T) {
 
 	// Log into Teleport cluster.
 	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, user)
-		return nil
-	}))
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(t, authServer, user.GetName(), connector.GetName()))
 	require.NoError(t, err)
 
 	// Log into the "aws-app" app.

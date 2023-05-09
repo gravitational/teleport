@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -82,62 +81,54 @@ func TestSSH(t *testing.T) {
 }
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome, _ := mustLogin(t, s)
 	err := Run(context.Background(), []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
-	}, setHomePath(tshHome))
+	}, s.mustLogin(t))
 	require.NoError(t, err)
 
-	identityFile := mustLoginIdentity(t, s)
 	err = Run(context.Background(), []string{
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
-		"-i", identityFile,
 		"ssh",
 		"localhost",
 		"echo", "hello",
-	}, setIdentity(identityFile))
+	}, s.mustLoginIdentity(t))
 	require.NoError(t, err)
 }
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
-	tshHome, _ := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
+	loginOpt := s.mustLogin(t, setClusterName(s.leaf.Config.Auth.ClusterName.GetClusterName()))
 	require.Eventually(t, func() bool {
 		err := Run(context.Background(), []string{
 			"ssh",
-			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
-		}, setHomePath(tshHome))
+		}, loginOpt)
 		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
-	identityFile := mustLoginIdentity(t, s)
 	err := Run(context.Background(), []string{
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
-		"-i", identityFile,
 		"ssh",
 		"--cluster", s.leaf.Config.Auth.ClusterName.GetClusterName(),
 		s.leaf.Config.Hostname,
 		"echo", "hello",
-	}, setIdentity(identityFile))
+	}, s.mustLoginIdentity(t))
 	require.NoError(t, err)
 }
 
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
-	tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+	loginOpt := s.mustLogin(t, setClusterName(s.root.Config.Auth.ClusterName.GetClusterName()))
 
 	// Switch to leaf cluster
 	err := Run(context.Background(), []string{
 		"login",
 		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
-	}, setMockSSOLogin(t, s), setHomePath(tshHome))
+	}, loginOpt)
 	require.NoError(t, err)
 
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
@@ -147,7 +138,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
 		s.leaf.Config.Hostname,
 		"echo", "hello",
-	}, setMockSSOLogin(t, s), setHomePath(tshHome))
+	}, loginOpt)
 	require.NoError(t, err)
 
 	t.Run("root cluster online", func(t *testing.T) {
@@ -158,7 +149,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
-		}, setMockSSOLogin(t, s), setHomePath(tshHome))
+		}, loginOpt)
 		require.NoError(t, err)
 	})
 
@@ -174,7 +165,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
 			s.leaf.Config.Hostname,
 			"echo", "hello",
-		}, setMockSSOLogin(t, s), setHomePath(tshHome))
+		}, loginOpt)
 		require.NoError(t, err)
 	})
 }
@@ -227,7 +218,7 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			require.NoError(t, err)
 
 			// Login to root
-			tshHome, _ := mustLogin(t, s)
+			loginOpt := s.mustLogin(t)
 
 			// Connect to leaf node
 			err = Run(context.Background(), []string{
@@ -235,7 +226,7 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				"-p", strconv.Itoa(s.leaf.Config.SSH.Addr.Port(0)),
 				s.leaf.Config.SSH.Addr.Host(),
 				"echo", "hello",
-			}, setHomePath(tshHome))
+			}, loginOpt)
 			require.NoError(t, err)
 
 			// Connect to leaf node with Jump host
@@ -244,7 +235,7 @@ func TestSSHLoadAllCAs(t *testing.T) {
 				"-J", leafProxySSHAddr.String(),
 				s.leaf.Config.Hostname,
 				"echo", "hello",
-			}, setHomePath(tshHome))
+			}, loginOpt)
 			require.NoError(t, err)
 		})
 	}
@@ -300,26 +291,26 @@ func TestProxySSH(t *testing.T) {
 			}
 
 			// login to Teleport
-			homePath, kubeConfigPath := mustLogin(t, s)
+			loginOpt := s.mustLogin(t)
 
 			t.Run("logged in", func(t *testing.T) {
 				t.Parallel()
 
-				err := runProxySSH(proxyRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath))
+				err := runProxySSH(proxyRequest, loginOpt)
 				require.NoError(t, err)
 			})
 
 			t.Run("re-login", func(t *testing.T) {
 				t.Parallel()
 
-				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), setMockSSOLogin(t, s))
+				err := runProxySSH(proxyRequest, setHomePath(t.TempDir()), setKubeConfigPath(filepath.Join(t.TempDir(), teleport.KubeConfigFile)), s.setMockSSOLogin(t))
 				require.NoError(t, err)
 			})
 
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
 
-				err := runProxySSH(proxyRequest, setIdentity(mustLoginIdentity(t, s)))
+				err := runProxySSH(proxyRequest, s.mustLoginIdentity(t))
 				require.NoError(t, err)
 			})
 
@@ -327,7 +318,7 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-				err := runProxySSH(invalidLoginRequest, setHomePath(homePath), setKubeConfigPath(kubeConfigPath), setMockSSOLogin(t, s))
+				err := runProxySSH(invalidLoginRequest, loginOpt)
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 			})
@@ -409,11 +400,11 @@ func TestProxySSHJumpHost(t *testing.T) {
 			}
 
 			// login to root
-			tshHome, _ := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
+			loginOpt := s.mustLogin(t, setClusterName(s.root.Config.Auth.ClusterName.GetClusterName()))
 
 			// Connect to leaf node though proxy jump host. This should automatically
 			// reissue leaf certs from the root without explicility switching clusters.
-			err := runProxySSHJump(setHomePath(tshHome))
+			err := runProxySSHJump(loginOpt)
 			require.NoError(t, err)
 
 			// Terminate root cluster.
@@ -421,7 +412,7 @@ func TestProxySSHJumpHost(t *testing.T) {
 			require.NoError(t, err)
 
 			// Since we've already retrieved valid leaf certs, we should be able to connect without root.
-			err = runProxySSHJump(setHomePath(tshHome))
+			err = runProxySSHJump(loginOpt)
 			require.NoError(t, err)
 		})
 	}
@@ -442,7 +433,7 @@ func TestTSHProxyTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	s := newTestSuite(t)
-	tshHome := mustLoginSetEnv(t, s)
+	tshHome := s.mustLoginSetEnv(t)
 
 	// Create proxy template configuration.
 	tshConfigFile := filepath.Join(tshHome, tshConfigPath)
@@ -528,7 +519,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 			s := newTestSuite(t, tc.opts...)
 
 			// Login to the Teleport proxy.
-			mustLoginSetEnv(t, s)
+			s.mustLoginSetEnv(t)
 
 			// Get SSH config file generated by the 'tsh config' command.
 			sshConfigFile := mustGetOpenSSHConfigFile(t)
@@ -688,11 +679,11 @@ func TestList(t *testing.T) {
 		},
 	}
 
-	tshHome, _ := mustLogin(t, s)
+	loginOpt := s.mustLogin(t)
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
 			stdout := &bytes.Buffer{}
-			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
+			err := Run(context.Background(), test.command, loginOpt, setOverrideStdout(stdout))
 			require.NoError(t, err)
 
 			test.assertion(t, stdout.Bytes())
@@ -732,47 +723,6 @@ func createAgent(t *testing.T) string {
 func disableAgent(t *testing.T) {
 	t.Helper()
 	t.Setenv(teleport.SSHAuthSock, "")
-}
-
-func mustLogin(t *testing.T, s *suite, args ...string) (string, string) {
-	tshHome := t.TempDir()
-	kubeConfig := filepath.Join(t.TempDir(), teleport.KubeConfigFile)
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args,
-		setMockSSOLogin(t, s),
-		setHomePath(tshHome),
-		setKubeConfigPath(kubeConfig),
-	)
-	require.NoError(t, err)
-	return tshHome, kubeConfig
-}
-
-// login with new temp tshHome and set it in Env. This is useful
-// when running "ssh" commands with a tsh "ProxyCommand".
-func mustLoginSetEnv(t *testing.T, s *suite, args ...string) string {
-	tshHome := t.TempDir()
-	t.Setenv(types.HomeEnvVar, tshHome)
-
-	args = append([]string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--proxy", s.root.Config.Proxy.WebAddr.String(),
-	}, args...)
-	err := Run(context.Background(), args, setMockSSOLogin(t, s), setHomePath(tshHome))
-	require.NoError(t, err)
-	return tshHome
-}
-
-func mustLoginIdentity(t *testing.T, s *suite, opts ...cliOption) string {
-	identityFile := path.Join(t.TempDir(), "identity.pem")
-	mustLogin(t, s, "--out", identityFile)
-	return identityFile
 }
 
 func mustGetOpenSSHConfigFile(t *testing.T) string {

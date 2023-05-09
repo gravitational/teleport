@@ -99,7 +99,7 @@ func setupKubeTestPack(t *testing.T) *kubeTestPack {
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	s.mustLoginSetEnv(t)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
