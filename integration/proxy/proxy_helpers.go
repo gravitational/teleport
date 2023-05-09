@@ -639,6 +639,10 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 
 		conn, err := m.Accept()
 		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				continue
+			}
+
 			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
@@ -649,6 +653,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
+				ClientAuth:   tls.NoClientCert,
 			})
 
 			// api.Client may try different connection methods. Just close the
