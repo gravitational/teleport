@@ -56,7 +56,7 @@ export function NavigationCategoryContainer(props: NavigationCategoryProps) {
     .filter(feature => feature.category === props.category)
     .filter(feature => !feature.parent);
 
-  if (props.category === NavigationCategory.Assist) {
+  if (props.category === NavigationCategory.Assist && items.length) {
     const SidebarComponent = items[0].sidebarComponent;
 
     return (
