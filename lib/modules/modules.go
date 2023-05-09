@@ -68,6 +68,8 @@ type Features struct {
 	AutomaticUpgrades bool
 	// IsUsageBasedBilling enables some usage-based billing features
 	IsUsageBasedBilling bool
+	// Assist enables Assistant feature
+	Assist bool
 }
 
 // ToProto converts Features into proto.Features
@@ -87,6 +89,7 @@ func (f Features) ToProto() *proto.Features {
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
 		IsUsageBased:            f.IsUsageBasedBilling,
+		Assist:                  f.Assist,
 	}
 }
 
@@ -184,6 +187,7 @@ func (p *defaultModules) Features() Features {
 		App:               true,
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
+		Assist:            true,
 	}
 }
 
