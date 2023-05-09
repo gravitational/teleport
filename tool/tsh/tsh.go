@@ -982,12 +982,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	config := app.Command("config", "Print OpenSSH configuration details")
 
-	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
-	f2Diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
-
-	// touchid subcommands.
+	// FIDO2, TouchID and WebAuthnWin commands.
+	f2 := newFIDO2Command(app)
 	tid := newTouchIDCommand(app)
-
 	webauthnwin := newWebauthnwinCommand(app)
 
 	// Device Trust commands.
@@ -1301,8 +1298,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onDaemonStart(&cf)
 	case daemonStop.FullCommand():
 		err = onDaemonStop(&cf)
-	case f2Diag.FullCommand():
-		err = onFIDO2Diag(&cf)
+	case f2.diag.FullCommand():
+		err = f2.diag.run(&cf)
+	case f2.attobj.FullCommand():
+		err = f2.attobj.run(&cf)
 	case tid.diag.FullCommand():
 		err = tid.diag.run(&cf)
 	case webauthnwin.diag.FullCommand():
