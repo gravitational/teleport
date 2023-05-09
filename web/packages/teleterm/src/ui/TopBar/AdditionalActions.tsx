@@ -216,10 +216,13 @@ function MenuItem({
               css={`
                 border-radius: 4px;
                 width: fit-content;
+                // Using a background with an alpha color to make this interact better with the
+                // disabled state.
+                background-color: ${props =>
+                  props.theme.colors.spotBackground[0]};
                 padding: ${props => props.theme.space[1]}px
                   ${props => props.theme.space[1]}px;
               `}
-              bg="levels.surface"
             >
               {getAccelerator(item.keyboardShortcutAction)}
             </Text>
