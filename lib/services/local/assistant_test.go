@@ -13,7 +13,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * /
+ *
  */
 
 package local_test
@@ -25,24 +25,37 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
 )
+
+func newAssistService(t *testing.T) *local.AssistService {
+	t.Helper()
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	return local.NewAssistService(backend)
+}
 
 // TestAssistantCRUD tests the assistant CRUD operations.
 func TestAssistantCRUD(t *testing.T) {
 	t.Parallel()
 
-	identity := newIdentityService(t, clockwork.NewFakeClock())
+	identity := newAssistService(t)
 	ctx := context.Background()
 
 	const username = "foo"
 	var conversationID string
 
 	t.Run("create conversation", func(t *testing.T) {
-		req := &proto.CreateAssistantConversationRequest{
+		req := &assist.CreateAssistantConversationRequest{
 			Username:    username,
-			CreatedTime: time.Now(),
+			CreatedTime: timestamppb.New(time.Now()),
 		}
 
 		conversationResp, err := identity.CreateAssistantConversation(ctx, req)
@@ -53,7 +66,7 @@ func TestAssistantCRUD(t *testing.T) {
 	})
 
 	t.Run("get conversation", func(t *testing.T) {
-		req := &proto.GetAssistantConversationsRequest{
+		req := &assist.GetAssistantConversationsRequest{
 			Username: username,
 		}
 		conversations, err := identity.GetAssistantConversations(ctx, req)
@@ -63,19 +76,21 @@ func TestAssistantCRUD(t *testing.T) {
 	})
 
 	t.Run("create message", func(t *testing.T) {
-		msg := &proto.AssistantMessage{
-			Username:       username,
-			CreatedTime:    time.Now(),
-			ConversationId: conversationID,
-			Payload:        "foo",
-			Type:           "USER_MSG",
+		msg := &assist.CreateAssistantMessageRequest{
+			Message: &assist.AssistantMessage{
+				Username:       username,
+				CreatedTime:    timestamppb.New(time.Now()),
+				ConversationId: conversationID,
+				Payload:        "foo",
+				Type:           "USER_MSG",
+			},
 		}
 		err := identity.CreateAssistantMessage(ctx, msg)
 		require.NoError(t, err)
 	})
 
 	t.Run("get messages", func(t *testing.T) {
-		req := &proto.AssistantMessageRequest{
+		req := &assist.GetAssistantMessagesRequest{
 			Username:       username,
 			ConversationId: conversationID,
 		}
@@ -86,7 +101,7 @@ func TestAssistantCRUD(t *testing.T) {
 	})
 
 	t.Run("set conversation title", func(t *testing.T) {
-		titleReq := &proto.UpdateAssistantConversationInfoRequest{
+		titleReq := &assist.UpdateAssistantConversationInfoRequest{
 			Title:          "bar",
 			Username:       username,
 			ConversationId: conversationID,
@@ -95,7 +110,7 @@ func TestAssistantCRUD(t *testing.T) {
 		err := identity.UpdateAssistantConversationInfo(ctx, titleReq)
 		require.NoError(t, err)
 
-		req := &proto.GetAssistantConversationsRequest{
+		req := &assist.GetAssistantConversationsRequest{
 			Username: username,
 		}
 
@@ -106,16 +121,16 @@ func TestAssistantCRUD(t *testing.T) {
 	})
 
 	t.Run("conversations are sorted by created_time", func(t *testing.T) {
-		req := &proto.CreateAssistantConversationRequest{
+		req := &assist.CreateAssistantConversationRequest{
 			Username:    username,
-			CreatedTime: time.Now().Add(time.Hour),
+			CreatedTime: timestamppb.New(time.Now().Add(time.Hour)),
 		}
 
 		conversationResp, err := identity.CreateAssistantConversation(ctx, req)
 		require.NoError(t, err)
 		require.NotEmpty(t, conversationResp.Id)
 
-		reqConversations := &proto.GetAssistantConversationsRequest{
+		reqConversations := &assist.GetAssistantConversationsRequest{
 			Username: username,
 		}
 

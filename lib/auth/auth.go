@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -168,6 +169,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
+	if cfg.Assist == nil {
+		cfg.Assist = local.NewAssistService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -277,6 +281,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+		Assistant:               cfg.Assist,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -379,6 +384,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.Assistant
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -5203,29 +5209,29 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (a *Server) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
 	resp, err := a.Services.GetAssistantMessages(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // CreateAssistantMessage adds the message to the backend.
-func (a *Server) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
 	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
 }
 
-// UpdateAssistantConversationInfo stores the given conversation title in the DB.
-func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *proto.UpdateAssistantConversationInfoRequest) error {
+// UpdateAssistantConversationInfo stores the given conversation title in the backend.
+func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
 	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	resp, err := a.Services.CreateAssistantConversation(ctx, req)
 	return resp, trace.Wrap(err)
 }
 
 // GetAssistantConversations returns all conversations started by a user.
-func (a *Server) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	resp, err := a.Services.GetAssistantConversations(ctx, request)
 	return resp, trace.Wrap(err)
 }

@@ -29,7 +29,6 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -6079,7 +6079,7 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6088,7 +6088,7 @@ func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *
 }
 
 // GetAssistantConversations returns all conversations started by a user.
-func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6097,7 +6097,7 @@ func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6106,16 +6106,16 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *proto.A
 }
 
 // CreateAssistantMessage adds the message to the backend.
-func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return &emptypb.Empty{}, a.authServer.CreateAssistantMessage(ctx, msg)
+	return a.authServer.CreateAssistantMessage(ctx, msg)
 }
 
 // UpdateAssistantConversationInfo updates the conversation info.
-func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *proto.UpdateAssistantConversationInfoRequest) error {
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -6158,7 +6158,7 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	if modules.GetModules().Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
 		// an external cloud-specific database.
-		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)

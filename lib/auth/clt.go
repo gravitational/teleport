@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -653,17 +652,6 @@ type IdentityService interface {
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
 	// GetHeadlessAuthentication retrieves a headless authentication by id.
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
-
-	// GetAssistantMessages returns all messages with given conversation ID.
-	GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error)
-	// GetAssistantConversations returns all conversations started by a user.
-	GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
-	// CreateAssistantConversation creates a new conversation entry in the backend.
-	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
-	// CreateAssistantMessage adds the message to the backend.
-	CreateAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
-	// UpdateAssistantConversationInfo updates the conversation info.
-	UpdateAssistantConversationInfo(ctx context.Context, in *proto.UpdateAssistantConversationInfoRequest) error
 }
 
 // ProvisioningService is a service in control
@@ -713,6 +701,7 @@ type ClientI interface {
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
+	services.Assistant
 	WebService
 	services.Status
 	services.ClusterConfiguration

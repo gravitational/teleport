@@ -26,8 +26,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -38,18 +40,35 @@ type Conversation struct {
 	CreatedTime    time.Time `json:"created_time"`
 }
 
+// AssistService is responsible for managing assist conversations.
+type AssistService struct {
+	backend.Backend
+	log logrus.FieldLogger
+}
+
+// NewAssistService returns a new instance of AssistService.
+func NewAssistService(backend backend.Backend) *AssistService {
+	return &AssistService{
+		Backend: backend,
+		log:     logrus.WithField(trace.Component, "assist"),
+	}
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context,
-	req *proto.CreateAssistantConversationRequest,
-) (*proto.CreateAssistantConversationResponse, error) {
+func (s *AssistService) CreateAssistantConversation(ctx context.Context,
+	req *assist.CreateAssistantConversationRequest,
+) (*assist.CreateAssistantConversationResponse, error) {
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing parameter username")
+	}
+	if req.CreatedTime == nil {
+		return nil, trace.BadParameter("missing parameter created time")
 	}
 
 	conversationID := uuid.New().String()
 	payload := &Conversation{
 		ConversationID: conversationID,
-		CreatedTime:    req.CreatedTime,
+		CreatedTime:    req.GetCreatedTime().AsTime(),
 	}
 
 	value, err := json.Marshal(payload)
@@ -67,10 +86,10 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.CreateAssistantConversationResponse{Id: conversationID}, nil
+	return &assist.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
-func (s *IdentityService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
+func (s *AssistService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
 	item, err := s.Get(ctx, backend.Key(assistantConversationPrefix, username, conversationID))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -85,7 +104,7 @@ func (s *IdentityService) getConversation(ctx context.Context, username, convers
 }
 
 // UpdateAssistantConversationInfo updates the conversation title.
-func (s *IdentityService) UpdateAssistantConversationInfo(ctx context.Context, request *proto.UpdateAssistantConversationInfoRequest) error {
+func (s *AssistService) UpdateAssistantConversationInfo(ctx context.Context, request *assist.UpdateAssistantConversationInfoRequest) error {
 	if request.ConversationId == "" {
 		return trace.BadParameter("missing conversation ID")
 	}
@@ -122,7 +141,7 @@ func (s *IdentityService) UpdateAssistantConversationInfo(ctx context.Context, r
 }
 
 // GetAssistantConversations returns all conversations started by a user.
-func (s *IdentityService) GetAssistantConversations(ctx context.Context, req *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+func (s *AssistService) GetAssistantConversations(ctx context.Context, req *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing username")
 	}
@@ -132,31 +151,31 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, req *pr
 		return nil, trace.Wrap(err)
 	}
 
-	conversationsIDs := make([]*proto.ConversationInfo, 0, len(result.Items))
+	conversationsIDs := make([]*assist.ConversationInfo, 0, len(result.Items))
 	for _, item := range result.Items {
 		payload := &Conversation{}
 		if err := json.Unmarshal(item.Value, payload); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		conversationsIDs = append(conversationsIDs, &proto.ConversationInfo{
+		conversationsIDs = append(conversationsIDs, &assist.ConversationInfo{
 			Id:          payload.ConversationID,
 			Title:       payload.Title,
-			CreatedTime: payload.CreatedTime,
+			CreatedTime: timestamppb.New(payload.CreatedTime),
 		})
 	}
 
 	sort.Slice(conversationsIDs, func(i, j int) bool {
-		return conversationsIDs[i].CreatedTime.Before(conversationsIDs[j].GetCreatedTime())
+		return conversationsIDs[i].CreatedTime.AsTime().Before(conversationsIDs[j].GetCreatedTime().AsTime())
 	})
 
-	return &proto.GetAssistantConversationsResponse{
+	return &assist.GetAssistantConversationsResponse{
 		Conversations: conversationsIDs,
 	}, nil
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.
-func (s *IdentityService) GetAssistantMessages(ctx context.Context, req *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
+func (s *AssistService) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
 	if req.Username == "" {
 		return nil, trace.BadParameter("missing username")
 	}
@@ -171,9 +190,9 @@ func (s *IdentityService) GetAssistantMessages(ctx context.Context, req *proto.A
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]*proto.AssistantMessage, len(result.Items))
+	out := make([]*assist.AssistantMessage, len(result.Items))
 	for i, item := range result.Items {
-		var a proto.AssistantMessage
+		var a assist.AssistantMessage
 		if err := json.Unmarshal(item.Value, &a); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -182,16 +201,17 @@ func (s *IdentityService) GetAssistantMessages(ctx context.Context, req *proto.A
 
 	sort.Slice(out, func(i, j int) bool {
 		// Sort by created time.
-		return out[i].CreatedTime.Before(out[j].GetCreatedTime())
+		return out[i].CreatedTime.AsTime().Before(out[j].GetCreatedTime().AsTime())
 	})
 
-	return &proto.GetAssistantMessagesResponse{
+	return &assist.GetAssistantMessagesResponse{
 		Messages: out,
 	}, nil
 }
 
 // CreateAssistantMessage adds the message to the backend.
-func (s *IdentityService) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) error {
+	msg := req.GetMessage()
 	if msg.Username == "" {
 		return trace.BadParameter("missing username")
 	}

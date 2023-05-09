@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -52,6 +53,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -4984,66 +4986,6 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	return &emptypb.Empty{}, nil
 }
 
-// GetAssistantConversations returns all conversations started by a user.
-func (g *GRPCServer) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := auth.GetAssistantConversations(ctx, request)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
-// UpdateAssistantConversationInfo updates the conversation info for a conversation.
-func (g *GRPCServer) UpdateAssistantConversationInfo(ctx context.Context, request *proto.UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.UpdateAssistantConversationInfo(ctx, request)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// CreateAssistantConversation creates a new conversation entry in the backend.
-func (g *GRPCServer) CreateAssistantConversation(ctx context.Context, request *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	resp, err := auth.CreateAssistantConversation(ctx, request)
-	return resp, trace.Wrap(err)
-}
-
-// GetAssistantMessages returns all messages with given conversation ID.
-func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantMessageRequest) (*proto.GetAssistantMessagesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	messages, err := auth.GetAssistantMessages(ctx, request)
-	return messages, trace.Wrap(err)
-}
-
-// CreateAssistantMessage adds the message to the backend.
-func (g *GRPCServer) CreateAssistantMessage(ctx context.Context, assistantMessage *proto.AssistantMessage) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return &emptypb.Empty{}, trace.Wrap(err)
-	}
-	resp, err := auth.CreateAssistantMessage(ctx, assistantMessage)
-	return resp, trace.Wrap(err)
-}
-
 // GetBackend returns the backend from the underlying auth server.
 func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
@@ -5145,6 +5087,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	trustpb.RegisterTrustServiceServer(server, trust)
+
+	// Initialize and register the assist service.
+	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
+		Backend: cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assist.RegisterAssistServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
