@@ -114,26 +114,39 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	return encodedEK, nil
 }
 
-func getOrCreateAK(tpm *attest.TPM, attestationKeyPath string) (*attest.AK, error) {
+// loadOrCreateAK attempts to load an AK from disk. If it does not exist and
+// allowCreation is true, then the AK will be created in the TPM and then
+// persisted to disk.
+func loadOrCreateAK(
+	tpm *attest.TPM,
+	attestationKeyPath string,
+	allowCreation bool,
+) (*attest.AK, error) {
 	if ref, err := os.ReadFile(attestationKeyPath); err == nil {
 		ak, err := tpm.LoadAK(ref)
-		if err == nil {
-			return ak, nil
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
 		return ak, nil
 	}
+	if !allowCreation {
+		return nil, trace.NotFound(
+			"no attestation key found at %q and creation disabled",
+			attestationKeyPath,
+		)
+	}
+
 	// If no AK found on disk, create one.
 	ak, err := tpm.NewAK(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// Write it to the well-known location on disk
 	ref, err := ak.Marshal()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	err = os.WriteFile(attestationKeyPath, ref, 600)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,10 +167,11 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}
 	defer tpm.Close()
 
-	ak, err := getOrCreateAK(tpm, akPath)
+	ak, err := loadOrCreateAK(tpm, akPath, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer ak.Close(tpm)
 
 	deviceData, err := collectDeviceData()
 	if err != nil {
@@ -240,10 +254,13 @@ func solveTPMEnrollChallenge(
 	}
 	defer tpm.Close()
 
-	ak, err := getOrCreateAK(tpm, akPath)
+	// Attempt to load the AK from well-known location, do not create one if
+	// it does not exist - this would be invalid for solving a challenge.
+	ak, err := loadOrCreateAK(tpm, akPath, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer ak.Close(tpm)
 
 	activationSolution, err := ak.ActivateCredential(
 		tpm,
