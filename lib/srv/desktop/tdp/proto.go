@@ -673,6 +673,8 @@ type SharedDirectoryAnnounce struct {
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
+	// TODO(isaiah): The discard here allows fuzz tests to succeed, it should eventually be done away with.
+	writeUint32(buf, 0) // discard
 	writeUint32(buf, s.DirectoryID)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
