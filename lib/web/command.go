@@ -243,6 +243,8 @@ func (h *Handler) executeCommand(
 					Type:           CommandResultType,
 					CreatedTime:    timestamppb.New(time.Now().UTC()),
 					Payload:        string(msgPayload),
+					// TODO(jakule): Move username to CreateAssistantMessageRequest.
+					Username: identity.TeleportUser,
 				},
 			})
 
