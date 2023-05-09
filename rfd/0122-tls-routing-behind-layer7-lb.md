@@ -221,6 +221,13 @@ Routing. And if connection upgrade is required, the TLS Routing request will be 
 
 The local proxy should manage/cache the Teleport certs used for routing Kubernetes requests.
 
+Per-session-MFA TTL should be extended to `max_session_ttl` and cached in
+memory by the local proxy, similar to [Database MFA
+Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md).
+See [RFD 0121 - Kubernetes MFA
+sessions](https://github.com/gravitational/teleport/blob/master/rfd/0121-kube-mfa-sessions.md)
+for more details.
+
 ### User Experience
 
 Once the connection upgrade support to all protocols is implemented, users can be recommended to upgrade their Teleport
@@ -287,29 +294,6 @@ In addition to the cluster names provided to `tsh proxy kube`, the ephemeral kub
 non-Teleport clusters in the default kubeconfig (or `$KUBECONFIG`), so the user does not need to switch between configs
 for different clusters.
 
-A `--exec` flag will also be provided to `tsh proxy kube` to execute a command backed by the local proxy:
-```
-$ tsh proxy kube --exec -- helm install my-chart
-```
-This avoids needing two terminal sessions to run a single quick command (e.g. scripting).
-
-In addition, we can provide tips to users to improve their UX by utilizing `alias`:
-```
-alias kubectl=`tsh kubectl`
-alias helm=`tsh proxy kube --exec -- helm`
-```
-
-or [`tsh` aliases](https://github.com/gravitational/teleport/blob/master/rfd/0061-tsh-aliases.md):
-```
-aliases:
-    "helm": "$TSH proxy kube --exec helm"
-```
-
-For better user experience, per-session-MFA TTL should be extended to `max_session_ttl` and cached in memory by the local
-proxy, similar to [Database MFA
-Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md). And `tsh proxy kube`
-should prompt MFA for each Kubernetes cluster once (and only once) when the local proxy is starting.
-
 #### 4 - Server Access UX
 
 UX is the same as when [TLS Routing is
@@ -317,22 +301,12 @@ enabled](https://github.com/gravitational/teleport/blob/master/rfd/0039-sni-alpn
 
 ### Security
 
-#### 1 - Security on Connection Upgrade
-
 When upgrading the connection, the Teleport client verifies the load balancer's TLS cert using SystemCertPool. And as
 mentioned early, at the TLS Routing request, the Teleport client will be configured with a Teleport CA for verifying the
 Proxy server.
 
 There is no authentication at the connection upgrade request. Authentication is deferred to the TLS Routing request so
 authentication remains the same as if there is no connection upgrade.
-
-#### 2 - Security on per-session-MFA
-
-The per-session-MFA cert TTL was extended to `max_session_ttl` for Database Access through a local proxy (refer to [RFD
-90 - Database MFA Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0090-db-mfa-sessions.md)). The
-same strategy should be applied to Kubernetes Access through a local proxy. To mitigate security risks, the certs will
-be kept in memory only by the local proxy. Users also have the option to reduce `max_session_ttl` if shorter TTL is
-desired.
 
 ### Performance
 
