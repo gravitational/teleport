@@ -233,14 +233,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {
 			log.Info("Starting Windows desktop service via proxy reverse tunnel.")
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting via proxy reverse tunnel.",
-				teleport.Version, teleport.Gitref)
 		} else {
 			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting on %v.",
-				teleport.Version, teleport.Gitref, listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)
