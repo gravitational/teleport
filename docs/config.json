@@ -8,6 +8,10 @@
           "title": "Introduction",
           "slug": "/"
         },
+	{
+          "title": "Get Started with Teleport",
+          "slug": "/get-started/"
+	},
         {
           "title": "Core Concepts",
           "slug": "/core-concepts/"
@@ -31,36 +35,6 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
-        }
-      ]
-    },
-    {
-      "icon": "play",
-      "title": "Try out Teleport",
-      "entries": [
-        {
-          "title": "Introduction",
-          "slug": "/try-out-teleport/introduction/"
-        },
-        {
-          "title": "Linux Server",
-          "slug": "/try-out-teleport/linux-server/"
-        },
-        {
-          "title": "Digital Ocean",
-          "slug": "/try-out-teleport/digitalocean/"
-        },
-        {
-          "title": "Browser Labs",
-          "slug": "/try-out-teleport/browser-labs/"
-        },
-        {
-          "title": "Docker Compose",
-          "slug": "/try-out-teleport/docker-compose/"
-        },
-        {
-          "title": "Local Kubernetes Lab",
-          "slug": "/try-out-teleport/local-kubernetes/"
         }
       ]
     },
@@ -116,11 +90,6 @@
             "enterprise"
           ],
           "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/choose-an-edition/teleport-enterprise/getting-started/",
-              "forScopes": ["enterprise"]
-            },
             {
               "title": "HSM",
               "slug": "/choose-an-edition/teleport-enterprise/hsm/",
@@ -781,10 +750,6 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/guides/terraform-provider/"
-            },
-            {
-              "title": "Docker",
-              "slug": "/management/guides/docker/"
             },
             {
               "title": "EC2 Tags",
@@ -1817,7 +1782,7 @@
     },
     {
       "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -1837,7 +1802,7 @@
     },
     {
       "source": "/setup/guides/docker-compose/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -1867,7 +1832,7 @@
     },
     {
       "source": "/quickstart/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -1902,7 +1867,7 @@
     },
     {
       "source": "/quickstart-docker/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -1967,7 +1932,7 @@
     },
     {
       "source": "/getting-started/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -1982,7 +1947,7 @@
     },
     {
       "source": "/kubernetes-access/getting-started/local/",
-      "destination": "/try-out-teleport/local-kubernetes/",
+      "destination": "/kubernetes-access/",
       "permanent": true
     },
     {
@@ -2172,7 +2137,7 @@
     },
     {
       "source": "/setup/deployments/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2222,7 +2187,7 @@
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/try-out-teleport/linux-server/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2252,7 +2217,7 @@
     },
     {
       "source": "/enterprise/getting-started/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -2322,7 +2287,7 @@
     },
     {
       "source": "/setup/guides/docker/",
-      "destination": "/management/guides/docker/",
+      "destination": "/installation/",
       "permanent": true
     },
     {
@@ -2477,12 +2442,12 @@
     },
     {
       "source": "/getting-started/docker-compose/",
-      "destination": "/try-out-teleport/docker-compose/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/getting-started/local-kubernetes/",
-      "destination": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2527,7 +2492,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-enterprise/getting-started/",
-      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
@@ -2547,17 +2512,17 @@
     },
     {
       "source": "/deploy-a-cluster/deployments/digitalocean/",
-      "destination": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/deploy-a-cluster/open-source/",
-      "destination": "/try-out-teleport/linux-server/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
       "source": "/getting-started/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2617,7 +2582,7 @@
     },
     {
       "source": "/try-out-teleport/",
-      "destination": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2703,6 +2668,41 @@
     {
       "source": "/management/guides/joining-services-kubernetes-serviceaccount/",
       "destination": "/management/join-services-to-your-cluster/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/browser-labs/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/digitalocean/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/docker-compose/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/introduction/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/local-kubernetes/",
+      "destination": "/get-started/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/docker/",
+      "destination": "/installation/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     }
   ]
