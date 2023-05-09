@@ -98,22 +98,3 @@ type noopCloserWS struct {
 func (ws *noopCloserWS) Close() error {
 	return nil
 }
-
-func removeDuplicates(hosts []hostInfo) []hostInfo {
-	if len(hosts) <= 1 {
-		return hosts
-	}
-
-	unique := make(map[hostInfo]struct{}, len(hosts))
-	uniqueHosts := make([]hostInfo, 0, len(hosts))
-
-	for _, h := range hosts {
-		if _, ok := unique[h]; ok {
-			continue
-		}
-		unique[h] = struct{}{}
-		uniqueHosts = append(uniqueHosts, h)
-	}
-
-	return uniqueHosts
-}

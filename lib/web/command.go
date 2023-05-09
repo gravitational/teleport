@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -34,7 +33,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -45,20 +43,21 @@ import (
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const CommandResultType = "COMMAND_RESULT"
 
 type CommandRequest struct {
 	// Command is the command to be executed on all nodes.
@@ -93,10 +92,12 @@ func (c *CommandRequest) Check() error {
 	return nil
 }
 
+// CommandExecutionResult is a result of a command execution.
 type CommandExecutionResult struct {
 	SessionID string `json:"session_id"`
 }
 
+// executeCommand executes a command on all nodes that match the query.
 func (h *Handler) executeCommand(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -184,8 +185,6 @@ func (h *Handler) executeCommand(
 		return nil, trace.Errorf(errMsg)
 	}
 
-	hosts = removeDuplicates(hosts)
-
 	h.log.Debugf("found %d hosts", len(hosts))
 
 	for _, host := range hosts {
@@ -208,7 +207,6 @@ func (h *Handler) executeCommand(
 				InteractiveCommand: strings.Split(req.Command, " "),
 				Router:             h.cfg.Router,
 				TracerProvider:     h.cfg.TracerProvider,
-				proxySigner:        h.cfg.PROXYSigner,
 				LocalAuthProvider:  h.auth.accessPoint,
 			}
 
@@ -242,7 +240,7 @@ func (h *Handler) executeCommand(
 			err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
 				Message: &assist.AssistantMessage{
 					ConversationId: req.ConversationID,
-					Type:           "COMMAND_RESULT",
+					Type:           CommandResultType,
 					CreatedTime:    timestamppb.New(time.Now().UTC()),
 					Payload:        string(msgPayload),
 				},
@@ -281,33 +279,30 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 		proxyHostPort:      cfg.ProxyHostPort,
 		interactiveCommand: cfg.InteractiveCommand,
 		router:             cfg.Router,
-		proxySigner:        cfg.proxySigner,
 		localAuthProvider:  cfg.LocalAuthProvider,
 		tracer:             cfg.tracer,
 	}, nil
 }
 
 type CommandHandlerConfig struct {
-	// sctx is the context for the users web session.
+	// SessionCtx is the context for the user's web session.
 	SessionCtx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
+	// AuthProvider is used to fetch nodes and sessions from the backend.
 	AuthProvider AuthProvider
-	// sessionData is the data to send to the client on the initial session creation.
+	// SessionData is the data to send to the client on the initial session creation.
 	SessionData session.Session
-	// keepAliveInterval is the interval for sending ping frames to web client.
+	// KeepAliveInterval is the interval for sending ping frames to a web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	KeepAliveInterval time.Duration
-	// proxyHostPort is the address of the server to connect to.
+	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
-	// interactiveCommand is a command to execute.
+	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
-	// ProxySigner is used to sign PROXY header and securely propagate client IP information
-	proxySigner multiplexer.PROXYHeaderSigner
 	// LocalAuthProvider is used to fetch user information from the
 	// local cluster when connecting to agentless nodes.
 	LocalAuthProvider agentless.AuthProvider
@@ -358,14 +353,14 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 type commandHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
-	// ctx is a web session context for the currently logged in user.
+	// ctx is a web session context for the currently logged-in user.
 	ctx *SessionContext
 	// authProvider is used to fetch nodes and sessions from the backend.
 	authProvider AuthProvider
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
 
-	// keepAliveInterval is the interval for sending ping frames to web client.
+	// keepAliveInterval is the interval for sending ping frames to a web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
 	keepAliveInterval time.Duration
@@ -380,12 +375,6 @@ type commandHandler struct {
 
 	// tracer creates spans
 	tracer oteltrace.Tracer
-
-	// sshSession holds the "shell" SSH channel to the node.
-	sshSession *tracessh.Session
-
-	// ProxySigner is used to sign PROXY header and securely propagate client IP information
-	proxySigner multiplexer.PROXYHeaderSigner
 
 	// localAuthProvider is used to fetch user information from the
 	// local cluster when connecting to agentless nodes.
@@ -470,12 +459,11 @@ func (t *commandHandler) handler(r *http.Request) {
 	// Start sending ping frames through websocket to the client.
 	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)
 
-	go t.streamEvents(r.Context(), tc)
 	// Pump raw terminal in/out and audit events into the websocket.
 	t.streamOutput(r.Context(), t.ws, tc)
 }
 
-// streamTerminal opens a SSH connection to the remote host and streams
+// streamOutput opens a SSH connection to the remote host and streams
 // events back to the web client.
 func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client.TeleportClient) {
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
@@ -592,7 +580,7 @@ func (t *commandHandler) Close() error {
 
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.TeleportClient, error) {
-	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "commandHandler/makeClient")
+	ctx, span := tracing.DefaultProvider().Tracer("command").Start(ctx, "commandHandler/makeClient")
 	defer span.End()
 
 	clientConfig, err := makeTeleportClientConfig(ctx, t.ctx)
@@ -621,50 +609,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 		return nil, trace.BadParameter("failed to create client: %v", err)
 	}
 
-	// Save the *ssh.Session after the shell has been created. The session is
-	// used to update all other parties window size to that of the web client and
-	// to allow future window changes.
-	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
-		t.sshSession = s
-
-		return false, nil
-	}
-
 	return tc, nil
-}
-
-func (t *commandHandler) streamEvents(ctx context.Context, tc *client.TeleportClient) {
-	for {
-		select {
-		// Send push events that come over the events channel to the web client.
-		case event := <-tc.EventsChannel():
-			logger := t.log.WithField("event", event.GetType())
-
-			data, err := json.Marshal(event)
-			if err != nil {
-				logger.WithError(err).Error("Unable to marshal audit event")
-				continue
-			}
-
-			logger.Debug("Sending audit event to web client.")
-
-			if err := t.stream.writeAuditEvent(data); err != nil {
-				if err != nil {
-					if errors.Is(err, websocket.ErrCloseSent) {
-						logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
-						return
-					}
-					logger.WithError(err).Error("Unable to send audit event to web client")
-					continue
-				}
-			}
-
-		// Once the terminal stream is over (and the close envelope has been sent),
-		// close stop streaming envelopes.
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 // writeError displays an error in the terminal window.
