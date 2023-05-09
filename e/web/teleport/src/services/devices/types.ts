@@ -2,9 +2,11 @@
 export type TrustedDevice = {
   id: string;
   assetTag: string;
-  osType: 'Windows' | 'Linux' | 'macOS';
+  osType: TrustedDeviceOSType;
   enrollStatus: string;
 };
+
+export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';
 
 export type TrustedDeviceResponse = {
   items: TrustedDevice[];

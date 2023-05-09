@@ -200,6 +200,947 @@ exports[`empty state 1`] = `
 </div>
 `;
 
+exports[`empty with CTA 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-right: 40px;
+  width: 100%;
+}
+
+.c25 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-radius: 50%;
+}
+
+.c29 {
+  box-sizing: border-box;
+  width: 400px;
+}
+
+.c30 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c30:hover,
+.c30:focus {
+  background: #B29DFF;
+}
+
+.c30:active {
+  background: #C5B6FF;
+}
+
+.c30:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
+}
+
+.c20 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c23 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c17 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c17 .c19 {
+  color: inherit;
+}
+
+.c17:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c17:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c17:hover:enabled,
+.c17:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c17:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c21 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c21 .c19 {
+  color: inherit;
+}
+
+.c21:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c21:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c21:hover:enabled,
+.c21:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c21:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c26 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 26px;
+  margin: 0px;
+}
+
+.c27 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  margin: 0px;
+  text-align: center;
+}
+
+.c28 {
+  color: #009EFF;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c12 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c16 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c32 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c22 {
+  background: #222C59;
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-style: hidden;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c22 > thead > tr > th,
+.c22 > tbody > tr > th,
+.c22 > tfoot > tr > th,
+.c22 > thead > tr > td,
+.c22 > tbody > tr > td,
+.c22 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c22 > thead > tr > th:first-child,
+.c22 > tbody > tr > th:first-child,
+.c22 > tfoot > tr > th:first-child,
+.c22 > thead > tr > td:first-child,
+.c22 > tbody > tr > td:first-child,
+.c22 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c22 > thead > tr > th:last-child,
+.c22 > tbody > tr > th:last-child,
+.c22 > tfoot > tr > th:last-child,
+.c22 > thead > tr > td:last-child,
+.c22 > tbody > tr > td:last-child,
+.c22 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c22 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c22 > thead > tr > th {
+  background: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c22 > thead > tr > th .c19 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c22 > tbody > tr > td {
+  color: #FFFFFF;
+  line-height: 16px;
+}
+
+.c22 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
+}
+
+.c22 tbody tr:hover {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c6 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+}
+
+.c5 {
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.c18 .c19 {
+  font-size: 20px;
+}
+
+.c18 .c19:before {
+  padding-left: 1px;
+}
+
+.c15 {
+  color: #009EFF;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  outline: none;
+  border: none;
+  font-weight: bold;
+  line-height: 0;
+  font-size: 12px;
+}
+
+.c15:hover,
+.c15:focus {
+  cursor: pointer;
+}
+
+.c15:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: wait;
+}
+
+.c11 {
+  position: relative;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.07);
+  border-radius: 200px;
+}
+
+.c10 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #222C59;
+  border-radius: 200px;
+}
+
+.c8 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: transparent;
+}
+
+.c7 {
+  background: #0C143D;
+  border-radius: 200px;
+  width: 100%;
+  height: 32px;
+}
+
+.c9 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: #FFFFFF;
+  background: #0C143D;
+  padding-right: 184px;
+}
+
+.c9:hover,
+.c9:focus,
+.c9:active {
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+}
+
+.c9::placeholder {
+  color: rgba(255,255,255,0.54);
+  font-size: 12px;
+}
+
+.c31 {
+  text-transform: none;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 12px;
+}
+
+.c33 {
+  color: inherit;
+  font-weight: 500;
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+.c24 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  background-color: #344179;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  gap: 24px;
+  width: 650px;
+  box-shadow: 0 5px 5px -3px rgba(0,0,0,0.2),0 8px 10px 1px rgba(0,0,0,0.14),0 3px 14px 2px rgba(0,0,0,0.12);
+  border-radius: 8px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Trusted Devices
+    </div>
+  </div>
+  <div
+    class="c3"
+  >
+    <div
+      class="c4"
+      style="filter: blur(2px); pointer-events: none; user-select: none;"
+      width="100%"
+    >
+      <div
+        class="c5"
+      >
+        <nav
+          class="c6"
+        >
+          <div
+            class="c7"
+          >
+            <div
+              class="c8"
+            >
+              <input
+                class="c9"
+                placeholder="SEARCH..."
+                value=""
+              />
+              <div
+                class="c10"
+              >
+                <div
+                  class="c11"
+                />
+              </div>
+            </div>
+          </div>
+          <div
+            class="c12"
+            width="100%"
+          >
+            <div
+              class="c13"
+            >
+              <div
+                class="c14"
+                color="text.main"
+                style="white-space: nowrap; text-transform: uppercase;"
+              >
+                Showing 
+                <strong>
+                  1
+                </strong>
+                 - 
+                <strong>
+                  15
+                </strong>
+                 of
+                 
+                <strong>
+                  15
+                </strong>
+              </div>
+              <button
+                class="c15"
+              >
+                Fetch More
+              </button>
+            </div>
+            <div
+              class="c16"
+            >
+              <button
+                class="c17 c18"
+                disabled=""
+                title="Previous page"
+              >
+                <span
+                  class="c19 c20 icon icon-arrow-left-circle "
+                  font-size="3"
+                />
+              </button>
+              <button
+                class="c21 c18"
+                disabled=""
+                title="Next page"
+              >
+                <span
+                  class="c19 c20 icon icon-arrow-right-circle "
+                  font-size="3"
+                />
+              </button>
+            </div>
+          </div>
+        </nav>
+        <table
+          class="c22"
+        >
+          <thead>
+            <tr>
+              <th
+                style="cursor: default;"
+              >
+                OS Type
+              </th>
+              <th
+                style="cursor: default;"
+              >
+                Asset Tag
+              </th>
+              <th
+                style="cursor: default;"
+              >
+                Enroll Status
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-windows "
+                  style="padding-right: 5px;"
+                />
+                 
+                Windows
+              </td>
+              <td>
+                asset-tag-0
+              </td>
+              <td>
+                enroll-status-0
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-linux "
+                  style="padding-right: 5px;"
+                />
+                 
+                Linux
+              </td>
+              <td>
+                asset-tag-1
+              </td>
+              <td>
+                enroll-status-1
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-apple "
+                  style="padding-right: 5px;"
+                />
+                 
+                macOS
+              </td>
+              <td>
+                asset-tag-2
+              </td>
+              <td>
+                enroll-status-2
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-windows "
+                  style="padding-right: 5px;"
+                />
+                 
+                Windows
+              </td>
+              <td>
+                asset-tag-3
+              </td>
+              <td>
+                enroll-status-3
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-linux "
+                  style="padding-right: 5px;"
+                />
+                 
+                Linux
+              </td>
+              <td>
+                asset-tag-4
+              </td>
+              <td>
+                enroll-status-4
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-apple "
+                  style="padding-right: 5px;"
+                />
+                 
+                macOS
+              </td>
+              <td>
+                asset-tag-5
+              </td>
+              <td>
+                enroll-status-5
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-windows "
+                  style="padding-right: 5px;"
+                />
+                 
+                Windows
+              </td>
+              <td>
+                asset-tag-6
+              </td>
+              <td>
+                enroll-status-6
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-linux "
+                  style="padding-right: 5px;"
+                />
+                 
+                Linux
+              </td>
+              <td>
+                asset-tag-7
+              </td>
+              <td>
+                enroll-status-7
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-apple "
+                  style="padding-right: 5px;"
+                />
+                 
+                macOS
+              </td>
+              <td>
+                asset-tag-8
+              </td>
+              <td>
+                enroll-status-8
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-windows "
+                  style="padding-right: 5px;"
+                />
+                 
+                Windows
+              </td>
+              <td>
+                asset-tag-9
+              </td>
+              <td>
+                enroll-status-9
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-linux "
+                  style="padding-right: 5px;"
+                />
+                 
+                Linux
+              </td>
+              <td>
+                asset-tag-10
+              </td>
+              <td>
+                enroll-status-10
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-apple "
+                  style="padding-right: 5px;"
+                />
+                 
+                macOS
+              </td>
+              <td>
+                asset-tag-11
+              </td>
+              <td>
+                enroll-status-11
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-windows "
+                  style="padding-right: 5px;"
+                />
+                 
+                Windows
+              </td>
+              <td>
+                asset-tag-12
+              </td>
+              <td>
+                enroll-status-12
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-linux "
+                  style="padding-right: 5px;"
+                />
+                 
+                Linux
+              </td>
+              <td>
+                asset-tag-13
+              </td>
+              <td>
+                enroll-status-13
+              </td>
+            </tr>
+            <tr>
+              <td
+                align="left"
+              >
+                <span
+                  class="c19 c23 icon icon-apple "
+                  style="padding-right: 5px;"
+                />
+                 
+                macOS
+              </td>
+              <td>
+                asset-tag-14
+              </td>
+              <td>
+                enroll-status-14
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div
+      class="c24"
+    >
+      <div
+        class="c25"
+      >
+        <div
+          class="c26"
+          font-size="26px"
+        >
+          <span
+            class="c19 c23 icon icon-lock "
+          />
+        </div>
+      </div>
+      <div
+        class="c27"
+        font-size="2"
+      >
+        Device Trust allows Teleport admins to enforce the use of trusted devices, establishes each user's identity, and enforces the necessary roles. Any user of a trusted device will leave audit trails that include the device's information. Resources protected by the device mode “required” will enforce authenticated device access. For more information on Device Trust, please
+         
+        <a
+          class="c28"
+          href="https://goteleport.com/docs/access-controls/guides/device-trust"
+          rel="noreferrer"
+          target="_blank"
+        >
+          view our documentation
+        </a>
+        .
+      </div>
+      <div
+        class="c29"
+        width="400px"
+      >
+        <button
+          class="c30 c31"
+          kind="primary"
+        >
+          <div
+            class="c32"
+          >
+            <span
+              class="c19 c23 icon icon-unlock c33"
+            />
+            Unlock Device Trust with Teleport Enterprise
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
 exports[`failed 1`] = `
 .c3 {
   display: flex;

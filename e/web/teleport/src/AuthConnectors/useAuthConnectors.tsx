@@ -44,6 +44,7 @@ export default function useAuthConnectors() {
     attempt,
     save,
     remove,
+    showAuthConnectorsCTA: ctx.lockedFeatures.authConnectors,
   };
 }
 

@@ -44,7 +44,11 @@ class AddMenu extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { disabled = false } = this.props;
+    const {
+      disabled = false,
+      isOidcLocked = false,
+      isSamlLocked = false,
+    } = this.props;
     return (
       <React.Fragment>
         <ButtonPrimary
@@ -61,6 +65,7 @@ class AddMenu extends React.Component<Props> {
           open={open}
           onClose={this.onClose}
           menuListCss={menuListCss}
+          popoverCss={() => `margin-top: 36px;`}
           anchorOrigin={{
             vertical: 'bottom',
             horizontal: 'right',
@@ -70,15 +75,19 @@ class AddMenu extends React.Component<Props> {
             horizontal: 'right',
           }}
         >
-          <MenuItem onClick={() => this.onItemClick('oidc')}>
-            OIDC CONNECTOR
-          </MenuItem>
+          {!isOidcLocked && (
+            <MenuItem onClick={() => this.onItemClick('oidc')}>
+              OIDC CONNECTOR
+            </MenuItem>
+          )}
           <MenuItem onClick={() => this.onItemClick('github')}>
             GITHUB CONNECTOR
           </MenuItem>
-          <MenuItem onClick={() => this.onItemClick('saml')}>
-            SAML CONNECTOR
-          </MenuItem>
+          {!isSamlLocked && (
+            <MenuItem onClick={() => this.onItemClick('saml')}>
+              SAML CONNECTOR
+            </MenuItem>
+          )}
         </Menu>
       </React.Fragment>
     );
@@ -88,6 +97,8 @@ class AddMenu extends React.Component<Props> {
 type Props = {
   disabled?: boolean;
   onClick(kind: AuthProviderType): void;
+  isOidcLocked: boolean;
+  isSamlLocked: boolean;
 };
 
 const menuListCss = ({ theme }) => `

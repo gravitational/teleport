@@ -14,6 +14,10 @@ export function Empty() {
   return <DeviceTrust {...props} items={[]} />;
 }
 
+export function EmptyWithCTA() {
+  return <DeviceTrust {...props} items={[]} showTrustedDevicesCTA={true} />;
+}
+
 export function Processing() {
   return <DeviceTrust {...props} attempt={{ status: 'processing' as any }} />;
 }
@@ -60,4 +64,5 @@ const props: State = {
   fetchData: () => null,
   fetchStatus: 'disabled',
   startKey: '',
+  showTrustedDevicesCTA: false,
 };

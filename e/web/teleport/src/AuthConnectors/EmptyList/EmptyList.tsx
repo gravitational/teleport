@@ -5,9 +5,11 @@ import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';
 import { State as ResourceState } from 'teleport/components/useResources';
 
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
 import getSsoIcon from '../getSsoIcon';
 
-export default function EmptyList({ onCreate }: Props) {
+export default function EmptyList({ onCreate, showLockedFeature }: Props) {
   return (
     <Card
       color="text.main"
@@ -23,34 +25,64 @@ export default function EmptyList({ onCreate }: Props) {
           Connector.
         </Text>
       </Text>
-      <Flex mt="6" flexWrap="wrap">
-        {renderItem('github', onCreate)}
-        {renderItem('oidc', onCreate)}
-        {renderItem('saml', onCreate)}
+      <Flex mt="6" flexWrap="wrap" justifyContent="center" minWidth="800px">
+        {renderItem('github', onCreate, false, showLockedFeature)}
+        <Flex
+          flexWrap="wrap"
+          style={{ position: 'relative' }}
+          justifyContent="center"
+        >
+          {renderItem('oidc', onCreate, showLockedFeature, showLockedFeature)}
+          {renderItem('saml', onCreate, showLockedFeature, showLockedFeature)}
+          {showLockedFeature && (
+            <LockedFeatureContainer>
+              <ButtonLockedFeature>
+                Unlock OIDC & SAML with Teleport Enterprise
+              </ButtonLockedFeature>
+            </LockedFeatureContainer>
+          )}
+        </Flex>
       </Flex>
     </Card>
   );
 }
 
-function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
-  const { desc, SsoIcon } = getSsoIcon(kind);
+function renderItem(
+  kind: AuthProviderType,
+  onClick: Props['onCreate'],
+  isItemLocked: boolean, // wether this particular item is locked
+  isFeatureLocked: boolean // wether the enterprise auth connectors feature is locked
+) {
+  const { desc, SsoIcon, info } = getSsoIcon(kind, isFeatureLocked);
   const onBtnClick = () => onClick(kind);
   return (
     <ConnectorBox
-      px="5"
-      py="4"
+      p="4"
       mx="2"
       mb="3"
       bg="levels.surface"
       as="button"
-      onClick={onBtnClick}
+      disabled={isItemLocked}
+      onClick={isItemLocked ? null : onBtnClick}
     >
-      <Flex my={2}>
-        <SsoIcon fontSize="50px" />
+      <Flex width="100%">
+        <SsoIcon
+          fontSize="50px"
+          style={{
+            left: 0,
+            fontSize: '72px',
+          }}
+        />
       </Flex>
-      <Text typography="body2" bold>
+
+      <Text typography="body2" mt="4" fontSize="18px" color="text.primary" bold>
         {desc}
       </Text>
+      {info && (
+        <Text mt="2" color="text.primary" transform="none">
+          {info}
+        </Text>
+      )}
     </ConnectorBox>
   );
 }
@@ -58,32 +90,48 @@ function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
 const ConnectorBox = styled(Box)(
   props => `
   display: flex;
-  align-items: center;
   flex-direction: column;
   transition: all 0.3s;
   border-radius: 4px;
+  min-width: 340px;
+  min-height: 190px;
   width: 160px;
   border: 2px solid ${props.theme.colors.spotBackground[2]};
   &:focus {
     opacity: .24;
     box-shadow: none;
   }
+  &:hover:not([disabled]) {
+    border: 2px solid ${props.theme.colors.brand.main};
+  }
   &:hover {
     border: 2px solid ${props.theme.colors.brand};
     background: ${props.theme.colors.levels.elevated};
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
+    cursor: pointer;
   }
   color: inherit;
-  cursor: pointer;
   font-family: inherit;
   outline: none;
   position: relative;
   text-align: center;
   text-decoration: none;
-  text-transform: uppercase;
+  &:disabled {
+    opacity: .24;
+    box-shadow: none;
+  }
 `
 );
 
+const LockedFeatureContainer = styled(Box)`
+  position: absolute;
+  min-width: 360px;
+  bottom: 0;
+  left: 3rem;
+  right: 3rem;
+`;
+
 type Props = {
   onCreate: ResourceState['create'];
+  showLockedFeature: boolean;
 };

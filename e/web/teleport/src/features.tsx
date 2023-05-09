@@ -14,11 +14,21 @@ import {
 } from 'design/SVGIcon';
 
 import cfg from 'e-teleport/config';
-import { NewRequest, ReviewRequests } from 'e-teleport/Workflow';
+import {
+  ReviewRequests,
+  NewRequest,
+  RequestFeatureLocked,
+} from 'e-teleport/Workflow';
 
 import { Downloads } from 'e-teleport/Downloads';
 
-import type { FeatureFlags, TeleportFeature } from 'teleport/types';
+import type {
+  LockedFeatures,
+  FeatureFlags,
+  TeleportFeature,
+  TeleportFeatureNavigationItem,
+  TeleportFeatureRoute,
+} from 'teleport/types';
 
 const AuthConnectors = React.lazy(
   () =>
@@ -76,15 +86,34 @@ const InvoiceSettingsE = React.lazy(
 // ****************************
 
 class FeatureAccessRequests implements TeleportFeature {
+  route: TeleportFeatureRoute; // intentionally undefined
   category = NavigationCategory.Resources;
+  navigationItem: TeleportFeatureNavigationItem = {
+    title: 'Access Requests',
+    icon: <AccessRequestsIcon />,
+  };
 
   hasAccess() {
     return !cfg.oss.isDashboard;
   }
+  // display an alternate page with a call to action
+  // in case the feature is locked in the cluster
+  isLocked(lockedFeatures: LockedFeatures) {
+    return lockedFeatures.accessRequests;
+  }
 
-  navigationItem = {
+  lockedRoute = {
+    title: 'Access Requests',
+    path: cfg.routes.requestNew,
+    component: RequestFeatureLocked,
+  };
+
+  lockedNavigationItem = {
     title: 'Access Requests',
     icon: <AccessRequestsIcon />,
+    getLink(clusterId: string) {
+      return cfg.getNewAccessRequestRoute(clusterId);
+    },
   };
 }
 

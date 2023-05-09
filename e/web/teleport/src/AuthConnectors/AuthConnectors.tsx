@@ -10,6 +10,8 @@ import useResources from 'teleport/components/useResources';
 
 import DeleteConnectorDialog from 'teleport/AuthConnectors/DeleteConnectorDialog';
 
+import useTeleport from 'teleport/useTeleport';
+
 import EmptyList from './EmptyList';
 import ConnectorList from './ConnectorList';
 import AddMenu from './AddMenu';
@@ -22,7 +24,8 @@ export default function Container() {
 }
 
 export function AuthConnectors(props: State) {
-  const { attempt, items, remove, save } = props;
+  const { attempt, items, remove, save, showAuthConnectorsCTA } = props;
+  const ctx = useTeleport();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
@@ -46,9 +49,15 @@ export function AuthConnectors(props: State) {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Auth Connectors</FeatureHeaderTitle>
-        <Box ml="auto" alignSelf="center" width="240px">
-          <AddMenu onClick={resources.create} />
-        </Box>
+        {(!showAuthConnectorsCTA || !isEmpty) && (
+          <Box ml="auto" alignSelf="center" width="240px">
+            <AddMenu
+              onClick={resources.create}
+              isOidcLocked={ctx.lockedFeatures.authConnectors}
+              isSamlLocked={ctx.lockedFeatures.authConnectors}
+            />
+          </Box>
+        )}
       </FeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (
@@ -59,8 +68,11 @@ export function AuthConnectors(props: State) {
       {attempt.status === 'success' && (
         <Flex alignItems="start">
           {isEmpty && (
-            <Flex mt="4" width="100%" justifyContent="center">
-              <EmptyList onCreate={resources.create} />
+            <Flex width="100%" justifyContent="center">
+              <EmptyList
+                onCreate={resources.create}
+                showLockedFeature={showAuthConnectorsCTA}
+              />
             </Flex>
           )}
           {!isEmpty && (
@@ -68,6 +80,7 @@ export function AuthConnectors(props: State) {
               items={items}
               onEdit={resources.edit}
               onDelete={resources.remove}
+              showAuthConnectorsCTA={showAuthConnectorsCTA}
             />
           )}
           <Box ml="4" width="240px" color="text.main" style={{ flexShrink: 0 }}>

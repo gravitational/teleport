@@ -7,7 +7,12 @@ import { State as AuthConnectorsState } from '../useAuthConnectors';
 
 import ConnectorListItem from './ConnectorListItem';
 
-export default function ConnectorList({ items, onEdit, onDelete }: Props) {
+export default function ConnectorList({
+  items,
+  onEdit,
+  onDelete,
+  showAuthConnectorsCTA,
+}: Props) {
   items = items || [];
   const $items = items.map(item => {
     const { id, name, kind } = item;
@@ -19,6 +24,7 @@ export default function ConnectorList({ items, onEdit, onDelete }: Props) {
         onDelete={onDelete}
         name={name}
         kind={kind as AuthProviderType}
+        showAuthConnectorsCTA={showAuthConnectorsCTA}
       />
     );
   });
@@ -34,4 +40,5 @@ type Props = {
   items: AuthConnectorsState['items'];
   onEdit: ResourceState['edit'];
   onDelete: ResourceState['remove'];
+  showAuthConnectorsCTA: boolean;
 };

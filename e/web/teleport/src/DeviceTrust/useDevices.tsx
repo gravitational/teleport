@@ -50,6 +50,7 @@ export const useDevices = () => {
     ...tableDataAndState,
     attempt,
     fetchData,
+    showTrustedDevicesCTA: ctx.lockedFeatures.trustedDevices,
   };
 };
 

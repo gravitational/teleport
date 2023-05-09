@@ -12,10 +12,11 @@ export default function ConnectorListItem({
   id,
   onEdit,
   onDelete,
+  showAuthConnectorsCTA,
 }: Props) {
   const onClickEdit = () => onEdit(id);
   const onClickDelete = () => onDelete(id);
-  const { desc, SsoIcon } = getSsoIcon(kind);
+  const { desc, SsoIcon } = getSsoIcon(kind, showAuthConnectorsCTA);
 
   const iconProps: any = {
     fontSize: '48px',
@@ -85,4 +86,5 @@ type Props = {
   kind: AuthProviderType;
   onEdit: ResourceState['edit'];
   onDelete: ResourceState['remove'];
+  showAuthConnectorsCTA: boolean;
 };

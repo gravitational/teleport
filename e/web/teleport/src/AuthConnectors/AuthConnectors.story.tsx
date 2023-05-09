@@ -20,6 +20,14 @@ export function Empty() {
   return <AuthConnectors {...sample} items={[]} />;
 }
 
+export function EmptyWithCTA() {
+  return <AuthConnectors {...sample} items={[]} showAuthConnectorsCTA={true} />;
+}
+
+export function LoadedWithCTA() {
+  return <AuthConnectors {...sample} showAuthConnectorsCTA={true} />;
+}
+
 export function Failed() {
   return (
     <AuthConnectors
@@ -63,4 +71,5 @@ const sample = {
   items: connectors,
   remove: () => null,
   save: () => null,
+  showAuthConnectorsCTA: false,
 };
