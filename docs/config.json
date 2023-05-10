@@ -1155,6 +1155,10 @@
               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
+              "title": "AWS OpenSearch",
+              "slug": "/database-access/guides/aws-opensearch/"
+            },
+            {
               "title": "AWS ElastiCache & MemoryDB",
               "slug": "/database-access/guides/redis-aws/"
             },
