@@ -242,10 +242,23 @@ get_current_version() {
         return 0
     fi
 
-    if cv_output="$(teleport version --raw)"; then
-        echo "${cv_output}"
-        return 0
-    fi
+    if hash teleport 2>/dev/null; then
+        # teleport is on PATH
+        if cv_output="$(teleport version --raw)"; then
+            echo "${cv_output}"
+            return 0
+        fi
+    else
+        if hash /usr/local/bin/teleport 2>/dev/null; then
+            # teleport is not on PATH, but appears to be located at default install location
+            if cv_output="$(/usr/local/bin/teleport version --raw)"; then
+                echo "${cv_output}"
+                return 0
+            fi
+        else
+            log_warn "failed to locate teleport binary for local version discovery"
+        fi
+     fi 
 
     return 1
 }
