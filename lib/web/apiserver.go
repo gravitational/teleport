@@ -51,6 +51,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
@@ -92,6 +93,14 @@ import (
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+
+	assistantTokensPerHour = 140
+	// assistantLimiterRate is the rate (in tokens per second)
+	// at which tokens for the assistant rate limiter are replenished
+	assistantLimiterRate = rate.Limit(assistantTokensPerHour / float64(time.Hour/time.Second))
+	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
+	// The bucket starts full, prefilled for a week.
+	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -111,6 +120,7 @@ type Handler struct {
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
 	highLimiter             *limiter.RateLimiter
+	assistantLimiter        *rate.Limiter
 	healthCheckAppServer    healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
@@ -299,6 +309,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
+		assistantLimiter:     rate.NewLimiter(assistantLimiterRate, assistantLimiterCapacity),
 	}
 
 	// for properly handling url-encoded parameter values.
