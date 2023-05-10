@@ -116,6 +116,11 @@ i.e. from an SSH client to an SSH server/node, see the diagram below:
 
 ### Proxy recording mode 
 
+<Notice>
+  As of Teleport `v13` proxy recording mode is not required for capturing
+  OpenSSH recordings. Using the default `node` or `node-sync` recording mode is
+  recommended.  
+</Notice>
 In this mode, the proxy terminates (decrypts) the SSH connection using the
 certificate supplied by the client via SSH agent forwarding and then establishes
 its own SSH connection to the final destination server, effectively becoming an
@@ -126,7 +131,8 @@ session data to the auth server to be recorded, as shown below:
 
 The recording proxy mode, although *less secure*, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
-helpful when gradually transitioning large server fleets to Teleport.
+helpful when gradually transitioning large server fleets to Teleport. Now all
+recording modes as of `v13` can record OpenSSH interactions that go through the proxy.
 
 We consider the "recording proxy mode" to be less secure for two reasons:
 
