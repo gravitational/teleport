@@ -532,6 +532,9 @@ service:
 # unnecessary load balancers being created.
 ingress:
   enabled: false
+  # Setting suppressWildcard to true will not automatically add *.<clusterName> to the hostnames served by the ingress.
+  # This may be desirable if you don't use Teleport Application Access.
+  suppressAutomaticWildcardHostname: false
 
 # Extra arguments to pass to 'teleport start' for the main Teleport pod
 extraArgs: []
