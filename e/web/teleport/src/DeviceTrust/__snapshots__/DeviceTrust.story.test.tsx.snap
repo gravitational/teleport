@@ -148,6 +148,7 @@ exports[`empty state 1`] = `
             style="text-align: center;"
           >
             <svg
+              data-testid="svg"
               fill="rgba(255,255,255,0.18)"
               height="150"
               viewBox="0 0 1024 1024"
