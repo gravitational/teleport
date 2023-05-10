@@ -506,7 +506,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return sessionError{err: trace.Wrap(err)}

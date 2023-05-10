@@ -23,6 +23,7 @@ package config
 import (
 	"bufio"
 	"crypto/x509"
+	"errors"
 	"io"
 	stdlog "log"
 	"net"
@@ -192,7 +193,7 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, trace.Wrap(err)
