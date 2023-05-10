@@ -20,13 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
