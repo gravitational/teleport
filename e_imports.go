@@ -57,6 +57,7 @@ import (
 	_ "github.com/julienschmidt/httprouter"
 	_ "github.com/mitchellh/mapstructure"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
+	_ "golang.org/x/time/rate"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"
