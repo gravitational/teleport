@@ -546,7 +546,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Cleanup has failed for Okta assignment [assignment-id], source [source], user [mike]
+            Okta assignment [assignment-id], source [source], user [mike] cleanup has failed
           </td>
           <td
             style="min-width: 120px;"
@@ -618,7 +618,7 @@ exports[`list of all events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            Processing has failed for Okta assignment [assignment-id], source [source], user [mike]
+            Okta assignment [assignment-id], source [source], user [mike] processing has failed
           </td>
           <td
             style="min-width: 120px;"

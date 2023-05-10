@@ -1395,7 +1395,7 @@ export const formatters: Formatters = {
     type: 'okta.assignment.process',
     desc: 'Okta assignment failed to process',
     format: ({ name, source, user }) =>
-      `Processing has failed for Okta assignment [${name}], source [${source}], user [${user}]`,
+      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
   },
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
     type: 'okta.assignment.cleanup',
@@ -1407,7 +1407,7 @@ export const formatters: Formatters = {
     type: 'okta.assignment.cleanup',
     desc: 'Okta assignment failed to clean up',
     format: ({ name, source, user }) =>
-      `Cleanup has failed for Okta assignment [${name}], source [${source}], user [${user}]`,
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
