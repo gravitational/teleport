@@ -448,3 +448,16 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 
 	return db
 }
+
+// MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
+func MustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
+}
