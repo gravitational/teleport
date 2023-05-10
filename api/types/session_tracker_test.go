@@ -48,9 +48,17 @@ func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 	err = s.UpdatePresence("alpaca")
 	require.ErrorIs(t, err, trace.NotFound("participant alpaca not found"))
 
-	// Presence is only updated for the matching user
+	// Update presence for just the user fish
 	require.NoError(t, s.UpdatePresence("fish"))
-	participants := s.GetParticipants()
-	require.Equal(t, clock.Now().UTC(), participants[0].LastActive)
-	require.NotEqual(t, clock.Now().UTC(), participants[1].LastActive)
+
+	// Verify that user llama still has a LastActive time matching the
+	// fake clock used by the test but that user fish has their LastActive
+	// time modified
+	for _, participant := range s.GetParticipants() {
+		if participant.User == "fish" {
+			require.NotEqual(t, clock.Now().UTC(), participant.LastActive)
+		} else {
+			require.Equal(t, clock.Now().UTC(), participant.LastActive)
+		}
+	}
 }
