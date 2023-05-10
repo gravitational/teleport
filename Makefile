@@ -35,8 +35,12 @@ GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 CGOFLAG ?= CGO_ENABLED=1
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
