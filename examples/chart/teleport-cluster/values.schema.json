@@ -742,6 +742,11 @@
                 "$id": "#/properties/ingress/enabled",
                 "type": "boolean",
                 "default": false
+            },
+            "suppressAutomaticWildcardHostname": {
+                "$id": "#/properties/ingress/suppressAutomaticWildcardHostname",
+                "type": "boolean",
+                "default": false
             }
         },
         "serviceAccount": {

@@ -14,7 +14,7 @@
   {{- end -}}
   {{- $wildcard := printf "*.%s" $address -}}
   {{- /* Add wildcard versions of all public addresses to ingress, unless 1) suppressed or 2) wildcard version already exists */ -}}
-  {{- if and (not $.Values.ingress.suppressAutomaticWildcardHostname) (not (hasPrefix "*." $address)) (not (has $wildcard $publicAddr)) -}}
+  {{- if and (not $.Values.ingress.suppressAutomaticWildcards) (not (hasPrefix "*." $address)) (not (has $wildcard $publicAddr)) -}}
     {{- $publicAddr = append $publicAddr (printf "*.%s" $address) -}}
   {{- end -}}
 {{- end -}}
