@@ -1,0 +1,33 @@
+name: Environment Leak Tests
+run-name: Environment Leak Tests (Go) - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'
+  merge_group:
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'
+
+jobs:
+  test:
+    name: Environment Leak Test
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-22.04-32core
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run environment leak test
+        timeout-minutes: 20
+        run: make test-env
