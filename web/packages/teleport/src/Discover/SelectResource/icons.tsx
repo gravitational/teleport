@@ -17,8 +17,8 @@
 import React from 'react';
 import { Image } from 'design';
 import * as Icons from 'design/Icon';
+import { AWSIcon } from 'design/SVGIcon';
 
-import aws from './assets/aws.png';
 import azure from './assets/azure.png';
 import cockroach from './assets/cockroach.png';
 import database from './assets/database.png';
@@ -44,7 +44,7 @@ export const icons = {
   Apple: <Icons.Apple fontSize={22} />,
   Application: <Image src={application} width="23.9px" height="24px" />,
   Database: <Image src={database} width="23.9px" height="24px" />,
-  Aws: <Image src={aws} width="24.65px" height="14.36px" />,
+  Aws: <AWSIcon width={24.65} height={14.36} />,
   Azure: <Image src={azure} width="23.9px" height="24px" />,
   Cockroach: <Image src={cockroach} width="23.9px" height="24px" />,
   Dynamo: <Image src={dynamo} width="23.9px" height="24px" />,
