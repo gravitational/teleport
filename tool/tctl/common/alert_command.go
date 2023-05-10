@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -44,6 +46,7 @@ type AlertCommand struct {
 	severity string
 	ttl      time.Duration
 
+	format  string
 	verbose bool
 
 	alertList   *kingpin.CmdClause
@@ -64,6 +67,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.alertList = alert.Command("list", "List cluster alerts").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
+	c.alertList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts")
 	c.alertCreate.Arg("message", "Alert body message").Required().StringVar(&c.message)
@@ -181,7 +185,20 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 	// sort so that newer/high-severity alerts show up higher.
 	types.SortClusterAlerts(alerts)
 
-	if c.verbose {
+	switch c.format {
+	case teleport.Text:
+		displayAlertsText(alerts, c.verbose)
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(displayAlertsJSON(alerts))
+	default:
+		// technically unreachable since kingpin validates the EnumVar
+		return trace.BadParameter("invalid format %q", c.format)
+	}
+}
+
+func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
+	if verbose {
 		table := asciitable.MakeTable([]string{"ID", "Severity", "Message", "Created", "Labels"})
 		for _, alert := range alerts {
 			var labelPairs []string
@@ -206,7 +223,14 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 		}
 		fmt.Println(table.AsBuffer().String())
 	}
+}
 
+func displayAlertsJSON(alerts []types.ClusterAlert) error {
+	out, err := json.MarshalIndent(alerts, "", "  ")
+	if err != nil {
+		return trace.Wrap(err, "failed to marshal alerts")
+	}
+	fmt.Println(string(out))
 	return nil
 }
 
