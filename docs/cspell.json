@@ -166,6 +166,7 @@
     "SLAVEOF",
     "SLOWLOG",
     "SSUBSCRIBE",
+    "SSWS",
     "SUNSUBSCRIBE",
     "Shockbyte",
     "Slackbot",

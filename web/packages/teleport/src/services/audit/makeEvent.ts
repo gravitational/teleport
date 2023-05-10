@@ -1368,6 +1368,47 @@ export const formatters: Formatters = {
     format: ({ updated_by }) =>
       `User [${updated_by}] failed to delete all service providers`,
   },
+  [eventCodes.OKTA_GROUPS_UPDATE]: {
+    type: 'okta.groups.update',
+    desc: 'Okta groups have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: {
+    type: 'okta.applications.update',
+    desc: 'Okta applications have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_SYNC_FAILURE]: {
+    type: 'okta.sync.failure',
+    desc: 'Okta synchronization failed',
+    format: () => `Okta synchronization failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment has been processed',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully processed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment failed to process',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment has been cleaned up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully cleaned up`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment failed to clean up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
+  },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',
     desc: 'Unknown Event',
