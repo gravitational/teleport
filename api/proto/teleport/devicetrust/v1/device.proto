@@ -92,15 +92,15 @@ message Device {
 message DeviceCredential {
   // Unique identifier of the credential, defined client-side.
   string id = 1;
-  // Device public key marshaled as a PKIX, ASN.1 DER.
-  // If the device is a TPM device, stores the public attestation key to use for
-  // verifying platform attestation.
+  // Device public key marshaled as a PKIX, ASN.1 DER. Used only on MacOS.
   bytes public_key_der = 2;
   // The degree to which the device credential is attested.
   DeviceAttestationType device_attestation_type = 3;
-  // If the device is a TPM device, stores the serial number from the TPM
-  // endorsement certificate.
+  // For TPM devices, the serial number of the TPM endorsement certificate.
   string tpm_ekcert_serial = 4;
+  // For TPM devices, the encoded TPMT_PUBLIC structure containing the
+  // attestation public key and signing parameters.
+  bytes tpm_ak_public = 5;
 }
 
 // AttestationType indicates the degree to which the device credential has

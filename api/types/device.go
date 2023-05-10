@@ -181,6 +181,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 				dev.Credential.DeviceAttestationType,
 			),
 			TpmEkcertSerial: dev.Credential.TpmEkcertSerial,
+			TpmAkPublic:     dev.Credential.TpmAkPublic,
 		}
 	}
 
