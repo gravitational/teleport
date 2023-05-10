@@ -1,5 +1,5 @@
 {
-  "name": "teleport-e",
+  "name": "@gravitational/e-imports",
   "version": "1.0.0",
   "description": "Enterprise-only dependencies of the Teleport Web UI",
   "private": true,
