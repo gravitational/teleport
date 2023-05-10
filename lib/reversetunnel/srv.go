@@ -608,6 +608,16 @@ func (s *server) Close() error {
 	return s.srv.Close()
 }
 
+func (s *server) Replace(ctx context.Context) {
+	s.log.Debugf("Advising proxy replace to local site: %s", s.localSite.GetName())
+	go s.localSite.adviseReplace(ctx)
+
+	for _, site := range s.remoteSites {
+		s.log.Debugf("Advising proxy replace to remote site: %s", site.GetName())
+		go site.adviseReplace(ctx)
+	}
+}
+
 // DrainConnections closes the listener and sends reconnects to connected agents without
 // closing open connections.
 func (s *server) DrainConnections(ctx context.Context) error {

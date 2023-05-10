@@ -183,6 +183,8 @@ type Server interface {
 	Wait(ctx context.Context)
 	// GetProxyPeerClient returns the proxy peer client
 	GetProxyPeerClient() *peer.Client
+	// Replace indicates that the proxy will be replaced soon
+	Replace(ctx context.Context)
 }
 
 const (

@@ -179,6 +179,10 @@ const (
 	// reverse tunnel server and is ready to start accepting connections.
 	ProxyReverseTunnelReady = "ProxyReverseTunnelReady"
 
+	// ProxyReplace is generated when the proxy is being replaced and the
+	// reverse tunnel server should send an replace advisory to agents.
+	ProxyReplace = "ProxyReplace"
+
 	// DebugAppReady is generated when the debugging application has been started
 	// and is ready to serve requests.
 	DebugAppReady = "DebugAppReady"
@@ -3673,6 +3677,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				log.Error(err)
 				return trace.Wrap(err)
 			}
+			go func() {
+				_, err := process.WaitForEvent(process.ExitContext(), ProxyReplace)
+				if err != nil {
+					log.WithError(err).Warn("Unable to process proxy replace advisory event.")
+					return
+				}
+				tsrv.Replace(process.ExitContext())
+			}()
 
 			// notify parties that we've started reverse tunnel server
 			process.BroadcastEvent(Event{Name: ProxyReverseTunnelReady, Payload: tsrv})
