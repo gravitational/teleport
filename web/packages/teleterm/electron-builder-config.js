@@ -54,7 +54,7 @@ module.exports = {
     }
 
     const path = `${packed.appOutDir}/Teleport Connect.app/Contents/MacOS/tsh.app/Contents/Info.plist`;
-    if (packed.appOutDir.endsWith('mac-universal--x64')) {
+    if (packed.appOutDir.endsWith('mac-universal-x64-temp')) {
       tshAppPlist = fs.readFileSync(path);
     }
     if (packed.appOutDir.endsWith('mac-universal')) {
