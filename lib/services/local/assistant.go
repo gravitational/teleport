@@ -211,11 +211,14 @@ func (s *AssistService) GetAssistantMessages(ctx context.Context, req *assist.Ge
 
 // CreateAssistantMessage adds the message to the backend.
 func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) error {
-	msg := req.GetMessage()
-	if msg.Username == "" {
+	if req.Username == "" {
 		return trace.BadParameter("missing username")
 	}
+	if req.ConversationId == "" {
+		return trace.BadParameter("missing conversation ID")
+	}
 
+	msg := req.GetMessage()
 	value, err := json.Marshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,7 +227,7 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantMessagePrefix, msg.Username, msg.ConversationId, messageID),
+		Key:   backend.Key(assistantMessagePrefix, req.Username, req.ConversationId, messageID),
 		Value: value,
 	}
 
