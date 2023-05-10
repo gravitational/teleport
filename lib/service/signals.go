@@ -56,13 +56,14 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 	sigC := make(chan os.Signal, 1024)
 	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
-		syscall.SIGQUIT, // graceful shutdown
-		syscall.SIGTERM, // fast shutdown
-		syscall.SIGINT,  // fast shutdown
-		syscall.SIGUSR1, // log process diagnostic info
-		syscall.SIGUSR2, // initiate process restart procedure
-		syscall.SIGHUP,  // graceful restart procedure
-		syscall.SIGCHLD, // collect child status
+		syscall.SIGQUIT,  // graceful shutdown
+		syscall.SIGTERM,  // fast shutdown
+		syscall.SIGINT,   // fast shutdown
+		syscall.SIGUSR1,  // log process diagnostic info
+		syscall.SIGUSR2,  // initiate process restart procedure
+		syscall.SIGHUP,   // graceful restart procedure
+		syscall.SIGCHLD,  // collect child status
+		syscall.SIGWINCH, // pre-shutdown for proxy
 	)
 	defer signal.Stop(sigC)
 
@@ -117,6 +118,8 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				return nil
 			case syscall.SIGCHLD:
 				process.collectStatuses()
+			case syscall.SIGWINCH:
+				process.BroadcastEvent(Event{Name: ProxyReplace})
 			default:
 				process.log.Infof("Ignoring %q.", signal)
 			}
