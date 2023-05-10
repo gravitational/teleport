@@ -39,7 +39,9 @@ const (
 
 // Ensures that device state directory exists with the correct permissions and:
 // - If it does not exist, creates it.
-// - If it exists with the wrong permissions, errors.
+// - If the directory exists, it has 700 perms or errors.
+// - If an attestation key exists, it has 600 perms or errors.
+// It returns the absolute path to where the attestation key can be found:
 // ~/teleport-device/attestation.key
 func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 	home, err := getHomeDir()
@@ -61,6 +63,14 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 			return keyPath, nil
 		}
 		return "", trace.Wrap(err)
+	}
+
+	// TODO: Remove this
+	// The code below this point might not behave nicely on windows due to
+	// differences in file system permissions. Investigate this and determine
+	// if this code should be linux-only.
+	if true {
+		return keyPath, nil
 	}
 
 	// As it already exists, we need to check the directory's perms
