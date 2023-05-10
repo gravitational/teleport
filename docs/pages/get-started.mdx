@@ -4,9 +4,10 @@ description: This tutorial will guide you through the steps needed to install an
 videoBanner: 8aiVin0LvmE
 ---
 
-This tutorial will guide you through the steps needed to install and run
-Teleport (=teleport.version=) on a Linux host, then show you how to use
-Teleport to configure access to resources.
+This tutorial will show you how to install and run a demo Teleport cluster
+(=teleport.version=) on a Linux host using Teleport Community Edition. Once you
+deploy the cluster, you can configure RBAC, register resources, and protect your
+small-scale demo environments or home lab.
 
 We will run the following Teleport services:
 
@@ -16,14 +17,9 @@ We will run the following Teleport services:
 - **Teleport Proxy Service:** The cluster frontend, which handles user requests,
   forwards user credentials to the Auth Service, and communicates with Teleport
   instances that enable access to specific resources in your infrastructure.
-- **Teleport Application Service:** Enables secure access to web applications in
-  private networks. In this tutorial, we will use Teleport to access a simple
-  web service.
 - **Teleport SSH Service:** An SSH server implementation that takes advantage of
   Teleport's short-lived certificates, sophisticated RBAC, session recording,
   and other features.
-
-(!docs/pages/includes/permission-warning.mdx!)
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -38,23 +34,19 @@ We will run the following Teleport services:
   script](https://cloud.google.com/compute/docs/instances/startup-scripts),
   or similar.
 
-  <Admonition type="warning">
+  <Admonition type="tip" title="Quick demo environments">
 
-  This guide is not intended for local environments, e.g., a Docker container on
-  your workstation. For guides to trying out a containerized Teleport deployment
-  locally, see the following:
-
-  - [Local Kubernetes Cluster](./local-kubernetes.mdx)
-  - [Docker Compose](./docker-compose.mdx)
-  - [Single Docker Container](../management/guides/docker.mdx)
+  For a quick demo environment you can use to follow this guide, consider
+  installing our DigitalOcean 1-Click droplet. View the installation page on
+  [DigitalOcean
+  Marketplace](https://marketplace.digitalocean.com/apps/teleport). Once your
+  droplet is ready, SSH into the droplet and follow the configuration wizard.
 
   </Admonition>
 
-- A two-factor authenticator app such as [Authy](https://authy.com/download/), [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
-
-- `python3` installed on your Linux host. We will use this to run a simple
-  HTTP file server, so you can use another HTTP server if you have one
-  installed.
+- A two-factor authenticator app such as [Authy](https://authy.com/download/),
+  [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft
+  Authenticator](https://www.microsoft.com/en-us/account/authenticator)
 
 You must also have one of the following:
 - A registered domain name.
@@ -62,70 +54,32 @@ You must also have one of the following:
   certificate authority. If using this approach, ensure that your browser is
   configured to use your organization's nameserver.
 
-<Admonition title="Local-only setups" type="tip">
-
-If you would like to try out Teleport on your local workstation—e.g., you do not
-have access to DNS resources or internal public key infrastructure—we recommend
-following our [Docker Compose guide](../try-out-teleport/docker-compose.mdx).
-
-</Admonition>
+This guide is not intended for local deployments. If your environment doesn't
+meet the prerequisites above, you can get started with Teleport by signing up
+for a [free trial of Teleport Enterprise Cloud](https://goteleport.com/signup/).
 
 ## Step 1/6. Configure DNS
 
 Teleport uses TLS to provide secure access to its Proxy Service and Auth
 Service, and this requires a domain name that clients can use to verify
-Teleport's certificate.
+Teleport's certificate. Set up two DNS `A` records, each pointing to the IP
+address of your Linux host. Assuming `teleport.example.com` is your domain name,
+set up records for:
 
-(!docs/pages/includes/dns.mdx!)
+|Domain|Reason|
+|---|---|
+|`teleport.example.com`|Traffic to the Proxy Service from users and services.|
+|`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
 
-## Step 2/6. Run a simple web service
-
-Run the following commands to create a directory on your Linux host
-called `demo-app` and add a simple HTML file to serve to clients:
-
-```code
-$ mkdir demo-app
-$ cat<<EOF>>demo-app/index.html
-<!DOCTYPE html>
-<html><head><title>Welcome!</title><head>
-<body>
-<h1>Welcome to your Teleport cluster!</h1>
-</body>
-</html>
-EOF
-```
-
-Run a simple HTTP service on port 9000 that returns your welcome page:
-
-```code
-$ nohup python3 -m http.server 9000 --directory demo-app &
-```
-
-Since port 9000 is not open on your Linux host, there is currently no way to
-access the web service from your local workstation. We will configure Teleport to
-enable you to access the web service securely.
-
-## Step 3/6. Set up Teleport on your Linux host
+## Step 2/6. Set up Teleport on your Linux host
 
 ### Install Teleport
 
-Run the appropriate commands for your environment to install the Teleport binary
-on your Linux host:
+On your Linux host, run the following command to install the Teleport binary:
 
-(!docs/pages/includes/install-linux.mdx!)
-
-<Details title="Don't see your system here?" opened={false}>
-
-Take a look at the [Installation Guide](../installation.mdx) for more options.
-
-</Details>
-
-<ScopedBlock scope={["enterprise"]}>
-(!docs/pages/includes/enterprise/obtainlicense.mdx!)
-
-Save your license file on the host where you will install Teleport at the path
-`/var/lib/teleport/license.pem`.
-</ScopedBlock>
+```code
+$ curl https://goteleport.com/static/install.sh | bash -s (=teleport.version=)
+```
 
 ### Configure Teleport
 
@@ -134,30 +88,17 @@ This command requires information about a TLS certificate and private key.
 
 (!docs/pages/includes/tls-certificate-setup.mdx!)
 
-Next, configure Teleport to provide secure access to your web service. Edit your
-Teleport configuration file (`/etc/teleport.yaml`) to include the following,
-replacing `teleport.example.com` with the domain name of your Teleport cluster.
-
-```yaml
-app_service:
-    enabled: yes
-    apps:
-    - name: "demo"
-      uri: "http://localhost:9000"
-      public_addr: "demo.teleport.example.com"
-```
-
 ### Start Teleport
 
 (!docs/pages/includes/start-teleport.mdx !)
 
-You can access Teleport's Web UI via HTTPS at the domain you created earlier
-(e.g., `https://teleport.example.com`). You should see a welcome screen similar
-to the following:
+Access Teleport's Web UI via HTTPS at the domain you created earlier (e.g.,
+`https://teleport.example.com`). You should see a welcome screen similar to the
+following:
 
-![Teleport Welcome Screen](../../img/quickstart/welcome.png)
+![Teleport Welcome Screen](../img/quickstart/welcome.png)
 
-## Step 4/6. Create a Teleport user and set up two-factor authentication
+## Step 3/6. Create a Teleport user and set up two-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -191,7 +132,7 @@ Visit the provided URL in order to create your Teleport user.
   will get authentication errors later in this tutorial.
 
   If a user does not already exist, you can create it with `adduser <login>` or
-  use [Host user creation](../server-access/guides/host-user-creation.mdx)
+  use [host user creation](./server-access/guides/host-user-creation.mdx).
   
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
@@ -204,9 +145,9 @@ one-time passwords (OTP) and second-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
-![Teleport UI Dashboard](../../img/quickstart/teleport-nodes.png)
+![Teleport UI Dashboard](../img/quickstart/teleport-nodes.png)
 
-## Step 5/6. Log in using tsh
+## Step 4/6. Log in using tsh
 
 `tsh` is our client tool. It helps you log in to Teleport clusters and obtain
 short-lived credentials. It can also be used to list resources registered with
@@ -231,7 +172,7 @@ Install `tsh` on your local workstation:
       If you choose to use Homebrew, you must verify that the versions of `tsh` and
       `tctl` are compatible with the versions you run server-side. Homebrew usually
       ships the latest release of Teleport, which may be incompatible with older
-      versions. See our [compatibility policy](../management/operations/upgrading.mdx#component-compatibility) for details.
+      versions. See our [compatibility policy](./management/operations/upgrading.mdx#component-compatibility) for details.
     </Admonition>
   </TabItem>
 
@@ -243,7 +184,7 @@ Install `tsh` on your local workstation:
   </TabItem>
 
   <TabItem label="Linux">
-    For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
+    For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](./installation.mdx).
 
     ```code
     $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -260,7 +201,7 @@ Log in to receive short-lived certificates from Teleport:
 
 ```code
 # Replace teleport.example.com with your Teleport cluster's public address as configured above.
-$ tsh login --proxy=teleport.example.com --user=teleport-admin
+$ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
 > Profile URL:        https://teleport.example.com:443
   Logged in as:       teleport-admin
   Cluster:            teleport.example.com
@@ -271,27 +212,12 @@ $ tsh login --proxy=teleport.example.com --user=teleport-admin
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-## Step 6/6. Access resources
+## Step 5/6. Access your server
 
-Congrats! You've completed setting up Teleport and signed in to your cluster.
-Now you can use Teleport to quickly access resources.
+Since You configured the Teleport SSH Service, you can easily access your Linux
+host after logging in to Teleport.
 
-### Visit your demo website
-
-Now that you have logged in to Teleport, you can see the demo website you
-started earlier. Visit `https://demo.teleport.example.com`, replacing
-`teleport.example.com` with the domain name of your Teleport cluster.
-
-You can use the Teleport Application Service to configure access to any web
-application in your private network, including HTTP management endpoints for
-popular infrastructure technologies.
-
-### SSH into your Node
-
-You also configured the Teleport SSH Service, meaning that you can easily access
-your Linux host after logging in to Teleport.
-
-See the logins you can use to access a Node:
+See the logins you can use to access your server:
 
 ```code
 $ tsh status
@@ -320,6 +246,25 @@ SSH into `mynode` as `root`:
 $ tsh ssh root@mynode
 ```
 
+Once you connect to your server, execute some commands in your shell so you can
+view a recording of your session later.
+
+## Step 6/6. Play back your session
+
+Servers you have registered with Teleport record the commands that users execute
+during their sessions so operators can play them back later to investigate
+issues.
+
+In the Teleport Web UI, click the dropdown menu on the upper left of the screen,
+then choose **Management**. click the **Activity** tab in the sidebar on the
+left of the screen, then click **Session Recordings**. You will see your session
+from the previous step:
+
+![Session
+recordings](../img/cloud/getting-started/session-recordings@2x.png)
+
+Click **PLAY**. You will see a full recording of your session.
+
 ## Next steps
 
 ### Add resources
@@ -327,25 +272,24 @@ $ tsh ssh root@mynode
 Now that you know how to set up a Teleport cluster, learn how to register all of the
 resources in your infrastructure with Teleport:
 
-- [Applications](../application-access/getting-started.mdx)
-- [Databases](../database-access/getting-started.mdx)
-- [Kubernetes clusters](../kubernetes-access/getting-started.mdx)
-- [Servers](../server-access/getting-started.mdx)
-- [Windows desktops](../desktop-access/getting-started.mdx)
-- [Service accounts](../machine-id/introduction.mdx) (via Machine ID)
+- [Applications](./application-access/getting-started.mdx)
+- [Databases](./database-access/getting-started.mdx)
+- [Kubernetes clusters](./kubernetes-access/getting-started.mdx)
+- [Servers](./server-access/getting-started.mdx)
+- [Windows desktops](./desktop-access/getting-started.mdx)
+- [Service accounts](./machine-id/introduction.mdx) (via Machine ID)
 
 ### Manage your cluster
 
 You can also check out our collection of step-by-step guides for common
 Teleport tasks, such as:
 
-- [Managing users](../management/admin/users.mdx)
-- [Setting up single sign-on with GitHub](../access-controls/sso/github-sso.mdx)
-- [Recording SSH sessions](../server-access/guides/bpf-session-recording.mdx)
-- [Labeling Teleport resources](../management/admin/labels.mdx)
+- [Managing users](./management/admin/users.mdx)
+- [Setting up single sign-on with GitHub](./access-controls/sso/github-sso.mdx)
+- [Labeling Teleport resources](./management/admin/labels.mdx)
 
 ## Further reading
 
 - How Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/) to issue certificates.
 - Configuration for the `teleport` daemon relies on [systemd](https://www.freedesktop.org/wiki/Software/systemd/). For more information on how the
-`teleport` service daemon is configured, see our guide on how to [Run Teleport as a Daemon](../management/admin/daemon.mdx).
+`teleport` service daemon is configured, see our guide on how to [Run Teleport as a Daemon](management/admin/daemon.mdx).

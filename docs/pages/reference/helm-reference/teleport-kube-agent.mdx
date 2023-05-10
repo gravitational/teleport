@@ -689,16 +689,20 @@ You can specify multiple selectors by adding elements to the list.
 |----------|---------------|
 | `string` | `nil`         |
 
-Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-10.0.0, you'll be using Teleport 10.0.0.
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `10.2.2` or `11`.
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
 
-See [this link for information on Community Docker image versions](../../management/guides/docker.mdx#step-14-pick-your-image).
+<Admonition type="danger">
+`teleportVersionOverride` is intended for development and MUST NOT be used to control the Teleport version in a typical deployment.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
 
-<Admonition type="note">
-  The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
-  not require a Teleport license file to be provided.
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
 </Admonition>
 
 <Tabs>
