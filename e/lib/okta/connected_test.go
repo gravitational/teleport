@@ -20,48 +20,27 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
-type dummyInventoryGetter struct {
-	summary proto.InventoryStatusSummary
-}
-
-// GetInventoryStatus returns the current inventory status.
-func (d *dummyInventoryGetter) GetInventoryStatus(_ context.Context, _ proto.InventoryStatusRequest) proto.InventoryStatusSummary {
-	return d.summary
-}
-
 func TestIsOktaConnected(t *testing.T) {
 	ctx := context.Background()
-	getter := &dummyInventoryGetter{
-		summary: proto.InventoryStatusSummary{
-			Connected: []proto.UpstreamInventoryHello{
-				{
-					Services: []types.SystemRole{types.RoleAdmin, types.RoleAuth},
-				},
-				{
-					Services: []types.SystemRole{types.RoleOkta},
-				},
-			},
-		},
+	ap := newTestAccessPoint(t, clockwork.NewFakeClock())
+	ap.serviceCounts = map[types.SystemRole]uint64{
+		types.RoleAdmin: 1,
+		types.RoleAuth:  1,
+		types.RoleOkta:  1,
 	}
 
-	require.True(t, isOktaServiceConnected(ctx, getter))
+	require.True(t, isOktaServiceConnected(ctx, ap))
 
-	getter.summary = proto.InventoryStatusSummary{
-		Connected: []proto.UpstreamInventoryHello{
-			{
-				Services: []types.SystemRole{types.RoleAdmin, types.RoleAuth},
-			},
-			{
-				Services: []types.SystemRole{types.RoleProxy},
-			},
-		},
+	ap.serviceCounts = map[types.SystemRole]uint64{
+		types.RoleAdmin: 1,
+		types.RoleAuth:  1,
 	}
 
-	require.False(t, isOktaServiceConnected(ctx, getter))
+	require.False(t, isOktaServiceConnected(ctx, ap))
 }

@@ -29,7 +29,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
@@ -116,14 +115,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// This access request should create an Okta assignment, but the Okta service is not connected.
-	ap.summary = proto.InventoryStatusSummary{
-		Connected: []proto.UpstreamInventoryHello{
-			{
-				ServerID: "no-okta-server",
-				Services: []types.SystemRole{types.RoleAuth},
-			},
-		},
-	}
+	ap.serviceCounts = map[types.SystemRole]uint64{}
 
 	// This will stop the reconciler.
 	for i := 0; i < maxOktaServiceConnectionFailures; i++ {
@@ -142,13 +134,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, reconciler.getNewAccessRequests())
 
 	// We'll reconnect the Okta service and the assignment should be created.
-	ap.summary = proto.InventoryStatusSummary{
-		Connected: []proto.UpstreamInventoryHello{
-			{
-				ServerID: "okta-server",
-				Services: []types.SystemRole{types.RoleOkta},
-			},
-		},
+	ap.serviceCounts = map[types.SystemRole]uint64{
+		types.RoleOkta: 1,
 	}
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)

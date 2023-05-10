@@ -19,26 +19,16 @@ package okta
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // inventoryGetter is an interface used to retrieve the current inventory.
 type inventoryGetter interface {
-	// GetInventoryStatus returns the current inventory status.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary
+	// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+	GetInventoryConnectedServiceCount(service types.SystemRole) uint64
 }
 
 // isOktaServiceConnected will return true if an Okta service is seen in the inventory.
 func isOktaServiceConnected(ctx context.Context, getter inventoryGetter) bool {
-	summary := getter.GetInventoryStatus(ctx, proto.InventoryStatusRequest{Connected: true})
-	for _, hello := range summary.Connected {
-		for _, service := range hello.Services {
-			if service == types.RoleOkta {
-				return true
-			}
-		}
-	}
-
-	return false
+	return getter.GetInventoryConnectedServiceCount(types.RoleOkta) > 0
 }

@@ -60,9 +60,6 @@ type UserAssignmentCreatorAccessPoint interface {
 
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-
-	// GetInventoryStatus returns the current inventory status.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary
 }
 
 // UserAssignmentCreatorConfig is the configuration for the UserAssignmentCreator.

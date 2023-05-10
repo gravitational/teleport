@@ -55,8 +55,8 @@ type AccessRequestReconcilerAccessPoint interface {
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
-	// GetInventoryStatus returns the current inventory status.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary
+	// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+	GetInventoryConnectedServiceCount(service types.SystemRole) uint64
 }
 
 // AccessRequestReconcilerConfig is the configuration for the AccessRequestReconciler.
