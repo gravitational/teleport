@@ -170,6 +170,7 @@ func (h *Handler) executeCommand(
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
 		log.WithError(err).Warn("failed to find nodes by labels")
+		return nil, trace.Wrap(err)
 	}
 
 	if len(hosts) == 0 {
@@ -178,7 +179,7 @@ func (h *Handler) executeCommand(
 		return nil, trace.Errorf(errMsg)
 	}
 
-	h.log.Debugf("found %d hosts", len(hosts))
+	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
 	for _, host := range hosts {
 		err := func() error {
