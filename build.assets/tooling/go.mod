@@ -25,10 +25,10 @@ require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v0.9.3-0.20191025211905-234833755cb2 // indirect
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
-	github.com/hashicorp/go-retryablehttp v0.6.3 // indirect
+	github.com/hashicorp/go-retryablehttp v0.7.2 // indirect
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/mattn/go-isatty v0.0.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
