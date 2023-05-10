@@ -313,7 +313,7 @@ exports[`render with URL loc state set to "server" 1`] = `
           <div
             class="c18"
           >
-            Ubuntu 14.04+
+            Ubuntu 16.04+
           </div>
         </div>
       </div>
@@ -984,7 +984,7 @@ exports[`render with all access 1`] = `
           <div
             class="c15"
           >
-            Ubuntu 14.04+
+            Ubuntu 16.04+
           </div>
         </div>
       </div>
@@ -2697,7 +2697,7 @@ exports[`render with no access 1`] = `
           <div
             class="c15"
           >
-            Ubuntu 14.04+
+            Ubuntu 16.04+
           </div>
         </div>
       </div>
@@ -4561,7 +4561,7 @@ exports[`render with partial access 1`] = `
           <div
             class="c15"
           >
-            Ubuntu 14.04+
+            Ubuntu 16.04+
           </div>
         </div>
       </div>

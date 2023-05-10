@@ -28,7 +28,7 @@ import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
   {
-    name: 'Ubuntu 14.04+',
+    name: 'Ubuntu 16.04+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'ubuntu',
     icon: 'Linux',
