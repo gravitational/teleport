@@ -851,6 +851,14 @@ install_from_repo() {
         REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
     fi
 
+    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}
+    # (warning): This expression is constant. Did you forget the $ on a variable?
+    # Disabling the warning above because expression is templated.
+    # shellcheck disable=SC2050
+    if [[ "{{.installUpdater}}" == "true" ]]; then
+        PACKAGE_LIST="${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater"
+    fi
+
     # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
     # shellcheck disable=SC1091
     . /etc/os-release
@@ -872,7 +880,7 @@ install_from_repo() {
             https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
-        apt-get install -y ${TELEPORT_PACKAGE_NAME}
+        apt-get install -y ${PACKAGE_LIST}
     elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ] || [ "$ID" = "centos" ] ; then
         if [ "$ID" = "rhel" ]; then
             VERSION_ID="${VERSION_ID//.*/}" # convert version numbers like '7.2' to only include the major version
@@ -885,7 +893,7 @@ install_from_repo() {
         # See: https://github.com/gravitational/teleport/issues/22581
         yum --disablerepo="*" --enablerepo="teleport" clean metadata
         
-        yum install -y ${TELEPORT_PACKAGE_NAME}
+        yum install -y ${PACKAGE_LIST}
     else
         echo "Unsupported distro: $ID"
         exit 1
