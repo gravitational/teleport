@@ -214,9 +214,9 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}, nil
 }
 
-// credentialIDFromAK produces a deterministic short-ish unique-ish identifier
-// for a given AK. This can then be used as a reference for this AK in the
-// backend.
+// credentialIDFromAK produces a deterministic short-ish unique-ish human
+// readable-ish string identifier for a given AK. This can then be used as a
+// reference for this AK in the backend.
 //
 // To produce this, we perform a SHA256 hash over the constituent fields of
 // the AKs public key and then base64 encode it to produce a human-readable
@@ -289,8 +289,34 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	}, nil
 }
 
+// getDeviceCredential will only return the credential ID on windows. The
+// other information is determined server-side.
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return nil, trace.NotImplemented("getDeviceCredential not implemented") // TODO: Implement me!
+	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tpm, err := openTPM()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer tpm.Close()
+
+	// Attempt to load the AK from well-known location.
+	ak, err := loadAK(tpm, akPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer ak.Close(tpm)
+
+	credentialID, err := credentialIDFromAK(ak)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &devicepb.DeviceCredential{
+		Id: credentialID,
+	}, nil
 }
 
 func solveTPMEnrollChallenge(
@@ -307,8 +333,7 @@ func solveTPMEnrollChallenge(
 	}
 	defer tpm.Close()
 
-	// Attempt to load the AK from well-known location, do not create one if
-	// it does not exist - this would be invalid for solving a challenge.
+	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -330,6 +355,8 @@ func solveTPMEnrollChallenge(
 		ak,
 		challenge.AttestationNonce,
 		&attest.PlatformAttestConfig{
+			// EventLog == nil indicates that the `attest` package is
+			// responsible for providing the eventlog.
 			EventLog: nil,
 		},
 	)
