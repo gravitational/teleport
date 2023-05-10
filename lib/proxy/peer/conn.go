@@ -16,6 +16,7 @@ package peer
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"sync"
@@ -69,7 +70,7 @@ func (c *streamConn) Read(b []byte) (n int, err error) {
 
 	if len(c.rBytes) == 0 {
 		frame, err := c.stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return 0, io.EOF
 		}
 		if err != nil {
