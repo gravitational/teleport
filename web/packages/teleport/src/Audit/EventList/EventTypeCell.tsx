@@ -213,6 +213,13 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: Icons.Info,
   [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: Icons.Info,
+  [eventCodes.OKTA_GROUPS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: Icons.Info,
+  [eventCodes.OKTA_SYNC_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: Icons.Warning,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: Icons.Info,
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: Icons.Warning,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
@@ -270,7 +277,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.levels.deep};
   border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.secondary};
+  color: ${props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -285,7 +292,7 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:active,
   &:focus {
     background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.primary};
+    color: ${props.theme.colors.text.main};
   }
 
   &:active {

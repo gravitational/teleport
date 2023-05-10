@@ -60,7 +60,7 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
           bash={false}
           lines={[
             {
-              text: `https://${getClusterPublicUri(props.clusterPublicUri)}`,
+              text: `https://${props.clusterPublicUri}`,
             },
           ]}
         />
@@ -110,16 +110,4 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
       </Validation>
     </InstructionsContainer>
   );
-}
-
-function getClusterPublicUri(uri: string) {
-  const uriParts = uri.split(':');
-  const port = uriParts.length > 1 ? uriParts[1] : '';
-
-  // Strip 443 ports from uri.
-  if (port === '443') {
-    return uriParts[0];
-  }
-
-  return uri;
 }

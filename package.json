@@ -31,6 +31,9 @@
     "webpack": "^5.76.2",
     "x-default-browser": "^0.5.2"
   },
+  "devDependencies": {
+    "typescript": "^5.0.4"
+  },
   "workspaces": {
     "packages": [
       "web/packages/build/**",

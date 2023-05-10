@@ -110,28 +110,7 @@ func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 func checkKubeLocalProxyConfig(t *testing.T, s *suite, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
 	t.Helper()
 
-	checkKubeLocalProxyConfigPaths(t, s, config, teleportCluster, kubeCluster)
 	sendRequestToKubeLocalProxy(t, config, teleportCluster, kubeCluster)
-}
-
-func checkKubeLocalProxyConfigPaths(t *testing.T, s *suite, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
-	t.Helper()
-
-	tshHome := os.Getenv(types.HomeEnvVar)
-	proxy := s.root.Config.Auth.ClusterName.GetClusterName()
-	user := s.user.GetName()
-	wantCAPath := keypaths.KubeLocalCAPath(tshHome, proxy, user, teleportCluster)
-	wantKeyPath := keypaths.UserKeyPath(tshHome, proxy, user)
-
-	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	authInfo := config.AuthInfos[contextName]
-	require.NotNil(t, authInfo)
-	clusterInfo := config.Clusters[contextName]
-	require.NotNil(t, clusterInfo)
-
-	require.Equal(t, wantCAPath, authInfo.ClientCertificate)
-	require.Equal(t, wantKeyPath, authInfo.ClientKey)
-	require.Equal(t, wantCAPath, clusterInfo.CertificateAuthority)
 }
 
 func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
@@ -143,9 +122,9 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	require.NoError(t, err)
 
 	tlsClientConfig := rest.TLSClientConfig{
-		CAFile:     config.Clusters[contextName].CertificateAuthority,
-		CertFile:   config.AuthInfos[contextName].ClientCertificate,
-		KeyFile:    config.AuthInfos[contextName].ClientKey,
+		CAData:     config.Clusters[contextName].CertificateAuthorityData,
+		CertData:   config.AuthInfos[contextName].ClientCertificateData,
+		KeyData:    config.AuthInfos[contextName].ClientKeyData,
 		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
 	}
 

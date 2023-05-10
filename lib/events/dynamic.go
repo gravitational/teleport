@@ -225,8 +225,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
-	case DeviceEvent:
+	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
+	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
+		DeviceEnrollEvent, DeviceAuthenticateCode,
+		DeviceEnrollTokenCreateEvent:
+		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -293,6 +297,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SAMLIdPServiceProviderDelete{}
 	case SAMLIdPServiceProviderDeleteAllEvent:
 		e = &events.SAMLIdPServiceProviderDeleteAll{}
+	case OktaGroupsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaApplicationsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaSyncFailureEvent:
+		e = &events.OktaSyncFailure{}
+	case OktaAssignmentProcessEvent:
+		e = &events.OktaAssignmentResult{}
+	case OktaAssignmentCleanupEvent:
+		e = &events.OktaAssignmentResult{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

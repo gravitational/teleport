@@ -34,7 +34,6 @@ import (
 	"math"
 	"math/big"
 	insecurerand "math/rand"
-	"net"
 	"os"
 	"sort"
 	"strings"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -169,6 +169,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
+	if cfg.Assist == nil {
+		cfg.Assist = local.NewAssistService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -278,28 +281,30 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+		Assistant:               cfg.Assist,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:              cfg.Backend,
-		clock:           cfg.Clock,
-		limiter:         limiter,
-		Authority:       cfg.Authority,
-		AuthServiceName: cfg.AuthServiceName,
-		ServerID:        cfg.HostUUID,
-		githubClients:   make(map[string]*githubClient),
-		cancelFunc:      cancelFunc,
-		closeCtx:        closeCtx,
-		emitter:         cfg.Emitter,
-		streamer:        cfg.Streamer,
-		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:        services,
-		Cache:           services,
-		keyStore:        keyStore,
-		traceClient:     cfg.TraceClient,
-		fips:            cfg.FIPS,
-		loadAllCAs:      cfg.LoadAllCAs,
+		bk:                  cfg.Backend,
+		clock:               cfg.Clock,
+		limiter:             limiter,
+		Authority:           cfg.Authority,
+		AuthServiceName:     cfg.AuthServiceName,
+		ServerID:            cfg.HostUUID,
+		githubClients:       make(map[string]*githubClient),
+		cancelFunc:          cancelFunc,
+		closeCtx:            closeCtx,
+		emitter:             cfg.Emitter,
+		streamer:            cfg.Streamer,
+		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:            services,
+		Cache:               services,
+		keyStore:            keyStore,
+		traceClient:         cfg.TraceClient,
+		fips:                cfg.FIPS,
+		loadAllCAs:          cfg.LoadAllCAs,
+		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -379,6 +384,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.Assistant
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -596,7 +602,7 @@ type Server struct {
 
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
-	httpClientForAWSSTS stsClient
+	httpClientForAWSSTS utils.HTTPDoClient
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1206,6 +1212,13 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
 
+// EmitAuditEvent implements [apievents.Emitter] by delegating to its dedicated
+// emitter rather than falling back to the implementation from [Services] (using
+// the audit log directly, which is almost never what you want).
+func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+}
+
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
 func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
@@ -1442,8 +1455,8 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 }
 
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
-	if req.Username == "" {
-		return nil, trace.BadParameter("username is empty")
+	if req.User == nil {
+		return nil, trace.BadParameter("user is empty")
 	}
 	if len(req.PublicKey) == 0 {
 		return nil, trace.BadParameter("public key is empty")
@@ -1458,29 +1471,27 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("cluster is empty")
 	}
 
-	user, err := a.GetUser(req.Username, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// add implicit roles to the set and build a checker
+	accessInfo := services.AccessInfoFromUser(req.User)
+	roles := make([]types.Role, len(req.Roles))
+	for i := range req.Roles {
+		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
 	}
-	accessInfo := services.AccessInfoFromUser(user)
+	roleSet := services.NewRoleSet(roles...)
+
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
 
 	certs, err := a.generateOpenSSHCert(certRequest{
-		user:          user,
-		publicKey:     req.PublicKey,
-		compatibility: constants.CertificateFormatStandard,
-		checker:       checker,
-		ttl:           time.Duration(req.TTL),
-		traits: map[string][]string{
-			constants.TraitLogins: {req.Username},
-		},
+		user:            req.User,
+		publicKey:       req.PublicKey,
+		compatibility:   constants.CertificateFormatStandard,
+		checker:         checker,
+		ttl:             time.Duration(req.TTL),
+		traits:          req.User.GetTraits(),
 		routeToCluster:  req.Cluster,
 		disallowReissue: true,
 	})
@@ -3439,6 +3450,18 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 	return rsp
 }
 
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedServiceCounts {
+	return proto.InventoryConnectedServiceCounts{
+		ServiceCounts: a.inventory.ConnectedServiceCounts(),
+	}
+}
+
+// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	return a.inventory.ConnectedServiceCount(service)
+}
+
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	const pingAttempt = "ping-attempt"
 	const pingSuccess = "ping-success"
@@ -4669,13 +4692,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			if !ok {
 				continue
 			}
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(srv.GetAddr())
-			if err != nil {
-				addr = srv.GetAddr()
-			}
+
 			// Filter out any matches on labels before checking access
-			if n.GetName() != t.Node.Node && srv.GetHostname() != t.Node.Node && addr != t.Node.Node {
+			fieldVals := append(srv.GetPublicAddrs(), srv.GetName(), srv.GetHostname(), srv.GetAddr())
+			if !types.MatchSearch(fieldVals, []string{t.Node.Node}, nil) {
 				continue
 			}
 
@@ -5134,7 +5154,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var usedKeys [][]byte
+	var activeKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
@@ -5143,17 +5163,23 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
 			for _, sshKeyPair := range keySet.SSH {
-				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
 			}
 			for _, tlsKeyPair := range keySet.TLS {
-				usedKeys = append(usedKeys, tlsKeyPair.Key)
+				activeKeys = append(activeKeys, tlsKeyPair.Key)
 			}
 			for _, jwtKeyPair := range keySet.JWT {
-				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+	}
+	return nil
 }
 
 // GetLicense return the license used the start the teleport enterprise auth server
@@ -5192,6 +5218,34 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	resp, err := a.Services.GetAssistantMessages(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
+}
+
+// UpdateAssistantConversationInfo stores the given conversation title in the backend.
+func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	resp, err := a.Services.CreateAssistantConversation(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	resp, err := a.Services.GetAssistantConversations(ctx, request)
+	return resp, trace.Wrap(err)
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare
@@ -5401,13 +5455,4 @@ func DefaultDNSNamesForRole(role types.SystemRole) []string {
 		}
 	}
 	return nil
-}
-
-// WithHTTPClientForAWSSTS is a ServerOption that overwrites default HTTP
-// client used for STS requests.
-func WithHTTPClientForAWSSTS(client stsClient) ServerOption {
-	return func(s *Server) error {
-		s.httpClientForAWSSTS = client
-		return nil
-	}
 }
