@@ -62,7 +62,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *servicecfg.C
 	alert := app.Command("alerts", "Manage cluster alerts").Alias("alert")
 
 	c.alertList = alert.Command("list", "List cluster alerts").Alias("ls")
-	c.alertList.Flag("verbose", "Show detailed alert info").Short('v').BoolVar(&c.verbose)
+	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts")
@@ -166,7 +166,8 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 	}
 
 	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-		Labels: labels,
+		Labels:           labels,
+		WithAcknowledged: c.verbose,
 	})
 	if err != nil {
 		return trace.Wrap(err)
