@@ -94,7 +94,8 @@ function waitForMatchInStdout(
 
     const rejectOnExit = (code: number, signal: NodeJS.Signals) => {
       const codeOrSignal = [
-        code && `code ${code}`,
+        // code can be 0, so we cannot just check it the same way as the signal.
+        code != null && `code ${code}`,
         signal && `signal ${signal}`,
       ]
         .filter(Boolean)
