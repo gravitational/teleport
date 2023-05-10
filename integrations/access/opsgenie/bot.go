@@ -19,10 +19,12 @@ package opsgenie
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+	"github.com/gravitational/trace"
 )
 
 // Bot is a opsgenie client that works with AccessRequest.
@@ -40,26 +42,64 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 	return nil
 }
 
-// Broadcast sends an access request message to a list of Recipient
+// Broadcast creates an alert for the provided recipients (schedules)
 func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
-	return nil, nil
+
+	schedules := []string{}
+	for _, recipient := range recipients {
+		schedules = append(schedules, recipient.Name)
+	}
+	opsgeneieReqData := RequestData{
+		User:          reqData.User,
+		Roles:         reqData.Roles,
+		Created:       time.Now(),
+		RequestReason: reqData.RequestReason,
+		ReviewsCount:  reqData.ReviewsCount,
+		Resolution: Resolution{
+			Tag:    ResolutionTag(reqData.ResolutionTag),
+			Reason: reqData.ResolutionReason,
+		},
+		RequestAnnotations: map[string][]string{
+			ReqAnnotationRespondersKey: schedules,
+		},
+	}
+	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgeneieReqData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	data = common.SentMessages{{
+		ChannelID: opsgenieData.ServiceID,
+		MessageID: opsgenieData.AlertID,
+	}}
+
+	return data, nil
+
 }
 
-// PostReviewReply posts in thread an access request review. This does nothing if the messaging service
-// does not support threaded replies.
-func (b *Bot) PostReviewReply(ctx context.Context, channelID string, threadID string, review types.AccessReview) error {
-	return nil
+// PostReviewReply posts an alert note.
+func (b *Bot) PostReviewReply(ctx context.Context, _ string, alertID string, review types.AccessReview) error {
+	return trace.Wrap(b.client.PostReviewNote(ctx, alertID, review))
 }
 
-// UpdateMessages updates access request messages that were previously sent via Broadcast
-// This is used to change the access-request status and number of required approval remaining
-func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, messageData common.SentMessages, reviews []types.AccessReview) error {
-	return nil
+// UpdateMessages add notes to the alert containing updates to status.
+// This will also resolve alerts based on the resolution tag.
+func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRequestData, alertData common.SentMessages, reviews []types.AccessReview) error {
+	var errs []error
+	for _, alert := range alertData {
+		resolution := Resolution{
+			Tag:    ResolutionTag(data.ResolutionTag),
+			Reason: data.ResolutionReason,
+		}
+		err := b.client.ResolveAlert(ctx, alert.MessageID, resolution)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
-// FetchRecipient fetches recipient data from the messaging service API. It can also be used to check and initialize
-// a communication channel (e.g. MsTeams needs to install the app for the user before being able to send
-// notifications)
+// FetchRecipient
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	return nil, nil
+	// TODO: Change from BaseApp  get messageRecipients so this works via schedules
+	return nil, trace.NotImplemented("fetch recipient is not supported for the opsgenie plugin")
 }
