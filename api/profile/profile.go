@@ -318,7 +318,7 @@ func defaultProfilePath() string {
 	// a user lookup (which can be very slow on large AD environments)
 	home, err := os.UserHomeDir()
 	if err == nil && home != "" {
-		return home
+		return filepath.Join(home, profileDir)
 	}
 
 	home = os.TempDir()
