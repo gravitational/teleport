@@ -16,12 +16,16 @@ package native
 
 import (
 	"bytes"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"github.com/google/go-attestation/attest"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"math/big"
 	"os"
 	"os/exec"
 	"path"
@@ -191,8 +195,13 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	credentialID, err := credentialIDFromAK(ak)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &devicepb.EnrollDeviceInit{
-		CredentialId: "", // TODO: Fetch cred id
+		CredentialId: credentialID,
 		DeviceData:   deviceData,
 		Tpm: &devicepb.TPMEnrollPayload{
 			Ek: &devicepb.TPMEnrollPayload_EkKey{
@@ -203,6 +212,42 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 			),
 		},
 	}, nil
+}
+
+// credentialIDFromAK produces a deterministic short-ish unique-ish identifier
+// for a given AK. This can then be used as a reference for this AK in the
+// backend.
+//
+// To produce this, we perform a SHA256 hash over the constituent fields of
+// the AKs public key and then base64 encode it to produce a human-readable
+// string. This is similar to how SSH fingerprinting of public keys work.
+func credentialIDFromAK(ak *attest.AK) (string, error) {
+	akPub, err := attest.ParseAKPublic(
+		attest.TPMVersion20,
+		ak.AttestationParameters().Public,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	publicKey := akPub.Public
+	switch publicKey := publicKey.(type) {
+	case *rsa.PublicKey:
+		h := sha256.New()
+		// This logic is roughly based off the openssh key fingerprinting,
+		// but, the hash excludes "ssh-rsa" and the outputted id is not
+		// prepended with "SHA256:
+		//
+		// It is imperative the order of the fields does not change in future
+		// implementations.
+		hashed := h.Sum(append(
+			// Convert to a BigInt for easy conversion to byte slice.
+			big.NewInt(int64(publicKey.E)).Bytes(),
+			publicKey.N.Bytes()...),
+		)
+		return base64.RawStdEncoding.EncodeToString(hashed), nil
+	default:
+		return "", trace.BadParameter("unsupported public key")
+	}
 }
 
 // getDeviceSerial returns the serial number of the device using PowerShell to
@@ -245,7 +290,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return nil, nil
+	return nil, trace.NotImplemented("getDeviceCredential not implemented") // TODO: Implement me!
 }
 
 func solveTPMEnrollChallenge(
