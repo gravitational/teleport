@@ -16,6 +16,7 @@ package tester
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -110,7 +111,7 @@ func (cmd *SSOTestCommand) ssoTestCommand(ctx context.Context, c auth.ClientI) e
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err, "Unable to load resource. Make sure the file is in correct format.")
