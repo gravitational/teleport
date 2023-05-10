@@ -26,7 +26,6 @@ message GetAssistantMessagesRequest {
   // ConversationId identifies a conversation.
   // It's used to tie all messages in a one conversation.
   string conversation_id = 1;
-
   // username is a username of the user who sent the message.
   string username = 2;
 }
@@ -34,26 +33,22 @@ message GetAssistantMessagesRequest {
 // AssistantMessage is a message sent to the assistant service. The conversation
 // must be created first.
 message AssistantMessage {
-  // ConversationId is used to tie all messages into a conversation.
-  string conversation_id = 1;
-
-  // username is a username of the user who sent the message.
-  string username = 2;
-
   // type is a type of message. It can be Chat response/query or a command to run.
-  string type = 3;
-
+  string type = 1;
   // CreatedTime is the time when the event occurred.
-  google.protobuf.Timestamp created_time = 4;
-
+  google.protobuf.Timestamp created_time = 2;
   // payload is a JSON message
-  string payload = 5;
+  string payload = 3;
 }
 
 // CreateAssistantMessageRequest is a request to the assistant service.
 message CreateAssistantMessageRequest {
   // message is a message sent to the assistant service.
   AssistantMessage message = 1;
+  // ConversationId is used to tie all messages into a conversation.
+  string conversation_id = 2;
+  // username is a username of the user who sent the message.
+  string username = 3;
 }
 
 // GetAssistantMessagesResponse is a response from the assistant service.

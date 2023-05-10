@@ -688,6 +688,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		localClusterName: s.ClusterName,
 		emitter:          s.Emitter,
 		proxySigner:      s.proxySigner,
+		sconn:            sconn,
 	}
 	go t.start()
 }
