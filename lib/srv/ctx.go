@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -873,7 +874,7 @@ func (c *ServerContext) x11Ready() (bool, error) {
 	// Wait for child process to send signal (1 byte)
 	// or EOF if signal was already received.
 	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)

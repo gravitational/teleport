@@ -877,7 +877,7 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 	var reqs []types.AccessRequest
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -3035,7 +3035,7 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 	for {
 		session, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -3059,7 +3059,7 @@ func (c *Client) GetActiveSessionTrackersWithFilter(ctx context.Context, filter 
 	for {
 		session, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
