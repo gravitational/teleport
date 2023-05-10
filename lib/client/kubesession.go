@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -45,6 +47,27 @@ type KubeSession struct {
 	meta   types.SessionTracker
 }
 
+func kubeSessionNetDialer(ctx context.Context, tc *TeleportClient, kubeAddr string) client.ContextDialer {
+	dialOpts := []client.DialOption{
+		client.WithInsecureSkipVerify(tc.InsecureSkipVerify),
+	}
+
+	// Add options for ALPN connection upgrade if kube is served at Proxy web address.
+	if tc.WebProxyAddr == kubeAddr && tc.TLSRoutingConnUpgradeRequired {
+		dialOpts = append(dialOpts,
+			client.WithALPNConnUpgrade(tc.TLSRoutingConnUpgradeRequired),
+			client.WithALPNConnUpgradePing(true),
+		)
+	}
+
+	return client.NewDialer(
+		ctx,
+		defaults.DefaultIdleTimeout,
+		defaults.DefaultIOTimeout,
+		dialOpts...,
+	)
+}
+
 // NewKubeSession joins a live kubernetes session.
 func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionTracker, kubeAddr string, tlsServer string, mode types.SessionParticipantMode, tlsConfig *tls.Config) (*KubeSession, error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -55,6 +78,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	}
 
 	dialer := &websocket.Dialer{
+		NetDialContext:  kubeSessionNetDialer(ctx, tc, kubeAddr).DialContext,
 		TLSClientConfig: tlsConfig,
 	}
 

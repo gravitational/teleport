@@ -231,26 +231,26 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // - $TSH_HOME/$profile.yaml
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 // - $TSH_HOME/keys/$PROXY/$USER
-func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string) ([]byte, []byte, *profile.Profile, error) {
 	dirPath = profile.FullProfilePath(dirPath)
 
 	profileStore := NewFSProfileStore(dirPath)
 	// tsh stores the profiles using the proxy host as the profile name.
 	profileName, err := utils.Host(proxy)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	if profileName == "" {
 		// If no profile name is provided, default to the current profile.
 		profileName, err = profileStore.CurrentProfile()
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, nil, nil, trace.Wrap(err)
 		}
 	}
 	// Load the desired profile.
 	profile, err := profileStore.GetProfile(profileName)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	fsKeyStore := NewFSKeyStore(dirPath)
@@ -258,17 +258,17 @@ func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string
 	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
 	kubeCert, err := os.ReadFile(certPath)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	privKeyPath := fsKeyStore.userKeyPath(KeyIndex{ProxyHost: profile.SiteName, Username: profile.Username})
 	privKey, err := os.ReadFile(privKeyPath)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	if ok := keys.IsRSAPrivateKey(privKey); !ok {
-		return nil, nil, trace.BadParameter("unsupported private key type")
+		return nil, nil, nil, trace.BadParameter("unsupported private key type")
 	}
-	return kubeCert, privKey, nil
+	return kubeCert, privKey, profile, nil
 }
