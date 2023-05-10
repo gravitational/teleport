@@ -249,12 +249,9 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 		//
 		// It is imperative the order of the fields does not change in future
 		// implementations.
-		hashed := h.Sum(append(
-			// Convert to a BigInt for easy conversion to byte slice.
-			big.NewInt(int64(publicKey.E)).Bytes(),
-			publicKey.N.Bytes()...),
-		)
-		return base64.RawStdEncoding.EncodeToString(hashed), nil
+		h.Write(big.NewInt(int64(publicKey.E)).Bytes())
+		h.Write(publicKey.N.Bytes())
+		return base64.RawStdEncoding.EncodeToString(h.Sum(nil)), nil
 	default:
 		return "", trace.BadParameter("unsupported public key")
 	}

@@ -32,6 +32,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/darwin"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
