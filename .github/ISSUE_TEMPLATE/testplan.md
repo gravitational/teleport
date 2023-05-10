@@ -482,6 +482,9 @@ connectors are accepted, invalid are rejected with sensible error messages.
 [Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
+### GCP Node Joining
+- [ ] Join a Teleport node running in a GCP VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label

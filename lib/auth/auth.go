@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -355,6 +356,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
 	}
 
+	if as.gcpIDTokenValidator == nil {
+		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
+			gcp.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+
 	return &as, nil
 }
 
@@ -579,6 +588,10 @@ type Server struct {
 	// kubernetesTokenValidator allows tokens from Kubernetes to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	kubernetesTokenValidator kubernetesTokenValidator
+
+	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
+	// server. It can be overridden for the purpose of tests.
+	gcpIDTokenValidator gcpIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
