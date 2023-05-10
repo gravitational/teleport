@@ -135,7 +135,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.Opsgenie == nil {
 			return trace.BadParameter("settings must be set")
 		}
-		if err := settings.Opsgenie.CheckandSetDefaults(); err != nil {
+		if err := settings.Opsgenie.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 
