@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// CommandResultType is the type of Assist message that contains the command execution result.
 const CommandResultType = "COMMAND_RESULT"
 
 type CommandRequest struct {
@@ -74,27 +75,22 @@ type CommandRequest struct {
 
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {
-		return trace.Errorf("missing command")
+		return trace.BadParameter("missing command")
 	}
 
 	if c.Login == "" {
-		return trace.Errorf("missing login")
+		return trace.BadParameter("missing login")
 	}
 
 	if c.ConversationID == "" {
-		return trace.Errorf("missing conversation ID")
+		return trace.BadParameter("missing conversation ID")
 	}
 
 	if c.ExecutionID == "" {
-		return trace.Errorf("missing execution ID")
+		return trace.BadParameter("missing execution ID")
 	}
 
 	return nil
-}
-
-// CommandExecutionResult is a result of a command execution.
-type CommandExecutionResult struct {
-	SessionID string `json:"session_id"`
 }
 
 // executeCommand executes a command on all nodes that match the query.
@@ -112,7 +108,7 @@ func (h *Handler) executeCommand(
 	}
 	var req *CommandRequest
 	if err := json.Unmarshal([]byte(params), &req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("failed to read JSON message: %v", err)
 	}
 
 	if err := req.Check(); err != nil {
@@ -373,7 +369,8 @@ type commandHandler struct {
 	// router is used to dial the host
 	router *proxy.Router
 
-	stream *WsStream
+	// stream is the websocket stream to the client.
+	stream *WSStream
 
 	// tracer creates spans
 	tracer oteltrace.Tracer
@@ -385,7 +382,7 @@ type commandHandler struct {
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
 
-	// ws is the websocket connection to the client.
+	// ws a raw websocket connection to the client.
 	ws WSConn
 }
 

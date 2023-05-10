@@ -1005,8 +1005,8 @@ func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session
 	}
 }
 
-func NewWStream(ws WSConn) *WsStream {
-	return &WsStream{
+func NewWStream(ws WSConn) *WSStream {
+	return &WSStream{
 		ws:      ws,
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
@@ -1022,7 +1022,7 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	}
 
 	t := &TerminalStream{
-		WsStream: WsStream{
+		WSStream: WSStream{
 			ws:      ws,
 			encoder: unicode.UTF8.NewEncoder(),
 			decoder: unicode.UTF8.NewDecoder(),
@@ -1036,7 +1036,7 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	return t, nil
 }
 
-type WsStream struct {
+type WSStream struct {
 	// encoder is used to encode UTF-8 strings.
 	encoder *encoding.Encoder
 	// decoder is used to decode UTF-8 strings.
@@ -1055,7 +1055,7 @@ type WsStream struct {
 // TerminalStream manages the [websocket.Conn] to the web UI
 // for a terminal session.
 type TerminalStream struct {
-	WsStream
+	WSStream
 
 	// once ensures that all channels are closed at most one time.
 	once sync.Once
@@ -1073,14 +1073,14 @@ type TerminalStream struct {
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
 // writeError displays an error in the terminal window.
-func (t *WsStream) writeError(err error) error {
+func (t *WSStream) writeError(err error) error {
 	_, writeErr := replacer.WriteString(t, err.Error())
 	return trace.Wrap(writeErr)
 }
 
 // writeChallenge encodes and writes the challenge to the
 // websocket in the correct format.
-func (t *WsStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
 	// Send the challenge over the socket.
 	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
 	if err != nil {
@@ -1094,7 +1094,7 @@ func (t *WsStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 
 // readChallenge reads and decodes the challenge response from the
 // websocket in the correct format.
-func (t *WsStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
+func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	// Read the challenge response.
 	ty, bytes, err := t.ws.ReadMessage()
 	if err != nil {
@@ -1111,7 +1111,7 @@ func (t *WsStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResp
 
 // writeAuditEvent encodes and writes the audit event to the
 // websocket in the correct format.
-func (t *WsStream) writeAuditEvent(event []byte) error {
+func (t *WSStream) writeAuditEvent(event []byte) error {
 	// UTF-8 encode the error message and then wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(event))
 	if err != nil {
@@ -1136,7 +1136,7 @@ func (t *WsStream) writeAuditEvent(event []byte) error {
 }
 
 // Write wraps the data bytes in a raw envelope and sends.
-func (t *WsStream) Write(data []byte) (n int, err error) {
+func (t *WSStream) Write(data []byte) (n int, err error) {
 	// UTF-8 encode data and wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(data))
 	if err != nil {
@@ -1163,7 +1163,7 @@ func (t *WsStream) Write(data []byte) (n int, err error) {
 	return len(data), nil
 }
 
-func (t *WsStream) readMessage(out []byte) (string, []byte, int, error) {
+func (t *WSStream) readMessage(out []byte) (string, []byte, int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1207,7 +1207,7 @@ func (t *WsStream) readMessage(out []byte) (string, []byte, int, error) {
 
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
-func (t *WsStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) Read(out []byte) (n int, err error) {
 	messageType, data, n, err := t.readMessage(out)
 	if err != nil || n > 0 {
 		return n, err
@@ -1320,7 +1320,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 	}
 }
 
-func (t *WsStream) Close() error {
+func (t *WSStream) Close() error {
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
@@ -1353,7 +1353,7 @@ func (t *TerminalStream) Close() error {
 		}
 	})
 
-	return t.WsStream.Close()
+	return t.WSStream.Close()
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

@@ -394,8 +394,8 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	// multiWriter is used by to stream non-interactive session output
-	// to audit log.
+	// multiWriter is used to record non-interactive session output.
+	// Currently, used by Assist.
 	multiWriter io.Writer
 	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
 	recordNonInteractiveSession bool

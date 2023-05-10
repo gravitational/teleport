@@ -77,7 +77,7 @@ func (p *payloadWriter) Write(b []byte) (n int, err error) {
 	_, err = p.stream.Write(data)
 	// return the size of the original message as a message send over stream
 	// is larger due to json marshaling and envelope.
-	return len(b), err
+	return len(b), trace.Wrap(err)
 }
 
 func newPayloadWriter(nodeID, outputName string, stream io.Writer) *payloadWriter {
