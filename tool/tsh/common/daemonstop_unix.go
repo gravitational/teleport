@@ -1,3 +1,6 @@
+//go:build !windows
+// +build !windows
+
 // Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,16 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package enroll
+package common
 
-import (
-	"github.com/gravitational/teleport/lib/devicetrust/native"
-)
-
-// vars below are used to fake OSes and switch implementations for tests.
-var (
-	collectDeviceData = native.CollectDeviceData
-	enrollInit        = native.EnrollDeviceInit
-	getOSType         = getDeviceOSType
-	signChallenge     = native.SignChallenge
-)
+// onDaemonStop implements the "tsh daemon stop" command. It handles graceful shutdown of the daemon
+// on Windows, so it's a noop on other platforms. See daemonstop_windows.go for more details.
+func onDaemonStop(cf *CLIConf) error {
+	return nil
+}

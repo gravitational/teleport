@@ -38,15 +38,15 @@ var (
 //
 // The outcome of the authentication ceremony is a pair of user certificates
 // augmented with device extensions.
-func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func RunCeremony(ctx context.Context, dc devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 	switch {
-	case devicesClient == nil:
+	case dc == nil:
 		return nil, trace.BadParameter("devicesClient required")
 	case certs == nil:
 		return nil, trace.BadParameter("certs required")
 	}
 
-	stream, err := devicesClient.AuthenticateDevice(ctx)
+	stream, err := dc.AuthenticateDevice(ctx)
 	if err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
