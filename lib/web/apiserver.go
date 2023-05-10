@@ -2680,7 +2680,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 
 	host, err := findByHost(ctx, clt, req.Server)
 	if err != nil {
-		return session.Session{}, err
+		return session.Session{}, trace.Wrap(err)
 	}
 
 	accessChecker, err := scx.GetUserAccessChecker()
@@ -2723,14 +2723,14 @@ func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, own
 	}, nil
 }
 
+// hostInfo is a helper struct used to store host information.
 type hostInfo struct {
 	id       string
 	hostName string
 	port     int
 }
 
-// findByQuery returns all hosts matching the given query/predicate. Allow free query to
-// return all nodes.
+// findByQuery returns all hosts matching the given query/predicate.
 func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
 	resources, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,

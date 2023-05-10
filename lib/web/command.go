@@ -71,6 +71,10 @@ func (c *CommandRequest) Check() error {
 		return trace.BadParameter("missing command")
 	}
 
+	if c.Query == "" {
+		return trace.BadParameter("missing query")
+	}
+
 	if c.Login == "" {
 		return trace.BadParameter("missing login")
 	}
@@ -160,7 +164,7 @@ func (h *Handler) executeCommand(
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
-		return nil, nil
+		return nil, trace.Wrap(err)
 	}
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
@@ -353,31 +357,32 @@ type commandHandler struct {
 	ws WSConn
 }
 
+// sendError sends an error message to the client using the provided websocket.
+func (t *sshBaseHandler) sendError(errMsg string, err error, ws WSConn) {
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketError,
+		Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
+	}
+
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		t.log.WithError(err).Error("failed to marshal error message")
+	}
+	if err := ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
+		t.log.WithError(err).Error("failed to send error message")
+	}
+}
+
 func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 	// Allow closing websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
 
-	sendError := func(errMsg string, err error, ws WSConn) {
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketError,
-			Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
-		}
-
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			t.log.WithError(err).Error("failed to marshal error message")
-		}
-		if err := ws.WriteMessage(websocket.BinaryMessage, envelopeBytes); err != nil {
-			t.log.WithError(err).Error("failed to send error message")
-		}
-	}
-
 	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
 	if err != nil {
-		sendError("unable to marshal session response", err, t.ws)
+		t.sendError("unable to marshal session response", err, t.ws)
 		return
 	}
 
@@ -389,13 +394,13 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		sendError("unable to marshal session data event for web client", err, t.ws)
+		t.sendError("unable to marshal session data event for web client", err, t.ws)
 		return
 	}
 
 	err = t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		sendError("unable to write message to socket", err, t.ws)
+		t.sendError("unable to write message to socket", err, t.ws)
 		return
 	}
 

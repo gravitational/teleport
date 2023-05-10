@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -214,6 +213,7 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// sshBaseHandler is a base handler for web SSH connections.
 type sshBaseHandler struct {
 	// log holds the structured logger.
 	log *logrus.Entry
@@ -302,17 +302,6 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendError := func(errMsg string, err error, ws *websocket.Conn) {
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketError,
-			Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
-		}
-
-		envelopeBytes, _ := proto.Marshal(envelope)
-		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	}
-
 	var sessionMetadataResponse []byte
 
 	// If the displayLogin is set then use it in the session metadata instead of the
@@ -327,7 +316,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		sendError("unable to marshal session response", err, ws)
+		t.sendError("unable to marshal session response", err, ws)
 		return
 	}
 
@@ -339,13 +328,13 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		sendError("unable to marshal session data event for web client", err, ws)
+		t.sendError("unable to marshal session data event for web client", err, ws)
 		return
 	}
 
 	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		sendError("unable to write message to socket", err, ws)
+		t.sendError("unable to write message to socket", err, ws)
 		return
 	}
 
