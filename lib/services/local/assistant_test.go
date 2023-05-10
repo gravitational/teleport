@@ -77,12 +77,12 @@ func TestAssistantCRUD(t *testing.T) {
 
 	t.Run("create message", func(t *testing.T) {
 		msg := &assist.CreateAssistantMessageRequest{
+			Username:       username,
+			ConversationId: conversationID,
 			Message: &assist.AssistantMessage{
-				Username:       username,
-				CreatedTime:    timestamppb.New(time.Now()),
-				ConversationId: conversationID,
-				Payload:        "foo",
-				Type:           "USER_MSG",
+				CreatedTime: timestamppb.New(time.Now()),
+				Payload:     "foo",
+				Type:        "USER_MSG",
 			},
 		}
 		err := identity.CreateAssistantMessage(ctx, msg)

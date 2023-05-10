@@ -32,7 +32,7 @@
     "x-default-browser": "^0.5.2"
   },
   "devDependencies": {
-    "typescript": "^4.9.4"
+    "typescript": "^5.0.4"
   },
   "workspaces": {
     "packages": [
