@@ -22,10 +22,10 @@ This guide will help you to:
 
 ## Prerequisites
 
-- AWS OpenSearch Managed Cluster
+- AWS OpenSearch domain
 - [Enabled AWS OpenSearch Service fine-grained access control](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html#fgac-enabling)
 - IAM permissions to create IAM roles.
-- [sql-cli](https://github.com/opensearch-project/sql-cli)  Command Line Interface (CLI) tool installed in `$PATH`.
+- [opensearchsql](https://github.com/opensearch-project/sql-cli)  Command Line Interface (CLI) tool installed in `$PATH`.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -42,7 +42,7 @@ The level of access provided may not suit your needs, or may not fit your
 organization's access conventions. You should adjust the AWS IAM permissions to fit your needs.
 </Admonition>
 
-## Step 1/4. Create IAM roles for OpenSearch Mange Cluster access
+## Step 1/4. Create IAM roles for OpenSearch Managed Cluster access
 
 The setup described in this guide requires two IAM roles:
 - One associated with the EC2 instance running the Teleport Database Service,
@@ -98,7 +98,7 @@ Finally, click **Create Role**.
 
 Teleport AWS OpenSearch service integration leverages the [OpenSearch Fine-grained access control](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/fgac.html) where the IAM role or user is mapped to the OpenSearch role.
 
-In order to configure Role Mapping log into OpenSearch Domain Dashboard an go to the `Security` settings:
+In order to configure Role Mapping log into OpenSearch Domain Dashboard using the master user an go to the `Security` settings:
 
 ![Select Get Started](../../../img/database-access/guides/aws-opensearch/01-opensearch_get_started.png)
 
@@ -129,7 +129,7 @@ metadata:
 spec:
   allow:
     db_labels:
-      '*': '*'
+      'env': 'dev'
     db_users:
     - 'ExampleTeleportOpenSearchRole'
 ```
@@ -296,21 +296,21 @@ Create a proxy tunnel:
 
 ```code
 $ tsh proxy db --tunnel --port=8000 --db-user=ExampleTeleportOpenSearchRole example-opensearch
-#Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster "teleport.example.com" on 127.0.0.1:8000.
-#
-#Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
-#
-#  * start interactive session with opensearchsql:
-#
-#  $ opensearchsql http://localhost:8000
-#
-#  * run request with opensearch-cli:
-#
-#  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/teleport.example.dev/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
-#
-#  * run request with curl:
-#
-#  $ curl http://localhost:8000/
+Started authenticated tunnel for the OpenSearch database "example-opensearch" in cluster "teleport.example.com" on 127.0.0.1:8000.
+
+Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
+
+  * start interactive session with opensearchsql:
+
+  $ opensearchsql http://localhost:8000
+
+  * run request with opensearch-cli:
+
+  $ opensearch-cli --profile teleport --config /Users/alice/.tsh/teleport.example.dev/example-opensearch/opensearch-cli/8a5ce249.yml curl get --path /
+
+  * run request with curl:
+
+  $ curl http://localhost:8000/
 ```
 
 Then you can interact with AWS OpenSearch API via local tunnel created by `tsh proxy db` command:
@@ -320,7 +320,7 @@ $ curl http://localhost:8000/movies/_search \
    -H 'Content-Type: application/json'  \
    -d '{ "query": { "match_all": {} } }'
 
-# {"took":170,"timed_out":false,"_shards":{"total":5,"successful":5,"skipped":0,"failed":0},"hits":{"total":{"value":1,"relation":"eq"},"max_score":1.0,"hits":[{"_index":"movies","_id":"1","_score":1.0,"_source":{"director": "Burton, Tim", "genre": ["Comedy","Sci-Fi"], "year": 1996, "actor": ["Jack Nicholson","Pierce Brosnan","Sarah Jessica Parker"], "title": "Mars Attacks!"}}]}}
+{"took":170,"timed_out":false,"_shards":{"total":5,"successful":5,"skipped":0,"failed":0},"hits":{"total":{"value":1,"relation":"eq"},"max_score":1.0,"hits":[{"_index":"movies","_id":"1","_score":1.0,"_source":{"director": "Burton, Tim", "genre": ["Comedy","Sci-Fi"], "year": 1996, "actor": ["Jack Nicholson","Pierce Brosnan","Sarah Jessica Parker"], "title": "Mars Attacks!"}}]}}
 ```
 
 Interactive session can be started using the `tsh db connect` command that will under the hood invoke the `opensearchsql` binary with interactive mode:

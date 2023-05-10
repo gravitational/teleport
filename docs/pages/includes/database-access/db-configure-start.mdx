@@ -18,7 +18,7 @@ Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="proxy-address" /> \
+   --proxy=teleport.example.com:443 \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
@@ -32,7 +32,7 @@ $ teleport db configure create \
 $ teleport db configure create \
    -o file \
    --token=/tmp/token \
-   --proxy=<Var name="proxy-address" /> \
+   --proxy=mytenant.teleport.sh:443 \
    --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
@@ -81,7 +81,7 @@ CLI command:
 ```code
 $ teleport db start \
    --token=/tmp/token \
-   --auth-server=<Var name="auth-service" /> \
+   --auth-server=teleport.example.com:443 \
    --name={{ dbName }}  \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
