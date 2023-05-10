@@ -111,23 +111,25 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	defer span.End()
 
 	return &TerminalHandler{
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentWebsocket,
-			"session_id":    cfg.SessionData.ID.String(),
-		}),
-		ctx:                cfg.SessionCtx,
-		authProvider:       cfg.AuthProvider,
-		localAuthProvider:  cfg.LocalAuthProvider,
-		displayLogin:       cfg.DisplayLogin,
-		sessionData:        cfg.SessionData,
-		keepAliveInterval:  cfg.KeepAliveInterval,
-		proxyHostPort:      cfg.ProxyHostPort,
-		interactiveCommand: cfg.InteractiveCommand,
-		term:               cfg.Term,
-		router:             cfg.Router,
-		proxySigner:        cfg.PROXYSigner,
-		tracer:             cfg.tracer,
-		participantMode:    cfg.ParticipantMode,
+		sshBaseHandler: sshBaseHandler{
+			log: logrus.WithFields(logrus.Fields{
+				trace.Component: teleport.ComponentWebsocket,
+				"session_id":    cfg.SessionData.ID.String(),
+			}),
+			ctx:                cfg.SessionCtx,
+			authProvider:       cfg.AuthProvider,
+			localAuthProvider:  cfg.LocalAuthProvider,
+			sessionData:        cfg.SessionData,
+			keepAliveInterval:  cfg.KeepAliveInterval,
+			proxyHostPort:      cfg.ProxyHostPort,
+			interactiveCommand: cfg.InteractiveCommand,
+			router:             cfg.Router,
+			tracer:             cfg.tracer,
+		},
+		displayLogin:    cfg.DisplayLogin,
+		term:            cfg.Term,
+		proxySigner:     cfg.PROXYSigner,
+		participantMode: cfg.ParticipantMode,
 	}, nil
 }
 
@@ -212,14 +214,36 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+type sshBaseHandler struct {
+	// log holds the structured logger.
+	log *logrus.Entry
+	// ctx is a web session context for the currently logged-in user.
+	ctx *SessionContext
+	// authProvider is used to fetch nodes and sessions from the backend.
+	authProvider AuthProvider
+	// proxyHostPort is the address of the server to connect to.
+	proxyHostPort string
+	// keepAliveInterval is the interval for sending ping frames to a web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	keepAliveInterval time.Duration
+	// The server data for the active session.
+	sessionData session.Session
+	// router is used to dial the host
+	router *proxy.Router
+	// tracer creates spans
+	tracer oteltrace.Tracer
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
+	// interactiveCommand is a command to execute.
+	interactiveCommand []string
+}
+
 // TerminalHandler connects together an SSH session with a web-based
 // terminal via a web socket.
 type TerminalHandler struct {
-	// log holds the structured logger.
-	log *logrus.Entry
-
-	// ctx is a web session context for the currently logged in user.
-	ctx *SessionContext
+	sshBaseHandler
 
 	// displayLogin is the login name to display in the UI.
 	displayLogin string
@@ -233,40 +257,13 @@ type TerminalHandler struct {
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
 
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
-
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
-
 	closeOnce sync.Once
-
-	// keepAliveInterval is the interval for sending ping frames to web client.
-	// This value is pulled from the cluster network config and
-	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	keepAliveInterval time.Duration
-
-	// proxyHostPort is the address of the server to connect to.
-	proxyHostPort string
-
-	// interactiveCommand is a command to execute.
-	interactiveCommand []string
 
 	// term is the initial PTY size.
 	term session.TerminalParams
 
-	// The server data for the active session.
-	sessionData session.Session
-
-	// router is used to dial the host
-	router *proxy.Router
-
 	// proxySigner is used to sign PROXY header and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
-
-	// tracer creates spans
-	tracer oteltrace.Tracer
 
 	// participantMode is the mode that determines what you can do when you join an active session.
 	participantMode types.SessionParticipantMode
@@ -628,12 +625,16 @@ func promptMFAChallenge(
 	}
 }
 
+type connectWithMFAFn = func(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
+
 // connectToHost establishes a connection to the target host. To reduce connection
 // latency if per session mfa is required, connections are tried with the existing
 // certs and with single use certs after completing the mfa ceremony. Only one of
 // the operations will succeed, and if per session mfa will not gain access to the
 // target it will abort before prompting a user to perform the ceremony.
-func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn,
+	tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn,
+) (*client.NodeClient, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
 	defer span.End()
 
@@ -673,7 +674,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	// function returns early
 	go func() {
 		// try performing mfa and then connecting with the single use certs
-		clt, err := t.connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -732,7 +733,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	defer t.terminalCancel()
 
-	nc, err := t.connectToHost(ctx, ws, tc)
+	nc, err := t.connectToHost(ctx, ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
@@ -759,7 +760,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
@@ -791,7 +792,7 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
 	authMethods, err := t.issueSessionMFACerts(ctx, tc)
 	if err != nil {

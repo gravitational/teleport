@@ -14,7 +14,6 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 
-
 */
 
 package web
@@ -23,11 +22,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -37,11 +33,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -49,12 +43,11 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // CommandResultType is the type of Assist message that contains the command execution result.
@@ -266,19 +259,21 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 	defer span.End()
 
 	return &commandHandler{
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentWebsocket,
-			"session_id":    cfg.SessionData.ID.String(),
-		}),
-		ctx:                cfg.SessionCtx,
-		authProvider:       cfg.AuthProvider,
-		sessionData:        cfg.SessionData,
-		keepAliveInterval:  cfg.KeepAliveInterval,
-		proxyHostPort:      cfg.ProxyHostPort,
-		interactiveCommand: cfg.InteractiveCommand,
-		router:             cfg.Router,
-		localAuthProvider:  cfg.LocalAuthProvider,
-		tracer:             cfg.tracer,
+		sshBaseHandler: sshBaseHandler{
+			log: logrus.WithFields(logrus.Fields{
+				trace.Component: teleport.ComponentWebsocket,
+				"session_id":    cfg.SessionData.ID.String(),
+			}),
+			ctx:                cfg.SessionCtx,
+			authProvider:       cfg.AuthProvider,
+			sessionData:        cfg.SessionData,
+			keepAliveInterval:  cfg.KeepAliveInterval,
+			proxyHostPort:      cfg.ProxyHostPort,
+			interactiveCommand: cfg.InteractiveCommand,
+			router:             cfg.Router,
+			localAuthProvider:  cfg.LocalAuthProvider,
+			tracer:             cfg.tracer,
+		},
 	}, nil
 }
 
@@ -349,38 +344,10 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 }
 
 type commandHandler struct {
-	// log holds the structured logger.
-	log *logrus.Entry
-	// ctx is a web session context for the currently logged-in user.
-	ctx *SessionContext
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
-	// proxyHostPort is the address of the server to connect to.
-	proxyHostPort string
-
-	// keepAliveInterval is the interval for sending ping frames to a web client.
-	// This value is pulled from the cluster network config and
-	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	keepAliveInterval time.Duration
-
-	// The server data for the active session.
-	sessionData session.Session
-
-	// router is used to dial the host
-	router *proxy.Router
+	sshBaseHandler
 
 	// stream is the websocket stream to the client.
 	stream *WSStream
-
-	// tracer creates spans
-	tracer oteltrace.Tracer
-
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
-
-	// interactiveCommand is a command to execute.
-	interactiveCommand []string
 
 	// ws a raw websocket connection to the client.
 	ws WSConn
@@ -468,91 +435,21 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
 	defer span.End()
 
-	accessChecker, err := t.ctx.GetUserAccessChecker()
+	mfaAuth := func(ctx context.Context, ws WSConn, tc *client.TeleportClient,
+		accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator,
+	) (*client.NodeClient, error) {
+		return nil, trace.NotImplemented("MFA is not supported for command execution")
+	}
+
+	//TODO(jakule): Implement MFA support
+	nc, err := t.connectToHost(ctx, t.ws, tc, mfaAuth)
 	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failed to get access checker")
+		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
 		return
 	}
 
-	getAgent := func() (teleagent.Agent, error) {
-		return teleagent.NopCloser(tc.LocalAgent()), nil
-	}
-	cert, err := t.ctx.GetSSHCertificate()
-	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failed to get certificate")
-		t.writeError(err)
-		return
-	}
-
-	signer := agentless.SignerFromSSHCertificate(cert, t.localAuthProvider, tc.SiteName, tc.Username)
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
-	if err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
-
-		if errors.Is(err, trace.NotFound(teleport.NodeIsAmbiguous)) {
-			const message = "error: ambiguous host could match multiple nodes\n\nHint: try addressing the node by unique id (ex: user@node-id)\n"
-			t.writeError(trace.NotFound(message))
-			return
-		}
-
-		t.writeError(err)
-		return
-	}
-
-	defer func() {
-		if conn == nil {
-			return
-		}
-
-		if err := conn.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
-			t.log.WithError(err).Warn("Failed to close connection to host")
-		}
-	}()
-
-	sshConfig := &ssh.ClientConfig{
-		User:            tc.HostLogin,
-		Auth:            tc.AuthMethods,
-		HostKeyCallback: tc.HostKeyCallback,
-	}
-
-	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn,
-		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
-		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
-	switch {
-	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
-		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
-		t.writeError(connectErr)
-		return
-	case connectErr != nil && trace.IsAccessDenied(connectErr): // see if per session mfa would allow access
-		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-			Target: &authproto.IsMFARequiredRequest_Node{
-				Node: &authproto.NodeLogin{
-					Node:  t.sessionData.ServerID,
-					Login: tc.HostLogin,
-				},
-			},
-		})
-		if err != nil {
-			t.log.WithError(err).Warn("Unable to stream terminal - failed to determine if per session mfa is required")
-			// write the original connection error
-			t.writeError(connectErr)
-			return
-		}
-
-		if !mfaRequiredResp.Required {
-			t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
-			// write the original connection error
-			t.writeError(connectErr)
-			return
-		}
-
-		//TODO(jakule): Implement MFA support
-		t.log.Errorf("MFA support is not implemented")
-		t.writeError(errors.New("MFA support is not implemented"))
-		return
-	}
+	defer nc.Close()
 
 	// Enable session recording
 	nc.AddEnv(teleport.EnableNonInteractiveSessionRecording, "true")
@@ -560,7 +457,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
 	if err = nc.RunCommand(ctx, t.interactiveCommand); err != nil {
-		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
+		t.log.WithError(err).Warn("Unable to stream terminal - failure running shell")
 		t.writeError(err)
 		return
 	}

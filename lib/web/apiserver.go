@@ -2732,7 +2732,7 @@ type hostInfo struct {
 // findByQuery returns all hosts matching the given query/predicate. Allow free query to
 // return all nodes.
 func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
-	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	resources, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,
 		Namespace:           apidefaults.Namespace,
 		PredicateExpression: query,
