@@ -898,7 +898,8 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
 		key, err := os.ReadFile(keyPath)
 		if err != nil {
-			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+			return trace.BadParameter("failed to read OpenAI API key file at path %s: %v",
+				keyPath, trace.ConvertSystemError(err))
 		} else {
 			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
 		}

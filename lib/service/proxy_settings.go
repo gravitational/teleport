@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NetworkConfigGetter is a helper interface that allows to fetch the current proxy configuration.
-type NetworkConfigGetter interface {
+// networkConfigGetter is a helper interface that allows to fetch the current proxy configuration.
+type networkConfigGetter interface {
 	GetClusterNetworkingConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterNetworkingConfig, error)
 }
 
@@ -43,7 +43,7 @@ type proxySettings struct {
 	// proxy listener address to a random port (e.g. `127.0.0.1:0`).
 	proxySSHAddr utils.NetAddr
 	// accessPoint is the caching client connected to the auth server.
-	accessPoint NetworkConfigGetter
+	accessPoint networkConfigGetter
 }
 
 // GetProxySettings allows returns current proxy configuration.
