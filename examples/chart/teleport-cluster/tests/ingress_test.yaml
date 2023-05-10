@@ -43,7 +43,7 @@ tests:
           path: metadata.annotations.another-annotation
           value: some-other-value
 
-  - it: uses the clusterName as the hostname when Ingress is enabled
+  - it: sets the clusterName and wildcard of clusterName as hostnames when Ingress is enabled
     set:
       clusterName: teleport.example.com
       ingress:
@@ -52,19 +52,36 @@ tests:
     asserts:
       - equal:
           path: spec.tls[0].hosts[0]
-          value: teleport.example.com
+          value: "teleport.example.com"
       - contains:
           path: spec.tls
           content:
             hosts:
-              - teleport.example.com
+              - "teleport.example.com"
+              - "*.teleport.example.com"
       - equal:
           path: spec.rules[0].host
-          value: teleport.example.com
+          value: "teleport.example.com"
       - contains:
           path: spec.rules
           content:
-            host: teleport.example.com
+            host: "teleport.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - equal:
+          path: spec.rules[1].host
+          value: "*.teleport.example.com"
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.teleport.example.com"
             http:
               paths:
               - backend:
@@ -77,7 +94,55 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  - it: uses the publicAddr as the hostname when Ingress is enabled and publicAddr is set
+  - it: does not set a wildcard of clusterName as a hostname when Ingress is enabled and ingress.suppressAutomaticWildcardHostname is true
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+        suppressAutomaticWildcardHostname: true
+      proxyListenerMode: multiplex
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: "teleport.example.com"
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - "teleport.example.com"
+      - equal:
+          path: spec.rules[0].host
+          value: "teleport.example.com"
+      - contains:
+          path: spec.rules
+          content:
+            host: "teleport.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - notContains:
+          path: spec.rules
+          content:
+            host: "*.teleport.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: sets the publicAddr and wildcard of publicAddr as hostnames when Ingress is enabled and publicAddr is set
     set:
       clusterName: teleport.example.com
       ingress:
@@ -87,19 +152,85 @@ tests:
     asserts:
       - equal:
           path: spec.tls[0].hosts[0]
-          value: helm-lint.example.com
+          value: "helm-lint.example.com"
       - contains:
           path: spec.tls
           content:
             hosts:
-              - helm-lint.example.com
+              - "helm-lint.example.com"
+              - "*.helm-lint.example.com"
       - equal:
           path: spec.rules[0].host
           value: helm-lint.example.com
       - contains:
           path: spec.rules
           content:
-            host: helm-lint.example.com
+            host: "helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - equal:
+          path: spec.rules[1].host
+          value: "*.helm-lint.example.com"
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  - it: does not set a wildcard of publicAddr as a hostname when Ingress is enabled, publicAddr is set and ingress.suppressAutomaticWildcardHostname is true
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+        suppressAutomaticWildcardHostname: true
+      proxyListenerMode: multiplex
+      publicAddr: ["helm-lint.example.com"]
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: "helm-lint.example.com"
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - "helm-lint.example.com"
+      - equal:
+          path: spec.rules[0].host
+          value: helm-lint.example.com
+      - contains:
+          path: spec.rules
+          content:
+            host: "helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - notContains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint.example.com"
             http:
               paths:
               - backend:
@@ -122,19 +253,36 @@ tests:
     asserts:
       - equal:
           path: spec.tls[0].hosts[0]
-          value: helm-lint.example.com
+          value: "helm-lint.example.com"
       - contains:
           path: spec.tls
           content:
             hosts:
-              - helm-lint.example.com
+              - "helm-lint.example.com"
+              - "*.helm-lint.example.com"
       - equal:
           path: spec.rules[0].host
-          value: helm-lint.example.com
+          value: "helm-lint.example.com"
       - contains:
           path: spec.rules
           content:
             host: helm-lint.example.com
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - equal:
+          path: spec.rules[1].host
+          value: "*.helm-lint.example.com"
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint.example.com"
             http:
               paths:
               - backend:
@@ -147,7 +295,7 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  - it: exposes all publicAddrs via Ingress when enabled and multiple publicAddrs are set
+  - it: exposes all publicAddrs and wildcard publicAddrs as hostnames when Ingress is enabled and multiple publicAddrs are set
     set:
       clusterName: teleport.example.com
       ingress:
@@ -157,26 +305,34 @@ tests:
     asserts:
       - equal:
           path: spec.tls[0].hosts[0]
-          value: helm-lint.example.com
+          value: "helm-lint.example.com"
       - equal:
           path: spec.tls[0].hosts[1]
-          value: helm-lint-second-domain.example.com
+          value: "helm-lint-second-domain.example.com"
       - contains:
           path: spec.tls
           content:
             hosts:
-              - helm-lint.example.com
-              - helm-lint-second-domain.example.com
+              - "helm-lint.example.com"
+              - "helm-lint-second-domain.example.com"
+              - "*.helm-lint.example.com"
+              - "*.helm-lint-second-domain.example.com"
       - equal:
           path: spec.rules[0].host
-          value: helm-lint.example.com
+          value: "helm-lint.example.com"
       - equal:
           path: spec.rules[1].host
-          value: helm-lint-second-domain.example.com
+          value: "helm-lint-second-domain.example.com"
+      - equal:
+          path: spec.rules[2].host
+          value: "*.helm-lint.example.com"
+      - equal:
+          path: spec.rules[3].host
+          value: "*.helm-lint-second-domain.example.com"
       - contains:
           path: spec.rules
           content:
-            host: helm-lint.example.com
+            host: "helm-lint.example.com"
             http:
               paths:
               - backend:
@@ -189,7 +345,130 @@ tests:
       - contains:
           path: spec.rules
           content:
-            host: helm-lint-second-domain.example.com
+            host: "helm-lint-second-domain.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint-second-domain.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - matchSnapshot:
+          path: spec.tls
+
+  # this is a very contrived example which wouldn't even work in reality
+  # it's just to test the logic in the hostname generation code
+  - it: does not add additional wildcard publicAddrs when Ingress is enabled and a publicAddr already contains a wildcard
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: multiplex
+      publicAddr: ["helm-lint.example.com", "*.helm-lint.example.com", "helm-lint-second-domain.example.com:443"]
+    asserts:
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: "helm-lint.example.com"
+      - equal:
+          path: spec.tls[0].hosts[1]
+          value: "*.helm-lint.example.com"
+      - equal:
+          path: spec.tls[0].hosts[2]
+          value: "helm-lint-second-domain.example.com"
+      - equal:
+          path: spec.tls[0].hosts[3]
+          value: "*.helm-lint-second-domain.example.com"
+      - contains:
+          path: spec.tls
+          content:
+            hosts:
+              - "helm-lint.example.com"
+              - "*.helm-lint.example.com"
+              - "helm-lint-second-domain.example.com"
+              - "*.helm-lint-second-domain.example.com"
+      - equal:
+          path: spec.rules[0].host
+          value: "helm-lint.example.com"
+      - equal:
+          path: spec.rules[1].host
+          value: "*.helm-lint.example.com"
+      - equal:
+          path: spec.rules[2].host
+          value: "helm-lint-second-domain.example.com"
+      - equal:
+          path: spec.rules[3].host
+          value: "*.helm-lint-second-domain.example.com"
+      - contains:
+          path: spec.rules
+          content:
+            host: "helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: "helm-lint-second-domain.example.com"
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: RELEASE-NAME
+                    port:
+                      number: 443
+                path: /
+                pathType: Prefix
+      - contains:
+          path: spec.rules
+          content:
+            host: "*.helm-lint-second-domain.example.com"
             http:
               paths:
               - backend:

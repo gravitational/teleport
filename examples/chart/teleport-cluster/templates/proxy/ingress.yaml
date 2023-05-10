@@ -1,16 +1,21 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
-{{- if .Values.ingress.enabled }}
-  {{- if (not (eq .Values.proxyListenerMode "multiplex")) }}
-    {{- fail "Cannot set ingress.enabled=true unless proxyListenerMode=multiplex" }}
-  {{- end }}
+{{- if .Values.ingress.enabled -}}
+  {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
+    {{- fail "Cannot set ingress.enabled=true unless proxyListenerMode=multiplex" -}}
+  {{- end -}}
 {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
-{{- /* Trim the ports from all public addresses */ -}}
+{{- /* Trim ports from all public addresses if present */ -}}
 {{- range $publicAddr -}}
-  {{- $domain := . -}}
-  {{- if (contains ":" $domain) -}}
-    {{- $split := split ":" $domain -}}
-    {{- $domain := $split._0 -}}
-    {{- $publicAddr = append (without $publicAddr .) $domain -}}
+  {{- $address := . -}}
+  {{- if (contains ":" $address) -}}
+    {{- $split := split ":" $address -}}
+    {{- $address = $split._0 -}}
+    {{- $publicAddr = append (mustWithout $publicAddr .) $address -}}
+  {{- end -}}
+  {{- $wildcard := printf "*.%s" $address -}}
+  {{- /* Add wildcard versions of all public addresses to ingress, unless 1) suppressed or 2) wildcard version already exists */ -}}
+  {{- if and (not $.Values.ingress.suppressAutomaticWildcardHostname) (not (hasPrefix "*." $address)) (not (has $wildcard $publicAddr)) -}}
+    {{- $publicAddr = append $publicAddr (printf "*.%s" $address) -}}
   {{- end -}}
 {{- end -}}
 apiVersion: networking.k8s.io/v1
@@ -26,11 +31,11 @@ spec:
   tls:
   - hosts:
   {{- range $publicAddr }}
-    - {{ . }}
+    - {{ quote . }}
   {{- end }}
   rules:
    {{- range $publicAddr }}
-  - host: {{ . }}
+  - host: {{ quote . }}
     http:
       paths:
       - path: /
