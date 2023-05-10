@@ -295,6 +295,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SAMLIdPServiceProviderDelete{}
 	case SAMLIdPServiceProviderDeleteAllEvent:
 		e = &events.SAMLIdPServiceProviderDeleteAll{}
+	case OktaGroupsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaApplicationsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaSyncFailureEvent:
+		e = &events.OktaSyncFailure{}
+	case OktaAssignmentProcessEvent:
+		e = &events.OktaAssignmentResult{}
+	case OktaAssignmentCleanupEvent:
+		e = &events.OktaAssignmentResult{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
