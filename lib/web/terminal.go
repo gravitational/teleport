@@ -96,6 +96,7 @@ type AuthProvider interface {
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
+	MaintainSessionPresence(ctx context.Context) (authproto.AuthService_MaintainSessionPresenceClient, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -130,6 +131,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		term:            cfg.Term,
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
+		tracker: cfg.Tracker,
 	}, nil
 }
 
@@ -169,6 +171,9 @@ type TerminalHandlerConfig struct {
 	tracer oteltrace.Tracer
 	// ParticipantMode is the mode that determines what you can do when you join an active session.
 	ParticipantMode types.SessionParticipantMode
+	// Tracker is the session tracker of the session being joined. May be nil
+	// if the user is not joining a session.
+	Tracker types.SessionTracker
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -276,6 +281,9 @@ type TerminalHandler struct {
 	// stream manages sending and receiving [Envelope] to the UI
 	// for the duration of the session
 	stream *TerminalStream
+	// tracker is the session tracker of the session being joined. May be nil
+	// if the user is not joining a session.
+	tracker types.SessionTracker
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -667,6 +675,14 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn,
 	// use a child context so the goroutine ends if this
 	// function returns early
 	go func() {
+		// TODO(tross): the join principal is allowed to connect to hosts when
+		// MFA is required without MFA. Prevent an MFA ceremony from occurring
+		// in this case to reduce confusion. RBAC around joining should be
+		// fixed to prevent the join principal without MFA verified certificates.
+		if t.sessionData.Login == teleport.SSHSessionJoinPrincipal {
+			mfaResultC <- clientRes{err: services.ErrSessionMFANotRequired}
+			return
+		}
 		// try performing mfa and then connecting with the single use certs
 		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
@@ -736,9 +752,21 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	defer nc.Close()
 
+	var beforeStart func(io.Writer)
+	if t.participantMode == types.SessionModeratorMode {
+		beforeStart = func(out io.Writer) {
+			nc.OnMFA = func() {
+				client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+					resp, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, proxyAddr, c)
+					return resp, trace.Wrap(err)
+				})
+			}
+		}
+	}
+
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunInteractiveShell(ctx, t.participantMode, nil); err != nil {
+	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
 		t.writeError(err)
 		return
