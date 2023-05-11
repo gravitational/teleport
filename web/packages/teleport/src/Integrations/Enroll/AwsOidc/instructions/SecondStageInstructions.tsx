@@ -52,8 +52,8 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
         // the wrapper `run` will catch this error and
         // set the attempt to failed.
         throw new Error(
-          `the thumbprint provided is incorrect, refer\
-        to the animation to get the correct thumbprint`
+          `the thumbprint provided is incorrect, make sure\
+          you copied the correct thumbprint from the AWS page`
         );
       })
     );
