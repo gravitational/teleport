@@ -30,7 +30,7 @@
     "**/@types/react": "^16.8.19"
   },
   "devDependencies": {
-    "typescript": "^4.7.4"
+    "typescript": "^5.0.4"
   },
   "workspaces": {
     "packages": [
