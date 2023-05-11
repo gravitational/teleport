@@ -1095,7 +1095,7 @@ export const formatters: Formatters = {
     format: ({ user, windows_domain, desktop_addr, windows_user }) => {
       let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
       if (windows_domain) {
-        message +=` on [${windows_domain}]`; 
+        message += ` on [${windows_domain}]`;
       }
       return message;
     },
