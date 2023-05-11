@@ -50,9 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
-// CommandResultType is the type of Assist message that contains the command execution result.
-const CommandResultType = "COMMAND_RESULT"
-
 // CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
 	// Command is the command to be executed on all nodes.
@@ -237,7 +234,7 @@ func (h *Handler) executeCommand(
 				ConversationId: req.ConversationID,
 				Username:       identity.TeleportUser,
 				Message: &assist.AssistantMessage{
-					Type:        CommandResultType,
+					Type:        string(messageKindCommandResult),
 					CreatedTime: timestamppb.New(time.Now().UTC()),
 					Payload:     string(msgPayload),
 				},
