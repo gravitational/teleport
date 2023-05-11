@@ -74,9 +74,37 @@ const requiredConfirmedPassword = password => confirmedPassword => () => {
   };
 };
 
+// requiredRoleArn checks provided arn (AWS role name) is somewhat
+// in the format as documented here:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
+const requiredRoleArn = roleArn => () => {
+  let parts = [];
+  if (roleArn) {
+    parts = roleArn.split(':role');
+  }
+
+  if (
+    parts.length == 2 &&
+    parts[0].startsWith('arn:aws:iam:') &&
+    // the `:role` part can be followed by a forward slash or a colon,
+    // followed by the role name.
+    parts[1].length >= 2
+  ) {
+    return {
+      valid: true,
+    };
+  }
+
+  return {
+    valid: false,
+    message: 'invalid role ARN format',
+  };
+};
+
 export {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
   requiredField,
+  requiredRoleArn,
 };
