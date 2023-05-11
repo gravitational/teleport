@@ -3750,7 +3750,7 @@ proxy_service:
 			conf, err := ReadConfig(strings.NewReader(tc.input))
 			require.NoError(t, err)
 
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := service.MakeDefaultConfig()
 			err = ApplyFileConfig(conf, cfg)
 
 			if tc.expectError {

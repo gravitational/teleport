@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -46,13 +45,13 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		cfgFn    func() *servicecfg.Config
+		cfgFn    func() *Config
 		assertFn require.BoolAssertionFunc
 	}{
 		{
 			name: "AssistEnabled is true when proxy API key is set",
-			cfgFn: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfgFn: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.Proxy.AssistAPIKey = "test-api-key"
 				return cfg
 			},
@@ -60,8 +59,8 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 		},
 		{
 			name: "AssistEnabled is false when proxy API key is not set",
-			cfgFn: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfgFn: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.Proxy.AssistAPIKey = ""
 				return cfg
 			},
@@ -69,8 +68,8 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 		},
 		{
 			name: "AssistEnabled is true when proxy API key is set - v2 config",
-			cfgFn: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfgFn: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.Version = defaults.TeleportConfigVersionV2
 				cfg.Proxy.AssistAPIKey = "test-api-key"
 				return cfg
@@ -79,8 +78,8 @@ func Test_proxySettings_GetProxySettings(t *testing.T) {
 		},
 		{
 			name: "AssistEnabled is false when proxy API key is not set - v2 config",
-			cfgFn: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfgFn: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.Version = defaults.TeleportConfigVersionV2
 				cfg.Proxy.AssistAPIKey = ""
 				return cfg
