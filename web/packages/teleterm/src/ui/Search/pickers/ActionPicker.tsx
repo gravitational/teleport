@@ -30,6 +30,7 @@ import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  ClusterSearchFilter,
   ResourceMatch,
   SearchResult,
   ResourceSearchResult,
@@ -38,6 +39,7 @@ import {
   SearchResultServer,
   SearchResultCluster,
   SearchResultResourceType,
+  SearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
@@ -152,6 +154,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     () =>
       getActionPickerStatus({
         inputValue,
+        filters,
         filterActionsAttempt,
         actionAttempts,
         resourceSearchAttempt,
@@ -159,6 +162,7 @@ export function ActionPicker(props: { input: ReactElement }) {
       }),
     [
       inputValue,
+      filters,
       filterActionsAttempt,
       actionAttempts,
       resourceSearchAttempt,
@@ -243,18 +247,41 @@ const ExtraTopComponents = (props: {
 }) => {
   const { status, getClusterName, showErrorsInModal } = props;
 
-  switch (status.status) {
+  switch (status.inputState) {
     case 'no-input': {
-      return (
-        <TypeToSearchItem
-          hasNoRemainingFilterActions={status.hasNoRemainingFilterActions}
-        />
-      );
+      switch (status.searchMode.kind) {
+        case 'no-search': {
+          return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
+        }
+        case 'preview': {
+          const {
+            nonRetryableResourceSearchErrors,
+            hasNoRemainingFilterActions,
+          } = status.searchMode;
+
+          return (
+            <>
+              <TypeToSearchItem
+                hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+              />
+              {nonRetryableResourceSearchErrors.length > 0 && (
+                <ResourceSearchErrorsItem
+                  errors={nonRetryableResourceSearchErrors}
+                  getClusterName={getClusterName}
+                  showErrorsInModal={() => {
+                    showErrorsInModal(nonRetryableResourceSearchErrors);
+                  }}
+                />
+              )}
+            </>
+          );
+        }
+        default: {
+          return assertUnreachable(status.searchMode);
+        }
+      }
     }
-    case 'processing': {
-      return null;
-    }
-    case 'finished': {
+    case 'some-input': {
       return (
         <>
           {status.nonRetryableResourceSearchErrors.length > 0 && (
@@ -281,11 +308,39 @@ const ExtraTopComponents = (props: {
   }
 };
 
+/**
+ * ActionPickerStatus helps with displaying ExtraTopComponents. It has two goals:
+ *
+ *   * Encapsulate business logic so that anything that ExtraTopComponents renders can just read
+ *     ActionPickerStatus fields.
+ *   * Represent only valid UI states. For example, inputState 'no-input' doesn't have hasNoResults
+ *     field as this field would make no sense in a situation where no search requests were made.
+ *
+ * As you may notice, ActionPickerStatus doesn't say whether the search request is in progress or
+ * not, simply because displaying the progress bar is handled by another component. The questions
+ * answered by ActionPickerStatus are valid to ask no matter what the state of the request is.
+ */
 type ActionPickerStatus =
-  | { status: 'no-input'; hasNoRemainingFilterActions: boolean }
-  | { status: 'processing' }
   | {
-      status: 'finished';
+      // no-input: The input is empty.
+      inputState: 'no-input';
+      searchMode:
+        | {
+            // no-search: The search bar is pristine, that is the input and the filters are empty.
+            kind: 'no-search';
+          }
+        | {
+            // preview: At least one filter is selected. The search bar is fetching or shows
+            // a preview of results matching the filters.
+            kind: 'preview';
+            hasNoRemainingFilterActions: boolean;
+            nonRetryableResourceSearchErrors: ResourceSearchError[];
+          };
+    }
+  | {
+      // some-input: The input is not empty. The search bar is fetching or shows results matching
+      // the query and filters.
+      inputState: 'some-input';
       hasNoResults: boolean;
       nonRetryableResourceSearchErrors: ResourceSearchError[];
       clustersWithExpiredCerts: Set<uri.ClusterUri>;
@@ -293,18 +348,31 @@ type ActionPickerStatus =
 
 export function getActionPickerStatus({
   inputValue,
+  filters,
   filterActionsAttempt,
   allClusters,
   actionAttempts,
   resourceSearchAttempt,
 }: {
   inputValue: string;
+  filters: SearchFilter[];
   filterActionsAttempt: Attempt<SearchAction[]>;
   allClusters: tsh.Cluster[];
   actionAttempts: Attempt<SearchAction[]>[];
   resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
 }): ActionPickerStatus {
   if (!inputValue) {
+    const didNotSelectAnyFilters = filters.length === 0;
+
+    // If the input is empty, we fetch the preview only after the user selected some filters.
+    // So at this point we know that no search request was sent.
+    if (didNotSelectAnyFilters) {
+      return {
+        inputState: 'no-input',
+        searchMode: { kind: 'no-search' },
+      };
+    }
+
     // The number of available filters the user can select changes dynamically based on how many
     // clusters are in the state. That's why instead of inspecting the filters array from
     // SearchContext, we inspect the actual filter actions attempt to see if any further filter
@@ -316,30 +384,46 @@ export function getActionPickerStatus({
       filterActionsAttempt.status === 'success' &&
       filterActionsAttempt.data.length === 0;
 
+    const nonRetryableResourceSearchErrors =
+      resourceSearchAttempt.status === 'success'
+        ? resourceSearchAttempt.data.errors.filter(
+            err => !isRetryable(err.cause)
+          )
+        : [];
+
     return {
-      status: 'no-input',
-      hasNoRemainingFilterActions,
+      inputState: 'no-input',
+      searchMode: {
+        kind: 'preview',
+        hasNoRemainingFilterActions,
+        nonRetryableResourceSearchErrors,
+      },
     };
   }
 
+  const nonRetryableResourceSearchErrors = [];
+  let clustersWithExpiredCerts = new Set(
+    allClusters.filter(c => !c.connected).map(c => c.uri)
+  );
   const haveActionAttemptsFinished = actionAttempts.every(attempt =>
     hasFinished(attempt)
   );
 
   if (!haveActionAttemptsFinished) {
     return {
-      status: 'processing',
+      inputState: 'some-input',
+      hasNoResults: false,
+      nonRetryableResourceSearchErrors,
+      clustersWithExpiredCerts,
     };
   }
 
   const hasNoResults = actionAttempts.every(
     attempt => attempt.data.length === 0
   );
-  const clustersWithExpiredCerts = new Set(
-    allClusters.filter(c => !c.connected).map(c => c.uri)
-  );
-  const nonRetryableResourceSearchErrors = [];
 
+  // We could assume that resourceSearchAttempt has finished since action attempts depend on it and
+  // we know that they all finished at this point. But we check status explicitly anyway.
   if (resourceSearchAttempt.status === 'success') {
     resourceSearchAttempt.data.errors.forEach(err => {
       if (isRetryable(err.cause)) {
@@ -350,8 +434,23 @@ export function getActionPickerStatus({
     });
   }
 
+  // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
+  const clusterFilter = filters.find(
+    filter => filter.filter === 'cluster'
+  ) as ClusterSearchFilter;
+  if (clusterFilter) {
+    const hasClusterCertExpired = clustersWithExpiredCerts.has(
+      clusterFilter.clusterUri
+    );
+    clustersWithExpiredCerts = new Set();
+
+    if (hasClusterCertExpired) {
+      clustersWithExpiredCerts.add(clusterFilter.clusterUri);
+    }
+  }
+
   return {
-    status: 'finished',
+    inputState: 'some-input',
     hasNoResults,
     clustersWithExpiredCerts,
     nonRetryableResourceSearchErrors,

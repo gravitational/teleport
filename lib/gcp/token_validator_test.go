@@ -119,7 +119,7 @@ func (f *fakeIDP) issueToken(
 	issuer,
 	audience,
 	sub string,
-	claims computeEngine,
+	claims ComputeEngine,
 	issuedAt time.Time,
 	expiry time.Time,
 ) string {
@@ -134,7 +134,7 @@ func (f *fakeIDP) issueToken(
 	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(IDTokenClaims{
-			Google: google{
+			Google: Google{
 				ComputeEngine: claims,
 			},
 		}).
@@ -149,7 +149,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	idp := newFakeIDP(t)
 	clock := clockwork.NewFakeClock()
 
-	sampleCE := computeEngine{
+	sampleCE := ComputeEngine{
 		ProjectID:    "12345678",
 		Zone:         "z",
 		InstanceID:   "87654321",
@@ -159,7 +159,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	tests := []struct {
 		name        string
 		assertError require.ErrorAssertionFunc
-		want        computeEngine
+		want        ComputeEngine
 		token       string
 	}{
 		{

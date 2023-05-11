@@ -723,6 +723,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
+	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 
 	// AWS OIDC Integration specific endpoints:
@@ -743,6 +744,25 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
 	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
+
+	// WebSocket endpoint for the chat conversation
+	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuth(h.assistant))
+
+	// Sets the title for the conversation.
+	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
+	h.POST("/webapi/assistant/title/summary", h.WithAuth(h.generateAssistantTitle))
+
+	// Creates a new conversation - the conversation ID is returned in the response.
+	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	// Returns all conversations for the given user.
+	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
+
+	// Returns all messages in the given conversation.
+	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
+
+	// Allows executing an arbitrary command on multiple nodes.
+	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -976,27 +996,27 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 }
 
 func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference(ctx)
+	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
 	var as webclient.AuthenticationSettings
 
-	switch cap.GetType() {
+	switch authPreference.GetType() {
 	case constants.Local:
-		as, err = localSettings(cap)
+		as, err = localSettings(authPreference)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case constants.OIDC:
-		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = oidcSettings(oidcConnector, cap)
+			as = oidcSettings(oidcConnector, authPreference)
 		} else {
 			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
@@ -1006,16 +1026,16 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
-			as = oidcSettings(oidcConnectors[0], cap)
+			as = oidcSettings(oidcConnectors[0], authPreference)
 		}
 	case constants.SAML:
-		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = samlSettings(samlConnector, cap)
+			as = samlSettings(samlConnector, authPreference)
 		} else {
 			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
@@ -1025,15 +1045,15 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
-			as = samlSettings(samlConnectors[0], cap)
+			as = samlSettings(samlConnectors[0], authPreference)
 		}
 	case constants.Github:
-		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			githubConnector, err := authClient.GetGithubConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
-			as = githubSettings(githubConnector, cap)
+			as = githubSettings(githubConnector, authPreference)
 		} else {
 			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
@@ -1042,13 +1062,13 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 			if len(githubConnectors) == 0 {
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
-			as = githubSettings(githubConnectors[0], cap)
+			as = githubSettings(githubConnectors[0], authPreference)
 		}
 	default:
-		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", authPreference.GetType())
 	}
 
-	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	as.HasMessageOfTheDay = authPreference.GetMessageOfTheDay() != ""
 	pingResp, err := authClient.Ping(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -1132,6 +1152,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO: This part should be removed once the plugin support is added to OSS.
+	if proxyConfig.AssistEnabled {
+		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
+		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+		// Disable assistant support if per session MFA is enabled.
+		proxyConfig.AssistEnabled = !mfaRequired
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1611,11 +1643,15 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		repoChannel = stableCloudChannelRepo
 	}
 
+	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
+	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
+
 	tmpl := installers.Template{
-		PublicProxyAddr: h.PublicProxyAddr(),
-		MajorVersion:    version,
-		TeleportPackage: teleportPackage,
-		RepoChannel:     repoChannel,
+		PublicProxyAddr:   h.PublicProxyAddr(),
+		MajorVersion:      version,
+		TeleportPackage:   teleportPackage,
+		RepoChannel:       repoChannel,
+		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -2772,7 +2808,7 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// When joining an existing session use the specially handled
 	// `SSHSessionJoinPrincipal` login instead of the provided login so that
 	// users are able to join sessions without having permissions to create
-	// new ones themselves for auditing purposes. Otherwise the user would
+	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
 	// Using the Login above will then display `-teleport-internal-join` as the

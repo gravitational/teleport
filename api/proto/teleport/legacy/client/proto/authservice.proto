@@ -590,6 +590,8 @@ message Features {
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2154,6 +2156,15 @@ message InventoryStatusSummary {
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
 }
 
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
+}
+
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
 // if it has a control stream registered.
 message InventoryPingRequest {
@@ -2304,6 +2315,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);

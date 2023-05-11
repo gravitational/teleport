@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -412,13 +413,14 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 		return e.Reset(ctx)
 	}
 
-	// ensure config dir exists
-	if err := os.MkdirAll(e.cfg.ConfigDir, teleport.PrivateDirMode); err != nil {
+	// ensure config dir exists. if created it is set to 755, which is reasonably safe and seems to
+	// be the standard choice for config dirs like this in /etc/.
+	if err := os.MkdirAll(e.cfg.ConfigDir, defaults.DirectoryPermissions); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// export schedule file
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), teleport.FileMaskOwnerOnly); err != nil {
+	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
+	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
 		return trace.Errorf("failed to write schedule file: %v", err)
 	}
 
@@ -426,11 +428,14 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 }
 
 func (e *systemdDriver) Reset(_ context.Context) error {
-	if err := os.Remove(e.scheduleFile()); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
+	if _, err := os.Stat(e.scheduleFile()); os.IsNotExist(err) {
+		return nil
+	}
 
+	// note that we blank the file rather than deleting it, this is intended to allow us to
+	// preserve custom file permissions, such as those that might be used in a scenario where
+	// teleport is operating with limited privileges.
+	if err := os.WriteFile(e.scheduleFile(), []byte{}, teleport.FileMaskOwnerOnly); err != nil {
 		return trace.Errorf("failed to reset schedule file: %v", err)
 	}
 

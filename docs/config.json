@@ -959,6 +959,24 @@
           ]
         },
         {
+          "title": "Protect Okta Applications and Groups with Teleport",
+          "slug": "/application-access/okta/",
+          "entries": [
+            {
+              "title": "Guide",
+              "slug": "/application-access/okta/guide/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/application-access/okta/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/application-access/okta/reference/"
+            }
+          ]
+        },
+        {
           "title": "Access Controls",
           "slug": "/application-access/controls/"
         },
@@ -1159,6 +1177,10 @@
             {
               "title": "AWS Redshift Serverless",
               "slug": "/database-access/guides/redshift-serverless/"
+            },
+            {
+              "title": "AWS OpenSearch",
+              "slug": "/database-access/guides/aws-opensearch/"
             },
             {
               "title": "Azure Cache for Redis",
@@ -1639,7 +1661,6 @@
     }
   ],
   "variables": {
-    "version": "7.0",
     "ansible": {
       "min_version": "2.9.6"
     },
@@ -1648,7 +1669,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.2.4",
+      "version": "12.3.3",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1694,9 +1715,9 @@
       "last_report": "August 9th, 2022"
     },
     "teleport": {
-      "major_version": "12",
-      "version": "12.1.1",
-      "golang": "1.19",
+      "major_version": "14",
+      "version": "14.0.0-dev",
+      "golang": "1.20",
       "plugin": {
         "version": "12.1.1"
       },
