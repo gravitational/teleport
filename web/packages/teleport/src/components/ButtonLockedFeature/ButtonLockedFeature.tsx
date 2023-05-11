@@ -21,6 +21,7 @@ import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
 import { CtaEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
 
 export type Props = {
   children: React.ReactNode;
@@ -29,7 +30,7 @@ export type Props = {
   [index: string]: any;
 };
 
-const salesUrl = 'https://goteleport.com/signup/enterprise/';
+const salesUrl = 'https://goteleport.com/r/upgrade-team';
 
 export function ButtonLockedFeature({
   children,
@@ -37,9 +38,16 @@ export function ButtonLockedFeature({
   event,
   ...rest
 }: Props) {
+  const ctx = useTeleport();
+  const version = ctx.storeUser.state.cluster.authVersion;
+  const isEnterprise = ctx.isEnterprise;
+
   function handleClick() {
     userEventService.captureCtaEvent(event);
-    window.open(salesUrl, 'blank');
+    window.open(
+      `${salesUrl}?${getParams(version, isEnterprise, event)}`,
+      'blank'
+    );
   }
 
   return (
@@ -50,6 +58,14 @@ export function ButtonLockedFeature({
       </Flex>
     </StyledButton>
   );
+}
+
+function getParams(
+  version: string,
+  isEnterprise: boolean,
+  event: CtaEvent
+): string {
+  return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
 }
 
 const StyledButton = styled(ButtonPrimary)`
