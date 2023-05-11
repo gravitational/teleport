@@ -226,7 +226,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
 	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
-		DeviceEnrollEvent, DeviceAuthenticateCode,
+		DeviceEnrollEvent, DeviceAuthenticateEvent,
 		DeviceEnrollTokenCreateEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
@@ -319,7 +319,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CassandraExecute{}
 
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)
