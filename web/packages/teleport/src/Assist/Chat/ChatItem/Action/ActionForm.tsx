@@ -41,7 +41,7 @@ const CommandInput = styled.input`
     monospace;
   font-weight: bold;
   border: none;
-  color: white;
+  color: ${p => p.theme.colors.text.main};
   width: 100%;
   box-sizing: border-box;
 

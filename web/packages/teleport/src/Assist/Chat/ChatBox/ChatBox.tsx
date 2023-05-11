@@ -28,6 +28,7 @@ import { useMessages } from 'teleport/Assist/contexts/messages';
 interface ChatBoxProps {
   disabled?: boolean;
   onSubmit: (value: string) => void;
+  errorMessage: string | null;
 }
 
 const Container = styled.div`
@@ -54,6 +55,12 @@ const TextArea = styled.textarea`
   ::placeholder {
     color: ${props => props.theme.colors.text.muted};
   }
+`;
+
+const ErrorMessage = styled.div`
+  color: ${p => p.theme.colors.error.main};
+  font-weight: 700;
+  margin-bottom: 5px;
 `;
 
 export function ChatBox(props: ChatBoxProps) {
@@ -95,6 +102,8 @@ export function ChatBox(props: ChatBoxProps) {
 
   return (
     <Container>
+      {props.errorMessage && <ErrorMessage>{props.errorMessage}</ErrorMessage>}
+
       <TextArea
         disabled={props.disabled}
         ref={ref}

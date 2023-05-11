@@ -160,25 +160,22 @@ const ChatItemContent = styled.div`
 const CommandOutput = styled.div`
   margin-bottom: 15px;
   min-width: 100%;
-
-  &:last-of-type {
-    margin-bottom: 0;
-  }
 `;
 
 const MachineName = styled.div`
-  font-size: 15px;
   margin-bottom: 5px;
+  font-size: 14px;
 `;
 
 const Output = styled.div`
   white-space: pre-wrap;
-  background: #0c143d;
+  background: #020308;
+  color: white;
   border-radius: 5px;
+  min-width: 500px;
   padding: 5px 10px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
     monospace;
-  font-size: 16px;
 `;
 
 marked.setOptions({
@@ -223,22 +220,34 @@ export function ChatItem(props: ChatItemProps) {
           scrollTextarea={props.scrollTextarea}
           actions={props.message.content}
           key="commands"
+          showRunButton={props.isNew}
         />
       );
 
       break;
     case Type.ExecuteCommandOutput:
       return (
-        <Container>
-          <CommandOutput
-            key={
-              props.message.content.nodeId?.toString() +
-              props.message.content.executionId
-            }
-          >
-            <MachineName>Node: {props.message.content.nodeId}</MachineName>
-            <Output>{props.message.content.payload}</Output>
-          </CommandOutput>
+        <Container
+          teleport={props.message.author === Author.Teleport}
+          isNew={props.isNew}
+          isFirstFromUser={props.isFirstFromUser}
+          isLastFromUser={props.isLastFromUser}
+          hasSpacing={!props.hideAvatar}
+        >
+          <Content>
+            <CommandOutput
+              key={
+                props.message.content.nodeId?.toString() +
+                props.message.content.executionId
+              }
+            >
+              <MachineName>
+                Command ran on node{' '}
+                <strong>{props.message.content.nodeId}</strong>
+              </MachineName>
+              <Output>{props.message.content.payload}</Output>
+            </CommandOutput>
+          </Content>
         </Container>
       );
   }

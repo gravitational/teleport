@@ -26,6 +26,8 @@ import useWebSocket from 'react-use-websocket';
 
 import { useParams } from 'react-router';
 
+import logger from 'shared/libs/logger';
+
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
 import NodeService from 'teleport/services/nodes';
@@ -339,7 +341,7 @@ export function MessagesContextProvider(
       action(messages);
     }
 
-    setMessages(messages);
+    setMessages(messages.map(message => ({ ...message, isNew: false })));
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -351,13 +353,9 @@ export function MessagesContextProvider(
 
         setLoading(false);
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
+        setError('An error occurred whilst loading the conversation history');
 
-          return;
-        }
-
-        setError(err);
+        logger.error(err);
       }
     })();
   }, [props.conversationId]);
@@ -366,7 +364,10 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
-      if (value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE') {
+      if (
+        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
+        value.type === 'COMMAND'
+      ) {
         setResponding(false);
       }
 

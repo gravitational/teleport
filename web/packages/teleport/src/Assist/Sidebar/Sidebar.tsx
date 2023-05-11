@@ -25,6 +25,8 @@ import { ChatIcon, PlusIcon } from 'design/SVGIcon';
 
 import { useConversations } from 'teleport/Assist/contexts/conversations';
 
+import cfg from 'teleport/config';
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
@@ -104,15 +106,24 @@ const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
   flex: 1;
 `;
 
+const ErrorMessage = styled.div`
+  color: ${p => p.theme.colors.error.main};
+  font-weight: 700;
+  margin-bottom: 5px;
+  padding: 0 15px 15px;
+`;
+
 export function Sidebar() {
   const theme = useTheme();
 
   const history = useHistory();
 
-  const { create, conversations } = useConversations();
+  const { create, conversations, error } = useConversations();
 
   const handleNewChat = useCallback(() => {
-    create().then(id => history.push(`/web/assist/${id}`));
+    create().then(conversationId =>
+      history.push(cfg.getAssistConversationUrl(conversationId))
+    );
   }, []);
 
   const chatHistory = conversations.map(conversation => (
@@ -129,6 +140,8 @@ export function Sidebar() {
 
   return (
     <Container>
+      {error && <ErrorMessage>{error}</ErrorMessage>}
+
       <ChatHistoryTitle>Chat History</ChatHistoryTitle>
       <ChatHistoryList>{chatHistory}</ChatHistoryList>
 

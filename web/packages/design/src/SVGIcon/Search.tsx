@@ -20,7 +20,7 @@ import { SVGIcon } from './SVGIcon';
 
 import type { SVGIconProps } from './common';
 
-export function SearchIcon({ size = 24, fill = 'white' }: SVGIconProps) {
+export function SearchIcon({ size = 24, fill }: SVGIconProps) {
   return (
     <SVGIcon fill={fill} size={size} viewBox="0 0 24 24">
       <path d="M10 9A1 1 0 1 0 10 11 1 1 0 1 0 10 9zM7 9A1 1 0 1 0 7 11 1 1 0 1 0 7 9zM13 9A1 1 0 1 0 13 11 1 1 0 1 0 13 9zM22 20L20 22 16 18 16 16 18 16z" />

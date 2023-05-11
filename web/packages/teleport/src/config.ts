@@ -234,6 +234,8 @@ const cfg = {
       'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
     assistConversationHistoryPath:
       '/v1/webapi/assistant/conversations/:conversationId',
+    assistExecuteCommandWebSocketPath:
+      'wss://:hostname/v1/webapi/command/:clusterId/execute',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -677,23 +679,22 @@ const cfg = {
     });
   },
 
-  // assistConversationWebSocketPath: 'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
   getAssistConversationWebSocketUrl(
     hostname: string,
     clusterId: string,
     accessToken: string,
     conversationId: string
   ) {
-    const params = new URLSearchParams();
+    const searchParams = new URLSearchParams();
 
-    params.set('access_token', accessToken);
-    params.set('conversation_id', conversationId);
+    searchParams.set('access_token', accessToken);
+    searchParams.set('conversation_id', conversationId);
 
     return (
       generatePath(cfg.api.assistConversationWebSocketPath, {
         hostname,
         clusterId,
-      }) + `?${params.toString()}`
+      }) + `?${searchParams.toString()}`
     );
   },
 
@@ -701,6 +702,29 @@ const cfg = {
     return generatePath(cfg.api.assistConversationHistoryPath, {
       conversationId,
     });
+  },
+
+  getAssistExecuteCommandUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    params: Record<string, string>
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('params', JSON.stringify(params));
+
+    return (
+      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistConversationUrl(conversationId: string) {
+    return generatePath(cfg.routes.assist, { conversationId });
   },
 
   init(backendConfig = {}) {

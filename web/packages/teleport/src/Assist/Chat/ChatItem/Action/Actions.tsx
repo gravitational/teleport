@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { RunIcon } from 'design/SVGIcon';
 
@@ -36,10 +36,12 @@ import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
 interface ActionsProps {
   actions: ExecuteRemoteCommandContent;
   scrollTextarea: () => void;
+  showRunButton: boolean;
 }
 
 const Container = styled.div`
   width: 100%;
+  min-width: 500px;
   padding-bottom: 15px;
 `;
 
@@ -93,6 +95,8 @@ const Spacer = styled.div`
 `;
 
 export function Actions(props: ActionsProps) {
+  const theme = useTheme();
+
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
   const { clusterId } = useStickyClusterId();
@@ -163,7 +167,7 @@ export function Actions(props: ActionsProps) {
         selectedLogin={actions.selectedLogin}
         availableLogins={actions.availableLogins}
         onStateUpdate={handleSave}
-        disabled={running}
+        disabled={running || !props.showRunButton}
       />
 
       <Spacer>and</Spacer>
@@ -171,13 +175,16 @@ export function Actions(props: ActionsProps) {
       <Command
         command={actions.command}
         onStateUpdate={handleCommandUpdate}
-        disabled={running}
+        disabled={running || !props.showRunButton}
       />
 
-      {!result && !running && (
+      {!result && !running && props.showRunButton && (
         <Buttons>
           <ButtonRun onClick={() => run()}>
-            <RunIcon size={30} />
+            <RunIcon
+              size={30}
+              fill={theme.name === 'light' ? '#20b141' : 'white'}
+            />
             Run
           </ButtonRun>
         </Buttons>

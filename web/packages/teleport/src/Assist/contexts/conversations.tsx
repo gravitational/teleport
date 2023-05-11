@@ -23,6 +23,8 @@ import React, {
   useState,
 } from 'react';
 
+import logger from 'shared/libs/logger';
+
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
@@ -80,19 +82,25 @@ export function ConversationsContextProvider(
   }, []);
 
   const create = useCallback(async () => {
-    const res: CreateConversationResponse = await api.post(
-      cfg.api.assistConversationsPath
-    );
+    try {
+      const res: CreateConversationResponse = await api.post(
+        cfg.api.assistConversationsPath
+      );
 
-    setConversations(conversations => [
-      {
-        id: res.id,
-        title: 'New Chat',
-      },
-      ...conversations,
-    ]);
+      setConversations(conversations => [
+        {
+          id: res.id,
+          title: 'New Chat',
+        },
+        ...conversations,
+      ]);
 
-    return res.id;
+      return res.id;
+    } catch (err) {
+      setError('An error occurred whilst creating a new conversation');
+
+      logger.error(err);
+    }
   }, []);
 
   useEffect(() => {
@@ -100,13 +108,9 @@ export function ConversationsContextProvider(
       try {
         await load();
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
+        setError('An error occurred whilst loading the conversation history');
 
-          return;
-        }
-
-        setError(err);
+        logger.error(err);
       }
     })();
   }, []);

@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import teleport from 'design/assets/images/icons/teleport.png';
+
+import logger from 'shared/libs/logger';
 
 import { Dots } from 'teleport/Assist/Dots';
 
@@ -86,7 +88,14 @@ class ChatProps {
 export function Chat(props: ChatProps) {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { send, messages, loading, responding } = useMessages();
+  const [error, setError] = useState<string>(null);
+  const {
+    send,
+    messages,
+    loading,
+    responding,
+    error: messagesError,
+  } = useMessages();
   const { conversations, setConversations } = useConversations();
 
   const scrollTextarea = useCallback(() => {
@@ -103,19 +112,25 @@ export function Chat(props: ChatProps) {
         if (messages.length == 1) {
           // Use the second message/first message from a user to generate the title.
           (async () => {
-            // Generate title using the last message and OpenAI API.
-            const title = await generateTitle(message);
-            // Set the title in the backend.
-            await setConversationTitle(props.conversationId, title);
-            // Update the title in the frontend.
-            setConversations(conversations =>
-              conversations.map(c => {
-                if (c.id === props.conversationId) {
-                  c.title = title;
-                }
-                return c;
-              })
-            );
+            try {
+              // Generate title using the last message and OpenAI API.
+              const title = await generateTitle(message);
+              // Set the title in the backend.
+              await setConversationTitle(props.conversationId, title);
+              // Update the title in the frontend.
+              setConversations(conversations =>
+                conversations.map(c => {
+                  if (c.id === props.conversationId) {
+                    c.title = title;
+                  }
+                  return c;
+                })
+              );
+            } catch (err) {
+              setError('An error occurred when setting the conversation title');
+
+              logger.error(err);
+            }
           })();
         }
       });
@@ -186,7 +201,10 @@ export function Chat(props: ChatProps) {
 
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <Width>
-          <ChatBox onSubmit={handleSubmit} />
+          <ChatBox
+            onSubmit={handleSubmit}
+            errorMessage={error || messagesError}
+          />
         </Width>
       </div>
     </Container>

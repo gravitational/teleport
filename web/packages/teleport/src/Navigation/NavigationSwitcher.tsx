@@ -24,8 +24,9 @@ import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
 
 import { useHistory, useLocation } from 'react-router';
 
-import { useTeleport } from 'teleport';
 import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import { useTeleport } from 'teleport';
 
 import { KeysEnum } from 'teleport/services/localStorage';
 
@@ -146,8 +147,6 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const location = useLocation();
   const isAssistRoute = location.pathname.startsWith(cfg.routes.assistBase);
 
-  console.log(location);
-
   const [showAssist, setShowAssist] = useLocalStorage(
     KeysEnum.SHOW_ASSIST_POPUP,
     assistEnabled && !isAssistRoute
@@ -257,7 +256,7 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
       }
 
       if (value === NavigationCategory.Assist) {
-        history.push('/web/assist');
+        history.push(cfg.routes.assistBase);
       }
 
       setOpen(false);
@@ -299,10 +298,7 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
             Connect Teleport to ChatGPT and try out our new Assist integration
             <TooltipFooter>
               <TooltipLogos>
-                <ChatGPTIcon
-                  size={30}
-                  fill={theme.name === 'light' ? 'black' : 'white'}
-                />
+                <ChatGPTIcon size={30} />
                 <TooltipLogosSpacer>+</TooltipLogosSpacer>
                 <TeleportIcon light={theme.name === 'light'} />
               </TooltipLogos>

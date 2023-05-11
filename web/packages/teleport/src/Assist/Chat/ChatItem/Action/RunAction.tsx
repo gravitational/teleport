@@ -26,6 +26,7 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
+import cfg from 'teleport/config';
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -83,12 +84,12 @@ export function RunCommand(props: RunCommandProps) {
     execution_id: crypto.randomUUID(),
   };
 
-  const search = new URLSearchParams();
-
-  search.set('access_token', getAccessToken());
-  search.set('params', JSON.stringify(execParams));
-
-  const url = `wss://${getHostName()}/v1/webapi/command/${clusterId}/execute?${search.toString()}`;
+  const url = cfg.getAssistExecuteCommandUrl(
+    getHostName(),
+    clusterId,
+    getAccessToken(),
+    execParams
+  );
 
   const websocket = useRef<WebSocket>(null);
   const protoRef = useRef<any>(null);
@@ -171,6 +172,7 @@ const NodeTitle = styled.div`
 const NodeContent = styled.div`
   background: #020308;
   margin-bottom: 10px;
+  min-width: 500px;
   border-radius: 5px;
   padding: 1px 20px;
   color: white;
