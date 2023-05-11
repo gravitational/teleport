@@ -20,6 +20,7 @@ import cfg from 'teleport/config';
 import {
   Integration,
   IntegrationCreateRequest,
+  IntegrationUpdateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
   AwsOidcListDatabasesRequest,
@@ -47,8 +48,11 @@ export const integrationService = {
     return api.post(cfg.getIntegrationsUrl(), req);
   },
 
-  updateIntegration(name: string): Promise<void> {
-    return api.put(cfg.getIntegrationsUrl(name));
+  updateIntegration(
+    name: string,
+    req: IntegrationUpdateRequest
+  ): Promise<Integration> {
+    return api.put(cfg.getIntegrationsUrl(name), req).then(makeIntegration);
   },
 
   deleteIntegration(name: string): Promise<void> {
