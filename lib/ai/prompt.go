@@ -48,8 +48,10 @@ Provide the output in the following format with no other text:
 	]
 }
 
-If the user is not asking to complete a task on a server directly but is asking a question related to Teleport or Linux - disgard this entire message and help them with their Teleport or Linux related request.`
+If the user is not asking to complete a task on a server directly but is asking a question related to Teleport or Linux - disregard this entire message and help them with their Teleport or Linux related request.`
 
+// promptCharacter is a prompt that sets the context for the conversation.
+// Username is the name of the user that the AI is talking to.
 func promptCharacter(username string) string {
 	return fmt.Sprintf(`You are Teleport, a tool that users can use to connect to Linux servers and run relevant commands, as well as have a conversation.
 A Teleport cluster is a connectivity layer that allows access to a set of servers. Servers may also be referred to as nodes.

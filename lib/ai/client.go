@@ -21,18 +21,23 @@ import (
 	"github.com/tiktoken-go/tokenizer/codec"
 )
 
+// Client is a client for OpenAI API.
 type Client struct {
 	svc *openai.Client
 }
 
+// NewClient creates a new client for OpenAI API.
 func NewClient(apiURL string) *Client {
 	return &Client{openai.NewClient(apiURL)}
 }
 
+// NewClientFromConfig creates a new client for OpenAI API from config.
 func NewClientFromConfig(config openai.ClientConfig) *Client {
 	return &Client{openai.NewClientWithConfig(config)}
 }
 
+// NewChat creates a new chat. The username is set in the conversation context,
+// so that the AI can use it to personalize the conversation.
 func (client *Client) NewChat(username string) *Chat {
 	return &Chat{
 		client: client,

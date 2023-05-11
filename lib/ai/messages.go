@@ -26,6 +26,7 @@ type Message struct {
 	NumTokens int `json:"-"`
 }
 
+// Label represents a label returned by OpenAI's completion API.
 type Label struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
