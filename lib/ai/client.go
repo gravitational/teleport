@@ -29,6 +29,10 @@ func NewClient(apiURL string) *Client {
 	return &Client{openai.NewClient(apiURL)}
 }
 
+func NewClientFromConfig(config openai.ClientConfig) *Client {
+	return &Client{openai.NewClientWithConfig(config)}
+}
+
 func (client *Client) NewChat(username string) *Chat {
 	return &Chat{
 		client: client,

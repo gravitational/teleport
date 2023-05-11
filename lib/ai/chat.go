@@ -91,6 +91,7 @@ type Label struct {
 	Value string `json:"value"`
 }
 
+// CompletionCommand represents a command returned by OpenAI's completion API.
 type CompletionCommand struct {
 	Command string   `json:"command,omitempty"`
 	Nodes   []string `json:"nodes,omitempty"`
@@ -119,7 +120,7 @@ func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 
 // StreamingMessage represents a message that is streamed from the assistant and will later be stored as a normal message in the conversation store.
 type StreamingMessage struct {
-	// Role describes the OpenAI role of the message, i.e it's sender.
+	// Role describes the OpenAI role of the message, i.e its sender.
 	Role string
 
 	// Idx is a semi-unique ID assigned when loading a conversation so that the UI can group partial messages together.
@@ -186,7 +187,8 @@ top:
 
 	// if it looks like a JSON payload, let's wait for the entire response and try to parse it
 	if strings.HasPrefix(trimmed, "{") {
-		payload := response.Choices[0].Delta.Content
+		payload := strings.Builder{}
+		payload.WriteString(response.Choices[0].Delta.Content)
 	outer:
 		for {
 			response, err := stream.Recv()
@@ -198,19 +200,19 @@ top:
 			}
 			numTokens++
 
-			payload += response.Choices[0].Delta.Content
+			payload.WriteString(response.Choices[0].Delta.Content)
 		}
 
 		// if we can parse it, return the parsed payload, otherwise return a non-streaming message
 		var c CompletionCommand
-		err = json.Unmarshal([]byte(payload), &c)
+		err = json.Unmarshal([]byte(payload.String()), &c)
 		switch err {
 		case nil:
 			return &c, numTokens, nil
 		default:
 			return &Message{
 				Role:    openai.ChatMessageRoleAssistant,
-				Content: payload,
+				Content: payload.String(),
 				Idx:     len(chat.messages) - 1,
 			}, numTokens, nil
 		}
