@@ -28,6 +28,7 @@ import (
 	"math/big"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"strings"
 )
@@ -52,7 +53,7 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 	deviceStateDirPath := path.Join(home, deviceStateFolderName)
 	keyPath := path.Join(deviceStateDirPath, attestationKeyFileName)
 
-	stat, err := os.Stat(deviceStateDirPath)
+	_, err = os.Stat(deviceStateDirPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// If it doesn't exist, we can create it and return as we know
@@ -63,35 +64,6 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 			return keyPath, nil
 		}
 		return "", trace.Wrap(err)
-	}
-
-	// TODO: Remove this
-	// The code below this point might not behave nicely on windows due to
-	// differences in file system permissions. Investigate this and determine
-	// if this code should be linux-only.
-	if true {
-		return keyPath, nil
-	}
-
-	// As it already exists, we need to check the directory's perms
-	if !stat.IsDir() {
-		return "", trace.BadParameter("path %q is not a directory", deviceStateDirPath)
-	}
-	if stat.Mode().Perm() != 700 {
-		return "", trace.BadParameter("path %q has incorrect permissions, expected 700")
-	}
-
-	// Now check if the Attestation Key exists. If it doesn't, don't create it.
-	// If it does, we need to check its perms.
-	stat, err = os.Stat(keyPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return keyPath, nil
-		}
-		return "", trace.Wrap(err)
-	}
-	if stat.Mode().Perm() != 600 {
-		return "", trace.BadParameter("path %q has incorrect permissions, expected 600")
 	}
 
 	return keyPath, nil
@@ -120,7 +92,7 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	if len(eks) == 0 {
 		return nil, trace.BadParameter("no endorsement keys found in tpm")
 	}
-	// TODO: Marshal EK Certificate instead of key if present.
+	// TODO(noah): Marshal EK Certificate instead of key if present.
 	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -253,7 +225,7 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 		h.Write(publicKey.N.Bytes())
 		return base64.RawStdEncoding.EncodeToString(h.Sum(nil)), nil
 	default:
-		return "", trace.BadParameter("unsupported public key")
+		return "", trace.BadParameter("unsupported public key type: %T", publicKey)
 	}
 }
 
@@ -264,12 +236,63 @@ func getDeviceSerial() (string, error) {
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
-		"Get-WmiObject win32_bios | Select -ExpandProperty Serialnumber",
+		"Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber",
 	)
 	// Example output from powershell terminal on a non-administrator Lenovo
 	// ThinkPad P P14s:
-	// PS C:\Users\noahstride> Get-WmiObject win32_bios | Select -ExpandProperty Serialnumber
+	// PS > Get-WmiObject win32_bios | Select -ExpandProperty Serialnumber
 	// PF47WND6
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+}
+
+func getDeviceModel() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model",
+	)
+	// ThinkPad P P14s:
+	// PS> Get-WmiObject win32_computersystem | Select -ExpandProperty Model
+	// 21J50013US
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+}
+
+func getDeviceBaseBoardSerial() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber",
+	)
+	// ThinkPad P P14s:
+	// PS> Get-WmiObject Win32_BaseBoard | Select -ExpandProperty SerialNumber
+	// L1HF2CM03ZT
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+}
+
+func getOSVersion() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"Get-ComputerInfo | Select -ExpandProperty OsVersion",
+	)
+	// ThinkPad P P14s:
+	// PS>  Get-ComputerInfo | Select -ExpandProperty OsVersion
+	// 10.0.22621
 	out, err := cmd.Output()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -283,16 +306,29 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO: Collect data:
-	// - BaseBoard serial?
-	// - Model?
-	// - OS Version?
-	// - OS Build?
-	// - Username?
+	model, err := getDeviceModel()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = getDeviceBaseBoardSerial()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	osVersion, err := getOSVersion()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &devicepb.DeviceCollectedData{
-		CollectTime:  timestamppb.Now(),
-		OsType:       devicepb.OSType_OS_TYPE_WINDOWS,
-		SerialNumber: serial,
+		CollectTime:     timestamppb.Now(),
+		OsType:          devicepb.OSType_OS_TYPE_WINDOWS,
+		SerialNumber:    serial,
+		ModelIdentifier: model,
+		OsUsername:      u.Username,
+		OsVersion:       osVersion,
 	}, nil
 }
 
