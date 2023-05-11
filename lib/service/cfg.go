@@ -548,6 +548,10 @@ type ProxyConfig struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
 }
 
 // ACME configures ACME automatic certificate renewal

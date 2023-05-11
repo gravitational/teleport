@@ -5023,6 +5023,8 @@ message PluginSpecV1 {
   oneof settings {
     // Settings for the Slack access plugin
     PluginSlackAccessSettings slack_access_plugin = 1;
+    // Settings for OpenAI plugin
+    PluginOpenAISettings openai = 3;
   }
 }
 
@@ -5032,9 +5034,15 @@ message PluginSlackAccessSettings {
   string fallback_channel = 1;
 }
 
+// Defines settings for the OpenAI plugin. Currently there are no settings.
+message PluginOpenAISettings {
+  option (gogoproto.equal) = true;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5069,6 +5077,7 @@ enum PluginStatusCode {
 message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5079,6 +5088,19 @@ message PluginOAuth2AccessTokenCredentials {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+}
+
+message PluginBearerTokenCredentials {
+  // Token is the literal bearer token to be submitted to the 3rd-party API provider.
+  string token = 1;
+
+  // TokenFile is a path to the local file containing a bearer token.
+  // This takes precedence over Token, and is currently only used by
+  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
+  // This avoids exposing the token itself to the cluster.
+  // The file must exist and be readable on whatever runs the plugin
+  // (in the OpenAI case, it is the Proxy).
+  string token_file = 2;
 }
 
 // PluginList represents a list of plugin resources
