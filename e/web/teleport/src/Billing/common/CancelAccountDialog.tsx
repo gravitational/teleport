@@ -9,6 +9,8 @@ import { ButtonPrimary, ButtonSecondary, Input, Text } from 'design';
 import React, { useState } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
 
+import { Danger } from 'design/Alert';
+
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { CancelDialogProps } from 'e-teleport/Billing/types';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -88,7 +90,7 @@ export const CancelAccountDialog = ({
         />
       </DialogContent>
       {networkState.error != undefined && (
-        <Text>{networkState.error.message}</Text>
+        <Danger>{networkState.error.message}</Danger>
       )}
       <DialogFooter>
         <ButtonPrimary

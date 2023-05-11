@@ -12,6 +12,8 @@ import { useTheme } from 'styled-components';
 
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 
+import { Danger } from 'design/Alert';
+
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { SetupIntent } from 'e-teleport/services/cloud';
@@ -152,7 +154,7 @@ export const PaymentAddDialog = ({
         )}
       </DialogContent>
       {networkState.error != undefined && (
-        <Text>{networkState.error.message}</Text>
+        <Danger>{networkState.error.message}</Danger>
       )}
       <DialogFooter>
         <ButtonPrimary

@@ -7,9 +7,11 @@ import Dialog, {
 
 import * as Icons from 'design/Icon';
 
-import { ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 import React, { useState } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
+
+import { Danger } from 'design/Alert';
 
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { ExistingPaymentProps } from 'e-teleport/Billing/types';
@@ -54,7 +56,7 @@ export const PaymentDeleteDialog = ({
         </p>
       </DialogContent>
       {networkState.error != undefined && (
-        <Text>{networkState.error.message}</Text>
+        <Danger>{networkState.error.message}</Danger>
       )}
       <DialogFooter>
         <ButtonPrimary

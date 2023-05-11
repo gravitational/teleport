@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { ButtonPrimary, Text } from 'design';
+import { Box, ButtonPrimary, Text } from 'design';
 import {
   AddressElement,
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js';
+
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
 import { AddressProps } from 'e-teleport/Billing/types';
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
@@ -88,7 +90,9 @@ export const Address = ({ address, name }: AddressProps) => {
         }}
       />
       {networkState.error != undefined && (
-        <Text>{networkState.error.message}</Text>
+        <Box mt={2}>
+          <ErrorMessage message={networkState.error.message} />
+        </Box>
       )}
       <ButtonPrimary
         mt="8px"

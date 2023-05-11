@@ -180,7 +180,9 @@ export const CardList = ({
         )}
       </Flex>
       {networkState.error != undefined && (
-        <ErrorMessage message={networkState.error.message} />
+        <Box mt={2} maxWidth="920px">
+          <ErrorMessage message={networkState.error.message} />
+        </Box>
       )}
     </>
   );

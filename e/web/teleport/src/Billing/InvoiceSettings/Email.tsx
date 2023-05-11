@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ButtonPrimary, Input, Text } from 'design';
+import { Box, ButtonPrimary, Input, Text } from 'design';
+
+import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
 import { EmailProps } from 'e-teleport/Billing/types';
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
@@ -53,7 +55,9 @@ export const Email = ({ email }: EmailProps) => {
         }}
       />
       {networkState.error != undefined && (
-        <Text>{networkState.error.message}</Text>
+        <Box mt={2}>
+          <ErrorMessage message={networkState.error.message} />
+        </Box>
       )}
       <ButtonPrimary
         mt="8px"
