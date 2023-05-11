@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -279,7 +280,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if count == 0 {
 					return trace.BadParameter("no resources found, empty input?")
 				}
@@ -1204,11 +1205,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
-	case types.KindOktaAssignment:
-		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
 	case types.KindUserGroup:
 		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)

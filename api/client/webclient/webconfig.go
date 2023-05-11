@@ -61,6 +61,8 @@ type WebConfig struct {
 	// The web UI for dashboards provides functionality for downloading self-hosted licenses and
 	// Teleport Enterprise binaries.
 	IsDashboard bool `json:"isDashboard,omitempty"`
+	// IsUsageBasedBilling determines if the cloud user subscription is usage-based (pay-as-you-go).
+	IsUsageBasedBilling bool `json:"isUsageBasedBilling,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

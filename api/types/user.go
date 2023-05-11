@@ -450,6 +450,11 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
 }
 
+// DeepCopy creates a clone of this user value.
+func (u *UserV2) DeepCopy() User {
+	return utils.CloneProtoMsg(u)
+}
+
 // IsEmpty returns true if there's no info about who created this user
 func (c CreatedBy) IsEmpty() bool {
 	return c.User.Name == ""

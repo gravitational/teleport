@@ -24,6 +24,13 @@ import (
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 )
 
+// ErrInvalidCredentials is a special kind of credential "NotFound" error, where
+// the user has only devices registered to other RPIDs.
+// Possible fixes include reseting the affected users (likely the entire
+// cluster), or rolling back to a good WebAuthn configuration (if still
+// possible).
+var ErrInvalidCredentials = errors.New("user has only invalid WebAuthn registrations, consider a user reset")
+
 // LoginIdentity represents the subset of Identity methods used by LoginFlow.
 // It exists to better scope LoginFlow's use of Identity and to facilitate
 // testing.

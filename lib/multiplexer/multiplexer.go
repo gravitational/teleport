@@ -436,8 +436,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
+			// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newProxyLine.IsSigned() {
 				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
 				if errors.Is(err, ErrNoHostCA) {
 					m.WithFields(log.Fields{
@@ -496,18 +496,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH, ProtoHTTP:
+		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
 				reader:    reader,
 				proxyLine: proxyLine,
-			}, nil
-		case ProtoPostgres:
-			return &Conn{
-				protocol: proto,
-				Conn:     conn,
-				reader:   reader,
 			}, nil
 		}
 	}

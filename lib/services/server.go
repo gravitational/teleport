@@ -91,8 +91,13 @@ func compareServers(a, b types.Server) int {
 	if a.GetNamespace() != b.GetNamespace() {
 		return Different
 	}
-	if a.GetPublicAddr() != b.GetPublicAddr() {
+	if len(a.GetPublicAddrs()) != len(b.GetPublicAddrs()) {
 		return Different
+	}
+	for i := range a.GetPublicAddrs() {
+		if a.GetPublicAddrs()[i] != b.GetPublicAddrs()[i] {
+			return Different
+		}
 	}
 	r := a.GetRotation()
 	if !r.Matches(b.GetRotation()) {

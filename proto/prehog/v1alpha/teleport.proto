@@ -361,6 +361,24 @@ message UICreateNewRoleViewDocumentationClickEvent {
   string user_name = 1;
 }
 
+// UICallToActionClickEvent is a click in a Teleport Web UI's CTA
+message UICallToActionClickEvent {
+  //anonymized
+  string user_name = 1;
+  CTA cta = 2;
+}
+
+// CTA represents teleport web UI's call to action buttons
+enum CTA {
+  CTA_UNSPECIFIED = 0;
+  CTA_AUTH_CONNECTOR = 1;
+  CTA_ACTIVE_SESSIONS = 2;
+  CTA_ACCESS_REQUESTS = 3;
+  CTA_PREMIUM_SUPPORT = 4;
+  CTA_TRUSTED_DEVICES = 5;
+  CTA_UPGRADE_BANNER = 6;
+}
+
 message KubeRequestEvent {
   // anonymized
   string user_name = 1;
@@ -385,6 +403,24 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+}
+
+// AssistCompletionEvent is an event that is emitted
+// when a single completion occurs in the Teleport Assist,
+// i.e. a user submits a prompt, and receives an answer from the Assist
+message AssistCompletionEvent {
+  // anonymized
+  string user_name = 1;
+
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 2;
+
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
 }
 
 message SubmitEventRequest {
@@ -448,6 +484,10 @@ message SubmitEventRequest {
 
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+
+    UICallToActionClickEvent ui_call_to_action_click_event = 42;
+
+    AssistCompletionEvent assist_completion = 43;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

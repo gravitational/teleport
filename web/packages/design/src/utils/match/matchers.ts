@@ -23,7 +23,9 @@ export function dateMatcher<T>(
 ): MatchCallback<T> {
   return (targetValue, searchValue, propName) => {
     if (datePropNames.includes(propName)) {
-      return displayDate(targetValue).toLocaleUpperCase().includes(searchValue);
+      return displayDate(new Date(targetValue))
+        .toLocaleUpperCase()
+        .includes(searchValue);
     }
   };
 }
@@ -33,7 +35,7 @@ export function dateTimeMatcher<T>(
 ): MatchCallback<T> {
   return (targetValue, searchValue, propName) => {
     if (dateTimePropNames.includes(propName)) {
-      return displayDateTime(targetValue)
+      return displayDateTime(new Date(targetValue))
         .toLocaleUpperCase()
         .includes(searchValue);
     }

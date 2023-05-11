@@ -37,6 +37,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -587,7 +588,10 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 	require.NoError(t, err)
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(teleportCluster, kubeCluster, cert)
-	return alpnproxy.NewKubeMiddleware(certs)
+
+	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		return tls.Certificate{}, nil
+	}, clockwork.NewRealClock(), nil)
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -635,6 +639,10 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 
 		conn, err := m.Accept()
 		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				continue
+			}
+
 			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
@@ -645,6 +653,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
+				ClientAuth:   tls.NoClientCert,
 			})
 
 			// api.Client may try different connection methods. Just close the
