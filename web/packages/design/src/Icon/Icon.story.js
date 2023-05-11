@@ -24,7 +24,7 @@ export default {
   title: 'Design/Icon',
 };
 
-export const ListOfIcons = () => (
+export const DeprecatedIcons = () => (
   <Flex flexWrap="wrap">
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />

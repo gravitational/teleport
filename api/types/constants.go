@@ -341,11 +341,18 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
 
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
