@@ -60,7 +60,7 @@ updates.
 Create the upgrade configuration directory:
 
 ```code
-$ mkdir -p /etc/teleport-upgrade.d/
+$ sudo mkdir -p /etc/teleport-upgrade.d/
 ```
 
 If you changed the agent user to run as non-root, create
@@ -68,29 +68,29 @@ If you changed the agent user to run as non-root, create
 Else, you can skip this step:
 
 ```code
-$ touch /etc/teleport-upgrade.d/schedule
-$ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+$ sudo touch /etc/teleport-upgrade.d/schedule
+$ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
 ```
 
 Configure the updater to connect to your custom version server and subscribe
 to the right release channel:
 
 ```code
-$ echo <version-server-url/path>/<release-channel> > /etc/teleport-upgrade.d/endpoint
+$ echo <version-server-url/path>/<release-channel> | sudo tee /etc/teleport-upgrade.d/endpoint
 ```
 
 Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
 
 ```code
-$ apt install teleport-ent-updater
+$ sudo apt install teleport-ent-updater
 # or
-$ yum install teleport-ent-updater
+$ sudo yum install teleport-ent-updater
 ```
 
 Finally, verify that the updater can see your version endpoint:
 
 ```code
-$ teleport-upgrade dry-run
+$ sudo teleport-upgrade dry-run
 ```
 
 You should see one of the following messages, depending on the target version

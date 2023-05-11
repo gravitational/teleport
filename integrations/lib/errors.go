@@ -16,6 +16,7 @@ package lib
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gravitational/trace"
@@ -27,7 +28,7 @@ import (
 // TODO: remove this when trail.FromGRPC will understand additional error codes
 func FromGRPC(err error) error {
 	switch {
-	case err == io.EOF:
+	case errors.Is(err, io.EOF):
 		fallthrough
 	case status.Code(err) == codes.Canceled, err == context.Canceled:
 		fallthrough
