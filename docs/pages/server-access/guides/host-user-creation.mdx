@@ -15,6 +15,9 @@ It also has benefits over manually creating users as it allows for separate host
 users for each member of an organization. This provides more fine-grained control
 of permissions on a given host.
 
+Refer to the [Desktop Access RBAC guide](../../desktop-access/rbac.mdx#automatic-user-creation)
+for how to automatically create local users in Windows machines.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -28,7 +31,6 @@ since it must execute these commands in order to create transient users:
   - `groupadd`
   - `getent`
   - `visudo`
-
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Configure a role
@@ -83,6 +85,13 @@ When a Teleport user accesses an SSH Service instance, Teleport checks each of
 the user's roles that match the instance. If at least one role matches the
 instance but does not include `create_host_user: true`, automatic user creation
 will be disabled. Roles that do not match the Node will not be checked.
+
+</Admonition>
+
+<Admonition type="warning">
+
+When multiple roles contain `host_sudoers` entries, the sudoers file
+will have the entries written to it ordered by role name
 
 </Admonition>
 

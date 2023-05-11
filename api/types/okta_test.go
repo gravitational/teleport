@@ -32,95 +32,36 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 		nextStatus  string
 		invalid     bool
 	}{
+
 		// PENDING transitions
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusProcessing},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusPending, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusProcessing},
+		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusSuccessful, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusFailed, invalid: true},
 
 		// PROCESSING transitions
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusSuccessful},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusFailed},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusProcessing, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusProcessing, nextStatus: constants.OktaAssignmentStatusProcessing},
+		{startStatus: constants.OktaAssignmentStatusProcessing, nextStatus: constants.OktaAssignmentStatusSuccessful},
+		{startStatus: constants.OktaAssignmentStatusProcessing, nextStatus: constants.OktaAssignmentStatusFailed},
 
 		// SUCCESSFUL transitions
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusSuccessful, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusSuccessful, nextStatus: constants.OktaAssignmentStatusProcessing},
+		{startStatus: constants.OktaAssignmentStatusSuccessful, nextStatus: constants.OktaAssignmentStatusSuccessful, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusSuccessful, nextStatus: constants.OktaAssignmentStatusFailed, invalid: true},
 
 		// FAILED transitions
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusProcessing},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
-
-		// CLEANUP_PENDING transitions
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusCleanupPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupPending, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
-
-		// CLEANUP_PROCESSING transitions
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanedUp},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupProcessing, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed},
-
-		// CLEANED_UP transitions
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusCleanupPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanedUp, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
-
-		// CLEANUP_FAILED transitions
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanedUp, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusCleanupFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusFailed, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusFailed, nextStatus: constants.OktaAssignmentStatusProcessing},
+		{startStatus: constants.OktaAssignmentStatusFailed, nextStatus: constants.OktaAssignmentStatusSuccessful, invalid: true},
+		{startStatus: constants.OktaAssignmentStatusFailed, nextStatus: constants.OktaAssignmentStatusFailed, invalid: true},
 
 		// UNKNOWN transitions
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusPending},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusProcessing},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusSuccessful},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusFailed},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusCleanupProcessing},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusCleanedUp},
-		{startStatus: constants.OktaAssignmentActionStatusUnknown, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed},
+		{startStatus: constants.OktaAssignmentStatusUnknown, nextStatus: constants.OktaAssignmentStatusPending},
+		{startStatus: constants.OktaAssignmentStatusUnknown, nextStatus: constants.OktaAssignmentStatusProcessing},
+		{startStatus: constants.OktaAssignmentStatusUnknown, nextStatus: constants.OktaAssignmentStatusSuccessful},
+		{startStatus: constants.OktaAssignmentStatusUnknown, nextStatus: constants.OktaAssignmentStatusFailed},
 	}
 
 	for _, test := range tests {
@@ -132,22 +73,17 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 				errAssertionFunc = require.NoError
 			}
 
-			action := newOktaAssignmentAction(t, test.startStatus)
-			errAssertionFunc(t, action.SetStatus(test.nextStatus))
+			assignment := newOktaAssignment(t, test.startStatus)
+			errAssertionFunc(t, assignment.SetStatus(test.nextStatus))
 		})
 	}
 }
 
-func newOktaAssignmentAction(t *testing.T, status string) OktaAssignmentAction {
-	action := &OktaAssignmentActionV1{
-		Target: &OktaAssignmentActionTargetV1{
-			Type: OktaAssignmentActionTargetV1_APPLICATION,
-			Id:   "dummy",
-		},
-	}
+func newOktaAssignment(t *testing.T, status string) OktaAssignment {
+	assignment := &OktaAssignmentV1{}
 
-	require.NoError(t, action.SetStatus(status))
-	return action
+	require.NoError(t, assignment.SetStatus(status))
+	return assignment
 }
 
 func invalidTransition(startStatus, nextStatus string) require.ErrorAssertionFunc {

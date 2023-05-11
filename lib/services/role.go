@@ -88,6 +88,10 @@ var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
 
+// ErrSessionMFANotRequired indicates that per session mfa will not grant
+// access to a resource.
+var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -143,6 +147,7 @@ func RoleForUser(u types.User) types.Role {
 			Namespaces:            []string{defaults.Namespace},
 			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GroupLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -163,6 +168,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
+				types.NewRule(types.KindUserGroup, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -264,19 +270,20 @@ func validateRule(r types.Rule) error {
 }
 
 func filterInvalidUnixLogins(candidates []string) []string {
-	// The tests for `ApplyTraits()` require that an empty list is nil
-	// rather than a 0-size slice, and I don't understand the potential
-	// knock-on effects of changing that, so the  default value is `nil`
-	output := []string(nil)
+	var output []string
 
 	for _, candidate := range candidates {
-		if !cstrings.IsValidUnixUser(candidate) {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		if cstrings.IsValidUnixUser(candidate) {
+			// A valid variable was found in the traits, append it to the list of logins.
+			output = append(output, candidate)
 			continue
 		}
 
-		// A valid variable was found in the traits, append it to the list of logins.
-		output = append(output, candidate)
+		// Log any invalid logins which were added by a user but ignore any
+		// Teleport internal logins which are known to be invalid.
+		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		}
 	}
 	return output
 }
@@ -389,6 +396,12 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 			r.SetAppLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 
+		// apply templates to group labels
+		inLabels = r.GetGroupLabels(condition)
+		if inLabels != nil {
+			r.SetGroupLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
+
 		// apply templates to database labels
 		inLabels = r.GetDatabaseLabels(condition)
 		if inLabels != nil {
@@ -406,6 +419,9 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 
 		r.SetHostSudoers(condition,
 			applyValueTraitsSlice(r.GetHostSudoers(condition), traits, "host_sudoers"))
+
+		r.SetDesktopGroups(condition,
+			applyValueTraitsSlice(r.GetDesktopGroups(condition), traits, "desktop_groups"))
 
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
@@ -2420,6 +2436,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
+	case types.KindUserGroup:
+		getRoleLabels = types.Role.GetGroupLabels
 	case types.KindNode:
 		getRoleLabels = types.Role.GetNodeLabels
 		additionalDeniedMessage = "Confirm SSH login."
@@ -2699,13 +2717,60 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	return m
 }
 
+// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
+func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
+	groups := make(map[string]struct{})
+	labels := s.GetAllLabels()
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Allow), labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+		createDesktopUser := role.GetOptions().CreateDesktopUser
+		// if any of the matching roles do not enable create host
+		// user, the user should not be allowed on
+		if createDesktopUser == nil || !createDesktopUser.Value {
+			return nil, trace.AccessDenied("user is not allowed to create host users")
+		}
+		for _, group := range role.GetDesktopGroups(types.Allow) {
+			groups[group] = struct{}{}
+		}
+	}
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Deny), labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetDesktopGroups(types.Deny) {
+			delete(groups, group)
+		}
+	}
+
+	return utils.StringsSliceFromSet(groups), nil
+}
+
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	sudoers := make(map[string]struct{})
+	var sudoers []string
 	serverLabels := s.GetAllLabels()
-	for _, role := range set {
+
+	roleSet := make([]types.Role, len(set))
+	copy(roleSet, set)
+	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
+		return strings.Compare(a.GetName(), b.GetName()) == -1
+	})
+
+	seenSudoers := make(map[string]struct{})
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2724,10 +2789,16 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			groups[group] = struct{}{}
 		}
 		for _, sudoer := range role.GetHostSudoers(types.Allow) {
-			sudoers[sudoer] = struct{}{}
+			if _, ok := seenSudoers[sudoer]; ok {
+				continue
+			}
+			seenSudoers[sudoer] = struct{}{}
+			sudoers = append(sudoers, sudoer)
 		}
 	}
-	for _, role := range set {
+
+	var finalSudoers []string
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2738,18 +2809,25 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Deny) {
 			delete(groups, group)
 		}
-		for _, sudoer := range role.GetHostSudoers(types.Deny) {
-			if sudoer == "*" {
-				sudoers = nil
-				break
+
+	outer:
+		for _, sudoer := range sudoers {
+			for _, deniedSudoer := range role.GetHostSudoers(types.Deny) {
+				if deniedSudoer == "*" {
+					finalSudoers = nil
+					break outer
+				}
+				if sudoer != deniedSudoer {
+					finalSudoers = append(finalSudoers, sudoer)
+				}
 			}
-			delete(sudoers, sudoer)
 		}
+		sudoers = finalSudoers
 	}
 
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: utils.StringsSliceFromSet(sudoers),
+		Sudoers: sudoers,
 	}, nil
 }
 
@@ -3192,23 +3270,5 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
-	}
-}
-
-// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
-// older instances. Makes a shallow copy if the conversion is necessary. The
-// passed in role will not be mutated.
-// DELETE IN 13.0.0
-func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
-	switch r.Version {
-	case types.V3, types.V4, types.V5:
-		return r, nil
-	case types.V6:
-		var downgraded types.RoleV6
-		downgraded = *r
-		downgraded.Version = types.V5
-		return &downgraded, nil
-	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

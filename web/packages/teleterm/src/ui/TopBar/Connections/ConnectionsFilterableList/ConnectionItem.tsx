@@ -89,7 +89,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
           <Text
             typography="body1"
             bold
-            color="text.primary"
+            color="text.main"
             title={props.item.title}
             css={`
               line-height: 16px;
@@ -116,7 +116,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             </span>
           </Text>
           <Text
-            color="text.secondary"
+            color="text.slightlyMuted"
             typography="body2"
             title={props.item.clusterName}
           >

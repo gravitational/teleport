@@ -15,16 +15,16 @@
  */
 
 import React from 'react';
+import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
-import theme from 'design/theme';
 
-const styles = {
+const styles = theme => ({
   multiValue: (base, state) => {
     return state.data.isFixed ? { ...base, backgroundColor: 'gray' } : base;
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
-      return { ...base, color: theme.colors.text.primary, paddingRight: 6 };
+      return { ...base, color: theme.colors.text.main, paddingRight: 6 };
     }
 
     if (state.isDisabled) {
@@ -45,7 +45,7 @@ const styles = {
   menuList: base => {
     return { ...base, color: theme.colors.text.primaryInverse };
   },
-};
+});
 
 export type SelectCreatableProps = {
   inputValue: string;
@@ -74,20 +74,23 @@ export const SelectCreatable = ({
   isDisabled = false,
   autoFocus = false,
   ...rest
-}: SelectCreatableProps) => (
-  <ReactSelectCreatable
-    className="react-select"
-    components={{
-      DropdownIndicator: null,
-    }}
-    styles={styles}
-    {...rest}
-    isMulti={isMulti}
-    isClearable={isClearable}
-    isDisabled={isDisabled}
-    autoFocus={autoFocus}
-  />
-);
+}: SelectCreatableProps) => {
+  const theme = useTheme();
+  return (
+    <ReactSelectCreatable
+      className="react-select"
+      components={{
+        DropdownIndicator: null,
+      }}
+      styles={styles(theme)}
+      {...rest}
+      isMulti={isMulti}
+      isClearable={isClearable}
+      isDisabled={isDisabled}
+      autoFocus={autoFocus}
+    />
+  );
+};
 
 export type Option = {
   // value is the actual value used inlieu of label.

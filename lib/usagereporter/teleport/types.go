@@ -292,6 +292,20 @@ func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymize
 	}
 }
 
+// UICallToActionClickEvent is a UI event sent when a user prints recovery codes.
+type UICallToActionClickEvent prehogv1a.UICallToActionClickEvent
+
+func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCallToActionClickEvent{
+			UiCallToActionClickEvent: &prehogv1a.UICallToActionClickEvent{
+				Cta:      u.Cta,
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -407,6 +421,23 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitE
 	}
 }
 
+// AssistCompletionEvent is an event emitted after each completion by the Assistant
+type AssistCompletionEvent prehogv1a.AssistCompletionEvent
+
+func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AssistCompletion{
+			AssistCompletion: &prehogv1a.AssistCompletionEvent{
+				UserName:         a.AnonymizeString(e.UserName),
+				ConversationId:   e.ConversationId,
+				TotalTokens:      e.TotalTokens,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -501,6 +532,35 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent:
+		ret := &UIDiscoverIntegrationAWSOIDCConnectEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent:
+		ret := &UIDiscoverDatabaseRDSEnrollEvent{
+			Metadata:               discoverMetadataToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Metadata, userMD),
+			Resource:               discoverResourceToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Resource),
+			Status:                 discoverStatusToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Status),
+			SelectedResourcesCount: e.UiDiscoverDatabaseRdsEnrollEvent.SelectedResourcesCount,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent:
+		return &UICallToActionClickEvent{
+			UserName: userMD.Username,
+			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
+		}, nil
+
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
@@ -611,6 +671,15 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			return nil, trace.Wrap(err)
 		}
 
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_AssistCompletion:
+		ret := &AssistCompletionEvent{
+			UserName:         userMD.Username,
+			ConversationId:   e.AssistCompletion.ConversationId,
+			TotalTokens:      e.AssistCompletion.TotalTokens,
+			PromptTokens:     e.AssistCompletion.PromptTokens,
+			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
 		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())

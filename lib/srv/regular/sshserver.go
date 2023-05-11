@@ -67,8 +67,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const sftpSubsystem = "sftp"
-
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
 })
@@ -109,6 +107,7 @@ type Server struct {
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
+	publicAddrs     []utils.NetAddr
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -703,6 +702,14 @@ func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
 	}
 }
 
+// SetPublicAddrs sets the server's public addresses
+func SetPublicAddrs(addrs []utils.NetAddr) ServerOption {
+	return func(s *Server) error {
+		s.publicAddrs = addrs
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -1009,7 +1016,7 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		addr = s.AdvertiseAddr()
 	}
 
-	return &types.ServerV2{
+	srv := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1026,6 +1033,9 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 			ProxyIDs:  s.connectedProxyGetter.GetProxyIDs(),
 		},
 	}
+	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
+
+	return srv
 }
 
 func (s *Server) getServerInfo() *types.ServerV2 {
@@ -1042,7 +1052,6 @@ func (s *Server) getServerInfo() *types.ServerV2 {
 	}
 
 	server.SetExpiry(s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
-	server.SetPublicAddr(s.proxyPublicAddr.String())
 	server.SetPeerAddr(s.peerAddr)
 	return server
 }
@@ -1601,6 +1610,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
+		case constants.FileTransferDecision:
+			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1642,6 +1653,10 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
+	case constants.InitiateFileTransfer:
+		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
+	case constants.FileTransferDecision:
+		return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:
@@ -2040,9 +2055,10 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
-	case r.Name == sftpSubsystem:
+	case r.Name == teleport.SFTPSubsystem:
 		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
 			return nil, trace.Wrap(err)
 		}

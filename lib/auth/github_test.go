@@ -520,3 +520,31 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		})
 	}
 }
+
+func TestGithubURLFormat(t *testing.T) {
+	tts := []struct {
+		host   string
+		path   string
+		expect string
+	}{
+		{
+			host:   "example.com",
+			path:   "foo/bar",
+			expect: "https://example.com/foo/bar",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar?spam=eggs",
+			expect: "https://example.com/foo/bar?spam=eggs",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar",
+			expect: "https://example.com/foo/bar",
+		},
+	}
+
+	for _, tt := range tts {
+		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
+	}
+}

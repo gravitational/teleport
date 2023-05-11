@@ -25,7 +25,7 @@ spec:
   {{- toYaml $updater.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ .Release.Name }}-updater
 {{- if $updater.extraLabels.pod }}
   {{- toYaml $updater.extraLabels.pod | nindent 8 }}
 {{- end }}
@@ -66,7 +66,7 @@ spec:
           - "--agent-namespace={{ .Release.Namespace }}"
           - "--base-image={{ include "teleport-kube-agent.baseImage" . }}"
           - "--version-server={{ $updater.versionServer }}"
-          - "--release-channel={{ $updater.releaseChannel }}"
+          - "--version-channel={{ $updater.releaseChannel }}"
 {{- if $updater.securityContext }}
         securityContext: {{- toYaml $updater.securityContext | nindent 10 }}
 {{- end }}
@@ -88,7 +88,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /readyz
-            port: diag
+            port: healthz
           initialDelaySeconds: 5
           periodSeconds: 5
           failureThreshold: 6 # consider unready after 30s

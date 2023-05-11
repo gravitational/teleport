@@ -1,6 +1,6 @@
 ---
 authors: Lisa Kim (lisa@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0111 - Support connection testers when per-session MFA is enabled

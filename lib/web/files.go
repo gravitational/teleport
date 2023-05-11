@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 )
@@ -69,13 +70,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		filename:              query.Get("filename"),
 		namespace:             defaults.Namespace,
 		webauthn:              query.Get("webauthn"),
-		fileTransferRequestID: query.Get("file_transfer_request_id"),
-		moderatedSessionID:    query.Get("moderated_session_id"),
+		fileTransferRequestID: query.Get("fileTransferRequestId"),
+		moderatedSessionID:    query.Get("moderatedSessionId"),
 	}
 
 	// Send an error if only one of these params has been sent. Both should exist or not exist together
 	if (req.fileTransferRequestID != "") != (req.moderatedSessionID != "") {
-		return nil, trace.BadParameter("file_transfer_request_id and moderated_session_id must both be included in the same request.")
+		return nil, trace.BadParameter("fileTransferRequestId and moderatedSessionId must both be included in the same request.")
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -124,7 +125,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.Wrap(err)
 	}
 
-	tc, err := ft.createClient(req, r)
+	tc, err := ft.createClient(req, r, h.cfg.PROXYSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,7 +161,7 @@ type fileTransfer struct {
 	proxyHostPort string
 }
 
-func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
+func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request, proxySigner multiplexer.PROXYHeaderSigner) (*client.TeleportClient, error) {
 	if !types.IsValidNamespace(req.namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
 	}
@@ -193,6 +194,7 @@ func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Reque
 	cfg.Host = hostName
 	cfg.HostPort = hostPort
 	cfg.ClientAddr = httpReq.RemoteAddr
+	cfg.PROXYSigner = proxySigner
 
 	tc, err := client.NewClient(cfg)
 	if err != nil {
@@ -222,7 +224,8 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	cert, err := f.authClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
+	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
+	cert, err := f.sctx.cfg.RootClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
 		PublicKey: key.MarshalSSHPublicKey(),
 		Username:  f.sctx.GetUser(),
 		Expires:   time.Now().Add(time.Minute).UTC(),

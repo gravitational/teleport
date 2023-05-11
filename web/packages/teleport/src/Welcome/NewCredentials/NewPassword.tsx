@@ -76,8 +76,8 @@ export function NewPassword(props: Props) {
     <Validation>
       {({ validator }) => (
         <Box p={5} ref={refCallback} data-testid="password">
-          {mfaEnabled && <Text color="text.secondary">Step 1 of 2</Text>}
-          <Text typography="h4" bold mb={3} color="light">
+          {mfaEnabled && <Text color="text.slightlyMuted">Step 1 of 2</Text>}
+          <Text typography="h4" bold mb={3} color="text.main">
             Set A Password
           </Text>
           {submitAttempt.status === 'failed' && (

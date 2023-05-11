@@ -139,8 +139,9 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
 	server, err := types.NewServerWithLabels("banana", types.KindNode, types.ServerSpecV2{
-		Hostname: "foo",
-		Addr:     "bar",
+		Hostname:    "foo",
+		Addr:        "bar",
+		PublicAddrs: []string{"foo.example.com:3080"},
 	}, map[string]string{"env": "prod", "os": "mac"})
 	require.NoError(t, err)
 
@@ -176,6 +177,30 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 			},
 			assertErr:   require.NoError,
 			assertMatch: require.False,
+		},
+		{
+			name: "search keywords hostname match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"bar"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords public addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo.example.com"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
 		},
 		{
 			name: "expression match",
@@ -532,7 +557,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			out:  []*types.DatabaseResourceMatcher{},
 		},
 		{
-			name: "sinlge element with single label",
+			name: "single element with single label",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem1": []string{"elem1"}}},
 			},
@@ -541,7 +566,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			},
 		},
 		{
-			name: "sinlge element with multiple labels",
+			name: "single element with multiple labels",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
 			},

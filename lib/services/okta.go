@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -52,20 +53,25 @@ type OktaImportRules interface {
 	DeleteAllOktaImportRules(context.Context) error
 }
 
-// OktaAssignments defines an interface for managing OktaAssignments.
-type OktaAssignments interface {
+// OktaAssignmentsGetter defines an interface for reading OktaAssignments.
+type OktaAssignmentsGetter interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
-	// GetOktaAssignmen treturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+}
+
+// OktaAssignments defines an interface for managing OktaAssignments.
+type OktaAssignments interface {
+	OktaAssignmentsGetter
+
 	// CreateOktaAssignment creates a new Okta assignment resource.
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
-	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
-	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.

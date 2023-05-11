@@ -229,21 +229,21 @@ tests:
     set:
       clusterName: helm-lint.example.com
       enterprise: true
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport-ent:8.3.4
+          value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
 
   - it: should use OSS image when enterprise is not set in values
     template: proxy/deployment.yaml
     set:
       clusterName: helm-lint
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
 
   - it: should mount TLS certs when cert-manager is enabled
     template: proxy/deployment.yaml
@@ -825,3 +825,75 @@ tests:
           path: spec.template.spec.nodeSelector
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: mounts regular tokens on older Kubernetes versions
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint
+    capabilities:
+      majorVersion: 1
+      minorVersion: 18
+    asserts:
+      - notEqual:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: proxy-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: proxy-serviceaccount-token
+            readOnly: true
+
+  - it: mounts tokens through projected volumes on newer Kubernetes versions
+    template: proxy/deployment.yaml
+    set:
+      clusterName: helm-lint
+    capabilities:
+      majorVersion: 1
+      minorVersion: 21
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: proxy-serviceaccount-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                - configMap:
+                    items:
+                      - key: ca.crt
+                        path: ca.crt
+                    name: kube-root-ca.crt
+                - downwardAPI:
+                    items:
+                      - path: "namespace"
+                        fieldRef:
+                          fieldPath: metadata.namespace
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: proxy-serviceaccount-token
+            readOnly: true

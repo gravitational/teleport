@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -136,6 +137,84 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 		}
 	}
 	return trace.Wrap(err)
+}
+
+// GetServerInfos returns a stream of ServerInfos.
+func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+	startKey := backend.ExactKey(serverInfoPrefix)
+	endKey := backend.RangeEnd(startKey)
+	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
+	return stream.FilterMap(items, func(item backend.Item) (types.ServerInfo, bool) {
+		si, err := services.UnmarshalServerInfo(
+			item.Value,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			s.log.Warnf("Skipping server info at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return si, true
+	})
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (s *PresenceService) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing server info name")
+	}
+	item, err := s.Get(ctx, backend.Key(serverInfoPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("server info %q is not found", name)
+		}
+		return nil, trace.Wrap(err)
+	}
+	si, err := services.UnmarshalServerInfo(
+		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires),
+	)
+	return si, trace.Wrap(err)
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (s *PresenceService) DeleteAllServerInfos(ctx context.Context) error {
+	startKey := backend.ExactKey(serverInfoPrefix)
+	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (s *PresenceService) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	if err := si.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.MarshalServerInfo(si)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(serverInfoPrefix, si.GetName()),
+		Value:   value,
+		Expires: si.Expiry(),
+		ID:      si.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	return trace.Wrap(err)
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing server info name")
+	}
+	err := s.Delete(ctx, backend.Key(serverInfoPrefix, name))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("server info %q is not found", name)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
@@ -1379,6 +1458,28 @@ func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name s
 	return t, nil
 }
 
+// GetUserGroups returns all registered user groups.
+func (s *PresenceService) GetUserGroups(ctx context.Context, opts ...services.MarshalOption) ([]types.UserGroup, error) {
+	startKey := backend.Key(userGroupPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups := make([]types.UserGroup, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalUserGroup(
+			item.Value,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userGroups[i] = server
+	}
+	return userGroups, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1418,6 +1519,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
+	case types.KindUserGroup:
+		keyPrefix = []string{userGroupPrefix}
+		unmarshalItemFunc = backendItemToUserGroup
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1546,6 +1650,17 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = kubeServers.AsResources()
+	case types.KindUserGroup:
+		userGroups, err := s.GetUserGroups(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sortedUserGroups := types.UserGroups(userGroups)
+		if err := sortedUserGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedUserGroups.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
@@ -1675,6 +1790,16 @@ func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLa
 	)
 }
 
+// backendItemToUserGroup unmarshals `backend.Item` into a
+// `types.UserGroup`, returning it as a `types.ResourceWithLabels`.
+func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalUserGroup(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
 const (
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
@@ -1694,4 +1819,5 @@ const (
 	semaphoresPrefix             = "semaphores"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
+	serverInfoPrefix             = "serverInfos"
 )

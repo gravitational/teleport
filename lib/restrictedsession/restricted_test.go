@@ -220,7 +220,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit()
+	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
 
 	time.Sleep(100 * time.Millisecond)
 

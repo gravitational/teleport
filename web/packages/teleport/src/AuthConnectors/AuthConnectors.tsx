@@ -85,7 +85,7 @@ export function AuthConnectors(props: State) {
               <Box
                 ml="4"
                 width="240px"
-                color="text.primary"
+                color="text.main"
                 style={{ flexShrink: 0 }}
               >
                 <Text typography="h6" mb={3} caps>
@@ -100,7 +100,7 @@ export function AuthConnectors(props: State) {
                 <Text typography="subtitle1" mb={2}>
                   Please{' '}
                   <Link
-                    color="light"
+                    color="text.main"
                     // We have two version of this component.
                     // This OSS version and an enterprise version.
                     href="https://goteleport.com/docs/setup/admin/github-sso/"

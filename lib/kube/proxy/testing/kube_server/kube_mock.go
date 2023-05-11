@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -215,7 +216,7 @@ func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httpro
 		for {
 			buffer = buffer[:cap(buffer)]
 			n, err := proxy.stdinStream.Read(buffer)
-			if err == io.EOF && n == 0 {
+			if errors.Is(err, io.EOF) && n == 0 {
 				break
 			} else if err != nil && n == 0 {
 				s.log.WithError(err).Errorf("unable to receive from stdin")

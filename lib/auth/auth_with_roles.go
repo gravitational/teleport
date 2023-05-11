@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -48,6 +49,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -200,13 +202,29 @@ func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID)
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
-// serverAction returns an access denied error if the role is not one of the builtin server roles.
-func (a *ServerWithRoles) serverAction() error {
+// localServerAction returns an access denied error if the role is not one of the builtin server roles.
+func (a *ServerWithRoles) localServerAction() error {
 	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	return nil
+}
+
+// remoteServerAction returns an access denied error if the role is not one of the remote builtin server roles.
+func (a *ServerWithRoles) remoteServerAction() error {
+	role, ok := a.context.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok || !role.IsRemoteServer() {
+		return trace.AccessDenied("this request can be only executed by a teleport remote server")
+	}
+	return nil
+}
+
+// isLocalOrRemoteServerAction returns true if the role is one of the builtin server roles (local or remote).
+func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
+	errLocal := a.localServerAction()
+	errRemote := a.remoteServerAction()
+	return errLocal == nil || errRemote == nil
 }
 
 // hasBuiltinRole checks that the attached identity is a builtin role and
@@ -421,9 +439,30 @@ func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) er
 	return trace.Wrap(err)
 }
 
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Token, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -442,6 +481,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	if tracker.GetKind() == types.KindSSHSession {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
+			Kind:           tracker.GetSessionKind(),
 			ID:             session.ID(tracker.GetSessionID()),
 			Namespace:      apidefaults.Namespace,
 			Login:          tracker.GetLogin(),
@@ -579,7 +619,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return tracker, nil
 	}
 
@@ -604,7 +644,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -632,7 +672,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -655,7 +695,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -664,7 +704,7 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -697,7 +737,7 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 // to connect to Agentless nodes.
 func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	// this limits the requests types to proxies to make it harder to break
-	if !a.hasBuiltinRole(types.RoleProxy) {
+	if !a.hasBuiltinRole(types.RoleProxy) && !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.GenerateOpenSSHCert(ctx, req)
@@ -1067,6 +1107,16 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.Inve
 	return a.authServer.GetInventoryStatus(ctx, req), nil
 }
 
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
+	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
+	// the inventory APIs once they are more developed.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
+	}
+	return a.authServer.GetInventoryConnectedServiceCounts(), nil
+}
+
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
 	// the inventory APIs once they are more developed.
@@ -1332,6 +1382,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	if len(watch.Kinds) == 0 {
 		return nil, trace.AccessDenied("can't setup global watch")
 	}
+
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
 		// Check the permissions for data of each kind. For watching, most
 		// kinds of data just need a Read permission, but some have more
@@ -1343,25 +1395,33 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 				verb = types.VerbRead
 			}
 			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		case types.KindAccessRequest:
 			var filter types.AccessRequestFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
 				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
-			}
-		case types.KindAppServer:
-			if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
 			}
 		case types.KindWebSession:
 			var filter types.WebSessionFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			resource := types.KindWebSession
@@ -1371,35 +1431,29 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
 				if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
 			}
-		case types.KindWebToken:
-			if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindRemoteCluster:
-			if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindDatabaseServer:
-			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindKubeServer:
-			if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindWindowsDesktopService:
-			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		}
+
+		validKinds = append(validKinds, kind)
 	}
+
+	if len(validKinds) == 0 {
+		return nil, trace.BadParameter("none of the requested kinds can be watched")
+	}
+
+	watch.Kinds = validKinds
 	switch {
 	case a.hasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
@@ -1507,12 +1561,12 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	}
 
 	// Check if auth server has a license for this resource type but only return an
-	// error if the user is not a builtin proxy or kube role.
-	// Builtin proxy and kube roles are allowed to list resources to avoid crashes
+	// error if the requester is not a builtin or remote server.
+	// Builtin and remote server roles are allowed to list resources to avoid crashes
 	// even if the license is missing.
 	// Users with other roles will get an error if the license is missing so they
 	// can request a license with the correct features.
-	if err := enforceLicense(req.ResourceType); err != nil && !a.hasBuiltinRole(types.RoleProxy, types.RoleKube) {
+	if err := enforceLicense(req.ResourceType); err != nil && !a.isLocalOrRemoteServerAction() {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1581,7 +1635,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindUserGroup:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1679,15 +1733,23 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, state)
-	default:
-		return trace.BadParameter("could not check access to resource type %T", r)
+	case types.UserGroup:
+		// Because usergroup only has ResourceWithLabels, it looks like this will match
+		// everything. To get around this, we'll match on it last and then double check
+		// that the kind is equal to usergroup. If it's not, we'll fall through and return
+		// the bad parameter as expected.
+		if rr.GetKind() == types.KindUserGroup {
+			return r.CheckAccess(rr, state)
+		}
 	}
+
+	return trace.BadParameter("could not check access to resource type %T", r)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -1778,6 +1840,29 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = desktops.AsResources()
+	case types.KindUserGroup:
+		var allUserGroups types.UserGroups
+		userGroups, nextKey, err := a.ListUserGroups(ctx, int(req.Limit), "")
+		for {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, ug := range userGroups {
+				allUserGroups = append(allUserGroups, ug)
+			}
+
+			if nextKey == "" {
+				break
+			}
+
+			userGroups, nextKey, err = a.ListUserGroups(ctx, int(req.Limit), nextKey)
+		}
+
+		if err := allUserGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = allUserGroups.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
@@ -2864,6 +2949,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
+		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
@@ -4409,7 +4495,7 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	}
 	// Users can only fetch their own SAML IdP sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindSAMLIdPSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4899,7 +4985,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	err := a.serverAction()
+	err := a.localServerAction()
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {
@@ -5794,13 +5880,57 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 	return trace.Wrap(err)
 }
 
+func (a *ServerWithRoles) checkAccessToUserGroup(userGroup types.UserGroup) error {
+	return a.context.Checker.CheckAccess(
+		userGroup,
+		// MFA is not required for operations on user group resources.
+		services.AccessState{MFAVerified: true})
+}
+
 // ListUserGroups returns a paginated list of user group resources.
 func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, nextToken string) ([]types.UserGroup, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListUserGroups(ctx, pageSize, nextToken)
+	// We have to set a default here.
+	if pageSize == 0 {
+		pageSize = local.GroupMaxPageSize
+	}
+
+	// Because access to user groups is determined by label, we'll need to calculate the entire list of
+	// user groups and then check access to those user groups.
+	var filteredUserGroups []types.UserGroup
+
+	// Use the default page size since we're assembling our pages manually here.
+	userGroups, nextToken, err := a.authServer.ListUserGroups(ctx, 0, nextToken)
+	for {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		for _, userGroup := range userGroups {
+			err := a.checkAccessToUserGroup(userGroup)
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, "", trace.Wrap(err)
+			} else if err == nil {
+				filteredUserGroups = append(filteredUserGroups, userGroup)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		userGroups, nextToken, err = a.authServer.ListUserGroups(ctx, 0, nextToken)
+	}
+
+	numUserGroups := len(filteredUserGroups)
+	if numUserGroups <= pageSize {
+		return filteredUserGroups, "", nil
+	}
+
+	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
 }
 
 // GetUserGroup returns the specified user group resources.
@@ -5809,30 +5939,61 @@ func (a *ServerWithRoles) GetUserGroup(ctx context.Context, name string) (types.
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetUserGroup(ctx, name)
+	userGroup, err := a.authServer.GetUserGroup(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(userGroup); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return userGroup, nil
 }
 
 // CreateUserGroup creates a new user group resource.
-func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, g types.UserGroup) error {
+func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.CreateUserGroup(ctx, g)
+	if err := a.checkAccessToUserGroup(userGroup); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateUserGroup(ctx, userGroup)
 }
 
 // UpdateUserGroup updates an existing user group resource.
-func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, g types.UserGroup) error {
+func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.UpdateUserGroup(ctx, g)
+	previousUserGroup, err := a.authServer.GetUserGroup(ctx, userGroup.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateUserGroup(ctx, userGroup)
 }
 
 // DeleteUserGroup removes the specified user group resource.
 func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5927,6 +6088,51 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantMessages(ctx, req)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantMessage(ctx, msg)
+}
+
+// UpdateAssistantConversationInfo updates the conversation info.
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")
@@ -5961,8 +6167,8 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 
 	if modules.GetModules().Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
-		// an external cloud-specific databse.
-		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)

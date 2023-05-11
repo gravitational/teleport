@@ -73,7 +73,7 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
         <ButtonClose onClick={props.onClose} />
       </Flex>
       {items.Form}
-      <Text color="error.light" typography="body2" mt={1}>
+      <Text color="error.hover" typography="body2" mt={1}>
         {props.errorText}
       </Text>
       <FileList files={props.files} onCancel={props.onCancel} />
@@ -96,9 +96,4 @@ const Container = styled.div`
   box-sizing: border-box;
   border-radius: ${props => props.theme.radii[2]}px;
   padding: 8px 16px 16px;
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 500px;
-  z-index: 10;
 `;

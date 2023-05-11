@@ -436,8 +436,8 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			// If TLVs are empty we know it can't be signed, so we don't try to verify to avoid unnecessary load
-			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && len(newProxyLine.TLVs) > 0 {
+			// If proxyline is not signed, so we don't try to verify to avoid unnecessary load
+			if m.CertAuthorityGetter != nil && m.LocalClusterName != "" && newProxyLine.IsSigned() {
 				err = newProxyLine.VerifySignature(m.context, m.CertAuthorityGetter, m.LocalClusterName, m.Clock)
 				if errors.Is(err, ErrNoHostCA) {
 					m.WithFields(log.Fields{
@@ -496,18 +496,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH, ProtoHTTP:
+		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
 				reader:    reader,
 				proxyLine: proxyLine,
-			}, nil
-		case ProtoPostgres:
-			return &Conn{
-				protocol: proto,
-				Conn:     conn,
-				reader:   reader,
 			}, nil
 		}
 	}
@@ -686,13 +680,11 @@ func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*P
 // SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
 func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
-	if errors.Is(err, ErrBadIP) {
+	if err == nil {
 		log.WithFields(log.Fields{
 			"src_addr":     fmt.Sprintf("%v", source),
 			"dst_addr":     fmt.Sprintf("%v", destination),
-			"cluster_name": p.clusterName}).Warn("Got bad IP while trying to sign PROXY header")
-		return nil, nil
+			"cluster_name": p.clusterName}).Trace("Successfully generated signed PROXY header")
 	}
-
-	return header, err
+	return header, trace.Wrap(err)
 }

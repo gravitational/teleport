@@ -17,23 +17,18 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import defaultTheme from 'design/theme';
 import { space, color } from 'design/system';
 
 function Link({ ...props }) {
   return <StyledButtonLink {...props} />;
 }
 
-Link.defaultProps = {
-  theme: defaultTheme,
-};
-
 Link.displayName = 'Link';
 
 const StyledButtonLink = styled.a.attrs({
   rel: 'noreferrer',
 })`
-  color: ${({ theme }) => theme.colors.link};
+  color: ${({ theme }) => theme.colors.buttons.link.default};
   font-weight: normal;
   background: none;
   text-decoration: underline;
