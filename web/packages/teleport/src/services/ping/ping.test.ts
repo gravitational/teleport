@@ -19,7 +19,7 @@ import api from 'teleport/services/api';
 import ping from './ping';
 
 test('undefined automatic upgrade resolves to false', async () => {
-  const mockContext = {};
+  const mockContext = { assist: {} };
 
   jest.spyOn(api, 'get').mockResolvedValue(mockContext);
 
