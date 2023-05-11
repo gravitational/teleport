@@ -29,6 +29,8 @@ import (
 )
 
 // WSConn is a gorilla/websocket minimal interface used by our web implementation.
+// This interface exists to override the default websocket.Conn implementation,
+// currently used by noopCloserWS to prevent WS being closed by wrapping stream.
 type WSConn interface {
 	Close() error
 
@@ -54,6 +56,8 @@ type outEnvelope struct {
 	Payload []byte `json:"payload"`
 }
 
+// payloadWriter is a wrapper around io.Writer, which wraps the given bytes into
+// outEnvelope and writes it to the underlying stream.
 type payloadWriter struct {
 	nodeID string
 	// output name, can be stdout, stderr or teleport-error.
@@ -62,6 +66,7 @@ type payloadWriter struct {
 	stream io.Writer
 }
 
+// Write writes the given bytes to the underlying stream.
 func (p *payloadWriter) Write(b []byte) (n int, err error) {
 	out := &outEnvelope{
 		NodeID:  p.nodeID,
@@ -87,8 +92,11 @@ func newPayloadWriter(nodeID, outputName string, stream io.Writer) *payloadWrite
 	}
 }
 
-// noopCloserWS is a wrapper around websocket.Conn which does nothing on Close().
+// noopCloserWS is a wrapper around websocket.Conn, which does nothing on Close().
 // This struct is used to prevent WS being closed by wrapping stream.
+// Currently, it is being used in Command web handler to prevent WS being closed
+// by any underlying code as we want to keep the connection open until the command
+// is executed on all nodes and a single failure should not close the connection.
 type noopCloserWS struct {
 	*websocket.Conn
 }

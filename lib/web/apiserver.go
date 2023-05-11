@@ -2731,8 +2731,9 @@ type hostInfo struct {
 }
 
 // findByQuery returns all hosts matching the given query/predicate.
+// The query is a predicate expression that can be used to filter hosts.
 func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
-	resources, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
+	servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,
 		Namespace:           apidefaults.Namespace,
 		PredicateExpression: query,
@@ -2741,13 +2742,8 @@ func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInf
 		return nil, trace.Wrap(err)
 	}
 
-	hosts := make([]hostInfo, 0, len(resources))
-	for _, resource := range resources {
-		server, ok := resource.(types.Server)
-		if !ok {
-			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
-		}
-
+	hosts := make([]hostInfo, 0, len(servers))
+	for _, server := range servers {
 		h := hostInfo{
 			hostName: server.GetHostname(),
 			id:       server.GetName(),

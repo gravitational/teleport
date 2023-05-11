@@ -53,6 +53,7 @@ import (
 // CommandResultType is the type of Assist message that contains the command execution result.
 const CommandResultType = "COMMAND_RESULT"
 
+// CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
 	// Command is the command to be executed on all nodes.
 	Command string `json:"command"`
@@ -66,6 +67,7 @@ type CommandRequest struct {
 	ExecutionID string `json:"execution_id"`
 }
 
+// Check checks if the request is valid.
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {
 		return trace.BadParameter("missing command")
@@ -169,7 +171,7 @@ func (h *Handler) executeCommand(
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
-		log.WithError(err).Warn("failed to find nodes by labels")
+		log.WithError(err).Warn("Failed to find nodes by labels")
 		return nil, trace.Wrap(err)
 	}
 
@@ -281,6 +283,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 	}, nil
 }
 
+// CommandHandlerConfig is the configuration for the command handler.
 type CommandHandlerConfig struct {
 	// SessionCtx is the context for the user's web session.
 	SessionCtx *SessionContext
@@ -307,6 +310,7 @@ type CommandHandlerConfig struct {
 	tracer oteltrace.Tracer
 }
 
+// CheckAndSetDefaults checks and sets default values.
 func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 	// Make sure whatever session is requested is a valid session id.
 	_, err := session.ParseID(t.SessionData.ID.String())
@@ -347,6 +351,7 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// commandHandler is a handler for executing commands on a remote node.
 type commandHandler struct {
 	sshBaseHandler
 
@@ -431,12 +436,12 @@ func (t *commandHandler) handler(r *http.Request) {
 	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	t.streamOutput(r.Context(), t.ws, tc)
+	t.streamOutput(r.Context(), tc)
 }
 
-// streamOutput opens a SSH connection to the remote host and streams
+// streamOutput opens an SSH connection to the remote host and streams
 // events back to the web client.
-func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client.TeleportClient) {
+func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportClient) {
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
 	defer span.End()
 
