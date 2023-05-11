@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -50,6 +51,7 @@ import (
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/cloud"
+	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	libazure "github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,6 +91,9 @@ type Auth interface {
 	// attached to the current compute instance. If Teleport is not running on
 	// Azure VM returns an error.
 	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
+	// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB
+	// Atlas instance.
+	GetAtlasIAMToken(ctx context.Context, sessionCtx *Session) (string, string, string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -541,6 +546,12 @@ func (a *dbAuth) getTLSConfigVerifyFull(ctx context.Context, sessionCtx *Session
 		return tlsConfig, nil
 	}
 
+	// MongoDB Atlas doesn't not require client certificates if is using AWS
+	// authentication.
+	if arn.IsARN(sessionCtx.DatabaseUser) && sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas {
+		return tlsConfig, nil
+	}
+
 	// Otherwise, when connecting to an onprem database, generate a client
 	// certificate. The database instance should be configured with
 	// Teleport's CA obtained with 'tctl auth sign --type=db'.
@@ -820,6 +831,47 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 	}
 
 	return vm, nil
+}
+
+// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB Atlas
+// instance.
+func (a *dbAuth) GetAtlasIAMToken(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+	dbAWS := sessionCtx.Database.GetAWS()
+	awsAccountID := dbAWS.AccountID
+
+	// If AWS account ID is empty, we need to fetch it from the agent identity.
+	// It has to be filled in case the database username is a partial ARN.
+	if awsutils.IsPartialRoleARN(sessionCtx.DatabaseUser) && awsAccountID == "" {
+		a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
+		stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
+		if err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+
+		identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+		if err != nil {
+			return "", "", "", trace.Wrap(err)
+		}
+
+		awsAccountID = identity.GetAccountID()
+	}
+
+	arn, err := awsutils.BuildRoleARN(sessionCtx.DatabaseUser, dbAWS.Region, awsAccountID)
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRole(arn, sessionCtx.Database.GetAWS().ExternalID))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	creds, err := sess.Config.Credentials.Get()
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	return creds.AccessKeyID, creds.SecretAccessKey, creds.SessionToken, nil
 }
 
 // Close releases all resources used by authenticator.

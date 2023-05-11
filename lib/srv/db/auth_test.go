@@ -64,6 +64,8 @@ func TestAuthTokens(t *testing.T) {
 		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
 		withElastiCacheRedis("redis-elasticache-correct-token", elastiCacheRedisToken, "7.0.0"),
 		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
+		withAtlasMongo("mongo-atlas-correct-token", atlasAuthUser, atlasAuthSessionToken),
+		withAtlasMongo("mongo-atlas-incorrect-token", atlasAuthUser, "qwe123"),
 	}
 	databases := make([]types.Database, 0, len(withDBs))
 	for _, withDB := range withDBs {
@@ -169,6 +171,11 @@ func TestAuthTokens(t *testing.T) {
 			// Make sure we print a user-friendly IAM auth error.
 			err: "Make sure that IAM auth is enabled",
 		},
+		{
+			desc:     "correct Atlas Mongo auth token",
+			service:  "mongo-atlas-correct-token",
+			protocol: defaults.ProtocolMongoDB,
+		},
 	}
 
 	for _, test := range tests {
@@ -200,6 +207,15 @@ func TestAuthTokens(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close())
+				}
+			case defaults.ProtocolMongoDB:
+				conn, err := testCtx.mongoClient(ctx, "alice", test.service, atlasAuthUser)
+				if test.err != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), test.err)
+				} else {
+					require.NoError(t, err)
+					require.NoError(t, conn.Disconnect(ctx))
 				}
 			default:
 				t.Fatalf("unrecognized database protocol in test: %q", test.protocol)
@@ -245,6 +261,12 @@ const (
 	azureRedisToken = "azure-redis-token"
 	// elastiCacheRedisToken is a mock ElastiCache Redis token.
 	elastiCacheRedisToken = "elasticache-redis-token"
+	// atlasAuthUser is a mock Mongo Atlas IAM auth user.
+	atlasAuthUser = "arn:aws:iam::111111111111:role/alice"
+	// atlasAuthToken is a mock Mongo Atlas IAM auth token.
+	atlasAuthToken = "atlas-auth-token"
+	// atlasAuthSessionToken is a mock Mongo Atlas IAM auth session token.
+	atlasAuthSessionToken = "atlas-session-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -289,6 +311,13 @@ func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
 	return azureRedisToken, nil
+}
+
+// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB Atlas
+// instance.
+func (a *testAuth) GetAtlasIAMToken(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
+	a.Infof("Generating Mongo Atlas auth token for %v.", sessionCtx)
+	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
 func TestDBCertSigning(t *testing.T) {
@@ -375,6 +404,58 @@ func TestDBCertSigning(t *testing.T) {
 			// Verify if the generated certificate can be verified with the correct CA.
 			_, err = dbCert.Verify(opts)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestMongoDBAtlas(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withAtlasMongo("iam-auth", atlasAuthUser, atlasAuthSessionToken),
+		withAtlasMongo("certs-auth", "", ""),
+	)
+	go testCtx.startHandlingConnections()
+	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
+
+	for name, tt := range map[string]struct {
+		service   string
+		dbUser    string
+		expectErr require.ErrorAssertionFunc
+	}{
+		"authenticates with arn username": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.NoError,
+		},
+		"disabled iam authentication": {
+			service:   "certs-auth",
+			dbUser:    "arn:aws:iam::111111111111:role/alice",
+			expectErr: require.Error,
+		},
+		"partial arn authentication": {
+			service:   "iam-auth",
+			dbUser:    "role/alice",
+			expectErr: require.NoError,
+		},
+		"IAM user arn": {
+			service:   "iam-auth",
+			dbUser:    "arn:aws:iam::111111111111:user/alice",
+			expectErr: require.Error,
+		},
+		"certs authentication": {
+			service:   "certs-auth",
+			dbUser:    "alice",
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			conn, err := testCtx.mongoClient(ctx, "alice", tt.service, tt.dbUser)
+			tt.expectErr(t, err)
+			if err != nil {
+				require.NoError(t, conn.Disconnect(ctx))
+			}
 		})
 	}
 }

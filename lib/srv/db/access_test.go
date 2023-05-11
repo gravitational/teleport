@@ -2528,6 +2528,40 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
+func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+			Name:             name,
+			AuthClient:       testCtx.authClient,
+			AuthUser:         authUser,
+			AuthSessionToken: authSession,
+		})
+		require.NoError(t, err)
+		go mongoServer.Serve()
+		t.Cleanup(func() { mongoServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMongoDB,
+			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				AccountID: "000000000000",
+			},
+			MongoAtlas: types.MongoAtlas{
+				Name: "test",
+			},
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mongo[name] = testMongoDB{
+			db:       mongoServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{

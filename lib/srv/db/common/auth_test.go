@@ -571,6 +571,62 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	}
 }
 
+func TestGetAtlasIAMToken(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+	db := newMongoAtlasDatabase(t)
+
+	for name, tt := range map[string]struct {
+		stsMock *mocks.STSMock
+		// database types.Database
+		username      string
+		expectedKeyId string
+		expectErr     require.ErrorAssertionFunc
+	}{
+		"username is full role ARN": {
+			stsMock:       &mocks.STSMock{},
+			username:      "arn:aws:iam::123456789012:role/role-name",
+			expectedKeyId: "arn:aws:iam::123456789012:role/role-name",
+			expectErr:     require.NoError,
+		},
+		"username is partial role ARN": {
+			stsMock: &mocks.STSMock{
+				// This is the role returned by the STS GetCallerIdentity.
+				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
+			},
+			username:      "role/role-name",
+			expectedKeyId: "arn:aws:iam::222222222222:role/role-name",
+			expectErr:     require.NoError,
+		},
+		"unable to fetch account ID": {
+			stsMock: &mocks.STSMock{
+				ARN: "",
+			},
+			username:  "role/role-name",
+			expectErr: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			auth, err := NewAuth(AuthConfig{
+				Clock:      clock,
+				AuthClient: new(authClientMock),
+				Clients: &cloud.TestCloudClients{
+					STS: tt.stsMock,
+				},
+			})
+			require.NoError(t, err)
+
+			keyId, _, _, err := auth.GetAtlasIAMToken(ctx, &Session{
+				Database:     db,
+				DatabaseUser: tt.username,
+			})
+			tt.expectErr(t, err)
+			require.Equal(t, tt.expectedKeyId, keyId)
+		})
+	}
+}
+
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 	t.Helper()
 
@@ -611,6 +667,22 @@ func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Datab
 		GCP: types.GCPCloudSQL{
 			ProjectID:  projectID,
 			InstanceID: instanceID,
+		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newMongoAtlasDatabase(t *testing.T) types.Database {
+	t.Helper()
+
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "test.xxxxxxx.mongodb.net",
+		MongoAtlas: types.MongoAtlas{
+			Name: "test",
 		},
 	})
 	require.NoError(t, err)
