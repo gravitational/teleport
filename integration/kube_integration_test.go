@@ -50,6 +50,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
@@ -1641,14 +1642,26 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		return true
 	}, 10*time.Second, time.Second)
 
-	stream, err := kubeJoin(kube.ProxyConfig{
-		T:          teleport,
-		Username:   participantUsername,
-		KubeUsers:  kubeUsers,
-		KubeGroups: kubeGroups,
-	}, tc, session)
-	require.NoError(t, err)
+	var stream *client.KubeSession
+	t.Run("join KubeProxyAddr", func(t *testing.T) {
+		stream, err = kubeJoin(kube.ProxyConfig{
+			T:                   teleport,
+			Username:            participantUsername,
+			KubeUsers:           kubeUsers,
+			KubeGroups:          kubeGroups,
+			CustomTLSServerName: "",
+		}, tc, session)
+		require.NoError(t, err)
+	})
 	defer stream.Close()
+
+	// Tests other connection methods.
+	t.Run("join WebProxyAddr", func(t *testing.T) {
+		testKubeJoinByWebAddr(t, teleport, participantUsername, kubeUsers, kubeGroups, session)
+	})
+	t.Run("join WebProxyAddr with connection upgrade", func(t *testing.T) {
+		testKubeJoinByALBAddr(t, teleport, participantUsername, kubeUsers, kubeGroups, session)
+	})
 
 	// We wait again for the second user to finish joining the session.
 	// We allow a bit of time to pass here to give the session manager time to recognize the
@@ -1667,8 +1680,57 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		participantStdoutW.Close()
 	})
 
-	participantOutput, err := io.ReadAll(participantStdoutR)
+	t.Run("verify output", func(t *testing.T) {
+		participantOutput, err := io.ReadAll(participantStdoutR)
+		require.NoError(t, err)
+		require.Contains(t, string(participantOutput), "echo hi")
+		require.Contains(t, out.String(), "echo hi2")
+	})
+}
+
+func testKubeJoinByWebAddr(t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, session types.SessionTracker) {
+	t.Helper()
+
+	tc, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		Proxy: &helpers.ProxyConfig{
+			WebAddr:  teleport.Config.Proxy.WebAddr.Addr,
+			KubeAddr: teleport.Config.Proxy.WebAddr.Addr,
+		},
+	})
 	require.NoError(t, err)
-	require.Contains(t, string(participantOutput), "echo hi")
-	require.Contains(t, out.String(), "echo hi2")
+
+	stream, err := kubeJoin(kube.ProxyConfig{
+		T:                   teleport,
+		Username:            username,
+		KubeUsers:           kubeUsers,
+		KubeGroups:          kubeGroups,
+		CustomTLSServerName: constants.KubeTeleportProxyALPNPrefix + Host,
+	}, tc, session)
+	require.NoError(t, err)
+	stream.Close()
+}
+func testKubeJoinByALBAddr(t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, session types.SessionTracker) {
+	t.Helper()
+
+	albProxy := helpers.MustStartMockALBProxy(t, teleport.Config.Proxy.WebAddr.Addr)
+	tc, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		ALBAddr: albProxy.Addr().String(),
+	})
+	require.NoError(t, err)
+
+	stream, err := kubeJoin(kube.ProxyConfig{
+		T:                   teleport,
+		Username:            username,
+		KubeUsers:           kubeUsers,
+		KubeGroups:          kubeGroups,
+		CustomTLSServerName: constants.KubeTeleportProxyALPNPrefix + Host,
+	}, tc, session)
+	require.NoError(t, err)
+	stream.Close()
 }
