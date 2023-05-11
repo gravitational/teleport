@@ -253,15 +253,15 @@ const ExtraTopComponents = (props: {
           return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
         }
         case 'preview': {
-          const nonRetryableResourceSearchErrors =
-            status.searchMode.nonRetryableResourceSearchErrors;
+          const {
+            nonRetryableResourceSearchErrors,
+            hasNoRemainingFilterActions,
+          } = status.searchMode;
 
           return (
             <>
               <TypeToSearchItem
-                hasNoRemainingFilterActions={
-                  status.searchMode.hasNoRemainingFilterActions
-                }
+                hasNoRemainingFilterActions={hasNoRemainingFilterActions}
               />
               {nonRetryableResourceSearchErrors.length > 0 && (
                 <ResourceSearchErrorsItem
