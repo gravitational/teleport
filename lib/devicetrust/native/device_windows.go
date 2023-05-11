@@ -24,6 +24,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"math/big"
 	"os"
@@ -34,7 +35,7 @@ import (
 )
 
 const (
-	deviceStateFolderName  = "teleport-device"
+	deviceStateFolderName  = ".teleport-device"
 	attestationKeyFileName = "attestation.key"
 )
 
@@ -285,6 +286,7 @@ func getDeviceBaseBoardSerial() (string, error) {
 }
 
 func getOSVersion() (string, error) {
+	// TODO(noah): Get-ComputerInfo is too slow. Find a faster alternative.
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
@@ -302,6 +304,7 @@ func getOSVersion() (string, error) {
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
+	log.Debug("Collecting device data.")
 	serial, err := getDeviceSerial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -310,10 +313,12 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = getDeviceBaseBoardSerial()
+	baseBoardSerial, err := getDeviceBaseBoardSerial()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(noah): Remove this line once BBS is included in DCD.
+	log.WithField("base_board_serial", baseBoardSerial).Debug("Base board serial collected.")
 	osVersion, err := getOSVersion()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -322,14 +327,17 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &devicepb.DeviceCollectedData{
+
+	dcd := &devicepb.DeviceCollectedData{
 		CollectTime:     timestamppb.Now(),
 		OsType:          devicepb.OSType_OS_TYPE_WINDOWS,
 		SerialNumber:    serial,
 		ModelIdentifier: model,
 		OsUsername:      u.Username,
 		OsVersion:       osVersion,
-	}, nil
+	}
+	log.WithField("device_collected_data", dcd).Debug("Device data collected.")
+	return dcd, nil
 }
 
 // getDeviceCredential will only return the credential ID on windows. The
@@ -383,17 +391,8 @@ func solveTPMEnrollChallenge(
 	}
 	defer ak.Close(tpm)
 
-	// First perform the credential activation challenge provided by the
-	// auth server.
-	activationSolution, err := ak.ActivateCredential(
-		tpm,
-		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Next perform a platform attestation using the AK.
+	log.Debug("Performing platform attestation.")
 	platformsParams, err := tpm.AttestPlatform(
 		ak,
 		challenge.AttestationNonce,
@@ -404,9 +403,21 @@ func solveTPMEnrollChallenge(
 		},
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "attesting platform")
 	}
 
+	// First perform the credential activation challenge provided by the
+	// auth server.
+	log.Debug("Activating credential.")
+	activationSolution, err := ak.ActivateCredential(
+		tpm,
+		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "activating credential with challenge")
+	}
+
+	log.Debug("TPM enrollment challenge completed.")
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
 		PlatformParameters: devicetrust.PlatformParametersToProto(
