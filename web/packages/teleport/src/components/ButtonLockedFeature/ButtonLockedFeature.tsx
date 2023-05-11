@@ -30,7 +30,7 @@ export type Props = {
   [index: string]: any;
 };
 
-const salesUrl = 'https://goteleport.com/r/upgrade-team';
+const SALES_URL = 'https://goteleport.com/r/upgrade-team';
 
 export function ButtonLockedFeature({
   children,
@@ -45,7 +45,7 @@ export function ButtonLockedFeature({
   function handleClick() {
     userEventService.captureCtaEvent(event);
     window.open(
-      `${salesUrl}?${getParams(version, isEnterprise, event)}`,
+      `${SALES_URL}?${getParams(version, isEnterprise, event)}`,
       'blank'
     );
   }
