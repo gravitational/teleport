@@ -27,15 +27,46 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-// IntegrationAWSOIDCTokenGenerator describes the required methods to generate tokens for calling AWS OIDC Integration actions.
-type IntegrationAWSOIDCTokenGenerator interface {
-	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
-	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
-}
-
 // awsOIDCListDatabases returns a list of databases using the ListDatabases action of the AWS OIDC Integration.
 func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
+
+	var req ui.AWSOIDCListDatabasesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(r.Context(), req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDBsClient, err := awsoidc.NewListDatabasesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.ListDatabases(ctx,
+		listDBsClient,
+		awsoidc.ListDatabasesRequest{
+			Region:    req.Region,
+			NextToken: req.NextToken,
+			Engines:   req.Engines,
+			RDSType:   req.RDSType,
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCListDatabasesResponse{
+		NextToken: resp.NextToken,
+		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
+	}, nil
+}
+
+// awsOIDClientRequest receives a request to execute an action for the AWS OIDC integrations.
+func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*awsoidc.AWSClientRequest, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
 		return nil, trace.BadParameter("an integration name is required")
@@ -55,11 +86,6 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
-	var req ui.AWSOIDCListDatabasesRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	issuer, err := h.issuerFromPublicAddr()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -77,30 +103,9 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
-	rdsClient, err := awsoidc.NewRDSClient(ctx, awsoidc.RDSClientRequest{
+	return &awsoidc.AWSClientRequest{
 		Token:   token,
 		RoleARN: awsoidcSpec.RoleARN,
-		Region:  req.Region,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := awsoidc.ListDatabases(ctx,
-		rdsClient,
-		awsoidc.ListDatabasesRequest{
-			Region:    req.Region,
-			NextToken: req.NextToken,
-			Engines:   req.Engines,
-			RDSType:   req.RDSType,
-		},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.AWSOIDCListDatabasesResponse{
-		NextToken: resp.NextToken,
-		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
+		Region:  region,
 	}, nil
 }
