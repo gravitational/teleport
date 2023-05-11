@@ -124,7 +124,7 @@ func TestChat_Complete(t *testing.T) {
 	chat := client.NewChat("Bob")
 
 	t.Run("initial message", func(t *testing.T) {
-		msg, tokens, err := chat.Complete(context.Background())
+		msg, err := chat.Complete(context.Background())
 		require.NoError(t, err)
 
 		expectedResp := &Message{Role: "assistant",
@@ -132,16 +132,13 @@ func TestChat_Complete(t *testing.T) {
 			Idx:     0,
 		}
 		require.Equal(t, expectedResp, msg)
-		require.Equal(t, 0, tokens)
 	})
 
 	t.Run("text completion", func(t *testing.T) {
 		chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space")
 
-		msg, tokens, err := chat.Complete(context.Background())
+		msg, err := chat.Complete(context.Background())
 		require.NoError(t, err)
-		// TODO(justinas): Here we should get 4 tokens, but the API reports 1.
-		require.Equal(t, 1, tokens)
 
 		require.IsType(t, &StreamingMessage{}, msg)
 		streamingMessage := msg.(*StreamingMessage)
@@ -156,9 +153,8 @@ func TestChat_Complete(t *testing.T) {
 	t.Run("command completion", func(t *testing.T) {
 		chat.Insert(openai.ChatMessageRoleUser, "localhost")
 
-		msg, tokens, err := chat.Complete(context.Background())
+		msg, err := chat.Complete(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, 2, tokens)
 
 		require.IsType(t, &CompletionCommand{}, msg)
 		command := msg.(*CompletionCommand)

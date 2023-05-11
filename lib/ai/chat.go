@@ -36,6 +36,8 @@ type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 	Idx     int    `json:"idx"`
+	// NumTokens is the number of completion tokens for the (non-streaming) message
+	NumTokens int `json:"-"`
 }
 
 // Chat represents a conversation between a user and an assistant with context memory.
@@ -96,6 +98,8 @@ type CompletionCommand struct {
 	Command string   `json:"command,omitempty"`
 	Nodes   []string `json:"nodes,omitempty"`
 	Labels  []Label  `json:"labels,omitempty"`
+	// NumTokens is the number of completion tokens for the (non-streaming) message
+	NumTokens int `json:"-"`
 }
 
 // Summary creates a short summary for the given input.
@@ -143,7 +147,7 @@ type StreamingMessage struct {
 // Message types:
 // - CompletionCommand: a command from the assistant
 // - StreamingMessage: a message that is streamed from the assistant
-func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
+func (chat *Chat) Complete(ctx context.Context) (any, error) {
 	var numTokens int
 
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
@@ -152,7 +156,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 			Role:    openai.ChatMessageRoleAssistant,
 			Content: initialAIResponse,
 			Idx:     len(chat.messages) - 1,
-		}, numTokens, nil
+		}, nil
 	}
 
 	// if not, copy the current chat log to a new slice and append the suffix instruction
@@ -175,7 +179,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 		},
 	)
 	if err != nil {
-		return nil, numTokens, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	var (
@@ -186,7 +190,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 		// fetch the first delta to check for a possible JSON payload
 		response, err = stream.Recv()
 		if err != nil {
-			return nil, numTokens, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		numTokens++
 
@@ -204,7 +208,7 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 				break
 			}
 			if err != nil {
-				return nil, numTokens, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			numTokens++
 
@@ -216,13 +220,15 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 		err = json.Unmarshal([]byte(payload.String()), &c)
 		switch err {
 		case nil:
-			return &c, numTokens, nil
+			c.NumTokens = numTokens
+			return &c, nil
 		default:
 			return &Message{
-				Role:    openai.ChatMessageRoleAssistant,
-				Content: payload.String(),
-				Idx:     len(chat.messages) - 1,
-			}, numTokens, nil
+				Role:      openai.ChatMessageRoleAssistant,
+				Content:   payload.String(),
+				Idx:       len(chat.messages) - 1,
+				NumTokens: numTokens,
+			}, nil
 		}
 	}
 
@@ -256,5 +262,5 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 		Idx:    len(chat.messages) - 1,
 		Chunks: chunks,
 		Error:  errCh,
-	}, numTokens, nil
+	}, nil
 }
