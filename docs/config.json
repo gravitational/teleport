@@ -1179,6 +1179,10 @@
               "slug": "/database-access/guides/redshift-serverless/"
             },
             {
+              "title": "AWS OpenSearch",
+              "slug": "/database-access/guides/aws-opensearch/"
+            },
+            {
               "title": "Azure Cache for Redis",
               "slug": "/database-access/guides/azure-redis/"
             },
