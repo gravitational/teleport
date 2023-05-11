@@ -51,7 +51,7 @@ const (
 	SSHSessionID = "SSH_SESSION_ID"
 
 	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
-	EnableNonInteractiveSessionRecording = "SSH_RECORD_NON_INTERACTIVE"
+	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
