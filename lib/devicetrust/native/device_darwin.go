@@ -98,10 +98,12 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
+	sn := C.GoString(dd.serial_number)
 	return &devicepb.DeviceCollectedData{
-		CollectTime:  timestamppb.Now(),
-		OsType:       devicepb.OSType_OS_TYPE_MACOS,
-		SerialNumber: C.GoString(dd.serial_number),
+		CollectTime:        timestamppb.Now(),
+		OsType:             devicepb.OSType_OS_TYPE_MACOS,
+		SerialNumber:       sn,
+		SystemSerialNumber: sn,
 	}, nil
 }
 

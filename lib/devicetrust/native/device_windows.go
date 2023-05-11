@@ -15,7 +15,6 @@
 package native
 
 import (
-	"bytes"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -239,16 +238,30 @@ func getDeviceSerial() (string, error) {
 		"-NoProfile",
 		"Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber",
 	)
-	// Example output from powershell terminal on a non-administrator Lenovo
 	// ThinkPad P P14s:
-	// PS > Get-WmiObject win32_bios | Select -ExpandProperty Serialnumber
+	// PS > Get-WmiObject Win32_BIOS | Select -ExpandProperty SerialNumber
 	// PF47WND6
 	out, err := cmd.Output()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	return strings.TrimSpace(string(out)), nil
+}
 
-	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+func getReportedAssetTag() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag",
+	)
+	// ThinkPad P P14s:
+	// PS > Get-WmiObject Win32_SystemEnclosure | Select -ExpandProperty SMBIOSAssetTag
+	// winaia_1337
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func getDeviceModel() (string, error) {
@@ -258,14 +271,13 @@ func getDeviceModel() (string, error) {
 		"Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model",
 	)
 	// ThinkPad P P14s:
-	// PS> Get-WmiObject win32_computersystem | Select -ExpandProperty Model
+	// PS> Get-WmiObject Win32_ComputerSystem | Select -ExpandProperty Model
 	// 21J50013US
 	out, err := cmd.Output()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func getDeviceBaseBoardSerial() (string, error) {
@@ -282,7 +294,7 @@ func getDeviceBaseBoardSerial() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+	return strings.TrimSpace(string(out)), nil
 }
 
 func getOSVersion() (string, error) {
@@ -300,12 +312,21 @@ func getOSVersion() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return strings.TrimSpace(string(bytes.ReplaceAll(out, []byte(" "), nil))), nil
+	return strings.TrimSpace(string(out)), nil
+}
+
+func firstOf(strings ...string) string {
+	for _, str := range strings {
+		if str != "" {
+			return str
+		}
+	}
+	return ""
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	log.Debug("Collecting device data.")
-	serial, err := getDeviceSerial()
+	systemSerial, err := getDeviceSerial()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -317,8 +338,10 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(noah): Remove this line once BBS is included in DCD.
-	log.WithField("base_board_serial", baseBoardSerial).Debug("Base board serial collected.")
+	reportedAssetTag, err := getReportedAssetTag()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	osVersion, err := getOSVersion()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -327,14 +350,21 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	serial := firstOf(reportedAssetTag, systemSerial, baseBoardSerial)
+	if serial == "" {
+		return nil, trace.BadParameter("unable to determine serial number")
+	}
 
 	dcd := &devicepb.DeviceCollectedData{
-		CollectTime:     timestamppb.Now(),
-		OsType:          devicepb.OSType_OS_TYPE_WINDOWS,
-		SerialNumber:    serial,
-		ModelIdentifier: model,
-		OsUsername:      u.Username,
-		OsVersion:       osVersion,
+		CollectTime:           timestamppb.Now(),
+		OsType:                devicepb.OSType_OS_TYPE_WINDOWS,
+		SerialNumber:          serial,
+		ModelIdentifier:       model,
+		OsUsername:            u.Username,
+		OsVersion:             osVersion,
+		SystemSerialNumber:    systemSerial,
+		BaseBoardSerialNumber: baseBoardSerial,
+		ReportedAssetTag:      reportedAssetTag,
 	}
 	log.WithField("device_collected_data", dcd).Debug("Device data collected.")
 	return dcd, nil
