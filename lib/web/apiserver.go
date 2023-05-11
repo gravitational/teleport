@@ -723,6 +723,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
+	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 
 	// AWS OIDC Integration specific endpoints:
@@ -1151,6 +1152,18 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO: This part should be removed once the plugin support is added to OSS.
+	if proxyConfig.AssistEnabled {
+		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
+		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+		// Disable assistant support if per session MFA is enabled.
+		proxyConfig.AssistEnabled = !mfaRequired
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1630,11 +1643,15 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		repoChannel = stableCloudChannelRepo
 	}
 
+	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
+	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
+
 	tmpl := installers.Template{
-		PublicProxyAddr: h.PublicProxyAddr(),
-		MajorVersion:    version,
-		TeleportPackage: teleportPackage,
-		RepoChannel:     repoChannel,
+		PublicProxyAddr:   h.PublicProxyAddr(),
+		MajorVersion:      version,
+		TeleportPackage:   teleportPackage,
+		RepoChannel:       repoChannel,
+		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
