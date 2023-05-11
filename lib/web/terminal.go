@@ -1310,6 +1310,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 	}
 }
 
+// Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{

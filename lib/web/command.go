@@ -232,13 +232,12 @@ func (h *Handler) executeCommand(
 			}
 
 			err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
+				ConversationId: req.ConversationID,
+				Username:       identity.TeleportUser,
 				Message: &assist.AssistantMessage{
-					ConversationId: req.ConversationID,
-					Type:           CommandResultType,
-					CreatedTime:    timestamppb.New(time.Now().UTC()),
-					Payload:        string(msgPayload),
-					// TODO(jakule): Move username to CreateAssistantMessageRequest.
-					Username: identity.TeleportUser,
+					Type:        CommandResultType,
+					CreatedTime: timestamppb.New(time.Now().UTC()),
+					Payload:     string(msgPayload),
 				},
 			})
 
@@ -476,6 +475,8 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 	t.log.Debug("Sent close event to web client.")
 }
 
+// Close is no-op as we never want to close the connection to the client.
+// Connection should be closed in the handler when it was created.
 func (t *commandHandler) Close() error {
 	return nil
 }
