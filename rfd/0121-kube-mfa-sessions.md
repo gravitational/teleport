@@ -40,7 +40,7 @@ Local proxy will generate ephemeral kubeconfig that kubectl will use and then ba
 to access remote Kubernetes service. Existing user's kubeconfig (including entries from `tsh kube login`) will be integrated into
 this ephemeral kubeconfig for better UX.
 
-Chart from RFD_NNN demonstrating local Kubernetes proxy flow:
+Chart from RFD_0123 demonstrating local Kubernetes proxy flow:
 ```
  ┌───────┐                                        ┌─────────┐                         ┌───────────────┐
  │kubectl│                                        │tsh local│                         │Teleport Proxy/│
