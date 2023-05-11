@@ -136,6 +136,13 @@ type StreamingMessage struct {
 
 // Complete completes the conversation with a message from the assistant based on the current context.
 // On success, it returns the message and the number of tokens used for the completion.
+// Returned types:
+// - Message: the message from the assistant
+// - int: the number of tokens used for the completion
+// - error: an error if one occurred
+// Message types:
+// - CompletionCommand: a command from the assistant
+// - StreamingMessage: a message that is streamed from the assistant
 func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 	var numTokens int
 
