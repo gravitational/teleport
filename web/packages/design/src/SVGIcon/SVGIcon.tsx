@@ -29,6 +29,7 @@ export function SVGIcon({
 
   return (
     <svg
+      data-testid="svg"
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
       width={width || size}

@@ -519,6 +519,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
 			SAMLIdPServiceProviderDeleteAll: e,
 		}
+	case *OktaResourcesUpdate:
+		out.Event = &OneOf_OktaResourcesUpdate{
+			OktaResourcesUpdate: e,
+		}
+	case *OktaSyncFailure:
+		out.Event = &OneOf_OktaSyncFailure{
+			OktaSyncFailure: e,
+		}
+	case *OktaAssignmentResult:
+		out.Event = &OneOf_OktaAssignmentResult{
+			OktaAssignmentResult: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
