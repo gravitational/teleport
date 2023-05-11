@@ -1670,6 +1670,15 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
 	return nil
 }
 
+// AddEnv add environment variable to SSH session. This method needs to be called
+// before the session is created.
+func (c *NodeClient) AddEnv(key, value string) {
+	if c.TC.extraEnvs == nil {
+		c.TC.extraEnvs = make(map[string]string)
+	}
+	c.TC.extraEnvs[key] = value
+}
+
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
 	for {
 		select {
