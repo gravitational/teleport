@@ -79,7 +79,7 @@ until the policy is fulfilled.
 kind: role
 metadata:
   name: prod-access
-version: v5
+version: v6
 spec:
   allow:
     require_session_join:
@@ -99,6 +99,10 @@ spec:
     - prod-access
     kubernetes_users:
     - USER
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
 ```
 
 #### Combining Policies
@@ -133,7 +137,7 @@ as a moderator or observer.
 kind: role
 metadata:
   name: auditor
-version: v5
+version: v6
 spec:
   allow:
     join_sessions:
