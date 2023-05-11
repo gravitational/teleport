@@ -32,7 +32,7 @@ import { useNewTabOpener } from 'teleterm/ui/TabHost';
 type MenuItem = {
   title: string;
   isVisible: boolean;
-  Icon: React.ComponentType<{ fontSize: number }>;
+  Icon: React.ElementType;
   onNavigate: () => void;
   prependSeparator?: boolean;
   keyboardShortcutAction?: KeyboardShortcutAction;
@@ -214,7 +214,10 @@ export function MenuItem({
         title={item.isDisabled && item.disabledText}
         onClick={handleClick}
       >
-        <item.Icon fontSize={2} />
+        <item.Icon
+          color={item.isDisabled && 'buttons.textDisabled'}
+          fontSize={2}
+        />
         <Flex
           gap={2}
           flex="1"
@@ -253,8 +256,11 @@ const StyledListItem = styled(ListItem)`
   border-radius: 0;
 
   &:disabled {
-    cursor: not-allowed;
+    cursor: default;
     color: ${props => props.theme.colors.buttons.textDisabled};
-    background-color: ${props => props.theme.colors.buttons.bgDisabled};
+
+    &:hover {
+      background-color: inherit;
+    }
   }
 `;
