@@ -4,6 +4,8 @@ import { Elements } from '@stripe/react-stripe-js';
 
 import { loadStripe } from '@stripe/stripe-js';
 
+import { useTheme } from 'styled-components';
+
 import CloudService, {
   BillingInformation,
   BillingSummaryInformation,
@@ -12,6 +14,7 @@ import CloudService, {
 } from 'e-teleport/services/cloud';
 import useTeleport from 'e-teleport/useTeleportE';
 
+import { getAppearance } from 'e-teleport/Billing/StripeLoader/appearance';
 type DataSourceStatus = 'loading' | 'success' | 'error';
 
 interface StripeLoaderState {
@@ -57,6 +60,7 @@ export const StripeLoader = ({
   loadingRender,
 }: StripeLoaderProps): React.ReactElement | null => {
   const ctx = useTeleport();
+  const theme = useTheme();
   const [loaderState, setLoaderState] = useState(initialState);
 
   const loadData = (): void => {
@@ -98,6 +102,12 @@ export const StripeLoader = ({
         <Elements
           key={`stripe-element-${loaderState.data.stripeCustomerId}`}
           stripe={loadStripe(loaderState.data.stripePublicKey)}
+          options={{
+            mode: 'setup',
+            currency: 'usd',
+            paymentMethodTypes: ['card'],
+            appearance: getAppearance(theme),
+          }}
         >
           {render(loaderState.data, loadData)}
         </Elements>

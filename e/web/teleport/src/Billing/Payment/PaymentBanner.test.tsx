@@ -6,6 +6,10 @@ import { PaymentBannerProps } from 'e-teleport/Billing/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { PaymentBanner } from 'e-teleport/Billing/Payment/PaymentBanner';
 
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'tenant-name', isLeafCluster: false }))
+);
+
 describe('paymentBanner', () => {
   let props: PaymentBannerProps;
 

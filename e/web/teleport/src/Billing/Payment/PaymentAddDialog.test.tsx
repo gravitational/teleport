@@ -6,6 +6,10 @@ import { PaymentAddDialogProps } from 'e-teleport/Billing/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { PaymentAddDialog } from 'e-teleport/Billing/Payment/PaymentAddDialog';
 
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'tenant-name', isLeafCluster: false }))
+);
+
 describe('paymentAddDialog', () => {
   let props: PaymentAddDialogProps;
 
@@ -18,25 +22,30 @@ describe('paymentAddDialog', () => {
     };
   });
 
-  test('displays the title prop', () => {
+  test('displays the title prop and default description', () => {
     props.title = 'A unique title';
 
     renderWithElementsAndContext(<PaymentAddDialog {...props} />);
 
     expect(screen.getByText('A unique title')).toBeInTheDocument();
-    expect(screen.getByText('Credit Card')).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Save And Close' })
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Add a payment method for your cluster, tenant-name')
+    ).toBeInTheDocument();
   });
 
-  test('displays the optional description prop', () => {
+  test('displays the optional description prop if provided', () => {
     props.description = 'A very original description';
 
     renderWithElementsAndContext(<PaymentAddDialog {...props} />);
 
     expect(screen.getByText('A very original description')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Add a payment method for your cluster, tenant-name')
+    ).not.toBeInTheDocument();
   });
 
   test('does not display Make Default Payment if false', () => {

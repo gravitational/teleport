@@ -11,6 +11,10 @@ import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/type
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'tenant-name', isLeafCluster: false }))
+);
+
 describe('usageBasedUpgrade', () => {
   let props: UsageBasedUpgradeProps;
 

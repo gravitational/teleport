@@ -7,11 +7,12 @@ import Dialog, {
 
 import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 import React, { useState } from 'react';
-
-import * as setupIntents from '@stripe/stripe-js/types/stripe-js/setup-intents';
-import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { useElements, useStripe } from '@stripe/react-stripe-js';
+import { useTheme } from 'styled-components';
 
 import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { SetupIntent } from 'e-teleport/services/cloud';
 import { CreditCard } from 'e-teleport/Banner/UsageBasedUpgrade/CreditCard';
@@ -29,17 +30,27 @@ export const PaymentAddDialog = ({
   makeDefault = false,
   showDefaultOption = false,
 }: PaymentAddDialogProps) => {
+  const theme = useTheme();
   const ctx = useTeleport();
   const stripe = useStripe();
   const elements = useElements();
+  const { clusterId } = useStickyClusterId();
 
   const [valid, setValid] = useState<boolean>(false);
   const [networkState, setNetworkState] = useState<NetworkState>({});
   const [primary, setPrimary] = useState<boolean>(makeDefault || false);
 
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>): void => {
+  const handleClick = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ): Promise<void> => {
     e.preventDefault();
     setNetworkState({ status: 'loading', error: undefined });
+
+    // validate the state of the payment element
+    const { error: submitError } = await elements.submit();
+    if (submitError) {
+      setNetworkState({ status: undefined, error: submitError });
+    }
 
     // begin the add payment flow
     createSetupIntent();
@@ -57,16 +68,15 @@ export const PaymentAddDialog = ({
       });
   };
 
-  // confirmCard confirms a setup intent and adds a payment method https://stripe.com/docs/js/setup_intents/confirm_card_setup
+  // confirmCard confirms a setup intent and adds a payment method https://stripe.com/docs/js/setup_intents/confirm_setup
   const confirmCard = (clientSecret: string): void => {
-    const data: setupIntents.ConfirmCardSetupData = {
-      payment_method: {
-        card: elements.getElement(CardElement),
-      },
-    };
-
     stripe
-      .confirmCardSetup(clientSecret, data)
+      .confirmSetup({
+        elements,
+        clientSecret,
+        // we only want redirect for redirect-based payments
+        redirect: 'if_required',
+      })
       .then(result => {
         if (result.setupIntent != undefined) {
           // Our request does not expand the payment_method field;
@@ -111,13 +121,21 @@ export const PaymentAddDialog = ({
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
       <DialogContent width="400px">
-        {description && <Text>{description}</Text>}
+        <Text
+          mb={3}
+          typography={theme.typography.h5}
+          color={theme.colors.text.slightlyMuted}
+        >
+          {description
+            ? description
+            : `Add a payment method for your cluster, ${clusterId}`}
+        </Text>
         <CreditCard setValid={setValid} />
         {showDefaultOption && (
           <CheckboxWrapper
             as="label"
             htmlFor="setDefault"
-            style={{ border: 'none' }}
+            style={{ border: 'none', padding: '2px 0' }}
           >
             <CheckboxInput
               type="checkbox"
@@ -138,13 +156,15 @@ export const PaymentAddDialog = ({
       )}
       <DialogFooter>
         <ButtonPrimary
-          mr="3"
+          mr={4}
+          width="45%"
           disabled={!stripe || !valid || networkState.status == 'loading'}
           onClick={handleClick}
         >
           Save And Close
         </ButtonPrimary>
         <ButtonSecondary
+          width="45%"
           disabled={networkState.status == 'loading'}
           onClick={() => setOpen(false)}
         >

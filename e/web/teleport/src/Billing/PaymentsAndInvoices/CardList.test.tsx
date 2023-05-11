@@ -6,6 +6,10 @@ import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/te
 import { CardList } from 'e-teleport/Billing/PaymentsAndInvoices/CardList';
 import { CardsListProps } from 'e-teleport/Billing/types';
 
+jest.mock('teleport/useStickyClusterId', () =>
+  jest.fn(() => ({ clusterId: 'tenant-name', isLeafCluster: false }))
+);
+
 describe('cardList', () => {
   let props: CardsListProps;
   const defaultCard = {

@@ -1,39 +1,20 @@
 import React from 'react';
-import { Flex, LabelInput } from 'design';
-import { useTheme } from 'styled-components';
-import { CardElement } from '@stripe/react-stripe-js';
+import { Flex } from 'design';
+
+import { PaymentElement } from '@stripe/react-stripe-js';
 
 import { CreditCardProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 
-export const CreditCard = ({ setValid }: CreditCardProps) => {
-  const theme = useTheme();
-  return (
-    <Flex flexDirection="column">
-      <LabelInput>Credit Card</LabelInput>
-      <CardElement
-        options={{
-          style: {
-            base: {
-              backgroundColor: theme.colors.spotBackground[0],
-              fontSize: '16px',
-              color: theme.colors.text.main,
-              '::placeholder': {
-                color: theme.colors.text.muted,
-              },
-            },
-            invalid: {
-              color: theme.colors.danger,
-            },
-          },
-        }}
-        onChange={event => {
-          if (event.complete) {
-            setValid(true);
-          } else {
-            setValid(false);
-          }
-        }}
-      />
-    </Flex>
-  );
-};
+export const CreditCard = ({ setValid }: CreditCardProps) => (
+  <Flex flexDirection="column">
+    <PaymentElement
+      onChange={event => {
+        if (event.complete) {
+          setValid(true);
+        } else {
+          setValid(false);
+        }
+      }}
+    />
+  </Flex>
+);
