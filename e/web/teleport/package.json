@@ -11,11 +11,11 @@
   },
   "author": "",
   "license": "UNLICENSED",
+  "//": "when adding e-only depenedencies, do not update this file. Add them to web/packages/e-imports/package.json.",
   "dependencies": {
+    "@gravitational/e-imports": "^1.0.0",
     "@gravitational/teleport": "^1.0.0",
-    "cross-env": "5.0.5",
-    "@stripe/react-stripe-js": "^1.16.5",
-    "@stripe/stripe-js": "^1.48.0"
+    "cross-env": "5.0.5"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
