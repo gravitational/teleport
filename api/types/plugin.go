@@ -34,6 +34,8 @@ const (
 	PluginTypeSlack = "slack"
 	// PluginTypeOkta is the Okta plugin
 	PluginTypeOkta = "okta"
+	// PluginTypeOpenAI is the OpenAI plugin
+	PluginTypeOpenAI = "openai"
 )
 
 // Plugin represents a plugin instance
@@ -119,6 +121,17 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if (bearer.Token == "") == (bearer.TokenFile == "") {
+			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -252,6 +265,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSlack
 	case *PluginSpecV1_Okta:
 		return PluginTypeOkta
+	case *PluginSpecV1_Openai:
+		return PluginTypeOpenAI
 	default:
 		return PluginTypeUnknown
 	}
