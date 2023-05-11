@@ -131,7 +131,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		term:            cfg.Term,
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
-		tracker: cfg.Tracker,
+		tracker:         cfg.Tracker,
 	}, nil
 }
 
@@ -261,11 +261,12 @@ type TerminalHandler struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession *tracessh.Session
 
-	// terminalContext is used to signal when the terminal sesson is closing.
-	terminalContext context.Context
+	// authProvider is used to fetch nodes and sessions from the backend.
+	authProvider AuthProvider
 
-	// terminalCancel is used to signal when the terminal session is closing.
-	terminalCancel context.CancelFunc
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
 
 	closeOnce sync.Once
 
@@ -356,17 +357,20 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Close the websocket stream.
 func (t *TerminalHandler) Close() error {
+	var errs []error
 	t.closeOnce.Do(func() {
 		// Close the SSH connection to the remote node.
 		if t.sshSession != nil {
-			t.sshSession.Close()
+			errs = append(errs, t.sshSession.Close())
 		}
 
 		// If the terminal handler was closed (most likely due to the *SessionContext
 		// closing) then the stream should be closed as well.
-		t.terminalCancel()
+		if t.stream != nil {
+			errs = append(errs, t.stream.Close())
+		}
 	})
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -375,12 +379,12 @@ func (t *TerminalHandler) Close() error {
 func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	defer ws.Close()
 
-	// Create a terminal stream that wraps/unwraps the envelope used to
-	// communicate over the websocket.
-	resizeC := make(chan *session.TerminalParams, 1)
-	fileTransferRequestC := make(chan *session.FileTransferRequestParams, 1)
-	fileTransferDecisionC := make(chan *session.FileTransferDecisionParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandlers(fileTransferRequestC, fileTransferDecisionC))
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
+	})
+
+	stream, err := NewTerminalStream(r.Context(), ws)
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -388,14 +392,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	}
 	t.stream = stream
 
-	// Create a context for signaling when the terminal session is over and
-	// link it first with the trace context from the request context
-	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
-	t.terminalContext, t.terminalCancel = context.WithCancel(tctx)
-
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(r.Context(), ws)
+	tc, err := t.makeClient(r.Context(), stream, ws.RemoteAddr().String())
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a client for session")
 		t.writeError(err)
@@ -404,32 +403,19 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	t.log.Debug("Creating websocket stream")
 
-	// Update the read deadline upon receiving a pong message.
-	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-		return nil
-	})
-
 	// Start sending ping frames through websocket to client.
-	go startPingLoop(t.terminalContext, ws, t.keepAliveInterval, t.log, t.Close)
+	go startPingLoop(t.stream.ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	go t.streamTerminal(ws, tc)
 	go t.streamEvents(tc)
 
-	// process window resizing
-	go t.handleWindowResize(resizeC)
-
-	// process file transfer requests/responses
-	go t.handleFileTransfer(fileTransferRequestC, fileTransferDecisionC)
-
 	// Block until the terminal session is complete.
-	<-t.terminalContext.Done()
+	t.streamTerminal(tc)
 	t.log.Debug("Closing websocket stream")
 }
 
 // makeClient builds a *client.TeleportClient for the connection.
-func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*client.TeleportClient, error) {
+func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream, clientAddr string) (*client.TeleportClient, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "terminal/makeClient")
 	defer span.End()
 
@@ -441,9 +427,9 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
-	clientConfig.Stdout = t.stream
-	clientConfig.Stderr = t.stream
-	clientConfig.Stdin = t.stream
+	clientConfig.Stdout = stream
+	clientConfig.Stderr = stream
+	clientConfig.Stdin = stream
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
@@ -451,7 +437,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	clientConfig.Host = t.sessionData.ServerHostname
 	clientConfig.HostPort = t.sessionData.ServerHostPort
 	clientConfig.SessionID = t.sessionData.ID.String()
-	clientConfig.ClientAddr = ws.RemoteAddr().String()
+	clientConfig.ClientAddr = clientAddr
 	clientConfig.Tracer = t.tracer
 
 	if len(t.interactiveCommand) > 0 {
@@ -468,7 +454,9 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		t.windowChange(ctx, &t.term)
+		if err := s.WindowChange(ctx, t.term.H, t.term.W); err != nil {
+			t.log.Error(err)
+		}
 
 		return false, nil
 	}
@@ -634,9 +622,7 @@ type connectWithMFAFn = func(ctx context.Context, ws WSConn, tc *client.Teleport
 // certs and with single use certs after completing the mfa ceremony. Only one of
 // the operations will succeed, and if per session mfa will not gain access to the
 // target it will abort before prompting a user to perform the ceremony.
-func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn,
-	tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn,
-) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn) (*client.NodeClient, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
 	defer span.End()
 
@@ -737,13 +723,11 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn,
 
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
-func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.TeleportClient) {
-	ctx, span := t.tracer.Start(t.terminalContext, "terminal/streamTerminal")
+func (t *TerminalHandler) streamTerminal(tc *client.TeleportClient) {
+	ctx, span := t.tracer.Start(t.stream.ctx, "terminal/streamTerminal")
 	defer span.End()
 
-	defer t.terminalCancel()
-
-	nc, err := t.connectToHost(ctx, ws, tc, t.connectToNodeWithMFA)
+	nc, err := t.connectToHost(ctx, t.stream.ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
@@ -884,77 +868,9 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 
 		// Once the terminal stream is over (and the close envelope has been sent),
 		// close stop streaming envelopes.
-		case <-t.terminalContext.Done():
+		case <-t.stream.ctx.Done():
 			return
 		}
-	}
-}
-
-// handleFileTransfer receives file transfer requests and responses and forwards them
-// to the SSH session
-func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *session.FileTransferRequestParams, fileTransferDecisionC <-chan *session.FileTransferDecisionParams) {
-	for {
-		select {
-		case <-t.terminalContext.Done():
-			return
-		case transferRequest := <-fileTransferRequestC:
-			if transferRequest == nil {
-				// channel closed
-				continue
-			}
-			if err := t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
-				Download: transferRequest.Download,
-				Location: transferRequest.Location,
-				Filename: transferRequest.Filename,
-			}); err != nil {
-				t.log.WithError(err).Error("Unable to request file transfer")
-			}
-		case transferResponse := <-fileTransferDecisionC:
-			if transferResponse == nil {
-				// channel closed
-				continue
-			}
-
-			var err error
-			if transferResponse.Approved {
-				err = t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
-			} else {
-				err = t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
-			}
-			if err != nil {
-				t.log.WithError(err).Error("Unable to respond to file transfer request")
-			}
-		}
-
-	}
-}
-
-// handleWindowResize receives window resize events and forwards
-// them to the SSH session.
-func (t *TerminalHandler) handleWindowResize(resizeC <-chan *session.TerminalParams) {
-	for {
-		select {
-		case <-t.terminalContext.Done():
-			return
-		case params := <-resizeC:
-			// nil params indicates the channel was closed
-			if params == nil {
-				return
-			}
-			// process window change
-			t.windowChange(t.terminalContext, params)
-		}
-	}
-}
-
-// writeError displays an error in the terminal window.
-func (t *TerminalHandler) windowChange(ctx context.Context, params *session.TerminalParams) {
-	if t.sshSession == nil {
-		return
-	}
-
-	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
-		t.log.Error(err)
 	}
 }
 
@@ -1021,42 +937,37 @@ func WithTerminalStreamDecoder(dec *encoding.Decoder) func(stream *TerminalStrea
 	}
 }
 
-// WithTerminalStreamResizeHandler provides a channel to subscribe to
-// terminal resize events
-func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) func(stream *TerminalStream) {
-	return func(stream *TerminalStream) {
-		stream.resizeC = resizeC
-	}
-}
-
-// WithTerminalStreamFileTransferHandlers provides two channels, one to subscribe to new file transfer requests, and
-// one to subscribe to file transfer decision requests, such as approve/deny
-func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session.FileTransferRequestParams, fileTransferDecisionC chan<- *session.FileTransferDecisionParams) func(stream *TerminalStream) {
-	return func(stream *TerminalStream) {
-		stream.fileTransferRequestC = fileTransferRequestC
-		stream.fileTransferDecisionC = fileTransferDecisionC
-	}
-}
-
 func NewWStream(ws WSConn) *WSStream {
 	return &WSStream{
-		ws:      ws,
-		encoder: unicode.UTF8.NewEncoder(),
-		decoder: unicode.UTF8.NewDecoder(),
+		ws:                    ws,
+		encoder:               unicode.UTF8.NewEncoder(),
+		decoder:               unicode.UTF8.NewDecoder(),
+		resizeC:               make(chan Envelope, 1),
+		fileTransferRequestC:  make(chan Envelope, 1),
+		fileTransferDecisionC: make(chan Envelope, 1),
+		rawC:                  make(chan Envelope, 100),
+		challengeC:            make(chan Envelope, 1),
 	}
 }
 
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
+func NewTerminalStream(ctx context.Context, ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
 	switch {
 	case ws == nil:
 		return nil, trace.BadParameter("required parameter ws not provided")
 	}
 
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(ctx))
+	ctx, cancel := context.WithCancel(tctx)
+
 	t := &TerminalStream{
 		WSStream: WSStream{
 			ws:      ws,
+			ctx:     ctx,
+			cancel:  cancel,
 			encoder: unicode.UTF8.NewEncoder(),
 			decoder: unicode.UTF8.NewDecoder(),
 		},
@@ -1065,6 +976,13 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	for _, opt := range opts {
 		opt(t)
 	}
+
+	go t.processMessages()
+
+	// process window resizing
+	go t.handleWindowResize()
+
+	go t.handleFileTransfer()
 
 	return t, nil
 }
@@ -1075,6 +993,17 @@ type WSStream struct {
 	// decoder is used to decode UTF-8 strings.
 	decoder *encoding.Decoder
 
+	// resizeC a channel to forward resize events so that
+	// they happen out of band and don't block reads
+	resizeC chan Envelope
+	// fileTransferRequestC is a channel to facilitate requesting a file transfer
+	fileTransferRequestC chan Envelope
+	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
+	// with an approval or denial
+	fileTransferDecisionC chan Envelope
+	challengeC            chan Envelope
+	rawC                  chan Envelope
+
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
@@ -1083,6 +1012,14 @@ type WSStream struct {
 	mu sync.Mutex
 	// ws the connection to the UI
 	ws WSConn
+
+	// ctx is used to signal when the terminal session is closing.
+	ctx context.Context
+	// cancel is used to terminate the terminal session.
+	cancel context.CancelFunc
+
+	// log holds the structured logger.
+	log *logrus.Entry
 }
 
 // TerminalStream manages the [websocket.Conn] to the web UI
@@ -1090,16 +1027,11 @@ type WSStream struct {
 type TerminalStream struct {
 	WSStream
 
+	// sshSession holds the "shell" SSH channel to the node.
+	sshSession *tracessh.Session
+
 	// once ensures that all channels are closed at most one time.
 	once sync.Once
-	// resizeC a channel to forward resize events so that
-	// they happen out of band and don't block reads
-	resizeC chan<- *session.TerminalParams
-	// fileTransferRequestC is a channel to facilitate requesting a file transfer
-	fileTransferRequestC chan<- *session.FileTransferRequestParams
-	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
-	// with an approval or denial
-	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
@@ -1109,6 +1041,153 @@ var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 func (t *WSStream) writeError(err error) error {
 	_, writeErr := replacer.WriteString(t, err.Error())
 	return trace.Wrap(writeErr)
+}
+
+func (t *WSStream) processMessages() {
+	defer t.cancel()
+	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
+
+	for {
+		select {
+		case <-t.ctx.Done():
+		default:
+			ty, bytes, err := t.ws.ReadMessage()
+			if err != nil {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
+					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+					return
+				}
+			}
+
+			if ty != websocket.BinaryMessage {
+				t.log.Warnf("Expected binary message, got %v", ty)
+				continue
+			}
+
+			var envelope Envelope
+			if err := proto.Unmarshal(bytes, &envelope); err != nil {
+				t.log.Warnf("Unable to parse message payload %v", err)
+				continue
+			}
+
+			switch envelope.Type {
+			case defaults.WebsocketClose:
+				return
+			case defaults.WebsocketWebauthnChallenge:
+				select {
+				case t.challengeC <- envelope:
+				default:
+				}
+			case defaults.WebsocketRaw:
+				select {
+				case t.rawC <- envelope:
+				default:
+				}
+			case defaults.WebsocketResize:
+				select {
+				case t.resizeC <- envelope:
+				default:
+				}
+			case defaults.WebsocketFileTransferDecision:
+				select {
+				case t.fileTransferDecisionC <- envelope:
+				default:
+				}
+			case defaults.WebsocketFileTransferRequest:
+				select {
+				case t.fileTransferRequestC <- envelope:
+				default:
+				}
+			default:
+				t.log.Warnf("Received web socket envelope with unknown type %v", envelope.Type)
+			}
+		}
+	}
+}
+
+// handleWindowResize receives window resize events and forwards
+// them to the SSH session.
+func (t *TerminalStream) handleWindowResize() {
+	for {
+		select {
+		case <-t.ctx.Done():
+			return
+		case envelope := <-t.resizeC:
+			if t.sshSession == nil {
+				return
+			}
+
+			var e map[string]string
+			err := json.Unmarshal([]byte(envelope.Payload), &e)
+			if err != nil {
+				t.log.Warnf("Failed to parse resize payload: %v", err)
+				continue
+			}
+
+			params, err := session.UnmarshalTerminalParams(e["size"])
+			if err != nil {
+				t.log.Warnf("Failed to retrieve terminal size: %v", err)
+				continue
+			}
+
+			// nil params indicates the channel was closed
+			if params == nil {
+				return
+			}
+
+			if err := t.sshSession.WindowChange(t.ctx, params.H, params.W); err != nil {
+				t.log.Error(err)
+			}
+		}
+	}
+}
+
+func (t *TerminalStream) handleFileTransfer() {
+	for {
+		select {
+		case <-t.ctx.Done():
+			return
+		case envelope := <-t.fileTransferRequestC:
+			var e utils.Fields
+			err := json.Unmarshal([]byte(envelope.Payload), &e)
+			if err != nil {
+				continue
+			}
+			download, ok := e["download"].(bool)
+			if !ok {
+				t.log.Error("Unable to find download param in response")
+				continue
+			}
+
+			if err := t.sshSession.RequestFileTransfer(t.ctx, tracessh.FileTransferReq{
+				Download: download,
+				Location: e.GetString("location"),
+				Filename: e.GetString("filename"),
+			}); err != nil {
+				t.log.WithError(err).Error("Unable to request file transfer")
+			}
+		case envelope := <-t.fileTransferDecisionC:
+			var e utils.Fields
+			err := json.Unmarshal([]byte(envelope.Payload), &e)
+			if err != nil {
+				continue
+			}
+			approved, ok := e["approved"].(bool)
+			if !ok {
+				t.log.Error("Unable to find approved status on response")
+				continue
+			}
+
+			if approved {
+				err = t.sshSession.ApproveFileTransferRequest(t.ctx, e.GetString("requestId"))
+			} else {
+				err = t.sshSession.DenyFileTransferRequest(t.ctx, e.GetString("requestId"))
+			}
+			if err != nil {
+				t.log.WithError(err).Error("Unable to respond to file transfer request")
+			}
+		}
+	}
 }
 
 // writeChallenge encodes and writes the challenge to the
@@ -1128,18 +1207,13 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // readChallenge reads and decodes the challenge response from the
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
-	// Read the challenge response.
-	ty, bytes, err := t.ws.ReadMessage()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	select {
+	case <-t.ctx.Done():
+		return nil, trace.Wrap(t.ctx.Err())
+	case envelope := <-t.challengeC:
+		resp, err := codec.decode([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+		return resp, trace.Wrap(err)
 	}
-
-	if ty != websocket.BinaryMessage {
-		return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
-	}
-
-	resp, err := codec.decode(bytes, defaults.WebsocketWebauthnChallenge)
-	return resp, trace.Wrap(err)
 }
 
 // writeAuditEvent encodes and writes the audit event to the
@@ -1196,7 +1270,9 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 	return len(data), nil
 }
 
-func (t *WSStream) readMessage(out []byte) (string, []byte, int, error) {
+// Read unwraps the envelope and either fills out the passed in bytes or
+// performs an action on the connection (sending window-change request).
+func (t *TerminalStream) Read(out []byte) (n int, err error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1204,53 +1280,18 @@ func (t *WSStream) readMessage(out []byte) (string, []byte, int, error) {
 		} else {
 			t.buffer = t.buffer[n:]
 		}
-		return "", nil, n, nil
+		return n, nil
 	}
 
-	ty, bytes, err := t.ws.ReadMessage()
-	if err != nil {
-		// if the connection has closed, we must return io.EOF in order to abort
-		// the websocket copy loop
-		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-			websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-			return "", nil, 0, io.EOF
+	select {
+	case <-t.ctx.Done():
+		return 0, io.EOF
+	case envelope := <-t.rawC:
+		data, err := t.decoder.Bytes([]byte(envelope.Payload))
+		if err != nil {
+			return 0, trace.Wrap(err)
 		}
 
-		return "", nil, 0, trace.Wrap(err)
-	}
-
-	if ty != websocket.BinaryMessage {
-		return "", nil, 0, trace.BadParameter("expected binary message, got %v", ty)
-	}
-
-	var envelope Envelope
-	err = proto.Unmarshal(bytes, &envelope)
-	if err != nil {
-		return "", nil, 0, trace.Wrap(err)
-	}
-
-	var data []byte
-	data, err = t.decoder.Bytes([]byte(envelope.GetPayload()))
-	if err != nil {
-		return "", nil, 0, trace.Wrap(err)
-	}
-
-	return envelope.Type, data, 0, nil
-}
-
-// Read unwraps the envelope and either fills out the passed in bytes or
-// performs an action on the connection (sending window-change request).
-func (t *WSStream) Read(out []byte) (n int, err error) {
-	messageType, data, n, err := t.readMessage(out)
-	if err != nil || n > 0 {
-		return n, err
-	}
-
-	switch messageType {
-	// the session was closed
-	case defaults.WebsocketClose:
-		return 0, io.EOF
-	case defaults.WebsocketRaw:
 		n := copy(out, data)
 		// if payload size is greater than [out], store the remaining
 		// part in the buffer to be processed on the next Read call
@@ -1258,98 +1299,6 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 			t.buffer = data[n:]
 		}
 		return n, nil
-	default:
-		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
-	}
-}
-
-func (t *TerminalStream) Read(out []byte) (n int, err error) {
-	messageType, data, n, err := t.readMessage(out)
-	if err != nil || n > 0 {
-		return n, err
-	}
-
-	switch messageType {
-	// the session was closed
-	case defaults.WebsocketClose:
-		return 0, io.EOF
-	case defaults.WebsocketRaw:
-		n := copy(out, data)
-		// if payload size is greater than [out], store the remaining
-		// part in the buffer to be processed on the next Read call
-		if len(data) > n {
-			t.buffer = data[n:]
-		}
-		return n, nil
-	case defaults.WebsocketResize:
-		if t.resizeC == nil {
-			return n, nil
-		}
-
-		var e events.EventFields
-		err := json.Unmarshal(data, &e)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		params, err := session.UnmarshalTerminalParams(e.GetString("size"))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		// Send the window change request in a goroutine so reads are not blocked
-		// by network connectivity issues.
-		select {
-		case t.resizeC <- params:
-		default:
-		}
-
-		return 0, nil
-	case defaults.WebsocketFileTransferDecision:
-		if t.fileTransferDecisionC == nil {
-			return n, nil
-		}
-		var e events.EventFields
-		err := json.Unmarshal(data, &e)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		approved, ok := e["approved"].(bool)
-		if !ok {
-			return 0, trace.BadParameter("Unable to find approved status on response")
-		}
-		select {
-		case t.fileTransferDecisionC <- &session.FileTransferDecisionParams{
-			RequestID: e.GetString("requestId"),
-			Approved:  approved,
-		}:
-		default:
-		}
-		return 0, nil
-	case defaults.WebsocketFileTransferRequest:
-		if t.fileTransferRequestC == nil {
-			return n, nil
-		}
-		var e events.EventFields
-		err := json.Unmarshal(data, &e)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-		download, ok := e["download"].(bool)
-		if !ok {
-			return 0, trace.BadParameter("Unable to find download param in response")
-		}
-		select {
-		case t.fileTransferRequestC <- &session.FileTransferRequestParams{
-			Location: e.GetString("location"),
-			Download: download,
-			Filename: e.GetString("filename"),
-		}:
-		default:
-		}
-		return 0, nil
-	default:
-		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
 	}
 }
 

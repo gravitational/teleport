@@ -62,12 +62,7 @@ func (protobufMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeTy
 }
 
 func (protobufMFACodec) decode(bytes []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-	envelope := &Envelope{}
-	if err := proto.Unmarshal(bytes, envelope); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return mfajson.Decode([]byte(envelope.Payload), envelopeType)
+	return mfajson.Decode(bytes, envelopeType)
 }
 
 // tdpMFACodec converts MFA challenges and responses to Teleport Desktop

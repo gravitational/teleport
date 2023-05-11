@@ -248,7 +248,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := NewTerminalStream(ws)
+	stream, err := NewTerminalStream(ctx, ws)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
