@@ -179,4 +179,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getIntegrationsAccess() {
     return this.state.acl.integrations;
   }
+
+  getAssistantAccess() {
+    return this.state.acl.assist;
+  }
 }

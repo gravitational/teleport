@@ -76,6 +76,8 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    assistBase: '/web/assist/',
+    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
@@ -221,6 +223,17 @@ const cfg = {
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+
+    assistConversationsPath: '/v1/webapi/assistant/conversations',
+    assistSetConversationTitlePath:
+      '/v1/webapi/assistant/conversations/:conversationId/title',
+    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
+    assistConversationWebSocketPath:
+      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+    assistConversationHistoryPath:
+      '/v1/webapi/assistant/conversations/:conversationId',
+    assistExecuteCommandWebSocketPath:
+      'wss://:hostname/v1/webapi/command/:clusterId/execute',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -636,6 +649,60 @@ const cfg = {
 
   getUIConfig() {
     return cfg.ui;
+  },
+
+  getAssistSetConversationTitleUrl(conversationId: string) {
+    return generatePath(cfg.api.assistSetConversationTitlePath, {
+      conversationId,
+    });
+  },
+
+  getAssistConversationWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    conversationId: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('conversation_id', conversationId);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistConversationHistoryUrl(conversationId: string) {
+    return generatePath(cfg.api.assistConversationHistoryPath, {
+      conversationId,
+    });
+  },
+
+  getAssistExecuteCommandUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    params: Record<string, string>
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('params', JSON.stringify(params));
+
+    return (
+      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistConversationUrl(conversationId: string) {
+    return generatePath(cfg.routes.assist, { conversationId });
   },
 
   init(backendConfig = {}) {
