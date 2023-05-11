@@ -205,7 +205,10 @@ func (chat *Chat) Complete(ctx context.Context) (any, error) {
 			case errors.Is(err, io.EOF):
 				return
 			case err != nil:
-				errCh <- trace.Wrap(err)
+				select {
+				case <-ctx.Done():
+				case errCh <- trace.Wrap(err):
+				}
 				return
 			}
 
