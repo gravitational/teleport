@@ -1685,6 +1685,49 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	return nil
 }
 
+// RunCommand executes a given bash command on the node.
+func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/RunCommand",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer nodeSession.Close()
+	if err := nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand); err != nil {
+		originErr := trace.Unwrap(err)
+		exitErr, ok := originErr.(*ssh.ExitError)
+		if ok {
+			c.TC.ExitStatus = exitErr.ExitStatus()
+		} else {
+			// if an error occurs, but no exit status is passed back, GoSSH returns
+			// a generic error like this. in this case the error message is printed
+			// to stderr by the remote process so we have to quietly return 1:
+			if strings.Contains(originErr.Error(), "exited without exit status") {
+				c.TC.ExitStatus = 1
+			}
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// AddEnv add environment variable to SSH session. This method needs to be called
+// before the session is created.
+func (c *NodeClient) AddEnv(key, value string) {
+	if c.TC.extraEnvs == nil {
+		c.TC.extraEnvs = make(map[string]string)
+	}
+	c.TC.extraEnvs[key] = value
+}
+
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
 	for {
 		select {
