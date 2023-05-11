@@ -463,8 +463,10 @@ func tryFindEmbeddedCommand(message string) *ai.CompletionCommand {
 func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversationID string,
 	ws *websocket.Conn, authClient auth.ClientI,
 ) (int, error) {
+	var numTokens int
+
 	// query the assistant and fetch an answer
-	message, numTokens, err := chat.Complete(ctx)
+	message, err := chat.Complete(ctx)
 	if err != nil {
 		return numTokens, trace.Wrap(err)
 	}
@@ -577,6 +579,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 			}
 		}
 	case *ai.Message:
+		numTokens = message.NumTokens
 		// write assistant message to both in-memory chain and persistent storage
 		chat.Insert(message.Role, message.Content)
 		protoMsg := &proto.AssistantMessage{
@@ -593,6 +596,7 @@ func processComplete(ctx context.Context, h *Handler, chat *ai.Chat, conversatio
 			return numTokens, trace.Wrap(err)
 		}
 	case *ai.CompletionCommand:
+		numTokens = message.NumTokens
 		payload := commandPayload{
 			Command: message.Command,
 			Nodes:   message.Nodes,
