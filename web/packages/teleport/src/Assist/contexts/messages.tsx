@@ -49,6 +49,7 @@ interface MessageContextValue {
   messages: Message[];
   loading: boolean;
   responding: boolean;
+  error: string | null;
 }
 
 interface ServerMessage {
@@ -67,6 +68,7 @@ const MessagesContext = createContext<MessageContextValue>({
   send: () => Promise.resolve(void 0),
   loading: true,
   responding: false,
+  error: null,
 });
 
 interface MessagesContextProviderProps {
@@ -186,7 +188,7 @@ async function convertServerMessage(
   }
 
   if (message.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE') {
-    return (/*_messages: Message[]*/) => {};
+    return () => {};
   }
 
   if (message.type == 'COMMAND_RESULT') {
@@ -282,7 +284,7 @@ function findIntersection<T>(elems: T[][]): T[] {
 export async function generateTitle(messageContent: string): Promise<string> {
   const res: {
     title: string;
-  } = await api.post(`/v1/webapi/assistant/title/summary`, {
+  } = await api.post(cfg.api.assistGenerateSummaryPath, {
     message: messageContent,
   });
   return res.title;
@@ -292,7 +294,7 @@ export async function setConversationTitle(
   conversationId: string,
   title: string
 ): Promise<void> {
-  await api.post(`/v1/webapi/assistant/conversations/${conversationId}/title`, {
+  await api.post(cfg.getAssistSetConversationTitleUrl(conversationId), {
     title: title,
   });
 }
@@ -303,13 +305,17 @@ export function MessagesContextProvider(
   const { conversationId } = useParams<{ conversationId: string }>();
   const { clusterId } = useStickyClusterId();
 
+  const [error, setError] = useState<string>(null);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = `wss://${getHostName()}/v1/webapi/sites/${clusterId}/assistant?access_token=${getAccessToken()}&conversation_id=${
+  const socketUrl = cfg.getAssistConversationWebSocketUrl(
+    getHostName(),
+    clusterId,
+    getAccessToken(),
     props.conversationId
-  }`;
+  );
 
   const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
     share: true, // when share is false the websocket tends to disconnect
@@ -319,9 +325,9 @@ export function MessagesContextProvider(
   const load = useCallback(async () => {
     setMessages([]);
 
-    const res = (await api.get(
-      `/v1/webapi/assistant/conversations/${props.conversationId}`
-    )) as ConversationHistoryResponse;
+    const res: ConversationHistoryResponse = await api.get(
+      cfg.getAssistConversationHistoryUrl(props.conversationId)
+    );
 
     if (!res.Messages) {
       return;
@@ -337,9 +343,23 @@ export function MessagesContextProvider(
   }, [props.conversationId]);
 
   useEffect(() => {
-    setLoading(true);
+    (async () => {
+      setLoading(true);
 
-    load().then(() => setLoading(false));
+      try {
+        await load();
+
+        setLoading(false);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+
+          return;
+        }
+
+        setError(err);
+      }
+    })();
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -383,7 +403,9 @@ export function MessagesContextProvider(
   );
 
   return (
-    <MessagesContext.Provider value={{ messages, send, loading, responding }}>
+    <MessagesContext.Provider
+      value={{ messages, send, loading, responding, error }}
+    >
       {props.children}
     </MessagesContext.Provider>
   );

@@ -21,10 +21,9 @@ import { NavLink } from 'react-router-dom';
 
 import { useHistory } from 'react-router';
 
-import { useConversations } from 'teleport/Assist/contexts/conversations';
+import { ChatIcon, PlusIcon } from 'design/SVGIcon';
 
-import { ChatIcon } from '../Icons/ChatIcon';
-import { PlusIcon } from '../Icons/PlusIcon';
+import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 const Container = styled.div`
   display: flex;
@@ -122,7 +121,7 @@ export function Sidebar() {
       to={`/web/assist/${conversation.id}`}
     >
       <ChatHistoryItemIcon>
-        <ChatIcon size={14} fill={theme.name === 'light' ? 'black' : 'white'} />
+        <ChatIcon size={14} />
       </ChatHistoryItemIcon>
       <ChatHistoryItemTitle>{conversation.title}</ChatHistoryItemTitle>
     </ChatHistoryItem>

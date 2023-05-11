@@ -22,6 +22,8 @@ import highlight from 'highlight.js';
 
 import { marked } from 'marked';
 
+import teleport from 'design/assets/images/icons/teleport.png';
+
 import { useTeleport } from 'teleport';
 
 import { getBorderRadius } from 'teleport/Assist/Chat/ChatItem/utils';
@@ -31,8 +33,6 @@ import { ExampleList } from '../Examples/ExampleList';
 import { Author, Message, Type } from '../../services/messages';
 
 import { Timestamp } from '../Timestamp';
-
-import teleport from './teleport-icon.png';
 
 import { codeCSS } from './styles/code';
 import { markdownCSS } from './styles/markdown';

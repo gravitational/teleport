@@ -104,9 +104,6 @@ export function RunCommand(props: RunCommandProps) {
         const msg = proto.decode(uintArray);
 
         switch (msg.type) {
-          case MessageTypeEnum.SESSION_DATA:
-            break;
-
           case MessageTypeEnum.RAW:
             const data = JSON.parse(msg.payload) as RawPayload;
             const payload = atob(data.payload);
@@ -138,9 +135,6 @@ export function RunCommand(props: RunCommandProps) {
               return s;
             });
 
-            break;
-
-          default:
             break;
         }
       };

@@ -16,14 +16,14 @@ limitations under the License.
 
 import styled from 'styled-components';
 
-import icon from 'teleport/Navigation/teleport-icon.png';
+import teleport from 'design/assets/images/icons/teleport.png';
 
 export const TooltipLogosSpacer = styled.div`
   padding: 0 8px;
 `;
 
 export const TeleportIcon = styled.div`
-  background: url(${icon}) no-repeat;
+  background: url(${teleport}) no-repeat;
   width: 30px;
   height: 30px;
   background-size: contain;

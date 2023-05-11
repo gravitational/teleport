@@ -15,17 +15,13 @@ limitations under the License.
 */
 
 import React, { ReactElement, useCallback, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
-import { UserIcon } from 'design/SVGIcon';
+import { EditIcon, SearchIcon, UserIcon } from 'design/SVGIcon';
 
 import Select from 'shared/components/Select';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
-
-import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
-
-import { EditIcon } from '../../../Icons/EditIcon';
 
 import { ActionForm } from './ActionForm';
 import { Container, Items, Title } from './common';
@@ -124,9 +120,9 @@ function actionStateToItems(formState: ActionState[]) {
 
     if (state.type === 'availableUsers') {
       items.push(
-        <>
-          <As key="as">as</As>
-          <User key="user">
+        <React.Fragment key="user">
+          <As>as</As>
+          <User>
             <UserIcon size={16} />
             <Select
               onChange={() => {}}
@@ -137,7 +133,7 @@ function actionStateToItems(formState: ActionState[]) {
               css={'width: 20vh; padding: 5px'}
             />
           </User>
-        </>
+        </React.Fragment>
       );
     }
   }
@@ -147,8 +143,6 @@ function actionStateToItems(formState: ActionState[]) {
 
 export function Action(props: ActionProps) {
   const [editing, setEditing] = useState(false);
-
-  const theme = useTheme();
 
   const handleSave = useCallback(
     (state: ActionState[]) => {
@@ -172,16 +166,11 @@ export function Action(props: ActionProps) {
 
   return (
     <Container>
-      {!editing && (
-        <Buttons>
-          <EditButton onClick={() => setEditing(true)}>
-            <EditIcon
-              size={18}
-              fill={theme.name === 'light' ? 'black' : 'white'}
-            />
-          </EditButton>
-        </Buttons>
-      )}
+      <Buttons>
+        <EditButton onClick={() => setEditing(true)}>
+          <EditIcon size={18} />
+        </EditButton>
+      </Buttons>
 
       <Items>{items}</Items>
     </Container>
@@ -215,8 +204,7 @@ function propsToState(props: NodesAndLabelsProps): ActionState[] {
 
 function stateToItems(
   updateUser: (state: ActionState[]) => void,
-  formState: ActionState[],
-  lightMode: boolean
+  formState: ActionState[]
 ) {
   const items = [];
 
@@ -228,7 +216,7 @@ function stateToItems(
     if (state.type === 'query') {
       items.push(
         <Query key={`query-${index}`}>
-          <SearchIcon size={16} fill={lightMode ? 'black' : 'white'} />
+          <SearchIcon size={16} />
           {state.value}
         </Query>
       );
@@ -261,8 +249,6 @@ function stateToItems(
 }
 
 export function NodesAndLabels(props: NodesAndLabelsProps) {
-  const theme = useTheme();
-
   const [editing, setEditing] = useState(false);
 
   const state = propsToState(props);
@@ -289,18 +275,15 @@ export function NodesAndLabels(props: NodesAndLabelsProps) {
     <Container>
       <Title>Connect using query</Title>
 
-      {!editing && !props.disabled && (
+      {!props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon
-              size={18}
-              fill={theme.name === 'light' ? 'black' : 'white'}
-            />
+            <EditIcon size={18} />
           </EditButton>
         </Buttons>
       )}
 
-      <Items>{stateToItems(handleSave, state, theme.name === 'light')}</Items>
+      <Items>{stateToItems(handleSave, state)}</Items>
     </Container>
   );
 }
@@ -312,8 +295,6 @@ interface CommandProps {
 }
 
 export function Command(props: CommandProps) {
-  const theme = useTheme();
-
   const [editing, setEditing] = useState(false);
 
   const state: ActionState[] = [{ type: 'command', value: props.command }];
@@ -348,18 +329,15 @@ export function Command(props: CommandProps) {
     <Container>
       <Title>Execute</Title>
 
-      {!editing && !props.disabled && (
+      {!props.disabled && (
         <Buttons>
           <EditButton onClick={() => setEditing(true)}>
-            <EditIcon
-              size={18}
-              fill={theme.name === 'light' ? 'black' : 'white'}
-            />
+            <EditIcon size={18} />
           </EditButton>
         </Buttons>
       )}
 
-      <Items>{stateToItems(handleSave, state, theme.name === 'light')}</Items>
+      <Items>{stateToItems(handleSave, state)}</Items>
     </Container>
   );
 }

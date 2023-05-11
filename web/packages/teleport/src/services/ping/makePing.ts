@@ -22,6 +22,6 @@ export function makePing(json: any): PingResponse {
 
   return {
     automaticUpgrades: automatic_upgrades,
-    assistEnabled: proxy?.assist_enabled as boolean,
+    assistEnabled: proxy?.assist_enabled,
   };
 }

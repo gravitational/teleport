@@ -15,7 +15,9 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
+
+import { RunIcon } from 'design/SVGIcon';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
 import {
@@ -30,7 +32,6 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import { remoteCommandToMessage } from 'teleport/Assist/contexts/messages';
 
 import { ExecuteRemoteCommandContent, Type } from '../../../services/messages';
-import { RunIcon } from '../../../Icons/RunIcon';
 
 interface ActionsProps {
   actions: ExecuteRemoteCommandContent;
@@ -92,8 +93,6 @@ const Spacer = styled.div`
 `;
 
 export function Actions(props: ActionsProps) {
-  const theme = useTheme();
-
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
   const { clusterId } = useStickyClusterId();
@@ -178,10 +177,7 @@ export function Actions(props: ActionsProps) {
       {!result && !running && (
         <Buttons>
           <ButtonRun onClick={() => run()}>
-            <RunIcon
-              size={30}
-              fill={theme.name === 'light' ? '#20b141' : 'white'}
-            />
+            <RunIcon size={30} />
             Run
           </ButtonRun>
         </Buttons>

@@ -16,6 +16,7 @@ limitations under the License.
 
 import { css } from 'styled-components';
 
+// GitHub's markdown CSS is from https://github.com/sindresorhus/github-markdown-css
 export const markdownCSS = css`
   color-scheme: dark;
   --color-prettylights-syntax-comment: #8b949e;

@@ -24,6 +24,7 @@ import React, {
 } from 'react';
 
 import api from 'teleport/services/api';
+import cfg from 'teleport/config';
 
 interface Conversation {
   id: string;
@@ -34,6 +35,7 @@ interface MessageContextValue {
   create: () => Promise<string>;
   conversations: Conversation[];
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
+  error: string | null;
 }
 
 interface CreateConversationResponse {
@@ -53,18 +55,20 @@ const ConversationsContext = createContext<MessageContextValue>({
   conversations: [],
   create: () => Promise.resolve(void 0),
   setConversations: () => void 0,
+  error: null,
 });
 
 export function ConversationsContextProvider(
   props: PropsWithChildren<unknown>
 ) {
+  const [error, setError] = useState<string>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
 
   const load = useCallback(async () => {
     setConversations([]);
 
     const res: ListConversationsResponse = await api.get(
-      '/v1/webapi/assistant/conversations'
+      cfg.api.assistConversationsPath
     );
 
     setConversations(
@@ -77,7 +81,7 @@ export function ConversationsContextProvider(
 
   const create = useCallback(async () => {
     const res: CreateConversationResponse = await api.post(
-      '/v1/webapi/assistant/conversations'
+      cfg.api.assistConversationsPath
     );
 
     setConversations(conversations => [
@@ -92,12 +96,24 @@ export function ConversationsContextProvider(
   }, []);
 
   useEffect(() => {
-    load();
+    (async () => {
+      try {
+        await load();
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+
+          return;
+        }
+
+        setError(err);
+      }
+    })();
   }, []);
 
   return (
     <ConversationsContext.Provider
-      value={{ conversations, create, setConversations }}
+      value={{ conversations, create, setConversations, error }}
     >
       {props.children}
     </ConversationsContext.Provider>

@@ -15,16 +15,14 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
-import { UserIcon } from 'design/SVGIcon';
+import { SearchIcon, UserIcon } from 'design/SVGIcon';
 import { Cross } from 'design/Icon';
 
 import Select from 'shared/components/Select';
 
 import { ActionState } from 'teleport/Assist/Chat/ChatItem/Action/types';
-
-import { SearchIcon } from 'teleport/Assist/Icons/SearchIcon';
 
 import { Container, Items } from './common';
 
@@ -138,8 +136,6 @@ const As = styled.div`
 `;
 
 export function ActionForm(props: ActionFormProps) {
-  const theme = useTheme();
-
   const currentSelectedUser = props.initialState.find(e => e.type === 'user');
   const [formState, setFormState] = useState<ActionState[]>(props.initialState);
   const [currentUser, setCurrentUser] = useState<string>(
@@ -199,10 +195,7 @@ export function ActionForm(props: ActionFormProps) {
       items.push(
         <LabelForm key={`query-${index}`}>
           <LabelFormContent>
-            <SearchIcon
-              size={16}
-              fill={theme.name === 'light' ? 'black' : 'white'}
-            />
+            <SearchIcon size={16} />
 
             <Input
               key="query"
@@ -223,10 +216,7 @@ export function ActionForm(props: ActionFormProps) {
         <As key={`as-${index}`}>as</As>,
         <LabelForm key={`user-${index}`}>
           <LabelFormContent>
-            <UserIcon
-              size={16}
-              fill={theme.name === 'light' ? 'black' : 'white'}
-            />
+            <UserIcon size={16} />
             <Select
               onChange={event => handleUserChange(index, event['value'])}
               value={{ value: currentUser, label: currentUser }}

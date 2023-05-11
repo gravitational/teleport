@@ -17,9 +17,9 @@ limitations under the License.
 import React, { useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Dots } from 'teleport/Assist/Dots';
+import teleport from 'design/assets/images/icons/teleport.png';
 
-import teleport from 'teleport/Assist/Chat/ChatItem/teleport-icon.png';
+import { Dots } from 'teleport/Assist/Dots';
 
 import {
   Typing,

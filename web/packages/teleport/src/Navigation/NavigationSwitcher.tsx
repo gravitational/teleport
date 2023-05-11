@@ -22,12 +22,14 @@ import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
 
-import { useHistory } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 
 import { useTeleport } from 'teleport';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
 import { KeysEnum } from 'teleport/services/localStorage';
+
+import cfg from 'teleport/config';
 
 import {
   TeleportIcon,
@@ -140,9 +142,15 @@ const Background = styled.div`
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const ctx = useTeleport();
   const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+
+  const location = useLocation();
+  const isAssistRoute = location.pathname.startsWith(cfg.routes.assistBase);
+
+  console.log(location);
+
   const [showAssist, setShowAssist] = useLocalStorage(
     KeysEnum.SHOW_ASSIST_POPUP,
-    assistEnabled
+    assistEnabled && !isAssistRoute
   );
 
   const theme = useTheme();

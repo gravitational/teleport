@@ -17,10 +17,12 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import { ServerIcon } from '../../Icons/ServerIcon';
-import { SearchIcon } from '../../Icons/SearchIcon';
-import { RemoteCommandIcon } from '../../Icons/RemoteCommandIcon';
-import { UpgradeIcon } from '../../Icons/UpgradeIcon';
+import {
+  RemoteCommandIcon,
+  SearchIcon,
+  ServerIcon,
+  UpgradeIcon,
+} from 'design/SVGIcon';
 
 import { ExampleItem } from './ExampleItem';
 
