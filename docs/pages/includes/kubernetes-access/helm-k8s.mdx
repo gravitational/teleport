@@ -1,13 +1,13 @@
 - [Kubernetes](https://kubernetes.io) >= v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
 - [Helm](https://helm.sh) >= (=helm.version=)
 
-Verify that Helm and Kubernetes are installed and up to date.
-
-```code
-$ helm version
-# version.BuildInfo{Version:"v(=helm.version=)"}
-
-$ kubectl version
-# Client Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
-# Server Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
-```
+  Verify that Helm and Kubernetes are installed and up to date.
+  
+  ```code
+  $ helm version
+  # version.BuildInfo{Version:"v(=helm.version=)"}
+  
+  $ kubectl version
+  # Client Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
+  # Server Version: version.Info{Major:"(=kubernetes.major_version=)", Minor:"(=kubernetes.minor_version=)+"}
+  ```
