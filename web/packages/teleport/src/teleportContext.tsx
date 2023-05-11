@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2021 Gravitational, Inc.
+Copyright 2019-2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -49,7 +49,6 @@ class TeleportContext implements types.Context {
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
-  pingService = pingService;
   appService = appService;
   joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
@@ -61,6 +60,7 @@ class TeleportContext implements types.Context {
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
   automaticUpgradesEnabled = false;
+  assistEnabled = false;
   agentService = agentService;
 
   // lockedFeatures are the features disabled in the user's cluster.
@@ -94,6 +94,7 @@ class TeleportContext implements types.Context {
 
     const pingResponse = await pingService.fetchPing();
     this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
+    this.assistEnabled = pingResponse.assistEnabled;
   }
 
   getFeatureFlags(): types.FeatureFlags {
@@ -125,6 +126,7 @@ class TeleportContext implements types.Context {
         enrollIntegrations: false,
         locks: false,
         newLocks: false,
+        assist: false,
       };
     }
 
@@ -156,6 +158,7 @@ class TeleportContext implements types.Context {
       locks: userContext.getLockAccess().list,
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
+      assist: userContext.getAssistantAccess().list && this.assistEnabled,
     };
   }
 }
