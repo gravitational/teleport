@@ -32,7 +32,6 @@ export const PaymentDeleteDialog = ({
       .removeCard({ cardId: id })
       .then(() => {
         setOpen(false);
-        setNetworkState({ status: undefined });
         reload();
       })
       .catch(error => {

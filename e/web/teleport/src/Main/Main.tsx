@@ -1,16 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 
 import { Main } from 'teleport/Main/Main';
-
-import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import useTeleport from 'e-teleport/useTeleportE';
 import SwitchBack from 'e-teleport/Banner/Switchback';
 import { getEnterpriseFeatures } from 'e-teleport/features';
+import cfg from 'e-teleport/config';
 import { StripeLoader } from 'e-teleport/Billing/StripeLoader/StripeLoader';
 import { BillingInformation } from 'e-teleport/services/cloud';
-import cfg from 'e-teleport/config';
+import { UsageBasedUpgrade } from 'e-teleport/Banner/UsageBasedUpgrade/UsageBasedUpgrade';
 
 export function MainE() {
   const ctx = useTeleport();
@@ -44,30 +43,23 @@ export function MainE() {
     );
   }
 
-  const billable = cfg.oss.isUsageBasedBilling && ctx.getFeatureFlags().billing;
-  const upgradeBanner = useMemo(() => {
-    if (!billable) {
-      return null;
-    }
-
+  const usageBasedUpgradeBanner = useMemo(() => {
     return (
       <StripeLoader
         key={'stripe-upgrade'}
         dataSource={(CloudService): Promise<BillingInformation> =>
           CloudService.fetchBillingInformation()
         }
-        render={(
-          data: BillingInformation,
-          reload: () => void
-        ): React.ReactNode => (
+        render={(data: BillingInformation, reload: () => void): ReactNode => (
           <UsageBasedUpgrade billingInfo={data} reload={reload} />
         )}
       />
     );
-  }, [billable]);
+  }, []);
 
-  if (billable) {
-    customBanners.push(upgradeBanner);
+  const billingBanners = [];
+  if (cfg.oss.isUsageBasedBilling) {
+    billingBanners.push(usageBasedUpgradeBanner);
   }
 
   return (
@@ -75,6 +67,7 @@ export function MainE() {
       features={getEnterpriseFeatures()}
       initialAlerts={initialAlerts}
       customBanners={customBanners}
+      billingBanners={billingBanners}
     />
   );
 }
