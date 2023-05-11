@@ -37,6 +37,7 @@ describe('getActionPickerStatus', () => {
 
     const status = getActionPickerStatus({
       inputValue: 'foo',
+      filters: [],
       filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [],
       actionAttempts: [makeSuccessAttempt([])],
@@ -47,10 +48,10 @@ describe('getActionPickerStatus', () => {
       }),
     });
 
-    expect(status.status).toBe('finished');
+    expect(status.inputState).toBe('some-input');
 
     const { clustersWithExpiredCerts, nonRetryableResourceSearchErrors } =
-      status.status === 'finished' && status;
+      status.inputState === 'some-input' && status;
 
     expect([...clustersWithExpiredCerts]).toEqual([retryableError.clusterUri]);
     expect(nonRetryableResourceSearchErrors).toEqual([nonRetryableError]);
@@ -66,6 +67,7 @@ describe('getActionPickerStatus', () => {
 
     const status = getActionPickerStatus({
       inputValue: 'foo',
+      filters: [],
       filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [offlineCluster],
       actionAttempts: [makeSuccessAttempt([])],
@@ -76,8 +78,9 @@ describe('getActionPickerStatus', () => {
       }),
     });
 
-    expect(status.status).toBe('finished');
-    const { clustersWithExpiredCerts } = status.status === 'finished' && status;
+    expect(status.inputState).toBe('some-input');
+    const { clustersWithExpiredCerts } =
+      status.inputState === 'some-input' && status;
 
     expect(clustersWithExpiredCerts.size).toBe(2);
     expect(clustersWithExpiredCerts).toContain(offlineCluster.uri);
@@ -104,6 +107,7 @@ describe('getActionPickerStatus', () => {
     ];
     const status = getActionPickerStatus({
       inputValue: 'foo',
+      filters: [],
       filterActionsAttempt: makeSuccessAttempt([]),
       allClusters: [],
       actionAttempts: [makeSuccessAttempt([])],
@@ -114,8 +118,46 @@ describe('getActionPickerStatus', () => {
       }),
     });
 
-    expect(status.status).toBe('finished');
-    const { clustersWithExpiredCerts } = status.status === 'finished' && status;
+    expect(status.inputState).toBe('some-input');
+    const { clustersWithExpiredCerts } =
+      status.inputState === 'some-input' && status;
     expect([...clustersWithExpiredCerts]).toEqual(['/clusters/foo']);
+  });
+
+  it('returns non-retryable errors when fetching a preview after selecting a filter fails', () => {
+    const nonRetryableError = new ResourceSearchError(
+      '/clusters/bar',
+      'server',
+      new Error('non-retryable error')
+    );
+    const resourceSearchErrors = [
+      new ResourceSearchError(
+        '/clusters/foo',
+        'server',
+        new Error('ssh: cert has expired')
+      ),
+      nonRetryableError,
+    ];
+    const status = getActionPickerStatus({
+      inputValue: '',
+      filters: [{ filter: 'resource-type', resourceType: 'servers' }],
+      filterActionsAttempt: makeSuccessAttempt([]),
+      allClusters: [],
+      actionAttempts: [makeSuccessAttempt([])],
+      resourceSearchAttempt: makeSuccessAttempt({
+        errors: resourceSearchErrors,
+        results: [],
+        search: 'foo',
+      }),
+    });
+
+    expect(status.inputState).toBe('no-input');
+
+    const { searchMode } = status.inputState === 'no-input' && status;
+    expect(searchMode.kind).toBe('preview');
+
+    const { nonRetryableResourceSearchErrors } =
+      searchMode.kind === 'preview' && searchMode;
+    expect(nonRetryableResourceSearchErrors).toEqual([nonRetryableError]);
   });
 });
