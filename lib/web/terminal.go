@@ -661,14 +661,6 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 	// use a child context so the goroutine ends if this
 	// function returns early
 	go func() {
-		// TODO(tross): the join principal is allowed to connect to hosts when
-		// MFA is required without MFA. Prevent an MFA ceremony from occurring
-		// in this case to reduce confusion. RBAC around joining should be
-		// fixed to prevent the join principal without MFA verified certificates.
-		if t.sessionData.Login == teleport.SSHSessionJoinPrincipal {
-			mfaResultC <- clientRes{err: services.ErrSessionMFANotRequired}
-			return
-		}
 		// try performing mfa and then connecting with the single use certs
 		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
