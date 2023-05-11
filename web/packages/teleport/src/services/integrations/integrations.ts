@@ -59,6 +59,10 @@ export const integrationService = {
     return api.delete(cfg.getIntegrationsUrl(name));
   },
 
+  fetchThumbprint(): Promise<string> {
+    return api.get(cfg.api.thumbprintPath);
+  },
+
   fetchAwsRdsDatabases(
     integrationName,
     rdsEngineIdentifier: RdsEngineIdentifier,
