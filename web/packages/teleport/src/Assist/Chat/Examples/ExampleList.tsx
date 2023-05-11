@@ -44,7 +44,7 @@ export function ExampleList() {
       </ExampleItem>
       <ExampleItem style={{ animationDelay: '2s' }}>
         <SearchIcon />
-        Analyse audit logs
+        Analyze audit logs
       </ExampleItem>
       <ExampleItem style={{ animationDelay: '3s' }}>
         <RemoteCommandIcon /> Run remote commands
