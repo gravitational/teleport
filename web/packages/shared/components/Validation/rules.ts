@@ -20,7 +20,7 @@ limitations under the License.
  * @param message The custom error message to display to users.
  * @param value The value user entered.
  */
-const requiredField = message => value => () => {
+const requiredField = (message: string) => (value: string) => () => {
   const valid = !(!value || value.length === 0);
   return {
     valid,
@@ -28,7 +28,7 @@ const requiredField = message => value => () => {
   };
 };
 
-const requiredToken = value => () => {
+const requiredToken = (value: string) => () => {
   if (!value || value.length === 0) {
     return {
       valid: false,
@@ -41,7 +41,7 @@ const requiredToken = value => () => {
   };
 };
 
-const requiredPassword = value => () => {
+const requiredPassword = (value: string) => () => {
   if (!value || value.length < 6) {
     return {
       valid: false,
@@ -54,30 +54,31 @@ const requiredPassword = value => () => {
   };
 };
 
-const requiredConfirmedPassword = password => confirmedPassword => () => {
-  if (!confirmedPassword) {
-    return {
-      valid: false,
-      message: 'Please confirm your password',
-    };
-  }
+const requiredConfirmedPassword =
+  (password: string) => (confirmedPassword: string) => () => {
+    if (!confirmedPassword) {
+      return {
+        valid: false,
+        message: 'Please confirm your password',
+      };
+    }
 
-  if (confirmedPassword !== password) {
-    return {
-      valid: false,
-      message: 'Password does not match',
-    };
-  }
+    if (confirmedPassword !== password) {
+      return {
+        valid: false,
+        message: 'Password does not match',
+      };
+    }
 
-  return {
-    valid: true,
+    return {
+      valid: true,
+    };
   };
-};
 
 // requiredRoleArn checks provided arn (AWS role name) is somewhat
 // in the format as documented here:
 // https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
-const requiredRoleArn = roleArn => () => {
+const requiredRoleArn = (roleArn: string) => () => {
   let parts = [];
   if (roleArn) {
     parts = roleArn.split(':role');
