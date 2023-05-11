@@ -177,6 +177,12 @@ type transport struct {
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// forwardClientAddress indicates whether we should take into account ClientSrcAddr/ClientDstAddr on incoming
+	// dial request. If false, we ignore those fields and take address from the parent ssh connection. It allows
+	// preventing users connecting to the proxy tunnel listener spoofing their address; but we are still able to
+	// correctly propagate client address in reverse tunnel agents of nodes/services.
+	forwardClientAddress bool
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -214,6 +220,24 @@ func (p *transport) start() {
 		p.reply(req, false, []byte(err.Error()))
 		return
 	}
+
+	if !p.forwardClientAddress {
+		// This shouldn't happen in normal operation. Either malicious user or misconfigured client.
+		if dreq.ClientSrcAddr != "" || dreq.ClientDstAddr != "" {
+			p.log.Warnf("Received unexpected dial request with client source address %q, "+
+				"client destination address %q, when they should be empty.", dreq.ClientSrcAddr, dreq.ClientDstAddr)
+		}
+
+		// Make sure address fields are overwritten.
+		if p.sconn != nil {
+			dreq.ClientSrcAddr = p.sconn.RemoteAddr().String()
+			dreq.ClientDstAddr = p.sconn.LocalAddr().String()
+		} else {
+			dreq.ClientSrcAddr = ""
+			dreq.ClientDstAddr = ""
+		}
+	}
+
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v], from %v.", dreq.Address, dreq.ServerID, dreq.ClientSrcAddr)
 
 	// directAddress will hold the address of the node to dial to, if we don't

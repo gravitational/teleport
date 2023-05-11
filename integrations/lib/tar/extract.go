@@ -19,6 +19,7 @@ package tar
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -95,7 +96,7 @@ func Extract(reader io.Reader, options ExtractOptions) error {
 	}
 	for filesDone == nil || filesDone.Len() > 0 {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
