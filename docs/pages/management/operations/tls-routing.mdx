@@ -10,13 +10,12 @@ description: How to upgrade an existing Teleport cluster to single-port TLS rout
   scopeOnly={true}
   min="13.0"
 >
-  TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse proxies
-  support is available in Preview starting from Teleport `13.0`.
+  Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and
+  reverse proxies is available in Preview starting from Teleport `13.0`.
 </Details>
 
-Starting from version `8.0`, Teleport supports TLS routing. In this mode, all
-client connections are wrapped in TLS and multiplexed on one Teleport proxy
-port.
+In TLS routing mode, all Teleport client connections are wrapped in TLS and
+multiplexed on one Teleport Proxy Service port.
 
 TLS routing has multiple benefits compared to the deployment where each protocol
 is served on a separate port:
