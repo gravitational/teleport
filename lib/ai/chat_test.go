@@ -28,6 +28,8 @@ import (
 )
 
 func TestChat_PromptTokens(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		messages []openai.ChatCompletionMessage
@@ -80,7 +82,10 @@ func TestChat_PromptTokens(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			chat := &Chat{
 				messages:  tt.messages,
 				tokenizer: codec.NewCl100kBase(),
@@ -92,7 +97,9 @@ func TestChat_PromptTokens(t *testing.T) {
 	}
 }
 
-func TestChat_Summary(t *testing.T) {
+func TestChat_Complete(t *testing.T) {
+	t.Parallel()
+
 	responses := [][]byte{
 		generateTextResponse(),
 		generateCommandResponse(),

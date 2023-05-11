@@ -171,31 +171,32 @@ func (chat *Chat) Complete(ctx context.Context) (any, int, error) {
 		return nil, numTokens, trace.Wrap(err)
 	}
 
-	// fetch the first delta to check for a possible JSON payload
-	var response openai.ChatCompletionStreamResponse
-top:
-	response, err = stream.Recv()
-	if err != nil {
-		return nil, numTokens, trace.Wrap(err)
-	}
-	numTokens++
+	var (
+		response openai.ChatCompletionStreamResponse
+		trimmed  string
+	)
+	for trimmed == "" {
+		// fetch the first delta to check for a possible JSON payload
+		response, err = stream.Recv()
+		if err != nil {
+			return nil, numTokens, trace.Wrap(err)
+		}
+		numTokens++
 
-	trimmed := strings.TrimSpace(response.Choices[0].Delta.Content)
-	if len(trimmed) == 0 {
-		goto top
+		trimmed = strings.TrimSpace(response.Choices[0].Delta.Content)
 	}
 
 	// if it looks like a JSON payload, let's wait for the entire response and try to parse it
 	if strings.HasPrefix(trimmed, "{") {
 		payload := strings.Builder{}
 		payload.WriteString(response.Choices[0].Delta.Content)
-	outer:
+
 		for {
 			response, err := stream.Recv()
-			switch {
-			case errors.Is(err, io.EOF):
-				break outer
-			case err != nil:
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
 				return nil, numTokens, trace.Wrap(err)
 			}
 			numTokens++
