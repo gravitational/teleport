@@ -304,7 +304,10 @@ func prepareQuery(params searchParams) (query string, execParams []string) {
 		qb.Append(` ORDER BY event_time DESC, uid DESC`)
 	}
 
-	qb.Append(` LIMIT ?`, strconv.Itoa(params.limit))
+	// Athena engine v2 supports ? placeholders only in Where part.
+	// To be compatible with v2, limit value is added as part of query.
+	// It's safe because it was already validated and it's just int.
+	qb.Append(` LIMIT ` + strconv.Itoa(params.limit) + `;`)
 
 	return qb.String(), qb.Args()
 }
@@ -361,11 +364,11 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 		case athenaTypes.QueryExecutionStateSucceeded:
 			return nil
 		case athenaTypes.QueryExecutionStateCancelled, athenaTypes.QueryExecutionStateFailed:
-			return trace.Errorf("got unexpected state: %s", state)
+			return trace.Errorf("got unexpected state: %s from queryID: %s", state, queryId)
 		case athenaTypes.QueryExecutionStateQueued, athenaTypes.QueryExecutionStateRunning:
 			continue
 		default:
-			return trace.Errorf("got unknown state: %s", state)
+			return trace.Errorf("got unknown state: %s from queryID: %s", state, queryId)
 		}
 	}
 }
