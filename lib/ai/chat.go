@@ -30,16 +30,6 @@ import (
 
 const maxResponseTokens = 2000
 
-// Message represents a message within a live conversation.
-// Indexed by ID for frontend ordering and future partial message streaming.
-type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-	Idx     int    `json:"idx"`
-	// NumTokens is the number of completion tokens for the (non-streaming) message
-	NumTokens int `json:"-"`
-}
-
 // Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
 	client    *Client
@@ -88,20 +78,6 @@ func (chat *Chat) PromptTokens() (int, error) {
 	return sum, nil
 }
 
-type Label struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-// CompletionCommand represents a command returned by OpenAI's completion API.
-type CompletionCommand struct {
-	Command string   `json:"command,omitempty"`
-	Nodes   []string `json:"nodes,omitempty"`
-	Labels  []Label  `json:"labels,omitempty"`
-	// NumTokens is the number of completion tokens for the (non-streaming) message
-	NumTokens int `json:"-"`
-}
-
 // Summary creates a short summary for the given input.
 func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 	resp, err := chat.client.svc.CreateChatCompletion(
@@ -120,22 +96,6 @@ func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
 	}
 
 	return resp.Choices[0].Message.Content, nil
-}
-
-// StreamingMessage represents a message that is streamed from the assistant and will later be stored as a normal message in the conversation store.
-type StreamingMessage struct {
-	// Role describes the OpenAI role of the message, i.e its sender.
-	Role string
-
-	// Idx is a semi-unique ID assigned when loading a conversation so that the UI can group partial messages together.
-	Idx int
-
-	// Chunks is a channel of message chunks that are streamed from the assistant.
-	Chunks <-chan string
-
-	// Error is a channel which may receive one error if the assistant encounters an error while streaming.
-	// Consumers should stop reading from all channels if they receive an error and abort.
-	Error <-chan error
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
