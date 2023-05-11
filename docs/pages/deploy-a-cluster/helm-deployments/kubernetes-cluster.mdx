@@ -65,38 +65,30 @@ cluster to Teleport.
   Update the cluster name, version, node group size, and region as required:
 
   ```yaml
-    apiVersion: eksctl.io/v1alpha5
-    kind: ClusterConfig
-    metadata:
-      name: my-cluster
-      region: us-east-1
-      version: "1.23"
-     
-    iam:
-      withOIDC: true
+  apiVersion: eksctl.io/v1alpha5
+  kind: ClusterConfig
+  metadata:
+    name: my-cluster
+    region: us-east-1
+    version: "1.23"
+   
+  iam:
+    withOIDC: true
 
-    addons:
-    - name: aws-ebs-csi-driver
-      version: v1.11.4-eksbuild.1
-      attachPolicyARNs:
-      - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-     
-    managedNodeGroups:
-      - name: managed-ng-2
-        instanceType: t3.medium
-        minSize: 2
-        maxSize: 3
-    ```
+  addons:
+  - name: aws-ebs-csi-driver
+    version: v1.11.4-eksbuild.1
+    attachPolicyARNs:
+    - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
+   
+  managedNodeGroups:
+    - name: managed-ng-2
+      instanceType: t3.medium
+      minSize: 2
+      maxSize: 3
+  ```
 
   </Details>
-
-<Admonition title="No cloud provider?" type="tip">
-
-Teleport also supports Kubernetes in on-premise and air-gapped environments. If
-you would like to try out Teleport on your local machine, we recommend following
-our [local Kubernetes guide](../../try-out-teleport/local-kubernetes.mdx).
-
-</Admonition>
 
 - The `tsh` client tool v(=teleport.version=)+ installed on your workstation.
   You can download this from our [installation page](../../installation.mdx).
@@ -266,8 +258,8 @@ $ curl https://<Var name="clustername" />/webapi/ping
 
 While we encourage Teleport users to authenticate via their single sign-on
 provider, local users are a reliable fallback for cases when the SSO provider is
-down. Let's create a local user `alice` who has access to Kubernetes group
-`system:masters`.
+down. Let's create a local user who has access to Kubernetes group
+`system:masters` via the Teleport role `member`.
 
 Save this role as `member.yaml`:
 
@@ -294,12 +286,12 @@ $ kubectl exec -i deployment/teleport-cluster-auth -- tctl create -f < member.ya
 role 'member' has been created
 ```
 
-Generate an invite link for the user:
+Create the user and generate an invite link:
 
 ```code
-$ kubectl exec -ti deployment/teleport-cluster-auth -- tctl  users add alice --roles=member
+$ kubectl exec -ti deployment/teleport-cluster-auth -- tctl  users add <Var name="username" /> --roles=member
 
-# User "alice" has been created but requires a password. Share this URL with the user to
+# User "myuser" has been created but requires a password. Share this URL with the user to
 # complete user setup, link is valid for 1h:
 
 # https://tele.example.com:443/web/invite/(=presets.tokens.first=)
@@ -310,7 +302,7 @@ $ kubectl exec -ti deployment/teleport-cluster-auth -- tctl  users add alice --r
 Try `tsh login` with your local user:
 
 ```code
-$ tsh login --proxy=<Var name="clustername" />:443 --user=alice
+$ tsh login --proxy=<Var name="clustername" />:443 --user=<Var name="username" />
 ```
 
 Once you're connected to the Teleport cluster, list the available Kubernetes clusters for your user:
@@ -369,8 +361,8 @@ no Persistent Volume is available.
   guides](../../kubernetes-access/discovery.mdx) to see how to automatically
   register every cluster in your cloud. You can also register servers,
   databases, applications, and Windows desktops.
-- **Fine-tune your Kubernetes RBAC:** While the `alice` user you created in this
-  guide can access the `system:masters` role, you can set up Teleport's RBAC to
-  enable fine-grained controls for accessing Kubernetes resources. See our
-  [Kubernetes Access Controls Guide](../../kubernetes-access/controls.mdx) for more
+- **Fine-tune your Kubernetes RBAC:** While the user you created in this guide
+  can access the `system:masters` role, you can set up Teleport's RBAC to enable
+  fine-grained controls for accessing Kubernetes resources. See our [Kubernetes
+  Access Controls Guide](../../kubernetes-access/controls.mdx) for more
   information.
