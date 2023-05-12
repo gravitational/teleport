@@ -38,14 +38,16 @@ TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.
 TENANT=${TENANT:-}
 CLOUD_SKIP_DEPLOY=${CLOUD_SKIP_DEPLOY:-""}
 CLOUD_SKIP_ROLLOUT=${CLOUD_SKIP_ROLLOUT:-""}
+TELEPORT_CLUSTER=${TELEPORT_CLUSTER:-platform.teleport.sh}
 KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
+KUBE_TENANT_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
 KUBE_AUTH_CLUSTER=${KUBE_AUTH_CLUSTER:-tc-staging-cs-01-usw2}
+KUBE_AUTH_CONTEXT=$TELEPORT_CLUSTER-$KUBE_AUTH_CLUSTER
 
 [ -z "$TENANT" ] && fail_on_exit_code "Environment variable \"TENANT\" must be set." 1
 echo "-> Checking for tenant \"$TENANT\"..."
-tsh kube login "$KUBE_TENANT_CLUSTER"
 NAMESPACE=${NAMESPACE_PREFIX}-${TENANT}
-kubectl get tenant $TENANT -n $NAMESPACE &>/dev/null
+kubectl get tenant $TENANT -n $NAMESPACE --context=$KUBE_TENANT_CONTEXT &>/dev/null
 fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\"."
 
 # generate an image tag for the target docker image
@@ -85,28 +87,26 @@ if [[ -n "$CLOUD_SKIP_DEPLOY" ]]; then
 fi
 
 echo "-> Patching tenant \"$TENANT\" to run new image..."
-tsh kube login $KUBE_TENANT_CLUSTER
-tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name)
+tenant=$(kubectl get tenant $TENANT --namespace=$NAMESPACE --output=name --context=$KUBE_TENANT_CONTEXT)
 fail_on_exit_code "Tenant \"$TENANT\" not found in namespace \"$NAMESPACE\'"
-kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}'
+kubectl patch $tenant -n $NAMESPACE --type merge --patch '{"spec": {"teleportImageRepo": "'"$TARGET_IMAGE_REPO"'", "teleportVersion": "'"$target_image_tag"'"}}' --context=$KUBE_TENANT_CONTEXT
 fail_on_exit_code "Unable to patch tenant \"$TENANT\" in namespace \"$NAMESPACE\""
 
 # warn and exit when tenant has skipReconcile annotation
-tenant_json=$(kubectl get tenant $TENANT -n $NAMESPACE -o json)
+tenant_json=$(kubectl get tenant $TENANT -n $NAMESPACE -o json --context=$KUBE_TENANT_CONTEXT)
 echo "$tenant_json" | jq -r '.metadata.annotations."teleport.sh/skipreconcile"' | grep -v true
 fail_on_exit_code "Tenant $TENANT patched successfully. Pod rollout is blocked due to annotation \"teleport.sh/skipreconcile\"."
 echo "$tenant_json" | jq -r '.spec.suspended' | grep -v true
 fail_on_exit_code "Tenant $TENANT patched successfully. Pod rollout is blocked due to tenant supension."
 
 if [[ -n "$CLOUD_SKIP_ROLLOUT" ]]; then
-	echo "Skipping pod rollout. Use kubectl to check the status of your tenant's pods. (kubectl get pods -n $NAMESPACE)"
+	echo "Skipping pod rollout. Use kubectl to check the status of your tenant's pods. (kubectl get pods -n $NAMESPACE --context $KUBE_AUTH_CONTEXT)"
 	echo_color $green "Success!"
 	exit 0
 fi
 
 echo "-> Checking tenant pods in cluster \"$KUBE_AUTH_CLUSTER\"..."
-tsh kube login $KUBE_AUTH_CLUSTER
-tenant_deployments=$(kubectl get deployments --namespace=$NAMESPACE --selector=app=teleport-cloud,role!=redirect --output=name | sort)
+tenant_deployments=$(kubectl get deployments --namespace=$NAMESPACE --selector=app=teleport-cloud,role!=redirect --output=name --context=$KUBE_AUTH_CONTEXT | sort)
 deployment_count=$(echo "$tenant_deployments" | wc -l)
 echo "-> Found $deployment_count deployments, monitoring rollout..."
 auth_deployment=$(echo "$tenant_deployments"| grep auth)
@@ -115,20 +115,20 @@ fail_on_exit_code "Could not identify auth deployment, cannot monitor rollout."
 # when image changes, tenant operator will scale down to a single auth pod
 while [[ $auth_deployment_desired != 1 ]]; do
 	sleep 2
-	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}')
+	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}' --context=$KUBE_AUTH_CONTEXT)
 	echo "Waiting for single pod auth deployment (status.replicas: $auth_deployment_desired)"
 done
 # once auth instance is ready, tenant operator will scale up to 2 pods
 while [[ $auth_deployment_desired != 2 ]]; do
 	sleep 2
-	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}')
+	auth_deployment_desired=$(kubectl get $auth_deployment -n $NAMESPACE -o jsonpath='{.status.replicas}' --context=$KUBE_AUTH_CONTEXT)
 	echo "Waiting for auth deployment to have 2 pods (status.replicas: $auth_deployment_desired)"
 done
 
 # wait for both auth pods to become ready, then wait for proxy pods
 for d in $tenant_deployments; do
 	echo "-> Monitoring deployment rollout status of \"$d\"..."
-	kubectl rollout status $d -n $NAMESPACE
+	kubectl rollout status $d -n $NAMESPACE --context=$KUBE_AUTH_CONTEXT
 	sleep 2
 done
 

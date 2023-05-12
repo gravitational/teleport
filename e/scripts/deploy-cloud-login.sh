@@ -3,9 +3,11 @@
 # Ensures local session is logged in with appropriate credentials to 
 # successfully execute `make` target "cloud-deploy"
 
-TELEPORT_PROXY=${TELEPORT_PROXY:-platform.teleport.sh}
-TELEPORT_USER=${TELEPORT_USER:-$(git config user.email)}
+TELEPORT_CLUSTER=${TELEPORT_CLUSTER:-platform.teleport.sh}
+TELEPORT_PROXY=${TELEPORT_PROXY:-$TELEPORT_CLUSTER:443}
 KUBE_TENANT_CLUSTER=${KUBE_TENANT_CLUSTER:-tc-staging-management}
+KUBE_CONTEXT=$TELEPORT_CLUSTER-$KUBE_TENANT_CLUSTER
+TELEPORT_USER=${TELEPORT_USER:-$(git config user.email)}
 TARGET_IMAGE_REPO=${TARGET_IMAGE_REPO:-599519581022.dkr.ecr.us-west-2.amazonaws.com/teleport-local-build}
 AWS_SSO_PROFILE=${AWS_SSO_PROFILE:-tc-stage-core}
 AWS_PROFILE=${AWS_PROFILE:-tc-stage-ecr}
@@ -58,34 +60,18 @@ fail_on_exit_code "Unable to retrieve token from AWS ECR."
 docker login --username AWS --password-stdin ${TARGET_IMAGE_REPO} <<< $ecr_token
 fail_on_exit_code "Docker login failed."
 
-
-echo "Logging in to teleport cluster (proxy=$TELEPORT_PROXY, user=$TELEPORT_USER)..."
-# check stderr to see if there's an active session
-tsh_err=$(tsh status 2>&1 >/dev/null)
-if [[ -n $tsh_err ]]; then
-    tsh login --proxy=$TELEPORT_PROXY --user $TELEPORT_USER
-    fail_on_exit_code "Failed to login to teleport cluster at: $TELEPORT_PROXY"
-fi
-
-# check to see if we're connected to the correct proxy
-tsh_proxy=$(tsh status | grep $TELEPORT_PROXY)
-if [[ -z $tsh_proxy ]]; then
-    tsh login --proxy=$TELEPORT_PROXY --user $TELEPORT_USER
-    fail_on_exit_code "Failed to login to teleport cluster at: $TELEPORT_PROXY"
-fi
-
-echo "Selecting kubernetes cluster \"$KUBE_TENANT_CLUSTER\"..."
-tsh kube login $KUBE_TENANT_CLUSTER
-fail_on_exit_code "Failed to select kubernetes cluster: $KUBE_TENANT_CLUSTER"
+echo "Logging into kube clusters on \"$TELEPORT_PROXY\"..."
+tsh kube login --proxy=$TELEPORT_PROXY --all
+fail_on_exit_code "Failed to login to kubernetes cluster on $TELEPORT_PROXY"
 
 echo "Searching for tenant namespace in k8s cluster..."
 ns_prefix="namespace/cloud-gravitational-io-"
-ns=$(kubectl get ns --all-namespaces -o name | grep $ns_prefix | head -n 1)
+ns=$(kubectl get ns --all-namespaces -o name --context $KUBE_CONTEXT | grep $ns_prefix | head -n 1)
 fail_on_exit_code "Unable to find any k8s namespaces having prefix \"$ns_prefix\""
 tenant=${ns/$ns_prefix/} # strip namespace prefix
 ns=$(cut -d "/" -f 2 <<< $ns) # strip resource kind prefix
 echo "Checking for permissions to patch tenant..."
-kres=$(kubectl auth can-i patch tenant/$tenant -n $ns) && [[ "${kres}" == "yes" ]]
+kres=$(kubectl auth can-i patch tenant/$tenant -n $ns --context $KUBE_CONTEXT) && [[ "${kres}" == "yes" ]]
 fail_on_exit_code "Insufficient k8s API permissions on cluster \"$KUBE_TENANT_CLUSTER\" - cannot patch tenant \"$tenant\""
 
 echo_color $green "Success!"
