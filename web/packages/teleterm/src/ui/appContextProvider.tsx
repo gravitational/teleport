@@ -28,8 +28,12 @@ export default AppContextProvider;
 
 export function useAppContext() {
   const ctx = React.useContext(AppReactContext);
-  // For debugging and diagnostic purposes.
-  window['teleterm'] = ctx;
+
+  // Attach the app context to the window for debugging and diagnostic purposes.
+  // Do not do this in the packaged app as this exposes privileged APIs through the window object.
+  if (process.env.NODE_ENV === 'development') {
+    window['teleterm'] = ctx;
+  }
   return ctx;
 }
 
