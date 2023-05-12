@@ -32,13 +32,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -442,19 +442,17 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 	}
 
-	var clt auth.ClientI
+	clt, mfaClt := params.AuthClient, params.AuthClient
 	// Connect to the target cluster (root or leaf) to check whether MFA is
 	// required or if we know from param that it's required, connect because
 	// it will be needed to do MFA check.
-	if params.AuthClient != nil {
-		clt = params.AuthClient
-	} else {
+	if clt == nil {
 		authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
-		clt = authClt
-		defer clt.Close()
+		clt, mfaClt = authClt, authClt
+		defer authClt.Close()
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
@@ -464,12 +462,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 	if params.RouteToCluster != rootClusterName {
-		clt.Close()
 		rootClusterProxy := proxy
 		if jumpHost := proxy.teleportClient.JumpHosts; jumpHost != nil {
 			// In case of MFA connect to root teleport proxy instead of JumpHost to request
 			// MFA certificates.
-			proxy.teleportClient.WithoutJumpHosts(func(tcNoJump *TeleportClient) error {
+			err := proxy.teleportClient.WithoutJumpHosts(func(tcNoJump *TeleportClient) error {
 				rootClusterProxy, err = tcNoJump.ConnectToProxy(ctx)
 				return trace.Wrap(err)
 			})
@@ -478,17 +475,17 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			}
 			defer rootClusterProxy.Close()
 		}
-		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
+		mfaClt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		defer clt.Close()
+		defer mfaClt.Close()
 	}
 
-	params.AuthClient = clt
+	params.AuthClient = mfaClt
 
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := clt.GenerateUserSingleUseCerts(ctx)
+	stream, err := mfaClt.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			// Probably talking to an older server, use the old non-MFA endpoint.
@@ -526,7 +523,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
 		// certs without MFA.
-		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+		if errors.Is(err, auth.ErrNoMFADevices) {
 			if params.usage() != proto.UserCertsRequest_SSH {
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
@@ -1170,6 +1167,10 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+		DialOpts: []grpc.DialOption{
+			grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+			grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1263,6 +1264,10 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		DialOpts: []grpc.DialOption{
+			grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+			grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
