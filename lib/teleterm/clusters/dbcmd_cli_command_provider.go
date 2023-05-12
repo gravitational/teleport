@@ -15,8 +15,7 @@
 package clusters
 
 import (
-	"fmt"
-	"strings"
+	"os/exec"
 
 	"github.com/gravitational/trace"
 
@@ -43,10 +42,10 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
+func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
 	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
@@ -72,13 +71,8 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		dbcmd.WithExecer(d.execer),
 	).GetConnectCommand()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	cmdString := strings.TrimSpace(
-		fmt.Sprintf("%s %s",
-			strings.Join(cmd.Env, " "),
-			strings.Join(cmd.Args, " ")))
-
-	return cmdString, nil
+	return cmd, nil
 }
