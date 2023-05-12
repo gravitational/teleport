@@ -656,7 +656,7 @@ Orapki binary was not found. Please create oracle wallet file manually by runnin
 orapki wallet create -wallet {{.walletDir}} -auto_login_only
 orapki wallet import_pkcs12 -wallet {{.walletDir}} -auto_login_only -pkcs12file {{.output}}.p12 -pkcs12pwd {{.password}}
 orapki wallet add -wallet {{.walletDir}} -trusted_cert -auto_login_only -cert {{.output}}.crt
-{{ else }}
+{{else}}
 Oracle wallet stored in {{.output}} directory created with Oracle Orapki.
 
 {{end}}
