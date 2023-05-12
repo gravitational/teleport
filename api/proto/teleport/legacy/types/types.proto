@@ -5137,10 +5137,18 @@ message PluginSpecV1 {
     PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
+    //
+    PluginDiscordAccessSettings discord_access_plugin = 6;
   }
 }
 
 message PluginSlackAccessSettings {
+  option (gogoproto.equal) = true;
+
+  string fallback_channel = 1;
+}
+
+message PluginDiscordAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;

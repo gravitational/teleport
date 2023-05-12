@@ -1393,7 +1393,8 @@ type HostedPlugins struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider.
 type PluginOAuthProviders struct {
-	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+	Slack   *OAuthClientCredentials `yaml:"slack,omitempty"`
+	Discord *OAuthClientCredentials `yaml:"discord,omitempty"`
 }
 
 func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
@@ -1407,6 +1408,13 @@ func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) 
 		return out, trace.Wrap(err)
 	}
 	out.Slack = slack
+
+	discord, err := p.Discord.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Discord = discord
+
 	return out, nil
 }
 

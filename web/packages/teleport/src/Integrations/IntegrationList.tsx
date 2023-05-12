@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
+import discordIcon from 'design/assets/images/icons/discord.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import jamfIcon from 'design/assets/images/icons/jamf.svg';
 import Table, { Cell } from 'design/DataTable';
@@ -180,6 +181,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   let icon;
   if (item.resourceType === 'plugin') {
     switch (item.kind) {
+      case 'discord':
+        formattedText = 'Discord';
+        icon = <IconContainer src={discordIcon} />;
+        break;
       case 'slack':
         formattedText = 'Slack';
         icon = <IconContainer src={slackIcon} />;
