@@ -2495,7 +2495,9 @@ func (x *AuthenticateDeviceChallengeResponse) GetSignature() []byte {
 // <- SyncInventoryResult
 // (end loop)
 // -> SyncInventoryEnd
-// <- SyncInventoryResult (missing devices)
+// (loop until server closes the stream, zero or more times)
+// <- SyncInventoryResult (deleted/missing devices)
+// (end)
 type SyncInventoryRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -2694,18 +2696,16 @@ type SyncInventoryStart struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Source of the inventory sync.
-	// Acquired from the mTLS certificate for MDM services, must be explicitly
-	// supplied otherwise.
-	// This source is used for all devices. The `source` field in individual
-	// devices is ignored by this RPC.
+	// Used for all devices. The `source` field in individual devices is ignored
+	// by this RPC.
 	Source *DeviceSource `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
 	// Mode of syncing.
 	// Required.
 	Mode SyncInventoryMode `protobuf:"varint,2,opt,name=mode,proto3,enum=teleport.devicetrust.v1.SyncInventoryMode" json:"mode,omitempty"`
 	// Action for devices missing from the external inventory, but present in
 	// Teleport.
-	// Only executed if mode is FULL and mdm_sync_successful is set to true in the
-	// SyncInventoryEnd message.
+	// Only executed if mode is FULL and external_sync_successful is set to true
+	// in the SyncInventoryEnd message.
 	OnMissingAction SyncInventoryDeviceAction `protobuf:"varint,3,opt,name=on_missing_action,json=onMissingAction,proto3,enum=teleport.devicetrust.v1.SyncInventoryDeviceAction" json:"on_missing_action,omitempty"`
 }
 
