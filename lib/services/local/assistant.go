@@ -238,6 +238,16 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	_, ok := a.Backend.(*etcdbk.EtcdBackend)
+	reporter, ok := a.Backend.(*backend.Reporter)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	sanitizer, ok := reporter.Backend.(*backend.Sanitizer)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
 	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
 }
