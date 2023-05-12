@@ -96,7 +96,7 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
       cluster.uri
     ).params;
     workspaceDocumentsService.openNewTerminal({
-      initCommand: gateway.cliCommand,
+      initCommand: gateway.cliCommand.preview,
       rootClusterId,
       leafClusterId,
     });
