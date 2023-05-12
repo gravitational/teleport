@@ -24,6 +24,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -41,6 +42,19 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var mdmTokenAddTemplate = template.Must(
+	template.New("mdmTokenAdd").Parse(`The invite token: {{.token}}
+This token will expire in {{.minutes}} minutes.
+
+Use this token to add an MDM service to Teleport.
+
+> teleport start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   -c=/path/to/mdm_service.yaml
+
+`))
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
@@ -297,6 +311,12 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 				"token":   token,
 				"minutes": c.ttl.Minutes(),
 			})
+	case roles.Include(types.RoleMDM):
+		return mdmTokenAddTemplate.Execute(c.stdout, map[string]interface{}{
+			"token":   token,
+			"minutes": c.ttl.Minutes(),
+			"ca_pins": caPins,
+		})
 	default:
 		authServer := authServers[0].GetAddr()
 
