@@ -16,10 +16,11 @@ limitations under the License.
 
 import React from 'react';
 
+import logoSrc from 'design/assets/images/teleport-medallion.svg';
+
 import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 
-import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
 import useLogin, { State } from './useLogin';
 

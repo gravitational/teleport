@@ -19,6 +19,7 @@ import path from 'path';
 import fs from 'fs/promises';
 
 import { promisify } from 'util';
+
 import {
   app,
   dialog,
