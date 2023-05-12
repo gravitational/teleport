@@ -32,19 +32,37 @@ export function useIntegrationOperation() {
     return integrationService.deleteIntegration(operation.item.name);
   }
 
+  function edit(req: EditableIntegrationFields) {
+    return integrationService.updateIntegration(operation.item.name, {
+      awsoidc: { roleArn: req.roleArn },
+    });
+  }
+
   function onRemove(item: Integration) {
     setOperation({ type: 'delete', item });
+  }
+
+  function onEdit(item: Integration) {
+    setOperation({ type: 'edit', item });
   }
 
   return {
     ...operation,
     clear,
     remove,
+    edit,
     onRemove,
+    onEdit,
   };
 }
 
+export type EditableIntegrationFields = {
+  roleArn: string;
+};
+
+export type OperationType = 'create' | 'edit' | 'delete' | 'reset' | 'none';
+
 export type Operation = {
-  type: 'create' | 'edit' | 'delete' | 'reset' | 'none';
+  type: OperationType;
   item?: Plugin | Integration;
 };
