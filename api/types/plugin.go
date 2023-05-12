@@ -126,12 +126,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if bearer == nil {
 			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
 		}
-
 		if bearer.Token == "" {
 			return trace.BadParameter("Token must be specified")
 		}
 	case *PluginSpecV1_Opsgenie:
-		// Check settings.
 		if settings.Opsgenie == nil {
 			return trace.BadParameter("settings must be set")
 		}
@@ -139,10 +137,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 
-		if p.Credentials == nil {
-			// TODO: after credential exchange during creation is implemented,
-			// this should validate that credentials are not empty
-			break
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("opsgenie plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
 		}
 	case *PluginSpecV1_Jamf:
 		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
