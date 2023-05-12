@@ -1612,21 +1612,6 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// We need to wait for the exec request to be handled here for the session to be
 	// created. Sadly though the k8s API doesn't give us much indication of when that is.
-	time.Sleep(time.Second * 5)
-
-	participantStdinR, participantStdinW := io.Pipe()
-	participantStdoutR, participantStdoutW := io.Pipe()
-
-	tc, err := teleport.NewClient(helpers.ClientConfig{
-		Login:   hostUsername,
-		Cluster: helpers.Site,
-		Host:    Host,
-	})
-	require.NoError(t, err)
-
-	tc.Stdin = participantStdinR
-	tc.Stdout = participantStdoutW
-
 	var session types.SessionTracker
 	require.Eventually(t, func() bool {
 		// We need to wait for the session to be created here. We can't use the
@@ -1640,6 +1625,19 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		session = sessions[0]
 		return true
 	}, 10*time.Second, time.Second)
+
+	participantStdinR, participantStdinW := io.Pipe()
+	participantStdoutR, participantStdoutW := io.Pipe()
+
+	tc, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   hostUsername,
+		Cluster: helpers.Site,
+		Host:    Host,
+	})
+	require.NoError(t, err)
+
+	tc.Stdin = participantStdinR
+	tc.Stdout = participantStdoutW
 
 	stream, err := kubeJoin(kube.ProxyConfig{
 		T:          teleport,

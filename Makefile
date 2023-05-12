@@ -848,7 +848,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 # Integration tests that run Kubernetes tests in order to complete successfully
 # are run separately to all other integration tests.
 #
-INTEGRATION_KUBE_REGEX := Kube.*
+INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
 integration-kube: FLAGS ?= -v -race
 integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
