@@ -38,7 +38,8 @@ export function ThirdStageInstructions(props: CommonInstructionsProps) {
       </Text>
 
       <Text mt={5}>
-        Select <strong>Assign role</strong> and create a new role
+        Click <strong>Assign role</strong> and select{' '}
+        <strong>Create a new role</strong>
       </Text>
 
       <Box mt={5}>

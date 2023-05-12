@@ -22,20 +22,26 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
@@ -46,7 +52,9 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -55,6 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 type Suite struct {
@@ -579,7 +588,10 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 	require.NoError(t, err)
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(teleportCluster, kubeCluster, cert)
-	return alpnproxy.NewKubeMiddleware(certs)
+
+	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		return tls.Certificate{}, nil
+	}, clockwork.NewRealClock(), nil)
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -627,6 +639,10 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 
 		conn, err := m.Accept()
 		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				continue
+			}
+
 			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
@@ -637,6 +653,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
+				ClientAuth:   tls.NoClientCert,
 			})
 
 			// api.Client may try different connection methods. Just close the
@@ -691,4 +708,76 @@ func mustParseURL(t *testing.T, rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
 	require.NoError(t, err)
 	return u
+}
+
+// fakeSTSClient is a fake HTTP client used to fake STS responses when Auth
+// server sends out pre-signed STS requests for IAM join verification.
+type fakeSTSClient struct {
+	accountID   string
+	arn         string
+	credentials *credentials.Credentials
+}
+
+func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
+	if err := awsutils.VerifyAWSSignature(req, f.credentials); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := fmt.Sprintf(`{"GetCallerIdentityResponse": {"GetCallerIdentityResult": {"Account": "%s", "Arn": "%s" }}}`, f.accountID, f.arn)
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(response)),
+	}, nil
+}
+
+func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedARN string) types.ProvisionToken {
+	t.Helper()
+
+	provisionToken, err := types.NewProvisionTokenFromSpec(
+		name,
+		time.Now().Add(time.Hour),
+		types.ProvisionTokenSpecV2{
+			Roles: []types.SystemRole{types.RoleNode},
+			Allow: []*types.TokenRule{
+				{
+					AWSAccount: awsAccountID,
+					AWSARN:     allowedARN,
+				},
+			},
+			JoinMethod: types.JoinMethodIAM,
+		},
+	)
+	require.NoError(t, err)
+	return provisionToken
+}
+
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
+	t.Helper()
+
+	cred, err := credentials.Get()
+	require.NoError(t, err)
+
+	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
+	t.Setenv("AWS_SECRET_ACCESS_KEY", cred.SecretAccessKey)
+	t.Setenv("AWS_SESSION_TOKEN", cred.SessionToken)
+	t.Setenv("AWS_REGION", "us-west-2")
+
+	privateKey, err := ssh.ParseRawPrivateKey([]byte(fixtures.SSHCAPrivateKey))
+	require.NoError(t, err)
+	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)
+	require.NoError(t, err)
+
+	node := uuid.NewString()
+	_, err = auth.Register(auth.RegisterParams{
+		Token: token,
+		ID: auth.IdentityID{
+			Role:     types.RoleNode,
+			HostUUID: node,
+			NodeName: node,
+		},
+		ProxyServer:  proxyAddr,
+		JoinMethod:   types.JoinMethodIAM,
+		PublicTLSKey: pubTLS,
+		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
+	})
+	require.NoError(t, err, trace.DebugReport(err))
 }

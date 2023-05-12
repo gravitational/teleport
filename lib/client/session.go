@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -643,7 +644,7 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 	for {
 		buf := make([]byte, 1)
 		_, err := term.Stdin().Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 

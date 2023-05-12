@@ -56,13 +56,25 @@ const themedStyles = props => {
   const { colors } = props.theme;
   const { kind } = props;
 
-  const style = {
-    '&:disabled': {
-      background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
-      color: colors.buttons.textDisabled,
-      cursor: 'auto',
-    },
+  let disabledStyle = {
+    background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
+    color: colors.buttons.textDisabled,
+    cursor: 'auto',
   };
+
+  let style = {
+    '&:disabled': disabledStyle,
+  };
+
+  // Using the pseudo class `:disabled` to style disabled state
+  // doesn't work for non form elements (e.g. anchor). So
+  // we target by attribute with square brackets. Only true
+  // when we change the underlying type for this component (button)
+  // using the `as` prop (eg: a, NavLink, Link).
+  if (props.as && props.disabled) {
+    disabledStyle.pointerEvents = 'none';
+    style = { '&[disabled]': disabledStyle };
+  }
 
   return {
     ...kinds(props),
@@ -96,7 +108,6 @@ export const kinds = props => {
         border: '1px solid ' + theme.colors.buttons.border.border,
         '&:hover, &:focus': {
           background: theme.colors.buttons.border.hover,
-          border: '1px solid ' + theme.colors.buttons.border.borderHover,
         },
         '&:active': {
           background: theme.colors.buttons.border.active,

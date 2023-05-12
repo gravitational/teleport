@@ -88,6 +88,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.billing;
   }
 
+  getLockAccess() {
+    return this.state.acl.lock;
+  }
+
   getDatabaseServerAccess() {
     return this.state.acl.dbServers;
   }
@@ -182,5 +186,9 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getIntegrationsAccess() {
     return this.state.acl.integrations;
+  }
+
+  getAssistantAccess() {
+    return this.state.acl.assist;
   }
 }

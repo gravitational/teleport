@@ -704,9 +704,10 @@ message ServerSpecV2 {
   reserved 8;
   reserved 10;
 
-  // Addr is server host:port address
+  // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address this cluster can be reached at.
+  // PublicAddr is the public address where this server can be reached.
+  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
   string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
@@ -736,6 +737,8 @@ message ServerSpecV2 {
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // PublicAddrs is a list of public addresses where this server can be reached.
+  repeated string public_addrs = 13;
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -1148,6 +1151,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
   // GitLab allows the configuration of options specific to the "gitlab" join method.
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
+  // GCP allows the configuration of options specific to the "gcp" join method.
+  ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1272,6 +1277,26 @@ message ProvisionTokenSpecV2Azure {
     // ResourceGroups is a list of Azure resource groups the node is allowed
     // to join from.
     repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2GCP contains the GCP-specific part of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2GCP {
+  // Rule is a set of properties the GCP-ussued token might have to be allowed
+  // to use this ProvisionToken.
+  message Rule {
+    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
+    // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
+    // "us-west1-b").
+    repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
+    // ServiceAccounts is a list of service account emails (e.g.
+    // "<project-number>-compute@developer.gserviceaccount.com").
+    repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -2377,6 +2402,13 @@ message RoleOptions {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // CreateDesktopUser allows users to be automatically created on a Windows desktop
+  BoolValue CreateDesktopUser = 26 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_desktop_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2552,6 +2584,9 @@ message RoleConditions {
     (gogoproto.jsontag) = "group_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+
+  // DesktopGroups is a list of groups for created desktop users to be added to
+  repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -2957,6 +2992,13 @@ message WebauthnDevice {
   // view of the registration process; the authenticator alone can determine
   // if a key is truly resident.)
   bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -5010,6 +5052,8 @@ message PluginSpecV1 {
     PluginSlackAccessSettings slack_access_plugin = 1;
     // Settings for the Opsgenie access plugin
     PluginOpsgenieAccessSettings opsgenie = 2;
+    // Settings for OpenAI plugin
+    PluginOpenAISettings openai = 3;
   }
 }
 
@@ -5032,9 +5076,15 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
 }
 
+// Defines settings for the OpenAI plugin. Currently there are no settings.
+message PluginOpenAISettings {
+  option (gogoproto.equal) = true;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5069,6 +5119,7 @@ enum PluginStatusCode {
 message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5079,6 +5130,19 @@ message PluginOAuth2AccessTokenCredentials {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+}
+
+message PluginBearerTokenCredentials {
+  // Token is the literal bearer token to be submitted to the 3rd-party API provider.
+  string token = 1;
+
+  // TokenFile is a path to the local file containing a bearer token.
+  // This takes precedence over Token, and is currently only used by
+  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
+  // This avoids exposing the token itself to the cluster.
+  // The file must exist and be readable on whatever runs the plugin
+  // (in the OpenAI case, it is the Proxy).
+  string token_file = 2;
 }
 
 // PluginList represents a list of plugin resources
@@ -5298,56 +5362,49 @@ message OktaAssignmentV1 {
 message OktaAssignmentSpecV1 {
   // User is the user that these actions will be applied to.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Actions is a list of Okta actions to take on a user.
-  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+  // Targets is a list of Okta targets to take on a user.
+  repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
   // CleanupTime is an optional field that notes when the assignment should be cleaned up.
   // If absent, the assignment will never be cleaned up.
   google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.jsontag) = "cleanup_time",
     (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true
+    (gogoproto.nullable) = false
   ];
-}
 
-// OktaAssignmentActionV1 is a Okta assignment action.
-message OktaAssignmentActionV1 {
-  // OktaAssignmentStatus represents the status of an action in an Okta assignment.
-  enum OktaAssignmentActionStatus {
+  // Status is the status of the assignment.
+  OktaAssignmentStatus status = 4 [(gogoproto.jsontag) = "status"];
+
+  // OktaAssignmentStatus represents the status of an Okta assignment.
+  enum OktaAssignmentStatus {
     // UNKNOWN indicates the status is not set.
     UNKNOWN = 0;
     // PENDING indicates the action has not yet been applied.
     PENDING = 1;
-    // SUCCESSFUL indicates the action was applied successfully.
-    SUCCESSFUL = 2;
-    // FAILED indicates the action was not applied successfully. It will be retried.
-    FAILED = 3;
-    // CLEANED_UP indicates the action was cleaned up successfully.
-    CLEANED_UP = 4;
-    // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
-    CLEANUP_FAILED = 5;
     // PROCESSSING indicates that the assignment is being applied.
-    PROCESSING = 6;
-    // CLEANUP_PENDING indicates the action needs to be cleaned up.
-    CLEANUP_PENDING = 7;
-    // CLEANUP_PROCESSING indicates the action is being cleaned up.
-    CLEANUP_PROCESSING = 8;
+    PROCESSING = 2;
+    // SUCCESSFUL indicates the action was applied successfully.
+    SUCCESSFUL = 3;
+    // FAILED indicates the action was not applied successfully. It will be retried.
+    FAILED = 4;
   }
 
-  // Status is the status of the action.
-  OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
-  // Target is the target of the assignment action.
-  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
   // LastTransition is an optional field that notes when the last state transition
   // occurred for this action. If absent, this object has never transitioned.
-  google.protobuf.Timestamp LastTransition = 3 [
+  google.protobuf.Timestamp LastTransition = 5 [
+    (gogoproto.jsontag) = "last_transition",
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+
+  // Finalized is set when the assignment has been properly cleaned up.
+  bool Finalized = 6 [(gogoproto.jsontag) = "finalized"];
 }
 
-// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
-message OktaAssignmentActionTargetV1 {
-  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
-  enum OktaAssignmentActionTargetType {
+// OktaAssignmentTargetV1 is a target of an Okta assignment.
+message OktaAssignmentTargetV1 {
+  // OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
+  enum OktaAssignmentTargetType {
     // UNKNOWN indicates the target is unknown.
     UNKNOWN = 0;
     // APPLICATION indicates the target is an application.
@@ -5356,8 +5413,8 @@ message OktaAssignmentActionTargetV1 {
     GROUP = 2;
   }
 
-  // Type is the type of Okta resource this assignment action is targeting.
-  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // Type is the type of Okta resource this assignment is targeting.
+  OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
 }
@@ -5483,4 +5540,37 @@ message WatchStatusSpecV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds"
   ];
+}
+
+// ServerInfoV1 contains info that should be applied to joining Nodes.
+message ServerInfoV1 {
+  // Kind is the resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind. Currently unused for this resource.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the resource spec.
+  ServerInfoSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
+message ServerInfoSpecV1 {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  message AWSInfo {
+    // AccountID is an AWS account ID.
+    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+    // InstanceID is an EC2 instance ID.
+    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  }
+  // AWS matches an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }

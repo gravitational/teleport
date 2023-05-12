@@ -44,7 +44,7 @@ exports[`success state 1`] = `
   cursor: auto;
 }
 
-.c22 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -63,7 +63,7 @@ exports[`success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -72,43 +72,129 @@ exports[`success state 1`] = `
   height: 24px;
 }
 
-.c22:hover,
-.c22:focus {
+.c24:hover,
+.c24:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
-.c22:active {
+.c24:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c22:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c17 {
+.c18 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c19 {
+.c21 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c23 {
+.c25 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
+}
+
+.c15 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c15 .c17 {
+  color: inherit;
+}
+
+.c15:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c15:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c15:hover:enabled,
+.c15:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c19 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c19 .c17 {
+  color: inherit;
+}
+
+.c19:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c19:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c19:hover:enabled,
+.c19:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c19:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c13 {
@@ -122,7 +208,7 @@ exports[`success state 1`] = `
   color: #FFFFFF;
 }
 
-.c21 {
+.c23 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -156,7 +242,7 @@ exports[`success state 1`] = `
   display: flex;
 }
 
-.c20 {
+.c22 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
@@ -201,10 +287,11 @@ exports[`success state 1`] = `
   padding-bottom: 24px;
 }
 
-.c18 {
+.c20 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -213,39 +300,39 @@ exports[`success state 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c18 > thead > tr > th,
-.c18 > tbody > tr > th,
-.c18 > tfoot > tr > th,
-.c18 > thead > tr > td,
-.c18 > tbody > tr > td,
-.c18 > tfoot > tr > td {
+.c20 > thead > tr > th,
+.c20 > tbody > tr > th,
+.c20 > tfoot > tr > th,
+.c20 > thead > tr > td,
+.c20 > tbody > tr > td,
+.c20 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c18 > thead > tr > th:first-child,
-.c18 > tbody > tr > th:first-child,
-.c18 > tfoot > tr > th:first-child,
-.c18 > thead > tr > td:first-child,
-.c18 > tbody > tr > td:first-child,
-.c18 > tfoot > tr > td:first-child {
+.c20 > thead > tr > th:first-child,
+.c20 > tbody > tr > th:first-child,
+.c20 > tfoot > tr > th:first-child,
+.c20 > thead > tr > td:first-child,
+.c20 > tbody > tr > td:first-child,
+.c20 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c18 > thead > tr > th:last-child,
-.c18 > tbody > tr > th:last-child,
-.c18 > tfoot > tr > th:last-child,
-.c18 > thead > tr > td:last-child,
-.c18 > tbody > tr > td:last-child,
-.c18 > tfoot > tr > td:last-child {
+.c20 > thead > tr > th:last-child,
+.c20 > tbody > tr > th:last-child,
+.c20 > tfoot > tr > th:last-child,
+.c20 > thead > tr > td:last-child,
+.c20 > tbody > tr > td:last-child,
+.c20 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c18 > tbody > tr > td {
+.c20 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c18 > thead > tr > th {
+.c20 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -259,22 +346,22 @@ exports[`success state 1`] = `
   white-space: nowrap;
 }
 
-.c18 > thead > tr > th .c16 {
+.c20 > thead > tr > th .c17 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c18 > tbody > tr > td {
+.c20 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c18 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c20 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c18 tbody tr:hover {
+.c20 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -294,29 +381,12 @@ exports[`success state 1`] = `
   border-radius: 8px;
 }
 
-.c15 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c15 .c16 {
+.c16 .c17 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c15:hover .c16,
-.c15:focus .c16 {
-  opacity: 1;
-}
-
-.c15:disabled {
-  cursor: default;
-}
-
-.c15:disabled .c16 {
-  opacity: 0.1;
+.c16 .c17:before {
+  padding-left: 1px;
 }
 
 .c10 {
@@ -381,7 +451,7 @@ exports[`success state 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -440,7 +510,7 @@ exports[`success state 1`] = `
           >
             <div
               class="c13"
-              color="text.primary"
+              color="text.main"
               style="white-space: nowrap; text-transform: uppercase;"
             >
               Showing 
@@ -462,22 +532,22 @@ exports[`success state 1`] = `
             class="c14"
           >
             <button
-              class="c15"
+              class="c15 c16"
               disabled=""
               title="Previous page"
             >
               <span
-                class="c16 c17 icon icon-arrow-left-circle "
+                class="c17 c18 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c15"
+              class="c19 c16"
               disabled=""
               title="Next page"
             >
               <span
-                class="c16 c17 icon icon-arrow-right-circle "
+                class="c17 c18 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
@@ -485,7 +555,7 @@ exports[`success state 1`] = `
         </div>
       </nav>
       <table
-        class="c18"
+        class="c20"
       >
         <thead>
           <tr>
@@ -493,7 +563,7 @@ exports[`success state 1`] = `
               <a>
                 Name
                 <span
-                  class="c16 c19 icon icon-chevron-up "
+                  class="c17 c21 icon icon-chevron-up "
                   title="sort items asc"
                 />
               </a>
@@ -502,7 +572,7 @@ exports[`success state 1`] = `
               <a>
                 Roles
                 <span
-                  class="c16 c19 icon icon-chevrons-expand-vertical "
+                  class="c17 c21 icon icon-chevrons-expand-vertical "
                   title="sort items"
                 />
               </a>
@@ -511,7 +581,7 @@ exports[`success state 1`] = `
               <a>
                 Type
                 <span
-                  class="c16 c19 icon icon-chevrons-expand-vertical "
+                  class="c17 c21 icon icon-chevrons-expand-vertical "
                   title="sort items"
                 />
               </a>
@@ -528,10 +598,10 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   tugu
@@ -547,14 +617,14 @@ exports[`success state 1`] = `
               align="right"
             >
               <button
-                class="c22"
+                class="c24"
                 height="24px"
                 kind="border"
               >
                 OPTIONS
                 <span
-                  class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  class="c17 c25 icon icon-caret-down "
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -566,10 +636,10 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   admin
@@ -585,14 +655,14 @@ exports[`success state 1`] = `
               align="right"
             >
               <button
-                class="c22"
+                class="c24"
                 height="24px"
                 kind="border"
               >
                 OPTIONS
                 <span
-                  class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  class="c17 c25 icon icon-caret-down "
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -604,16 +674,16 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   ruhh
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   admin
@@ -629,14 +699,14 @@ exports[`success state 1`] = `
               align="right"
             >
               <button
-                class="c22"
+                class="c24"
                 height="24px"
                 kind="border"
               >
                 OPTIONS
                 <span
-                  class="c16 c23 icon icon-caret-down "
-                  color="text.secondary"
+                  class="c17 c25 icon icon-caret-down "
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -648,34 +718,34 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   ubip
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   duzjadj
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   dupiwuzocafe
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   abc
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   anavebikilonim
@@ -697,22 +767,22 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   vuit
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   vedkonm
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   valvapel
@@ -734,22 +804,22 @@ exports[`success state 1`] = `
             </td>
             <td>
               <div
-                class="c20"
+                class="c22"
               >
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   kaco
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   ziuzzow
                 </div>
                 <div
-                  class="c21"
+                  class="c23"
                   kind="secondary"
                 >
                   admin

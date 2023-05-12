@@ -92,6 +92,7 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
           <>
             <Box mt={2}>
               <FieldInput
+                autoFocus
                 label="thumbprint"
                 onChange={e => setThumbprint(e.target.value)}
                 value={thumbprint}

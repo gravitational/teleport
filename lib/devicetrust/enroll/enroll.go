@@ -22,14 +22,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/devicetrust/native"
-)
-
-// vars below are used to fake OSes and switch implementations for tests.
-var (
-	getOSType     = getDeviceOSType
-	enrollInit    = native.EnrollDeviceInit
-	signChallenge = native.SignChallenge
 )
 
 // RunCeremony performs the client-side device enrollment ceremony.

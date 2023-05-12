@@ -28,7 +28,8 @@ export default {
 export const AwsRegionsSelectorDisabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableBtn={true}
+    disableFetch={true}
+    onRefresh={() => null}
     disableSelector={true}
     clear={() => null}
   />
@@ -37,7 +38,18 @@ export const AwsRegionsSelectorDisabled = () => (
 export const AwsRegionsSelectorEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableBtn={false}
+    disableFetch={false}
+    onRefresh={() => null}
+    disableSelector={false}
+    clear={() => null}
+  />
+);
+
+export const AwsRegionsSelectorRefreshEnabled = () => (
+  <AwsRegionSelector
+    onFetch={() => null}
+    disableFetch={true}
+    onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
   />
@@ -79,7 +91,7 @@ const fixtures: AwsRdsDatabase[] = [
     engine: 'postgres',
     uri: '',
     labels: [],
-    status: 'Available',
+    status: 'available',
     accountId: '',
     resourceId: '',
   },
@@ -88,7 +100,7 @@ const fixtures: AwsRdsDatabase[] = [
     engine: 'mysql',
     uri: '',
     labels: [],
-    status: 'Available',
+    status: 'available',
     accountId: '',
     resourceId: '',
   },
@@ -100,7 +112,7 @@ const fixtures: AwsRdsDatabase[] = [
       { name: 'env', value: 'prod' },
       { name: 'os', value: 'windows' },
     ],
-    status: 'Deleting',
+    status: 'deleting',
     accountId: '',
     resourceId: '',
   },
@@ -109,7 +121,7 @@ const fixtures: AwsRdsDatabase[] = [
     engine: 'postgres',
     uri: '',
     labels: [],
-    status: 'Failed',
+    status: 'failed',
     accountId: '',
     resourceId: '',
   },
@@ -131,7 +143,7 @@ const fixtures: AwsRdsDatabase[] = [
     engine: 'postgres',
     uri: '',
     labels: [{ name: 'testing-name', value: 'testing-value' }],
-    status: 'Available',
+    status: 'available',
     accountId: '',
     resourceId: '',
   },
