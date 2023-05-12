@@ -47,7 +47,6 @@ Infrastructure components include:
 
 ```mermaid
 flowchart
-
    subgraph public[Public Network]
      Developers
    end
@@ -61,7 +60,7 @@ flowchart
    Developers & server1 & server2 & server3 --> lb1[Load Balancer]
    lb1 --> proxies
 
-   subgraph teleport[Private Network]
+   subgraph teleport[Private Network &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp]
      subgraph proxies[Proxy Service Pool]
        tp1[Teleport Proxy Service]
        tp2[Teleport Proxy Service]
@@ -71,7 +70,7 @@ flowchart
 
      subgraph auth[Auth Service Pool]
        ta1[Teleport Auth Service]
-       ta3[Teleport Auth Service]
+       ta2[Teleport Auth Service]
     end
 
     lb2-->auth
@@ -79,6 +78,19 @@ flowchart
     auth-->kv[Key/Value Store]
     auth-->os[Object Store]
    end
+
+classDef teleportColor fill:#844cff,color:#fff
+classDef teleportColor2 fill:#a379ff,color:#fff
+classDef nestedSub fill:#fff
+class proxies nestedSub
+class auth nestedSub
+class server1 teleportColor2
+class server2 teleportColor2
+class server3 teleportColor2
+class tp1 teleportColor
+class tp2 teleportColor
+class ta1 teleportColor
+class ta2 teleportColor
 ```
 
 ## Layer 4 load balancers
