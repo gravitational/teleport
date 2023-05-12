@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonBorder } from 'design/Button';
+import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
@@ -47,10 +47,9 @@ export function ButtonLockedFeature({
   }
 
   return (
-    <ButtonBorder
+    <ButtonPrimary
       as="a"
       target="blank"
-      kind="primary"
       href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
       onClick={handleClick}
       py="12px"
@@ -62,7 +61,7 @@ export function ButtonLockedFeature({
         {!noIcon && <UnlockIcon />}
         {children}
       </Flex>
-    </ButtonBorder>
+    </ButtonPrimary>
   );
 }
 
