@@ -1,5 +1,40 @@
 # Changelog
 
+## 13.0.1 (05/xx/23)
+
+* Helm Charts
+  * Fixed issue with invite token being incorrectly overridden when it was manually created. [#26055](https://github.com/gravitational/teleport/pull/26055)
+
+### Breaking Changes
+
+Please familiarize yourself with the following potentially disruptive changes in
+Teleport 13 before upgrading.
+
+#### Teleport Kubernetes Agent helm chart
+
+When upgrading to Teleport 13, users of the Teleport Kubernetes Agent Helm chart
+that manually create their own Teleport token secret (`secretName=<secretName>` and no auth token provided)
+will need to set the following values:
+
+```yaml
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: false
+  # Name of the Secret to store the teleport join token.
+  name: <secretName>
+```
+
+The Helm chart parameter `secretName` was deprecated in Teleport 13 in favor of
+`joinTokenSecret.name`. `joinTokenSecret.create` indicates whether the Helm
+chart should create and manage the join token secret. If `create` is set to
+`false`, the chart assumes that the secret with the configured name already
+exists at the installation namespace.
+
+
 ## 13.0.0 (05/08/23)
 
 Teleport 13 brings the following marquee features and improvements:
