@@ -1129,6 +1129,129 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 }
 
+func isFileTransferRequest(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == string(srv.FileTransferUpdate)
+}
+
+func isFileTransferDecision(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == string(srv.FileTransferApproved)
+}
+
+func getRequestId(e *Envelope) (string, error) {
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return "", err
+	}
+	return ef.GetString("requestID"), nil
+}
+
+func TestFileTransferEvents(t *testing.T) {
+	t.Parallel()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+
+	errs := make(chan error, 2)
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			typ, b, err := ws.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if typ != websocket.BinaryMessage {
+				errs <- trace.BadParameter("expected binary message, got %v", typ)
+				return
+			}
+			var envelope Envelope
+			if err := proto.Unmarshal(b, &envelope); err != nil {
+				errs <- trace.Wrap(err)
+				return
+			}
+			ch <- &envelope
+		}
+	}
+
+	// Create a new user "foo", open a terminal to a new session
+	pack := s.authPack(t, "foo")
+	ws, _, err := s.makeTerminal(t, pack)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	wsMessages := make(chan *Envelope)
+	go readLoop(ctx, ws, wsMessages)
+
+	// Create file transfer event
+	data, err := json.Marshal(events.EventFields{
+		"download": true,
+		"location": "~/myfile.txt",
+	})
+
+	require.NoError(t, err)
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketFileTransferRequest,
+		Payload: string(data),
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	require.NoError(t, err)
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	require.NoError(t, err)
+
+	done := time.After(5 * time.Second)
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive a file transfer event")
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-wsMessages:
+			if isFileTransferRequest(e) {
+				requestId, err := getRequestId(e)
+				require.NoError(t, err)
+				data, err := json.Marshal(events.EventFields{
+					"requestId": requestId,
+					"approved":  true,
+				})
+				require.NoError(t, err)
+				envelope := &Envelope{
+					Version: defaults.WebsocketVersion,
+					Type:    defaults.WebsocketFileTransferDecision,
+					Payload: string(data),
+				}
+				envelopeBytes, err := proto.Marshal(envelope)
+				require.NoError(t, err)
+				err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+				require.NoError(t, err)
+			}
+
+			if isFileTransferDecision(e) {
+				return
+			}
+		}
+	}
+}
+
 func TestNewTerminalHandler(t *testing.T) {
 	ctx := context.Background()
 
@@ -1212,6 +1335,7 @@ func TestNewTerminalHandler(t *testing.T) {
 		AuthProvider: authProviderMock{
 			server: validNode,
 		},
+		LocalAuthProvider: authProviderMock{},
 		SessionData: session.Session{
 			ID:       session.NewID(),
 			Login:    "root",
@@ -2308,20 +2432,22 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		authPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOn,
+			Webauthn:     &types.Webauthn{RPID: "localhost"},
+		},
+	})
+
+	wc := s.client(t)
 	t.Run("documented variables are injected", func(t *testing.T) {
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
 		// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 		err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
 echo Repository Channel: {{ .RepoChannel }}
+echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		`))
 		require.NoError(t, err)
 
@@ -2333,21 +2459,15 @@ echo Repository Channel: {{ .RepoChannel }}
 		// Variables must be injected
 		require.Contains(t, responseString, "echo Teleport-v")
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
+		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: true,
-		}})
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			}})
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -2358,6 +2478,12 @@ echo Repository Channel: {{ .RepoChannel }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
+				"  if [[ \"true\" == \"true\" ]]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
+				"  fi\n",
+			)
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2368,6 +2494,12 @@ echo Repository Channel: {{ .RepoChannel }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"teleport-ent\"\n"+
+				"  if [[ \"true\" == \"true\" ]]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
+				"  fi\n",
+			)
 		})
 	})
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
@@ -2375,15 +2507,6 @@ echo Repository Channel: {{ .RepoChannel }}
 			Cloud:             true,
 			AutomaticUpgrades: false,
 		}})
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -2970,7 +3093,7 @@ func TestSignMTLS(t *testing.T) {
 	tarContentFileNames := []string{}
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -6766,6 +6889,14 @@ func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authp
 	return nil, nil
 }
 
+func (mock authProviderMock) GetUser(_ string, _ bool) (types.User, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -7916,6 +8047,16 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
+	clock := clockwork.NewRealClock()
+	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: component,
+			Log:       log,
+			Client:    client,
+			Clock:     clock,
+		},
+	})
+	require.NoError(t, err)
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
@@ -7963,9 +8104,10 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			default:
 			}
 		},
-		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers: nil,
-		OnReconcile:      func(kc types.KubeClusters) {},
+		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:         nil,
+		OnReconcile:              func(kc types.KubeClusters) {},
+		KubernetesServersWatcher: watcher,
 	})
 	require.NoError(t, err)
 

@@ -75,7 +75,7 @@ export function createViteConfig(
         transformPlugin(),
       ],
       define: {
-        'process.env': process.env,
+        'process.env': { NODE_ENV: process.env.NODE_ENV },
       },
     };
 
@@ -90,6 +90,23 @@ export function createViteConfig(
 
       config.server.proxy = {
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/connect': {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        '^\\/v1\\/webapi\\/assistant\\/(.*?)': {
+          target: `https://${target}`,
+          changeOrigin: false,
+          secure: false,
+        },
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/assistant': {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        '^\\/v1\\/webapi\\/command\\/(.*?)/execute': {
           target: `wss://${target}`,
           changeOrigin: false,
           secure: false,

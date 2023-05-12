@@ -177,6 +177,7 @@ function getLoginItemListContent(
 }
 
 const StyledButton = styled.button`
+  font-family: inherit;
   color: inherit;
   border: none;
   flex: 1;
@@ -184,7 +185,6 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.slightlyMuted};
   background: transparent;
   font-size: 12px;
   border-bottom: 1px solid ${theme.colors.spotBackground[0]};
@@ -214,6 +214,7 @@ const Input = styled.input(
 
   ::placeholder {
     color: ${theme.colors.text.muted};
+    opacity: 1;
   }
 `,
   space

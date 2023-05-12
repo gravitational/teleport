@@ -17,6 +17,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -100,7 +101,7 @@ func UnmarshalKnownHosts(knownHostsFile [][]byte) ([]KnownHost, error) {
 	for _, line := range knownHostsFile {
 		for {
 			_, hosts, publicKey, commentString, rest, err := ssh.ParseKnownHosts(line)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)
