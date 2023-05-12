@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -251,14 +252,17 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	for i := 0; i < numGoroutines; i++ {
 		select {
 		case resp := <-respC:
-			if err := resp.err; err != nil {
+			switch err := resp.err; {
+			case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
+				// Surface error immediately.
+			case err != nil:
 				log.WithError(err).Debugf("%s authentication failed", resp.kind)
 				continue
 			}
 
 			// Cleanup in-flight goroutines.
 			cancelAndWait()
-			return resp.resp, nil
+			return resp.resp, trace.Wrap(resp.err)
 		case <-ctx.Done():
 			cancelAndWait()
 			return nil, trace.Wrap(ctx.Err())
