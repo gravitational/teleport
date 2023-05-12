@@ -57,7 +57,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{
+	directDialClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(cfg.TLS),
@@ -71,61 +71,68 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	}
 
 	// Check connectivity by calling something on the client.
-	_, err = client.GetClusterName()
-	if err != nil {
-		directDialErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
-		if cfg.SSH == nil {
-			// No identity file was provided, don't try dialing via a reverse
-			// tunnel on the proxy.
-			return nil, trace.Wrap(directDialErr)
-		}
-
-		// If direct dial failed, we may have a proxy address in
-		// cfg.AuthServers. Try connecting to the reverse tunnel
-		// endpoint and make a client over that.
-		//
-		// TODO(nic): this logic should be implemented once and reused in IoT
-		// nodes.
-
-		resolver := reversetunnel.WebClientResolver(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: cfg.AuthServers[0].String(),
-			Insecure:  cfg.TLS.InsecureSkipVerify,
-			Timeout:   cfg.DialTimeout,
-		})
-
-		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
-		// within an SSH tunnel.
-		dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
-			Resolver:              resolver,
-			ClientConfig:          cfg.SSH,
-			Log:                   cfg.Log,
-			InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
-			ClusterCAs:            cfg.TLS.RootCAs,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		client, err = auth.NewClient(apiclient.Config{
-			Dialer: dialer,
-			Credentials: []apiclient.Credentials{
-				apiclient.LoadTLS(cfg.TLS),
-			},
-		})
-		if err != nil {
-			tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
-		}
-		// Check connectivity by calling something on the client.
-		if _, err := client.GetClusterName(); err != nil {
-			tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-			return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
-		}
+	_, err = directDialClient.GetClusterName()
+	if err == nil {
+		// If it succeeds, we can just return this client.
+		return directDialClient, nil
 	}
-	return client, nil
+	directDialClient.Close() // This client didn't work for us, so we close it.
+
+	// If it fails, we now want to try tunneling to the auth server through a
+	//proxy.
+	directDialErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
+	if cfg.SSH == nil {
+		// No identity file was provided, don't try dialing via a reverse
+		// tunnel on the proxy.
+		return nil, trace.Wrap(directDialErr)
+	}
+
+	// If direct dial failed, we may have a proxy address in
+	// cfg.AuthServers. Try connecting to the reverse tunnel
+	// endpoint and make a client over that.
+	//
+	// TODO(nic): this logic should be implemented once and reused in IoT
+	// nodes.
+
+	resolver := reversetunnel.WebClientResolver(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: cfg.AuthServers[0].String(),
+		Insecure:  cfg.TLS.InsecureSkipVerify,
+		Timeout:   cfg.DialTimeout,
+	})
+
+	resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
+	// within an SSH tunnel.
+	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+		Resolver:              resolver,
+		ClientConfig:          cfg.SSH,
+		Log:                   cfg.Log,
+		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+		ClusterCAs:            cfg.TLS.RootCAs,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tunnelClient, err := auth.NewClient(apiclient.Config{
+		Dialer: dialer,
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(cfg.TLS),
+		},
+	})
+	if err != nil {
+		tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
+		return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
+	}
+	// Check connectivity by calling something on the client.
+	if _, err := tunnelClient.GetClusterName(); err != nil {
+		tunnelClient.Close() // This client didn't work for us, so we close it.
+		tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
+		return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
+	}
+	return tunnelClient, nil
 }
