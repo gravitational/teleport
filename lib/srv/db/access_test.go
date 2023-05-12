@@ -278,13 +278,18 @@ func TestAccessMySQL(t *testing.T) {
 // TestAccessRedis verifies access scenarios to a Redis database based
 // on the configured RBAC rules.
 func TestAccessRedis(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedRedis("redis"),
+		withAzureRedis("azure-redis", azureRedisToken))
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
 		// desc is the test case description.
 		desc string
+		// dbService is the name of the database service to connect to.
+		dbService string
 		// user is the Teleport local username the test will use.
 		user string
 		// role is the Teleport role name to create and assign to the user.
@@ -298,6 +303,7 @@ func TestAccessRedis(t *testing.T) {
 	}{
 		{
 			desc:         "has access to all database users",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{types.Wildcard},
@@ -305,6 +311,7 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "has access to nothing",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{},
@@ -313,6 +320,7 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "access allowed to specific user",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
@@ -320,11 +328,29 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "access denied to specific user",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
 			err:          "access to db denied",
+		},
+		{
+			desc:         "azure access allowed to default user",
+			dbService:    "azure-redis",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"default"},
+			dbUser:       "default",
+		},
+		{
+			desc:         "azure access denied to non-default user",
+			dbService:    "azure-redis",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+			err:          "access denied to non-default db user",
 		},
 	}
 
@@ -333,9 +359,8 @@ func TestAccessRedis(t *testing.T) {
 			// Create user/role with the requested permissions.
 			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, []string{types.Wildcard})
 
-			ctx := context.Background()
 			// Try to connect to the database as this user.
-			redisClient, err := testCtx.redisClient(ctx, test.user, "redis", test.dbUser)
+			redisClient, err := testCtx.redisClient(ctx, test.user, test.dbService, test.dbUser)
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
