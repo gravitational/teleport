@@ -56,6 +56,30 @@ type Config struct {
 func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	cfg.Log.Debugf("Connecting to: %v.", cfg.AuthServers)
 
+	directClient, err := connectViaAuthDirect(cfg)
+	if err == nil {
+		return directClient, nil
+	}
+	directErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
+
+	// If it fails, we now want to try tunneling to the auth server through a
+	// proxy, we can only do this with SSH credentials.
+	if cfg.SSH == nil {
+		return nil, trace.Wrap(directErr)
+	}
+	proxyTunnelClient, err := connectViaProxyTunnel(ctx, cfg)
+	if err == nil {
+		return proxyTunnelClient, nil
+	}
+	proxyTunnelErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
+
+	return nil, trace.NewAggregate(
+		directErr,
+		proxyTunnelErr,
+	)
+}
+
+func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
 	// Try connecting to the auth server directly over TLS.
 	directDialClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(cfg.AuthServers),
@@ -67,33 +91,26 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		DialTimeout:              cfg.DialTimeout,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Check connectivity by calling something on the client.
-	_, err = directDialClient.GetClusterName()
-	if err == nil {
-		// If it succeeds, we can just return this client.
-		return directDialClient, nil
-	}
-	_ = directDialClient.Close() // This client didn't work for us, so we close it.
+	if _, err := directDialClient.GetClusterName(); err != nil {
+		// This client didn't work for us, so we close it.
+		_ = directDialClient.Close()
+		return nil, trace.Wrap(err)
 
-	// If it fails, we now want to try tunneling to the auth server through a
-	//proxy.
-	directDialErr := trace.Wrap(err, "failed direct dial to auth server: %v", err)
-	if cfg.SSH == nil {
-		// No identity file was provided, don't try dialing via a reverse
-		// tunnel on the proxy.
-		return nil, trace.Wrap(directDialErr)
 	}
+	return directDialClient, nil
+}
 
+func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	// If direct dial failed, we may have a proxy address in
 	// cfg.AuthServers. Try connecting to the reverse tunnel
 	// endpoint and make a client over that.
 	//
 	// TODO(nic): this logic should be implemented once and reused in IoT
 	// nodes.
-
 	resolver := reversetunnel.WebClientResolver(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: cfg.AuthServers[0].String(),
@@ -101,7 +118,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		Timeout:   cfg.DialTimeout,
 	})
 
-	resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
+	resolver, err := reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -125,14 +142,13 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		},
 	})
 	if err != nil {
-		tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-		return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
+		return nil, trace.Wrap(err)
 	}
 	// Check connectivity by calling something on the client.
 	if _, err := tunnelClient.GetClusterName(); err != nil {
-		_ = tunnelClient.Close() // This client didn't work for us, so we close it.
-		tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
-		return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
+		// This client didn't work for us, so we close it.
+		_ = tunnelClient.Close()
+		return nil, trace.Wrap(err)
 	}
 	return tunnelClient, nil
 }
