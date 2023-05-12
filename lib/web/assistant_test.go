@@ -29,10 +29,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/client"
 )
 
 func Test_runAssistant(t *testing.T) {
