@@ -76,7 +76,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// If it succeeds, we can just return this client.
 		return directDialClient, nil
 	}
-	directDialClient.Close() // This client didn't work for us, so we close it.
+	_ = directDialClient.Close() // This client didn't work for us, so we close it.
 
 	// If it fails, we now want to try tunneling to the auth server through a
 	//proxy.
@@ -130,7 +130,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 	}
 	// Check connectivity by calling something on the client.
 	if _, err := tunnelClient.GetClusterName(); err != nil {
-		tunnelClient.Close() // This client didn't work for us, so we close it.
+		_ = tunnelClient.Close() // This client didn't work for us, so we close it.
 		tunnelClientErr := trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err)
 		return nil, trace.NewAggregate(directDialErr, tunnelClientErr)
 	}
