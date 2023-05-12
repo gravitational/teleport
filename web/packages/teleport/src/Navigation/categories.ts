@@ -17,21 +17,25 @@ limitations under the License.
 export enum NavigationCategory {
   Resources = 'Resources',
   Management = 'Management',
+  Assist = 'Assist',
 }
 
 export enum ManagementSection {
   Access = 'Access',
   Activity = 'Activity',
+  Billing = 'Billing',
   Clusters = 'Clusters',
 }
 
 export const MANAGEMENT_NAVIGATION_SECTIONS = [
   ManagementSection.Access,
   ManagementSection.Activity,
+  ManagementSection.Billing,
   ManagementSection.Clusters,
 ];
 
 export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Resources,
   NavigationCategory.Management,
+  NavigationCategory.Assist,
 ];

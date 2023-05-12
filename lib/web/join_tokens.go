@@ -78,6 +78,13 @@ type scriptSettings struct {
 	joinMethod             string
 	databaseInstallMode    bool
 	stableCloudChannelRepo bool
+	installUpdater         bool
+}
+
+// automaticUpgrades returns whether automaticUpgrades should be enabled.
+func automaticUpgrades(features proto.Features) bool {
+	// TODO(marco): remove BuildType check when teleport-updater (oss) package is available in apt/yum repos.
+	return features.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -209,6 +216,7 @@ func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request
 		appInstallMode:         false,
 		joinMethod:             r.URL.Query().Get("method"),
 		stableCloudChannelRepo: useStableCloudChannelRepo,
+		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -253,6 +261,7 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		appName:                name,
 		appURI:                 uri,
 		stableCloudChannelRepo: useStableCloudChannelRepo,
+		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -280,6 +289,7 @@ func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Req
 		token:                  params.ByName("token"),
 		databaseInstallMode:    true,
 		stableCloudChannelRepo: useStableCloudChannelRepo,
+		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -406,6 +416,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"caPins":                     strings.Join(caPins, ","),
 		"packageName":                packageName,
 		"repoChannel":                repoChannel,
+		"installUpdater":             strconv.FormatBool(settings.installUpdater),
 		"version":                    version,
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),
 		"appName":                    settings.appName,

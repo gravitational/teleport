@@ -19,11 +19,11 @@ import path from 'path';
 
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 
-// Hardcoded in testProcess.js.
+// Hardcoded in testProcess.mjs.
 const PORT = '1337';
 
 it('returns an error when supplied an unknown protocol', async () => {
-  const process = fork(path.join(__dirname, 'testProcess.js'), {
+  const process = fork(path.join(__dirname, 'testProcess.mjs'), {
     silent: true,
   });
 
@@ -56,7 +56,7 @@ describe.each(testSuites)(
   'for $name process',
   ({ requestedAddress, expectedNetworkAddress }) => {
     it(`waits for the process to output the matching string`, async () => {
-      const process = fork(path.join(__dirname, 'testProcess.js'), {
+      const process = fork(path.join(__dirname, 'testProcess.mjs'), {
         silent: true,
       });
 
@@ -73,7 +73,7 @@ describe.each(testSuites)(
     });
 
     it(`times out if the process doesn't return the match in time`, async () => {
-      const process = fork(path.join(__dirname, 'testProcess.js'), ['100'], {
+      const process = fork(path.join(__dirname, 'testProcess.mjs'), ['100'], {
         silent: true,
       });
 
@@ -88,7 +88,7 @@ describe.each(testSuites)(
 
     it(`returns an error if the process exits without returning a match`, async () => {
       const process = fork(
-        path.join(__dirname, 'testProcess.js'),
+        path.join(__dirname, 'testProcess.mjs'),
         ['10', 'exit-prematurely'],
         {
           silent: true,

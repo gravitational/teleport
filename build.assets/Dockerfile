@@ -100,7 +100,7 @@ FROM ubuntu:18.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
-
+COPY gpg/docker.gpg .
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
@@ -159,6 +159,15 @@ RUN apt-get -y update && \
         xauth \
         libpcsclite-dev \
         && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo \
+    "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
@@ -288,7 +297,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.17.0" && \
+    VERSION="1.18.0" && \
       curl -fsSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

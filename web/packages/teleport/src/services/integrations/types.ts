@@ -92,7 +92,7 @@ export function getStatusCodeDescription(
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
-export type PluginKind = 'slack';
+export type PluginKind = 'slack' | 'openai';
 
 export type IntegrationCreateRequest = {
   name: string;
@@ -192,7 +192,7 @@ export type AwsRdsDatabase = {
   // There is a lot of status states available so only a select few were
   // hard defined to use to determine the status color.
   // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
-  status: 'Available' | 'Failed' | 'Deleting';
+  status: 'available' | 'failed' | 'deleting';
 };
 
 export type ListAwsRdsDatabaseResponse = {

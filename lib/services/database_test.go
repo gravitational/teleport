@@ -363,7 +363,6 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 		Name:        "testdb",
 		Description: "Azure MySQL server in eastus",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         "eastus",
 			labelEngine:         "Microsoft.DBforMySQL/servers",
 			labelEngineVersion:  "5.7",
@@ -411,7 +410,6 @@ func TestDatabaseFromAzureRedis(t *testing.T) {
 		Name:        name,
 		Description: "Azure Redis server in eastus",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         region,
 			labelEngine:         "Microsoft.Cache/Redis",
 			labelEngineVersion:  "6.0",
@@ -469,7 +467,6 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 		Name:        name,
 		Description: "Azure Redis Enterprise server in eastus",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelRegion:         region,
 			labelEngine:         "Microsoft.Cache/redisEnterprise",
 			labelEngineVersion:  "6.0",
@@ -519,7 +516,6 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Name:        "instance-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			types.OriginLabel:  types.OriginCloud,
 			labelAccountID:     "123456789012",
 			labelRegion:        "us-west-1",
 			labelEngine:        RDSEnginePostgres,
@@ -571,7 +567,6 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		Name:        "instance-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			types.OriginLabel:  types.OriginCloud,
 			labelAccountID:     "123456789012",
 			labelRegion:        "us-west-1",
 			labelEngine:        RDSEnginePostgres,
@@ -639,7 +634,6 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 		Name:        "override-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-west-1",
 			labelEngine:         RDSEnginePostgres,
@@ -705,7 +699,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Name:        "cluster-1",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				types.OriginLabel:  types.OriginCloud,
 				labelAccountID:     "123456789012",
 				labelRegion:        "us-east-1",
 				labelEngine:        RDSEngineAuroraMySQL,
@@ -729,7 +722,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Name:        "cluster-1-reader",
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
-				types.OriginLabel:  types.OriginCloud,
 				labelAccountID:     "123456789012",
 				labelRegion:        "us-east-1",
 				labelEngine:        RDSEngineAuroraMySQL,
@@ -750,7 +742,6 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
-			types.OriginLabel:  types.OriginCloud,
 			labelAccountID:     "123456789012",
 			labelRegion:        "us-east-1",
 			labelEngine:        RDSEngineAuroraMySQL,
@@ -842,7 +833,6 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			Name:        "cluster-1",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				types.OriginLabel:  types.OriginCloud,
 				labelAccountID:     "123456789012",
 				labelRegion:        "us-east-1",
 				labelEngine:        RDSEngineAuroraMySQL,
@@ -916,7 +906,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Name:        "mycluster-2",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				types.OriginLabel:   types.OriginCloud,
 				labelAccountID:      "123456789012",
 				labelRegion:         "us-east-1",
 				labelEngine:         RDSEngineAuroraMySQL,
@@ -941,7 +930,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Name:        "mycluster-2-reader",
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
-				types.OriginLabel:   types.OriginCloud,
 				labelAccountID:      "123456789012",
 				labelRegion:         "us-east-1",
 				labelEngine:         RDSEngineAuroraMySQL,
@@ -963,7 +951,6 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEngine:         RDSEngineAuroraMySQL,
@@ -1045,12 +1032,11 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Name:        "testproxy",
 			Description: "RDS Proxy in ca-central-1",
 			Labels: map[string]string{
-				"key":             "val",
-				types.OriginLabel: types.OriginCloud,
-				labelAccountID:    "123456789012",
-				labelRegion:       "ca-central-1",
-				labelEngine:       "MYSQL",
-				labelVPCID:        "test-vpc-id",
+				"key":          "val",
+				labelAccountID: "123456789012",
+				labelRegion:    "ca-central-1",
+				labelEngine:    "MYSQL",
+				labelVPCID:     "test-vpc-id",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -1077,7 +1063,6 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Description: "RDS Proxy endpoint in ca-central-1",
 			Labels: map[string]string{
 				"key":             "val",
-				types.OriginLabel: types.OriginCloud,
 				labelAccountID:    "123456789012",
 				labelRegion:       "ca-central-1",
 				labelEngine:       "MYSQL",
@@ -1268,7 +1253,6 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Name:        "mycluster",
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
-				types.OriginLabel:                 types.OriginCloud,
 				labelAccountID:                    "123456789012",
 				labelRegion:                       "us-east-1",
 				"key":                             "val",
@@ -1320,7 +1304,6 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Name:        "mycluster-override-2",
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
-				types.OriginLabel:                 types.OriginCloud,
 				labelAccountID:                    "123456789012",
 				labelRegion:                       "us-east-1",
 				labelTeleportDBName:               "mycluster-override-2",
@@ -1398,7 +1381,6 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "configuration",
@@ -1471,7 +1453,6 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 		Name:        "my-override-cluster-2",
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "configuration",
@@ -1527,7 +1508,6 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "primary",
@@ -1553,7 +1533,6 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Name:        "my-cluster-reader",
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "reader",
@@ -1611,7 +1590,6 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Name:        "my-override-cluster-2",
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "primary",
@@ -1638,7 +1616,6 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Name:        "my-override-cluster-2-reader",
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "reader",
@@ -1684,7 +1661,6 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "us-east-1",
 			labelEndpointType: "cluster",
@@ -1718,7 +1694,6 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 		Name:        "my-workgroup",
 		Description: "Redshift Serverless workgroup in eu-west-2",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "eu-west-2",
 			labelEndpointType: "workgroup",
@@ -1753,7 +1728,6 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		Name:        "my-workgroup-my-endpoint",
 		Description: "Redshift Serverless endpoint in eu-west-2",
 		Labels: map[string]string{
-			types.OriginLabel: types.OriginCloud,
 			labelAccountID:    "123456789012",
 			labelRegion:       "eu-west-2",
 			labelEndpointType: "vpc-endpoint",
@@ -1806,7 +1780,6 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 		Name:        "override-1",
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
-			types.OriginLabel:   types.OriginCloud,
 			labelAccountID:      "123456789012",
 			labelRegion:         "us-east-1",
 			labelEndpointType:   "cluster",
@@ -2098,7 +2071,6 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 
 				// Assert labels
 				labels := db.GetMetadata().Labels
-				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
 				require.Equal(t, "westus", labels[labelRegion])
 				require.Equal(t, "12.0", labels[labelEngineVersion])
 			},
@@ -2154,7 +2126,6 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 
 				// Assert labels
 				labels := db.GetMetadata().Labels
-				require.Equal(t, types.OriginCloud, labels[types.OriginLabel])
 				require.Equal(t, "westus", labels[labelRegion])
 			},
 		},
@@ -2241,7 +2212,6 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 			}
 
 			wantLabels := map[string]string{
-				types.OriginLabel:   types.OriginCloud,
 				labelRegion:         region,
 				labelEngine:         provider,
 				labelEngineVersion:  "8.0.21",
@@ -2317,7 +2287,6 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 			}
 
 			wantLabels := map[string]string{
-				types.OriginLabel:   types.OriginCloud,
 				labelRegion:         region,
 				labelEngine:         provider,
 				labelEngineVersion:  "14",
@@ -2414,7 +2383,6 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 				Name:        serverName,
 				Description: "test azure db server",
 				Labels: map[string]string{
-					types.OriginLabel:   types.OriginCloud,
 					labelRegion:         "eastus",
 					labelEngine:         tt.engine,
 					labelEngineVersion:  "1.2.3",
