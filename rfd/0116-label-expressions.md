@@ -138,10 +138,10 @@ Label expressions can appear in `allow` or `deny` role conditions.
 
 Label expressions will have access to the following context:
 
-| Syntax | Alias | Type | Description | 
-|--------|-------|------|-------------|
-| `resource.metadata.labels` | `labels` | `map[string]string` | Labels of the resource (node, app, db, etc.) being accessed |
-| `user.spec.traits` | | `map[string][]string` | `external` or `internal` traits of the user accessing the resource |
+| Syntax             | Type                  | Description |
+|--------------------|-----------------------|-------------|
+| `labels`           | `map[string]string`   | Combined static and dynamic labels of the resource (node, app, db, etc.) being accessed |
+| `user.spec.traits` | `map[string][]string` | `external` or `internal` traits of the user accessing the resource |
 
 #### Helper functions
 
