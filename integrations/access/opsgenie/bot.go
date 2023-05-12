@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
+
 	"github.com/gravitational/trace"
 )
 
