@@ -33,6 +33,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 )
 
@@ -71,7 +72,7 @@ func Test_runAssistant(t *testing.T) {
 	err = json.Unmarshal(payload, &msg)
 	require.NoError(t, err)
 
-	require.Equal(t, messageKindAssistantMessage, msg.Type)
+	require.Equal(t, assist.MessageKindAssistantMessage, msg.Type)
 	require.Contains(t, msg.Payload, "Hey, I'm Teleport")
 
 	err = ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "show free disk space"}`))
@@ -84,7 +85,7 @@ func Test_runAssistant(t *testing.T) {
 		err = json.Unmarshal(payload, &msg)
 		require.NoError(t, err)
 
-		require.Equal(t, messageKindAssistantPartialMessage, msg.Type)
+		require.Equal(t, assist.MessageKindAssistantPartialMessage, msg.Type)
 		return msg.Payload
 	}
 
@@ -100,7 +101,7 @@ func Test_runAssistant(t *testing.T) {
 		err = json.Unmarshal(payload, &msg)
 		require.NoError(t, err)
 
-		require.Equal(t, messageKindAssistantPartialFinalize, msg.Type)
+		require.Equal(t, assist.MessageKindAssistantPartialFinalize, msg.Type)
 	}
 
 	readStraemEnd()

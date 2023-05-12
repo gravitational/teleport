@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
+	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -238,7 +239,7 @@ func (h *Handler) executeCommand(
 				ConversationId: req.ConversationID,
 				Username:       identity.TeleportUser,
 				Message: &assist.AssistantMessage{
-					Type:        string(messageKindCommandResult),
+					Type:        string(assistlib.MessageKindCommandResult),
 					CreatedTime: timestamppb.New(time.Now().UTC()),
 					Payload:     string(msgPayload),
 				},
