@@ -17,11 +17,16 @@ limitations under the License.
 package opsgenie
 
 import (
+	"net/url"
+	"strings"
+
 	"github.com/gravitational/trace"
+	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
+	"github.com/gravitational/teleport/integrations/lib"
 )
 
 // Config stores the full configuration for the teleport-opsgenie plugin to run.
@@ -36,7 +41,30 @@ type Config struct {
 // LoadOpsgenieConfig reads the config file, initializes a new OpsgenieConfig struct object, and returns it.
 // Optionally returns an error if the file is not readable, or if file format is invalid.
 func LoadOpsgenieConfig(filepath string) (*Config, error) {
-	return nil, nil
+	t, err := toml.LoadFile(filepath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conf := &Config{}
+	if err := t.Unmarshal(conf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if strings.HasPrefix(conf.Opsgenie.Token, "/") {
+		conf.Opsgenie.Token, err = lib.ReadPassword(conf.Opsgenie.Token)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	conf.ClientConfig.APIKey = conf.Opsgenie.Token
+
+	if err := conf.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conf, nil
+
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
@@ -76,14 +104,21 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // NewBot initializes the new Opsgenie message generator (OpsgenieBot)
 func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
+
+	webProxyURL, err := url.Parse(webProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.ClientConfig.WebProxyURL = webProxyURL
+	c.ClientConfig.ClusterName = clusterName
+	c.ClientConfig.APIKey = c.Opsgenie.Token
 	client, err := NewClient(c.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &Bot{
 		client:      client,
-		clusterName: c.ClientConfig.ClusterName,
-		webProxyURL: c.ClientConfig.WebProxyURL,
+		clusterName: clusterName,
+		webProxyURL: webProxyURL,
 	}, nil
 }
