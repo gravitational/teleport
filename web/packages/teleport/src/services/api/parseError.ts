@@ -12,7 +12,9 @@ export default function parseError(json) {
 }
 
 export class ApiError extends Error {
-  constructor(message, response) {
+  response: Response;
+
+  constructor(message, response: Response) {
     message = message || 'Unknown error';
     super(message);
     this.response = response;
