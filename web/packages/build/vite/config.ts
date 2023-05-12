@@ -95,6 +95,23 @@ export function createViteConfig(
           secure: false,
           ws: true,
         },
+        '^\\/v1\\/webapi\\/assistant\\/(.*?)': {
+          target: `https://${target}`,
+          changeOrigin: false,
+          secure: false,
+        },
+        '^\\/v1\\/webapi\\/sites\\/(.*?)\\/assistant': {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
+        '^\\/v1\\/webapi\\/command\\/(.*?)/execute': {
+          target: `wss://${target}`,
+          changeOrigin: false,
+          secure: false,
+          ws: true,
+        },
         '/web/config.js': {
           target: `https://${target}`,
           changeOrigin: true,
