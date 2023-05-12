@@ -245,9 +245,6 @@ type TerminalHandler struct {
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
 
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
-
 	closeOnce sync.Once
 
 	// term is the initial PTY size.
