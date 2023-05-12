@@ -80,9 +80,11 @@ to call [`tsh login`](../reference/cli.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
-Follow [these install instructions](../installation.mdx) to obtain the `tsh`
-binary. Ideally, install `tsh` of the same version as the version used in your
+Follow install instructions to obtain the `tsh` binary. Ideally, install
+`tsh` of the same version as the version used in your
 Teleport cluster.
+
+(!docs/pages/includes/install-tsh.mdx!)
 
 ## User identities
 
@@ -878,5 +880,13 @@ exit
 end of session playback
 ```
 
+## Uninstalling tsh
+
+If you installed on MacOS with `brew` run `brew uninstall teleport`.  
+
+For other installations and to remove user data, see our documentation
+on [Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+
 ## Further reading
 - [CLI Reference](../reference/cli.mdx).
+
