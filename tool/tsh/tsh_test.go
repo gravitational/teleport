@@ -3974,8 +3974,6 @@ func spanAssertion(containsTSH, empty bool) func(t *testing.T, spans []*otlp.Sco
 }
 
 func TestForwardingTraces(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name          string
 		cfg           func(c *tracing.Collector) servicecfg.TracingConfig
@@ -4015,9 +4013,7 @@ func TestForwardingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tmpHomePath := t.TempDir()
 
 			connector := mockConnector(t)
@@ -4066,12 +4062,12 @@ func TestForwardingTraces(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if traceCfg.Enabled {
+			if traceCfg.Enabled && traceCfg.SamplingRate > 0 {
 				collector.WaitForExport()
 			}
 
 			// ensure login doesn't generate any spans from tsh if spans are being sampled
-			loginAssertion := spanAssertion(false, !traceCfg.Enabled)
+			loginAssertion := spanAssertion(false, !traceCfg.Enabled || traceCfg.SamplingRate <= 0)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
