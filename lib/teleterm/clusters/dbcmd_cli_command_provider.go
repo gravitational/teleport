@@ -70,12 +70,15 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(d.execer),
-	).GetConnectCommandNoAbsPath()
+	).GetConnectCommand()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
+	cmdString := strings.TrimSpace(
+		fmt.Sprintf("%s %s",
+			strings.Join(cmd.Env, " "),
+			strings.Join(cmd.Args, " ")))
 
 	return cmdString, nil
 }

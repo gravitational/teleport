@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -235,25 +234,6 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 	}
 
 	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
-}
-
-// GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
-// it guarantees that the command will always be in its base form, never in an absolute path
-// resolved to the binary location. This is useful for situations where the resulting command is
-// meant to be copied and then pasted into an interactive shell, rather than being run directly
-// by a tool like tsh.
-func (c *CLICommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
-	cmd, err := c.GetConnectCommand()
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if filepath.IsAbs(cmd.Path) {
-		cmd.Path = filepath.Base(cmd.Path)
-	}
-
-	return cmd, nil
 }
 
 func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
