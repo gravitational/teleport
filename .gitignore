@@ -90,3 +90,7 @@ webassets/
 
 # jest --coverage
 coverage
+
+# vite
+.swc
+web/certs/

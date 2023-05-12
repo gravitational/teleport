@@ -111,6 +111,9 @@ const configFactory = {
             options: {
               onlyCompileBundledFiles: true,
               configFile: tsconfigPath,
+              compilerOptions: {
+                jsx: 'preserve',
+              },
             },
           },
         ],
