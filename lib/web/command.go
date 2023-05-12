@@ -116,6 +116,10 @@ func (h *Handler) executeCommand(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAssistEnabled(clt, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	identity, err := createIdentityContext(req.Login, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)

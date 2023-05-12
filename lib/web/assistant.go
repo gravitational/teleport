@@ -80,6 +80,10 @@ func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	req := &assist.CreateAssistantConversationRequest{
 		CreatedTime: timestamppb.New(h.clock.Now().UTC()),
 		Username:    sctx.GetUser(),
@@ -111,6 +115,10 @@ func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Re
 ) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -172,6 +180,10 @@ func (h *Handler) getAssistantConversations(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resp, err := authClient.GetAssistantConversations(r.Context(), &assist.GetAssistantConversationsRequest{
 		Username: sctx.GetUser(),
 	})
@@ -215,6 +227,10 @@ func (h *Handler) setAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	conversationID := p.ByName("conversation_id")
 
 	conversationInfo := &assist.UpdateAssistantConversationInfoRequest{
@@ -241,6 +257,15 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 ) (any, error) {
 	var req generateAssistantTitleRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -292,6 +317,18 @@ type partialFinalizePayload struct {
 	Idx int `json:"idx,omitempty"`
 }
 
+func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
+	enabled, err := a.IsAssistEnabled(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !enabled.Enabled {
+		return trace.AccessDenied("Assist is not enabled")
+	}
+
+	return nil
+}
+
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	sctx *SessionContext, site reversetunnel.RemoteSite,
@@ -304,6 +341,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	authClient, err := sctx.GetClient()
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
 		return trace.Wrap(err)
 	}
 
