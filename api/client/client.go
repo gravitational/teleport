@@ -3681,6 +3681,7 @@ func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssist
 	return messages, nil
 }
 
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
 	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
 	if err != nil {
