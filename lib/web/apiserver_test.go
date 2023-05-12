@@ -1700,7 +1700,7 @@ func TestTerminalRouting(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
-			stream, err := NewTerminalStream(ws)
+			stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 			require.NoError(t, err)
 
 			// here we intentionally run a command where the output we're looking
@@ -1820,12 +1820,20 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 				res, err := dev.SolveAuthn(&authproto.MFAAuthenticateChallenge{
 					WebauthnChallenge: wanlib.CredentialAssertionToProto(chals.WebauthnChallenge),
 				})
-				require.Nil(t, err)
+				require.NoError(t, err)
 
 				webauthnResBytes, err := json.Marshal(wanlib.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-				require.Nil(t, err)
+				require.NoError(t, err)
 
-				return webauthnResBytes
+				envelope := &Envelope{
+					Version: defaults.WebsocketVersion,
+					Type:    defaults.WebsocketWebauthnChallenge,
+					Payload: string(webauthnResBytes),
+				}
+				protoBytes, err := proto.Marshal(envelope)
+				require.NoError(t, err)
+
+				return protoBytes
 			},
 		},
 	}
@@ -1851,15 +1859,15 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
-			stream, err := NewTerminalStream(ws)
+			stream, err := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
 			require.NoError(t, err)
-			_, err = stream.Write(tc.getChallengeResponseBytes(chals, dev))
+			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
 			require.Nil(t, err)
 
 			// Test we can write.
-			_, err = io.WriteString(stream, "echo alpacas\r\n")
+			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.Nil(t, err)
-			require.Nil(t, waitForOutput(stream, "alpacas"))
+			require.Nil(t, waitForOutput(stream, "teleport"))
 		})
 	}
 }
@@ -2043,7 +2051,7 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream, err := NewTerminalStream(ws)
+	stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 	require.NoError(t, err)
 
 	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
@@ -2156,7 +2164,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream, err := NewTerminalStream(ws)
+	stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 	require.NoError(t, err)
 
 	// to make sure we have a session
@@ -7750,7 +7758,7 @@ func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqDa
 
 func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 	t.Helper()
-	stream, err := NewTerminalStream(ws)
+	stream, err := NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 	require.NoError(t, err)
 
 	// here we intentionally run a command where the output we're looking
@@ -8777,4 +8785,18 @@ type mockedPingTestProxy struct {
 
 func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, error) {
 	return m.mockedPing(ctx)
+}
+
+func TestModeratedSession(t *testing.T) {
+	s := newWebSuite(t)
+
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+	validateTerminalStream(t, ws)
+}
+
+func TestModeratedSessionWithMFA(t *testing.T) {
+
 }

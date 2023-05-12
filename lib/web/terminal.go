@@ -258,16 +258,6 @@ type TerminalHandler struct {
 	// displayLogin is the login name to display in the UI.
 	displayLogin string
 
-	// sshSession holds the "shell" SSH channel to the node.
-	sshSession *tracessh.Session
-
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
-
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
-
 	closeOnce sync.Once
 
 	// term is the initial PTY size.
@@ -357,20 +347,15 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Close the websocket stream.
 func (t *TerminalHandler) Close() error {
-	var errs []error
+	var err error
 	t.closeOnce.Do(func() {
-		// Close the SSH connection to the remote node.
-		if t.sshSession != nil {
-			errs = append(errs, t.sshSession.Close())
-		}
-
 		// If the terminal handler was closed (most likely due to the *SessionContext
 		// closing) then the stream should be closed as well.
 		if t.stream != nil {
-			errs = append(errs, t.stream.Close())
+			err = t.stream.Close()
 		}
 	})
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(err)
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -384,7 +369,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
-	stream, err := NewTerminalStream(r.Context(), ws)
+	stream, err := NewTerminalStream(r.Context(), ws, t.log)
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -453,7 +438,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 	// used to update all other parties window size to that of the web client and
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
-		t.sshSession = s
+		t.stream.sessionCreated(s)
 		if err := s.WindowChange(ctx, t.term.H, t.term.W); err != nil {
 			t.log.Error(err)
 		}
@@ -915,23 +900,17 @@ func serverHostPort(servername string) (string, int, error) {
 	return host, port, nil
 }
 
-// WithTerminalStreamEncoder overrides the default stream encoder
-func WithTerminalStreamEncoder(enc *encoding.Encoder) func(stream *TerminalStream) {
-	return func(stream *TerminalStream) {
-		stream.encoder = enc
-	}
-}
+func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *WSStream {
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(ctx))
+	ctx, cancel := context.WithCancel(tctx)
 
-// WithTerminalStreamDecoder overrides the default stream decoder
-func WithTerminalStreamDecoder(dec *encoding.Decoder) func(stream *TerminalStream) {
-	return func(stream *TerminalStream) {
-		stream.decoder = dec
-	}
-}
-
-func NewWStream(ws WSConn) *WSStream {
-	return &WSStream{
+	w := &WSStream{
+		log:                   log,
 		ws:                    ws,
+		ctx:                   ctx,
+		cancel:                cancel,
 		encoder:               unicode.UTF8.NewEncoder(),
 		decoder:               unicode.UTF8.NewDecoder(),
 		resizeC:               make(chan Envelope, 1),
@@ -939,41 +918,27 @@ func NewWStream(ws WSConn) *WSStream {
 		fileTransferDecisionC: make(chan Envelope, 1),
 		rawC:                  make(chan Envelope, 100),
 		challengeC:            make(chan Envelope, 1),
+		completedC:            make(chan struct{}),
 	}
+
+	go w.processMessages()
+
+	return w
 }
 
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
-	switch {
-	case ws == nil:
+func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) (*TerminalStream, error) {
+	if ws == nil {
 		return nil, trace.BadParameter("required parameter ws not provided")
 	}
 
-	// Create a context for signaling when the terminal session is over and
-	// link it first with the trace context from the request context
-	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(ctx))
-	ctx, cancel := context.WithCancel(tctx)
-
 	t := &TerminalStream{
-		WSStream: WSStream{
-			ws:      ws,
-			ctx:     ctx,
-			cancel:  cancel,
-			encoder: unicode.UTF8.NewEncoder(),
-			decoder: unicode.UTF8.NewDecoder(),
-		},
+		WSStream:      NewWStream(ctx, ws, log),
+		sessionReadyC: make(chan struct{}),
 	}
 
-	for _, opt := range opts {
-		opt(t)
-	}
-
-	go t.processMessages()
-
-	// process window resizing
 	go t.handleWindowResize()
-
 	go t.handleFileTransfer()
 
 	return t, nil
@@ -995,6 +960,7 @@ type WSStream struct {
 	fileTransferDecisionC chan Envelope
 	challengeC            chan Envelope
 	rawC                  chan Envelope
+	completedC            chan struct{}
 
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
@@ -1011,16 +977,17 @@ type WSStream struct {
 	cancel context.CancelFunc
 
 	// log holds the structured logger.
-	log *logrus.Entry
+	log logrus.FieldLogger
 }
 
 // TerminalStream manages the [websocket.Conn] to the web UI
 // for a terminal session.
 type TerminalStream struct {
-	WSStream
+	*WSStream
 
 	// sshSession holds the "shell" SSH channel to the node.
-	sshSession *tracessh.Session
+	sshSession    *tracessh.Session
+	sessionReadyC chan struct{}
 
 	// once ensures that all channels are closed at most one time.
 	once sync.Once
@@ -1036,18 +1003,29 @@ func (t *WSStream) writeError(err error) error {
 }
 
 func (t *WSStream) processMessages() {
-	defer t.cancel()
+	defer func() {
+		t.cancel()
+		close(t.completedC)
+	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
 	for {
 		select {
 		case <-t.ctx.Done():
+			return
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
 			if err != nil {
 				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
 					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 					return
+				}
+
+				select {
+				case <-t.ctx.Done():
+					return
+				case t.rawC <- Envelope{Payload: string(bytes)}:
+					continue
 				}
 			}
 
@@ -1067,26 +1045,36 @@ func (t *WSStream) processMessages() {
 				return
 			case defaults.WebsocketWebauthnChallenge:
 				select {
+				case <-t.ctx.Done():
+					return
 				case t.challengeC <- envelope:
 				default:
 				}
 			case defaults.WebsocketRaw:
 				select {
+				case <-t.ctx.Done():
+					return
 				case t.rawC <- envelope:
 				default:
 				}
 			case defaults.WebsocketResize:
 				select {
+				case <-t.ctx.Done():
+					return
 				case t.resizeC <- envelope:
 				default:
 				}
 			case defaults.WebsocketFileTransferDecision:
 				select {
+				case <-t.ctx.Done():
+					return
 				case t.fileTransferDecisionC <- envelope:
 				default:
 				}
 			case defaults.WebsocketFileTransferRequest:
 				select {
+				case <-t.ctx.Done():
+					return
 				case t.fileTransferRequestC <- envelope:
 				default:
 				}
@@ -1105,6 +1093,12 @@ func (t *TerminalStream) handleWindowResize() {
 		case <-t.ctx.Done():
 			return
 		case envelope := <-t.resizeC:
+			select {
+			case <-t.ctx.Done():
+				return
+			case <-t.sessionReadyC:
+			}
+
 			if t.sshSession == nil {
 				return
 			}
@@ -1140,6 +1134,16 @@ func (t *TerminalStream) handleFileTransfer() {
 		case <-t.ctx.Done():
 			return
 		case envelope := <-t.fileTransferRequestC:
+			select {
+			case <-t.ctx.Done():
+				return
+			case <-t.sessionReadyC:
+			}
+
+			if t.sshSession == nil {
+				return
+			}
+
 			var e utils.Fields
 			err := json.Unmarshal([]byte(envelope.Payload), &e)
 			if err != nil {
@@ -1180,6 +1184,11 @@ func (t *TerminalStream) handleFileTransfer() {
 			}
 		}
 	}
+}
+
+func (t *TerminalStream) sessionCreated(s *tracessh.Session) {
+	t.sshSession = s
+	close(t.sessionReadyC)
 }
 
 // writeChallenge encodes and writes the challenge to the
@@ -1264,7 +1273,7 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 
 // Read unwraps the envelope and either fills out the passed in bytes or
 // performs an action on the connection (sending window-change request).
-func (t *TerminalStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) Read(out []byte) (n int, err error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1296,6 +1305,8 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
+	t.cancel()
+
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
@@ -1314,21 +1325,20 @@ func (t *WSStream) Close() error {
 // Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
+	var err error
 	t.once.Do(func() {
-		if t.resizeC != nil {
-			close(t.resizeC)
-		}
+		err = t.WSStream.Close()
 
-		if t.fileTransferRequestC != nil {
-			close(t.fileTransferRequestC)
-		}
+		<-t.completedC
 
-		if t.fileTransferDecisionC != nil {
-			close(t.fileTransferDecisionC)
-		}
+		close(t.resizeC)
+		close(t.fileTransferRequestC)
+		close(t.fileTransferDecisionC)
+		close(t.rawC)
+		close(t.challengeC)
 	})
 
-	return t.WSStream.Close()
+	return trace.Wrap(err)
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

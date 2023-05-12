@@ -30,8 +30,8 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
