@@ -50,9 +50,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   :root {
-    color-scheme: ${props =>
-      props.theme
-        .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
+    color-scheme: dark;
   }
 
   // remove dotted Firefox outline
