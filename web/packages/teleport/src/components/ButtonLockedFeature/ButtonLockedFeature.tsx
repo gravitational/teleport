@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary } from 'design/Button';
+import { ButtonBorder } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
@@ -44,19 +44,25 @@ export function ButtonLockedFeature({
 
   function handleClick() {
     userEventService.captureCtaEvent(event);
-    window.open(
-      `${SALES_URL}?${getParams(version, isEnterprise, event)}`,
-      'blank'
-    );
   }
 
   return (
-    <StyledButton onClick={handleClick} {...rest}>
+    <ButtonBorder
+      as="a"
+      target="blank"
+      kind="primary"
+      href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
+      onClick={handleClick}
+      py="12px"
+      width="100%"
+      style={{ textTransform: 'none' }}
+      {...rest}
+    >
       <Flex alignItems="center">
         {!noIcon && <UnlockIcon />}
         {children}
       </Flex>
-    </StyledButton>
+    </ButtonBorder>
   );
 }
 
@@ -67,14 +73,6 @@ function getParams(
 ): string {
   return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
 }
-
-const StyledButton = styled(ButtonPrimary)`
-  text-transform: none;
-  width: 100%;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
-`;
 
 const UnlockIcon = styled(Unlock)`
   color: inherit;
