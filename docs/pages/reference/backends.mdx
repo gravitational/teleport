@@ -406,6 +406,9 @@ High Availability. DynamoDB backend supports two types of Teleport data:
 - Cluster state
 - Audit log events
 
+Teleport uses DynamoDB and DynamoDB Streams endpoints for its storage
+back-end management.
+
 DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
 that as shown above. 
 
@@ -432,10 +435,11 @@ To configure Teleport to use DynamoDB:
 
 - Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
   section of `teleport.yaml` as shown below.
+- Auth servers must be able to reach DynamoDB and DynamoDB Streams endpoints.
 - Deploy several auth servers connected to DynamoDB storage back-end.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
-  populated with the addresses of your cluster's Auth Service instances.
+  populated with the addresses of your cluster's Auto Service instances.
 
 ```yaml
 teleport:
