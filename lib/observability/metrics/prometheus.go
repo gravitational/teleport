@@ -17,6 +17,7 @@ limitations under the License.
 package metrics
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -25,6 +26,8 @@ import (
 
 	"github.com/gravitational/teleport"
 )
+
+const DisableVersionMetricLabels = "TELEPORT_DISABLE_VERSION_METRIC_LABELS"
 
 // RegisterPrometheusCollectors is a wrapper around prometheus.Register that
 //   - ignores equal or re-registered collectors
@@ -45,16 +48,20 @@ func RegisterPrometheusCollectors(collectors ...prometheus.Collector) error {
 
 // BuildCollector provides a Collector that contains build information gauge
 func BuildCollector() prometheus.Collector {
+	var labels prometheus.Labels
+	if os.Getenv(DisableVersionMetricLabels) == "" {
+		labels = prometheus.Labels{
+			teleport.TagVersion:   teleport.Version,
+			teleport.TagGitref:    teleport.Gitref,
+			teleport.TagGoVersion: runtime.Version(),
+		}
+	}
 	return prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
-			Namespace: teleport.MetricNamespace,
-			Name:      teleport.MetricBuildInfo,
-			Help:      "Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1.",
-			ConstLabels: prometheus.Labels{
-				teleport.TagVersion:   teleport.Version,
-				teleport.TagGitref:    teleport.Gitref,
-				teleport.TagGoVersion: runtime.Version(),
-			},
+			Namespace:   teleport.MetricNamespace,
+			Name:        teleport.MetricBuildInfo,
+			Help:        "Provides build information of Teleport including gitref (git describe --long --tags), Go version, and Teleport version. The value of this gauge will always be 1.",
+			ConstLabels: labels,
 		},
 		func() float64 { return 1 },
 	)
