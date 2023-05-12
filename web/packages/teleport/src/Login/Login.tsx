@@ -19,9 +19,9 @@ import React from 'react';
 import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 
-import useLogin, { State } from './useLogin';
+import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
-const logoSrc = require('design/assets/images/teleport-medallion.svg');
+import useLogin, { State } from './useLogin';
 
 export default function Container() {
   const state = useLogin();
