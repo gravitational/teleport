@@ -186,6 +186,8 @@ require (
 
 require cloud.google.com/go/compute/metadata v0.2.3
 
+require github.com/mailgun/holster/v3 v3.16.2 // indirect
+
 require (
 	cloud.google.com/go v0.110.0 // indirect
 	cloud.google.com/go/compute v1.19.0 // indirect

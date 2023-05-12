@@ -5054,10 +5054,26 @@ message PluginSpecV1 {
     PluginOpsgenieAccessSettings opsgenie = 2;
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
+    //
+    PluginDiscordAccessSettings discord_access_plugin = 4;
+    //
+    PluginMattermostAccessSettings mattermost_access_plugin = 5;
   }
 }
 
 message PluginSlackAccessSettings {
+  option (gogoproto.equal) = true;
+
+  string fallback_channel = 1;
+}
+
+message PluginDiscordAccessSettings {
+  option (gogoproto.equal) = true;
+
+  string fallback_channel = 1;
+}
+
+message PluginMattermostAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;

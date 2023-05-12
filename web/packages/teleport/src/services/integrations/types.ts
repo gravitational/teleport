@@ -92,7 +92,7 @@ export function getStatusCodeDescription(
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
-export type PluginKind = 'slack' | 'openai';
+export type PluginKind = 'discord' | 'mattermost' | 'slack' | 'openai';
 
 export type IntegrationCreateRequest = {
   name: string;

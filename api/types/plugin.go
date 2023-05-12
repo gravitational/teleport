@@ -32,6 +32,10 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	//
+	PluginTypeDiscord = "discord"
+	//
+	PluginTypeMattermost = "mattermost"
 	// PluginTypeOpenAI is the OpenAI plugin
 	PluginTypeOpenAI = "openai"
 )
@@ -96,6 +100,46 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if p.Credentials.GetOauth2AccessToken() == nil {
 			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
+		}
+		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_DiscordAccessPlugin:
+		// Check settings.
+		if settings.DiscordAccessPlugin == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if err := settings.DiscordAccessPlugin.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			// TODO: after credential exchange during creation is implemented,
+			// this should validate that credentials are not empty
+			break
+		}
+		if p.Credentials.GetOauth2AccessToken() == nil {
+			return trace.BadParameter("Discord access plugin can only be used with OAuth2 access token credential type")
+		}
+		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_MattermostAccessPlugin:
+		// Check settings.
+		if settings.MattermostAccessPlugin == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if err := settings.MattermostAccessPlugin.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			// TODO: after credential exchange during creation is implemented,
+			// this should validate that credentials are not empty
+			break
+		}
+		if p.Credentials.GetOauth2AccessToken() == nil {
+			return trace.BadParameter("Mattermost access plugin can only be used with OAuth2 access token credential type")
 		}
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -241,6 +285,10 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_DiscordAccessPlugin:
+		return PluginTypeDiscord
+	case *PluginSpecV1_MattermostAccessPlugin:
+		return PluginTypeMattermost
 	case *PluginSpecV1_Openai:
 		return PluginTypeOpenAI
 	default:
@@ -250,6 +298,24 @@ func (p *PluginV1) GetType() PluginType {
 
 // CheckAndSetDefaults validates and set the default values
 func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
+	if s.FallbackChannel == "" {
+		return trace.BadParameter("fallback_channel must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginDiscordAccessSettings) CheckAndSetDefaults() error {
+	if s.FallbackChannel == "" {
+		return trace.BadParameter("fallback_channel must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginMattermostAccessSettings) CheckAndSetDefaults() error {
 	if s.FallbackChannel == "" {
 		return trace.BadParameter("fallback_channel must be set")
 	}

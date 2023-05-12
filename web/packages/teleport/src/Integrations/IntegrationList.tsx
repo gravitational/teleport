@@ -20,6 +20,8 @@ import styled from 'styled-components';
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
+import discordIcon from 'design/assets/images/icons/discord.svg';
+import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
@@ -167,6 +169,14 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   let icon;
   if (item.resourceType === 'plugin') {
     switch (item.kind) {
+      case 'discord':
+        formattedText = 'Discord';
+        icon = <IconContainer src={discordIcon} />;
+        break;
+      case 'mattermost':
+        formattedText = 'Mattermost';
+        icon = <IconContainer src={mattermostIcon} />;
+        break;
       case 'slack':
         formattedText = 'Slack';
         icon = <IconContainer src={slackIcon} />;

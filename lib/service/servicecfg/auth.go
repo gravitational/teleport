@@ -116,5 +116,7 @@ type HostedPluginsConfig struct {
 // PluginOAuthProviders holds application credentials for each
 // 3rd party API provider
 type PluginOAuthProviders struct {
-	Slack *oauth2.ClientCredentials
+	Slack      *oauth2.ClientCredentials
+	Discord    *oauth2.ClientCredentials
+	Mattermost *oauth2.ClientCredentials
 }
