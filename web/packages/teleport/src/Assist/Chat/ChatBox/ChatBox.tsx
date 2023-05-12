@@ -37,9 +37,9 @@ const Container = styled.div`
 
 const TextArea = styled.textarea`
   width: 100%;
-  background: #4A5688;
+  background: #4a5688;
   color: white;
-  border: 2px solid rgba(255,255,255,0.13);
+  border: 2px solid rgba(255, 255, 255, 0.13);
   border-radius: 10px;
   resize: none;
   padding: 20px 20px 5px 30px;
@@ -49,7 +49,7 @@ const TextArea = styled.textarea`
 
   &:focus {
     outline: none;
-    border-color: rgba(255,255,255,0.18);
+    border-color: rgba(255, 255, 255, 0.18);
   }
 
   ::placeholder {
@@ -58,7 +58,7 @@ const TextArea = styled.textarea`
 `;
 
 const ErrorMessage = styled.div`
-  color: #FF6257;
+  color: #ff6257;
   font-weight: 700;
   margin-bottom: 5px;
 `;

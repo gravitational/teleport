@@ -19,9 +19,7 @@ import { OnboardDiscover } from 'teleport/services/user';
 
 import { KeysEnum } from './types';
 
-const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
-  KeysEnum.SHOW_ASSIST_POPUP,
-];
+const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [KeysEnum.SHOW_ASSIST_POPUP];
 
 const storage = {
   clear() {

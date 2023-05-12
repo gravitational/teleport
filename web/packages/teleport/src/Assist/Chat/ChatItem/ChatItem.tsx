@@ -79,14 +79,8 @@ const Container = styled.div<{
   font-size: 14px;
 
   ${Content} {
-    background: ${p =>
-      p.teleport
-        ? '#4A5688'
-        : '#9F85FF'};
-    color: ${p =>
-      p.teleport
-        ? 'white'
-        : 'black'};
+    background: ${p => (p.teleport ? '#4A5688' : '#9F85FF')};
+    color: ${p => (p.teleport ? 'white' : 'black')};
     border-radius: ${p =>
       getBorderRadius(p.teleport, p.isFirstFromUser, p.isLastFromUser)};
   }
@@ -104,7 +98,7 @@ const ChatItemAvatarUser = styled.div`
   justify-content: center;
   background-size: cover;
   margin-right: 10px;
-  background: #9F85FF;
+  background: #9f85ff;
   color: black;
 `;
 
@@ -138,7 +132,7 @@ const TeleportAvatarContainer = styled(AvatarContainer)`
 `;
 
 const ChatItemAvatarTeleport = styled.div`
-  background: #9F85FF;
+  background: #9f85ff;
   color: black;
   padding: 4px;
   border-radius: 10px;

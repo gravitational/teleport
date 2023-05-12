@@ -179,10 +179,7 @@ export function Actions(props: ActionsProps) {
       {!result && !running && props.showRunButton && (
         <Buttons>
           <ButtonRun onClick={() => run()}>
-            <RunIcon
-              size={30}
-              fill="white"
-            />
+            <RunIcon size={30} fill="white" />
             Run
           </ButtonRun>
         </Buttons>

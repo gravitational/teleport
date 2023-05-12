@@ -19,7 +19,7 @@ import styled from 'styled-components';
 import { Type } from 'teleport/Assist/services/messages';
 
 export const Container = styled.div`
-  border: 1px solid rgba(255,255,255,0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 10px;
   padding: 15px 20px;
   position: relative;

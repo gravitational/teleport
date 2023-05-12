@@ -55,13 +55,13 @@ const ChatHistoryItem = styled(NavLink)`
   opacity: 0.7;
 
   &:hover {
-    background: rgba(255,255,255,0.07);
+    background: rgba(255, 255, 255, 0.07);
   }
 
   &.active {
     opacity: 1;
-    background: rgba(255,255,255,0.07);
-    border-left-color: #9F85FF;
+    background: rgba(255, 255, 255, 0.07);
+    border-left-color: #9f85ff;
   }
 `;
 
@@ -81,7 +81,7 @@ const NewChatButton = styled.div`
   display: flex;
   cursor: pointer;
   margin: 0 15px;
-  background: #9F85FF;
+  background: #9f85ff;
   color: black;
   align-items: center;
 
@@ -91,7 +91,7 @@ const NewChatButton = styled.div`
   }
 
   &:hover {
-    background: #B29DFF;
+    background: #b29dff;
   }
 `;
 
@@ -107,7 +107,7 @@ const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
 `;
 
 const ErrorMessage = styled.div`
-  color: #FF6257;
+  color: #ff6257;
   font-weight: 700;
   margin-bottom: 5px;
   padding: 0 15px 15px;

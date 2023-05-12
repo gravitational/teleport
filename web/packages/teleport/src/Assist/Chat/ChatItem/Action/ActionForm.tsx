@@ -34,7 +34,7 @@ interface ActionFormProps {
 
 const CommandInput = styled.input`
   padding: 10px 15px;
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   font-size: 16px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
@@ -60,13 +60,13 @@ const CancelButton = styled.div`
   margin-right: 10px;
 
   &:hover {
-    background: rgba(255,255,255,0.07);
+    background: rgba(255, 255, 255, 0.07);
   }
 `;
 
 const SaveButton = styled.div`
   margin-top: 10px;
-  background: #9F85FF;
+  background: #9f85ff;
   font-weight: bold;
   color: black;
   border-radius: 5px;
@@ -76,13 +76,13 @@ const SaveButton = styled.div`
   cursor: pointer;
 
   &:hover {
-    background: #B29DFF;
+    background: #b29dff;
   }
 `;
 
 const LabelForm = styled.div`
   display: flex;
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
   align-items: center;
   padding: 1px 15px;
   border-radius: 5px;

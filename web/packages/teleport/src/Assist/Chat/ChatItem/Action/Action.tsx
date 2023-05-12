@@ -33,8 +33,8 @@ interface ActionProps {
 
 const Item = styled.div`
   padding: 10px 15px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   margin-right: 10px;
   font-size: 14px;
@@ -66,8 +66,8 @@ const EditButton = styled.div`
 
 const Query = styled.div`
   padding: 10px 15px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   align-items: center;
   display: flex;
@@ -89,8 +89,8 @@ const As = styled.div`
 
 const User = styled.div`
   padding: 10px 15px;
-  background: rgba(255,255,255,0.07);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   display: flex;
   align-items: center;

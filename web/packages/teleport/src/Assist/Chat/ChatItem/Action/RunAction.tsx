@@ -158,7 +158,7 @@ interface NodeOutputProps {
 
 const NodeContainer = styled.div`
   margin-bottom: 20px;
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   padding: 10px 15px 10px;
 `;
