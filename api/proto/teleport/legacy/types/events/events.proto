@@ -185,9 +185,9 @@ message OktaResourcesUpdatedMetadata {
   int32 Deleted = 3 [(gogoproto.jsontag) = "deleted"];
   // AddedResources is a list of the actual resources that were added.
   repeated OktaResource AddedResources = 4 [(gogoproto.jsontag) = "added_resources"];
-  // AddedResources is a list of the actual resources that were updated.
+  // UpdatedResources is a list of the actual resources that were updated.
   repeated OktaResource UpdatedResources = 5 [(gogoproto.jsontag) = "updated_resources"];
-  // AddedResources is a list of the actual resources that were deleted.
+  // DeletedResources is a list of the actual resources that were deleted.
   repeated OktaResource DeletedResources = 6 [(gogoproto.jsontag) = "deleted_resources"];
 }
 

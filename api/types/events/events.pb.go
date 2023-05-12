@@ -729,9 +729,9 @@ type OktaResourcesUpdatedMetadata struct {
 	Deleted int32 `protobuf:"varint,3,opt,name=Deleted,proto3" json:"deleted"`
 	// AddedResources is a list of the actual resources that were added.
 	AddedResources []*OktaResource `protobuf:"bytes,4,rep,name=AddedResources,proto3" json:"added_resources"`
-	// AddedResources is a list of the actual resources that were updated.
+	// UpdatedResources is a list of the actual resources that were updated.
 	UpdatedResources []*OktaResource `protobuf:"bytes,5,rep,name=UpdatedResources,proto3" json:"updated_resources"`
-	// AddedResources is a list of the actual resources that were deleted.
+	// DeletedResources is a list of the actual resources that were deleted.
 	DeletedResources     []*OktaResource `protobuf:"bytes,6,rep,name=DeletedResources,proto3" json:"deleted_resources"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
 	XXX_unrecognized     []byte          `json:"-"`
