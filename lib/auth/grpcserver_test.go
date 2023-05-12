@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1953,7 +1952,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	roleOpt := role.GetOptions()
 	roleOpt.RequireMFAType = types.RequireMFAType_SESSION
 	role.SetOptions(roleOpt)
-	role.SetNodeLabels(types.Allow, map[string]apiutils.Strings{"a": []string{"c"}})
+	role.SetNodeLabels(types.Allow, map[string]utils.Strings{"a": []string{"c"}})
 	err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
