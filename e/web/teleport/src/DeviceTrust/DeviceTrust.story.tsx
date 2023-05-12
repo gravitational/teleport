@@ -1,5 +1,9 @@
 import React from 'react';
 
+import { ContextProvider } from 'teleport';
+
+import { createTeleportContext } from 'teleport/mocks/contexts';
+
 import { DeviceTrust } from './DeviceTrust';
 
 import type { TrustedDevice } from 'e-teleport/services/devices/types';
@@ -11,27 +15,45 @@ export default {
 };
 
 export function Empty() {
-  return <DeviceTrust {...props} items={[]} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust {...props} items={[]} />
+    </ContextProvider>
+  );
 }
 
 export function EmptyWithCTA() {
-  return <DeviceTrust {...props} items={[]} showTrustedDevicesCTA={true} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust {...props} items={[]} showTrustedDevicesCTA={true} />
+    </ContextProvider>
+  );
 }
 
 export function Processing() {
-  return <DeviceTrust {...props} attempt={{ status: 'processing' as any }} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust {...props} attempt={{ status: 'processing' as any }} />
+    </ContextProvider>
+  );
 }
 
 export function Loaded() {
-  return <DeviceTrust {...props} />;
+  return (
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust {...props} />
+    </ContextProvider>
+  );
 }
 
 export function Failed() {
   return (
-    <DeviceTrust
-      {...props}
-      attempt={{ status: 'failed', statusText: 'some error message' }}
-    />
+    <ContextProvider ctx={ctx}>
+      <DeviceTrust
+        {...props}
+        attempt={{ status: 'failed', statusText: 'some error message' }}
+      />
+    </ContextProvider>
   );
 }
 
@@ -66,3 +88,5 @@ const props: State = {
   startKey: '',
   showTrustedDevicesCTA: false,
 };
+
+const ctx = createTeleportContext();

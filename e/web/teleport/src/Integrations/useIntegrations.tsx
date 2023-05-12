@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { integrationService } from 'teleport/services/integrations';
 import {
+  EditableIntegrationFields,
   Operation,
   useIntegrationOperation,
-} from 'teleport/Integrations/useIntegrationOperation';
+} from 'teleport/Integrations/Operations/useIntegrationOperation';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -131,13 +132,29 @@ export function useIntegrations() {
     setPluginOps({ type: 'delete', item: plugin });
   }
 
-  function deleteIntegration() {
+  function removeIntegration() {
     return integrationOps.remove().then(() => {
       const updatedItems = items.filter(
         i =>
           i.resourceType === 'integration' &&
           i.name !== integrationOps.item.name
       );
+      setItems(updatedItems);
+      integrationOps.clear();
+    });
+  }
+
+  function editIntegration(req: EditableIntegrationFields) {
+    return integrationOps.edit(req).then(updatedIntegration => {
+      const updatedItems = items.map(item => {
+        if (
+          item.resourceType === 'integration' &&
+          item.name == integrationOps.item.name
+        ) {
+          return updatedIntegration;
+        }
+        return item;
+      });
       setItems(updatedItems);
       integrationOps.clear();
     });
@@ -153,8 +170,11 @@ export function useIntegrations() {
       onDelete,
       onStartDelete,
     },
-    integrationOps,
-    deleteIntegration,
+    integrationOps: {
+      ...integrationOps,
+      removeIntegration,
+      editIntegration,
+    },
     warning,
     canCreateIntegrations:
       ctx.storeUser.getPluginsAccess().create ||

@@ -248,6 +248,9 @@ exports[`empty with CTA 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
 }
 
 .c30:hover,
@@ -418,7 +421,7 @@ exports[`empty with CTA 1`] = `
   display: flex;
 }
 
-.c32 {
+.c31 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -653,15 +656,7 @@ exports[`empty with CTA 1`] = `
   font-size: 12px;
 }
 
-.c31 {
-  text-transform: none;
-  width: 100%;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
-}
-
-.c33 {
+.c32 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
@@ -1123,19 +1118,23 @@ exports[`empty with CTA 1`] = `
         class="c29"
         width="400px"
       >
-        <button
-          class="c30 c31"
+        <a
+          class="c30"
+          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
+          style="text-transform: none;"
+          target="blank"
+          width="100%"
         >
           <div
-            class="c32"
+            class="c31"
           >
             <span
-              class="c19 c23 icon icon-unlock c33"
+              class="c19 c23 icon icon-unlock c32"
             />
             Unlock Device Trust with Teleport Enterprise
           </div>
-        </button>
+        </a>
       </div>
     </div>
   </div>
