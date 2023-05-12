@@ -30,6 +30,7 @@ import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  ClusterSearchFilter,
   ResourceMatch,
   SearchResult,
   ResourceSearchResult,
@@ -401,7 +402,7 @@ export function getActionPickerStatus({
   }
 
   const nonRetryableResourceSearchErrors = [];
-  const clustersWithExpiredCerts = new Set(
+  let clustersWithExpiredCerts = new Set(
     allClusters.filter(c => !c.connected).map(c => c.uri)
   );
   const haveActionAttemptsFinished = actionAttempts.every(attempt =>
@@ -431,6 +432,21 @@ export function getActionPickerStatus({
         nonRetryableResourceSearchErrors.push(err);
       }
     });
+  }
+
+  // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
+  const clusterFilter = filters.find(
+    filter => filter.filter === 'cluster'
+  ) as ClusterSearchFilter;
+  if (clusterFilter) {
+    const hasClusterCertExpired = clustersWithExpiredCerts.has(
+      clusterFilter.clusterUri
+    );
+    clustersWithExpiredCerts = new Set();
+
+    if (hasClusterCertExpired) {
+      clustersWithExpiredCerts.add(clusterFilter.clusterUri);
+    }
   }
 
   return {
