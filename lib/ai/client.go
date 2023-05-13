@@ -17,6 +17,9 @@
 package ai
 
 import (
+	"context"
+
+	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
 )
@@ -51,4 +54,24 @@ func (client *Client) NewChat(username string) *Chat {
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
 	}
+}
+
+// Summary creates a short summary for the given input.
+func (client *Client) Summary(ctx context.Context, message string) (string, error) {
+	resp, err := client.svc.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{Role: openai.ChatMessageRoleSystem, Content: promptSummarizeTitle},
+				{Role: openai.ChatMessageRoleUser, Content: message},
+			},
+		},
+	)
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Choices[0].Message.Content, nil
 }

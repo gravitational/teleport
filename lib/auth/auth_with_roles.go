@@ -6084,6 +6084,15 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.
 	return a.authServer.GetAssistantMessages(ctx, req)
 }
 
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.IsAssistEnabled(ctx)
+}
+
 // CreateAssistantMessage adds the message to the backend.
 func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
