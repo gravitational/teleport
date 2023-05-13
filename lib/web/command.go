@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
+	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -49,9 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
-
-// CommandResultType is the type of Assist message that contains the command execution result.
-const CommandResultType = "COMMAND_RESULT"
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
@@ -116,6 +114,10 @@ func (h *Handler) executeCommand(
 
 	clt, err := sessionCtx.GetUserClient(r.Context(), site)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(clt, r.Context()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -237,7 +239,7 @@ func (h *Handler) executeCommand(
 				ConversationId: req.ConversationID,
 				Username:       identity.TeleportUser,
 				Message: &assist.AssistantMessage{
-					Type:        CommandResultType,
+					Type:        string(assistlib.MessageKindCommandResult),
 					CreatedTime: timestamppb.New(time.Now().UTC()),
 					Payload:     string(msgPayload),
 				},
