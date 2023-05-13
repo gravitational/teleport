@@ -43,6 +43,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -238,6 +239,9 @@ type Config struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// OpenAIConfig provides config options for the OpenAI integration.
+	OpenAIConfig *openai.ClientConfig
 }
 
 type APIHandler struct {
@@ -1150,8 +1154,13 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
-		// Disable assistant support if per session MFA is enabled.
-		proxyConfig.AssistEnabled = !mfaRequired
+		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+
+		// disable if per-session MFA is enabled and it's ok by the auth
+		proxyConfig.AssistEnabled = enabled.Enabled && !mfaRequired
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())

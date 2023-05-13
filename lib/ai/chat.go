@@ -52,6 +52,11 @@ func (chat *Chat) Insert(role string, content string) Message {
 	}
 }
 
+// GetMessages returns the messages in the conversation.
+func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
+	return chat.messages
+}
+
 // PromptTokens uses the chat's tokenizer to calculate
 // the total number of tokens in the prompt
 //
@@ -78,31 +83,10 @@ func (chat *Chat) PromptTokens() (int, error) {
 	return sum, nil
 }
 
-// Summary creates a short summary for the given input.
-func (chat *Chat) Summary(ctx context.Context, message string) (string, error) {
-	resp, err := chat.client.svc.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model: openai.GPT4,
-			Messages: []openai.ChatCompletionMessage{
-				{Role: openai.ChatMessageRoleSystem, Content: promptSummarizeTitle},
-				{Role: openai.ChatMessageRoleUser, Content: message},
-			},
-		},
-	)
-
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return resp.Choices[0].Message.Content, nil
-}
-
 // Complete completes the conversation with a message from the assistant based on the current context.
-// On success, it returns the message and the number of tokens used for the completion.
+// On success, it returns the message.
 // Returned types:
 // - Message: the message from the assistant
-// - int: the number of tokens used for the completion
 // - error: an error if one occurred
 // Message types:
 // - CompletionCommand: a command from the assistant
