@@ -306,6 +306,19 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	}
 }
 
+// UIBillingCardAdded is an UI event sent when a user adds a new credit card.
+type UIBillingCardAdded prehogv1a.UIBillingCardAddedClickEvent
+
+func (u UIBillingCardAdded) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiBillingCardAdded{
+			UiOnboardAddFirstResourceClick: &prehogv1a.UIBillingCardAddedClickEvent{
+				UserName: a.AnonymizeString(u.UserName),
+			},
+		},
+	}
+}
+
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
 type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
@@ -560,7 +573,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			UserName: userMD.Username,
 			Cta:      prehogv1a.CTA(e.UiCallToActionClickEvent.Cta),
 		}, nil
-
+	case *usageeventsv1.UsageEventOneOf_UiBillingCardAddedClickEvent:
+		return &UIBillingCardAddedClickEvent{
+			UserName: userMD.Username,
+		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),

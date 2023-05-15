@@ -379,6 +379,13 @@ enum CTA {
   CTA_UPGRADE_BANNER = 6;
 }
 
+// UIBillingCardAddedClickEvent is an event emited when the user adds a credit card
+// to a usage based subscription via web UI
+message UIBillingCardAddedClickEvent {
+  // anonymized
+  string user_name = 1;
+}
+
 message KubeRequestEvent {
   // anonymized
   string user_name = 1;
@@ -488,6 +495,8 @@ message SubmitEventRequest {
     UICallToActionClickEvent ui_call_to_action_click_event = 42;
 
     AssistCompletionEvent assist_completion = 43;
+
+    UIBillingCardAddedClickEvent ui_billing_card_added_click_event = 44;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

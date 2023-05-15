@@ -1126,6 +1126,27 @@ export namespace UICallToActionClickEvent {
     }
 }
 
+export class UIBillingCardAddedClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIBillingCardAddedClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIBillingCardAddedClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIBillingCardAddedClickEvent): UIBillingCardAddedClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIBillingCardAddedClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIBillingCardAddedClickEvent;
+    static deserializeBinaryFromReader(message: UIBillingCardAddedClickEvent, reader: jspb.BinaryReader): UIBillingCardAddedClickEvent;
+}
+
+export namespace UIBillingCardAddedClickEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
 export class KubeRequestEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
@@ -1525,6 +1546,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
 
 
+    hasUiBillingCardAddedClickEvent(): boolean;
+    clearUiBillingCardAddedClickEvent(): void;
+    getUiBillingCardAddedClickEvent(): UIBillingCardAddedClickEvent | undefined;
+    setUiBillingCardAddedClickEvent(value?: UIBillingCardAddedClickEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1581,6 +1608,7 @@ export namespace SubmitEventRequest {
         uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
         uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
         assistCompletion?: AssistCompletionEvent.AsObject,
+        uiBillingCardAddedClickEvent?: UIBillingCardAddedClickEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1665,6 +1693,8 @@ export namespace SubmitEventRequest {
     UI_CALL_TO_ACTION_CLICK_EVENT = 42,
 
     ASSIST_COMPLETION = 43,
+
+    UI_BILLING_CARD_ADDED_CLICK_EVENT = 44,
 
     }
 

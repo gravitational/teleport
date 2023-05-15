@@ -57,7 +57,8 @@ const (
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 
-	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+	uiCallToActionClickEvent     = "tp.ui.callToAction.click"
+	uiBillingCardAddedClickEvent = "tp.ui.billing.cardAdded"
 )
 
 // Events that require extra metadata.
@@ -272,6 +273,10 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 					Cta: usageeventsv1.CTA(cta),
 				}}},
 			nil
+	case uiBillingCardAddedClickEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiBillingCardAddedClickEvent{
+			UiBillingCardAddedClickEvent: &usageeventsv1.UIBillingCardAddedClickEvent{},
+		}}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

@@ -213,6 +213,10 @@ enum CTA {
   CTA_UPGRADE_BANNER = 6;
 }
 
+// UIBillingCardAddedClickEvent is an event emited when the user adds a credit card
+// to a usage based subscription via web UI
+message UIBillingCardAddedClickEvent {}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -349,6 +353,7 @@ message UsageEventOneOf {
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
     UICallToActionClickEvent ui_call_to_action_click_event = 29;
     AssistCompletionEvent assist_completion = 30;
+    UIBillingCardAddedClickEvent ui_billing_card_added_click_event = 44;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
