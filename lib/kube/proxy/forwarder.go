@@ -2375,7 +2375,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeClusterName)
 	}
 
-	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
+	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:               f,
 		authContext:          ctx,
