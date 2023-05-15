@@ -40,6 +40,10 @@ spec:
                   The meaning of the ACR value is context-specific and varies for
                   identity providers.
                 type: string
+              allow_unverified_email:
+                description: AllowUnverifiedEmail tells the connector to accept OIDC
+                  users with unverified emails.
+                type: boolean
               claims_to_roles:
                 description: ClaimsToRoles specifies a dynamic mapping from claims
                   to roles.
@@ -107,6 +111,10 @@ spec:
                   type: string
                 nullable: true
                 type: array
+              username_claim:
+                description: UsernameClaim specifies the name of the claim from the
+                  OIDC connector to be used as the user's username.
+                type: string
             type: object
           status:
             description: TeleportOIDCConnectorStatus defines the observed state of

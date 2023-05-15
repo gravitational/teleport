@@ -37,8 +37,8 @@ exports[`kube connect dialogue local 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -59,7 +59,7 @@ exports[`kube connect dialogue local 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -88,6 +88,7 @@ exports[`kube connect dialogue local 1`] = `
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -128,29 +129,26 @@ exports[`kube connect dialogue local 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c15 {
@@ -172,25 +170,26 @@ exports[`kube connect dialogue local 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
@@ -228,7 +227,7 @@ exports[`kube connect dialogue local 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>
@@ -247,6 +246,7 @@ exports[`kube connect dialogue local 1`] = `
              - Login to Teleport
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -283,6 +283,7 @@ exports[`kube connect dialogue local 1`] = `
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -318,6 +319,7 @@ exports[`kube connect dialogue local 1`] = `
              - Select the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -353,6 +355,7 @@ exports[`kube connect dialogue local 1`] = `
              - Connect to the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -431,8 +434,8 @@ exports[`kube connect dialogue local with requestId 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -453,7 +456,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -488,6 +491,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -528,29 +532,26 @@ exports[`kube connect dialogue local with requestId 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c16 {
@@ -572,25 +573,26 @@ exports[`kube connect dialogue local with requestId 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c16:active {
-  opacity: 0.56;
-}
-
 .c16:hover,
 .c16:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
@@ -628,7 +630,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>
@@ -647,6 +649,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
              - Login to Teleport
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -683,6 +686,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -718,6 +722,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
              - Select the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -753,6 +758,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
              - Connect to the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -788,6 +794,7 @@ exports[`kube connect dialogue local with requestId 1`] = `
              - When finished, drop the assumed role
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -866,8 +873,8 @@ exports[`kube connect dialogue sso 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -888,7 +895,7 @@ exports[`kube connect dialogue sso 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -917,6 +924,7 @@ exports[`kube connect dialogue sso 1`] = `
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -957,29 +965,26 @@ exports[`kube connect dialogue sso 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c15 {
@@ -1001,25 +1006,26 @@ exports[`kube connect dialogue sso 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
@@ -1057,7 +1063,7 @@ exports[`kube connect dialogue sso 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             connect to kubernetes cluster
           </div>
@@ -1076,6 +1082,7 @@ exports[`kube connect dialogue sso 1`] = `
              - Login to Teleport
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -1112,6 +1119,7 @@ exports[`kube connect dialogue sso 1`] = `
             - To write kubectl configuration to a separate file instead of having your global kubectl configuration modified, run the following command:
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -1147,6 +1155,7 @@ exports[`kube connect dialogue sso 1`] = `
              - Select the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"
@@ -1182,6 +1191,7 @@ exports[`kube connect dialogue sso 1`] = `
              - Connect to the Kubernetes cluster
             <div
               class="c9"
+              color="light"
             >
               <div
                 class="c10"

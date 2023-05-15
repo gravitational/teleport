@@ -23,7 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -49,8 +48,10 @@ type Server interface {
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
 	SetCmdLabels(cmdLabels map[string]CommandLabel)
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	// GetPublicAddr returns a public address where this server can be reached.
 	GetPublicAddr() string
+	// GetPublicAddrs returns a list of public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -63,8 +64,8 @@ type Server interface {
 	String() string
 	// SetAddr sets server address
 	SetAddr(addr string)
-	// SetPublicAddr sets the public address this cluster can be reached at.
-	SetPublicAddr(string)
+	// SetPublicAddrs sets the public addresses where this server can be reached.
+	SetPublicAddrs([]string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
 	// GetApps gets the list of applications this server is proxying.
@@ -178,9 +179,13 @@ func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetPublicAddr sets the public address this cluster can be reached at.
-func (s *ServerV2) SetPublicAddr(addr string) {
-	s.Spec.PublicAddr = addr
+// SetPublicAddrs sets the public proxy addresses where this server can be reached.
+func (s *ServerV2) SetPublicAddrs(addrs []string) {
+	s.Spec.PublicAddrs = addrs
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(addrs) != 0 {
+		s.Spec.PublicAddr = addrs[0]
+	}
 }
 
 // GetName returns server name
@@ -198,9 +203,22 @@ func (s *ServerV2) GetAddr() string {
 	return s.Spec.Addr
 }
 
-// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+// GetPublicAddr returns a public address where this server can be reached.
 func (s *ServerV2) GetPublicAddr() string {
-	return s.Spec.PublicAddr
+	addrs := s.GetPublicAddrs()
+	if len(addrs) != 0 {
+		return addrs[0]
+	}
+	return ""
+}
+
+// GetPublicAddrs returns a list of public addresses where this server can be reached.
+func (s *ServerV2) GetPublicAddrs() []string {
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(s.Spec.PublicAddrs) == 0 && s.Spec.PublicAddr != "" {
+		return []string{s.Spec.PublicAddr}
+	}
+	return s.Spec.PublicAddrs
 }
 
 // GetRotation gets the state of certificate authority rotation.
@@ -228,16 +246,29 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := s.Spec.CmdLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetLabels returns server's static label key pairs.
 // GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
-
-// GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
 	return s.Metadata.Labels
 }
@@ -391,8 +422,8 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		if s.Spec.Addr == "" {
 			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
 		}
-		if s.Spec.PublicAddr != "" {
-			return trace.BadParameter(`PublicAddr must not be set when server SubKind is "openssh"`)
+		if len(s.GetPublicAddrs()) != 0 {
+			return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
 		}
 		if s.Spec.Hostname == "" {
 			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
@@ -423,6 +454,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 	if s.GetKind() == KindNode {
 		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+		fieldVals = append(fieldVals, s.GetPublicAddrs()...)
 
 		if s.GetUseTunnel() {
 			custom = func(val string) bool {
@@ -436,7 +468,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
-	return proto.Clone(s).(*ServerV2)
+	return utils.CloneProtoMsg(s)
 }
 
 // IsAWSConsole returns true if this app is AWS management console.

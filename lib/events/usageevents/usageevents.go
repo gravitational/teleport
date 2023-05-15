@@ -50,12 +50,11 @@ func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.Audi
 		return nil
 	}
 
-	anonymizable := usagereporter.ConvertAuditEvent(event)
-	if anonymizable == nil {
-		return nil
+	if a := usagereporter.ConvertAuditEvent(event); a != nil {
+		u.reporter.AnonymizeAndSubmit(a)
 	}
 
-	return trace.Wrap(u.reporter.AnonymizeAndSubmit(anonymizable))
+	return nil
 }
 
 func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {

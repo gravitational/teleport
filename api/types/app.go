@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -182,6 +181,17 @@ func (a *AppV3) SetDynamicLabels(dl map[string]CommandLabel) {
 	a.Spec.DynamicLabels = LabelsToV2(dl)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (a *AppV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := a.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := a.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
@@ -287,7 +297,7 @@ func (a *AppV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
-	return proto.Clone(a).(*AppV3)
+	return utils.CloneProtoMsg(a)
 }
 
 // MatchSearch goes through select field values and tries to

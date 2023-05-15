@@ -103,6 +103,9 @@ type Config struct {
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
+	// Okta defines the okta service configuration.
+	Okta OktaConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
@@ -236,6 +239,9 @@ type Config struct {
 	// CircuitBreakerConfig configures the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
 
+	// AdditionalExpectedRoles are additional roles to attach to the Teleport instances.
+	AdditionalExpectedRoles []RoleAndIdentityEvent
+
 	// AdditionalReadyEvents are additional events to watch for to consider the Teleport instance ready.
 	AdditionalReadyEvents []string
 
@@ -264,6 +270,15 @@ type Config struct {
 	authServers []utils.NetAddr
 }
 
+// RoleAndIdentityEvent is a role and its corresponding identity event.
+type RoleAndIdentityEvent struct {
+	// Role is a system role.
+	Role types.SystemRole
+
+	// IdentityEvent is the identity event associated with the above role.
+	IdentityEvent string
+}
+
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
 	Azure AzureJoinParams
@@ -279,7 +294,6 @@ type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
 	// MaxRetryPeriod is maximum period cache waits before retrying on failure.
-	// Not exposed through the config file, used in tests.
 	MaxRetryPeriod time.Duration
 }
 
@@ -651,6 +665,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
 		cfg.Discovery.Enabled,
+		cfg.Okta.Enabled,
 	}
 
 	for _, item := range enabled {
@@ -660,5 +675,5 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service")
 }

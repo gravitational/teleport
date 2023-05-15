@@ -30,7 +30,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -129,7 +129,7 @@ export function TestConnectionView({
               attempt.status === 'processing' || nameOpts.length === 0
             }
             // Database name is required for Postgres.
-            isClearable={dbEngine !== DatabaseEngine.PostgreSQL}
+            isClearable={dbEngine !== DatabaseEngine.Postgres}
           />
         </Box>
       </StyledBox>
@@ -168,7 +168,7 @@ export function TestConnectionView({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

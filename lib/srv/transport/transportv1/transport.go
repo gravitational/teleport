@@ -18,6 +18,8 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -27,7 +29,9 @@ import (
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -35,24 +39,38 @@ import (
 
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
-	DialSite(ctx context.Context, clusterName string) (net.Conn, error)
-	DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (net.Conn, error)
+	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error)
+}
+
+// ConnMonitor monitors authorized connections and terminates them when
+// session controls dictate so.
+type ConnectionMonitor interface {
+	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error)
 }
 
 // ServerConfig holds creation parameters for Service.
 type ServerConfig struct {
 	// FIPS indicates whether the cluster if configured
-	// to run in FIPS mode
+	// to run in FIPS mode.
 	FIPS bool
-	// Logger provides a mechanism to log output
+	// Logger provides a mechanism to log output.
 	Logger logrus.FieldLogger
-	// Dialer is used to establish remote connections
+	// Dialer is used to establish remote connections.
 	Dialer Dialer
+	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
+	SignerFn func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator
+	// ConnectionMonitor is used to monitor the connection for activity and terminate it
+	// when conditions are met.
+	ConnectionMonitor ConnectionMonitor
+	// LocalAddr is the local address of the service.
+	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
 	agentGetterFn func(rw io.ReadWriter) teleagent.Getter
 
-	accessCheckerFn func(info credentials.AuthInfo) (services.AccessChecker, error)
+	// authzContextFn used by tests to inject an access checker
+	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
 }
 
 // CheckAndSetDefaults ensures required parameters are set
@@ -60,6 +78,10 @@ type ServerConfig struct {
 func (c *ServerConfig) CheckAndSetDefaults() error {
 	if c.Dialer == nil {
 		return trace.BadParameter("parameter Dialer required")
+	}
+
+	if c.LocalAddr == nil {
+		return trace.BadParameter("parameter LocalAddr required")
 	}
 
 	if c.Logger == nil {
@@ -74,14 +96,14 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if c.accessCheckerFn == nil {
-		c.accessCheckerFn = func(info credentials.AuthInfo) (services.AccessChecker, error) {
+	if c.authzContextFn == nil {
+		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
 			identityInfo, ok := info.(auth.IdentityInfo)
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthContext.Checker, nil
+			return identityInfo.AuthContext, nil
 		}
 	}
 
@@ -119,7 +141,18 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "failed receiving first frame")
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(stream.Context(), req.Cluster)
+	ctx := stream.Context()
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("unable to find peer")
+	}
+
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, clientDst)
 	if err != nil {
 		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
 	}
@@ -138,7 +171,7 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "failed constructing streamer")
 	}
 
-	return trace.Wrap(utils.ProxyConn(stream.Context(), conn, streamRW))
+	return trace.Wrap(utils.ProxyConn(ctx, conn, streamRW))
 }
 
 // clusterStream implements the [streamutils.Source] interface
@@ -167,7 +200,7 @@ func (c clusterStream) Send(frame []byte) error {
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
 // Agent protocol over the stream. The first request from the client must contain
 // a valid dial target before the connection can be established.
-func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) error {
+func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) (err error) {
 	ctx := stream.Context()
 
 	p, ok := peer.FromContext(ctx)
@@ -175,7 +208,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.BadParameter("unable to find peer")
 	}
 
-	checker, err := s.cfg.accessCheckerFn(p.AuthInfo)
+	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -196,15 +229,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.BadParameter("dial target contains an invalid hostport")
 	}
 
-	// create a stream for SSH Agent protocol
-	agentStream := newSSHStream(stream, func(payload []byte) *transportv1pb.ProxySSHResponse {
-		return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
-	})
-
-	// create a stream for SSH protocol
-	sshStream := newSSHStream(stream, func(payload []byte) *transportv1pb.ProxySSHResponse {
-		return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
-	})
+	// create streams for SSH and Agent protocols
+	sshStream, agentStream := newSSHStreams(stream)
 
 	// multiplex incoming frames to the appropriate protocol
 	// handlers for the duration of the stream
@@ -212,8 +238,6 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				agentStream.Close()
-				sshStream.Close()
 				if !utils.IsOKNetworkError(err) {
 					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
@@ -243,15 +267,39 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 	defer agentStreamRW.Close()
 
-	conn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, host, port, req.DialTarget.Cluster, checker, s.cfg.agentGetterFn(agentStreamRW))
-	if err != nil {
-		return trace.Wrap(err, "failed to dial target host")
-	}
-
 	// create a reader/writer for SSH protocol
 	sshStreamRW, err := streamutils.NewReadWriter(sshStream)
 	if err != nil {
 		return trace.Wrap(err, "failed constructing ssh streamer")
+	}
+
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
+	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	if err != nil {
+		return trace.Wrap(err, "failed to dial target host")
+	}
+
+	// ensure the connection to the target host
+	// gets closed when exiting
+	defer func() {
+		hostConn.Close()
+	}()
+
+	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// monitor the user connection
+	userConn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
+	monitorCtx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, userConn)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// send back the cluster details to alert the other side that
@@ -262,8 +310,40 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
 
-	// copy data to/from the connection and ssh stream
-	return trace.Wrap(utils.ProxyConn(ctx, conn, sshStreamRW))
+	// copy data to/from the host/user
+	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
+}
+
+// getDestinationAddress is used to get client destination for connection coming from gRPC. We don't have a way to get
+// real connection dst address, but we rely on listener address to be that. Returned IP version always have to match
+// IP version of src address. If IP versions don't match or if listener is unspecified address we return loopback.
+func getDestinationAddress(clientSrc, listenerAddr net.Addr) (net.Addr, error) {
+	la, err := netip.ParseAddrPort(listenerAddr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := netip.ParseAddrPort(clientSrc.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If listener address is specified and matches IP version of source address, we just return it
+	if !la.Addr().IsUnspecified() && la.Addr().Is4() == ca.Addr().Is4() {
+		return listenerAddr, nil
+	}
+
+	// Otherwise we return loopback with matching IP version of source address
+	if ca.Addr().Is4() {
+		return &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: int(la.Port()),
+		}, nil
+	}
+
+	return &net.TCPAddr{
+		IP:   net.IPv6loopback,
+		Port: int(la.Port()),
+	}, nil
 }
 
 // sshStream implements the [streamutils.Source] interface
@@ -272,28 +352,33 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 // channel that is fed by the multiplexer.
 type sshStream struct {
 	incomingC  chan []byte
-	stream     transportv1pb.TransportService_ProxySSHServer
-	done       chan struct{}
 	responseFn func(payload []byte) *transportv1pb.ProxySSHResponse
+	wLock      *sync.Mutex
+	stream     transportv1pb.TransportService_ProxySSHServer
 }
 
-func newSSHStream(stream transportv1pb.TransportService_ProxySSHServer, responseFn func(payload []byte) *transportv1pb.ProxySSHResponse) *sshStream {
-	return &sshStream{
-		incomingC:  make(chan []byte, 10),
-		done:       make(chan struct{}),
-		stream:     stream,
-		responseFn: responseFn,
-	}
-}
+func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *sshStream, agent *sshStream) {
+	mu := &sync.Mutex{}
 
-func (s *sshStream) Close() error {
-	select {
-	case <-s.done:
-	default:
-		close(s.done)
+	ssh = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
 	}
 
-	return nil
+	agent = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
+	}
+
+	return ssh, agent
 }
 
 // Recv consumes ssh frames from the gRPC stream.
@@ -301,7 +386,7 @@ func (s *sshStream) Close() error {
 // leaking the multiplexing goroutine in Service.ProxySSH.
 func (s *sshStream) Recv() ([]byte, error) {
 	select {
-	case <-s.done:
+	case <-s.stream.Context().Done():
 		return nil, io.EOF
 	case frame := <-s.incomingC:
 		return frame, nil
@@ -309,5 +394,8 @@ func (s *sshStream) Recv() ([]byte, error) {
 }
 
 func (s *sshStream) Send(frame []byte) error {
+	s.wLock.Lock()
+	defer s.wLock.Unlock()
+
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
 }

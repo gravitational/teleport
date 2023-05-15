@@ -27,11 +27,14 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -194,14 +197,14 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
 // target server if it's a teleport server
 // DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (_ net.Conn, teleportVersion string, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
 		oteltrace.WithAttributes(
 			attribute.String("host", host),
 			attribute.String("port", port),
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer func() {
@@ -231,12 +234,14 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	principals := []string{host}
 
 	var (
-		serverID   string
-		serverAddr string
-		proxyIDs   []string
+		isAgentlessNode bool
+		serverID        string
+		serverAddr      string
+		proxyIDs        []string
 	)
 
 	if target != nil {
+		isAgentlessNode = target.GetSubKind() == types.SubKindOpenSSHNode
 		proxyIDs = target.GetProxyIDs()
 		serverID = fmt.Sprintf("%v.%v", target.GetName(), clusterName)
 
@@ -268,11 +273,28 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		r.log.Warnf("server lookup failed: using default=%v", serverAddr)
 	}
 
+	// if the node is a registered openssh node, create a signer for auth
+	// and don't set agentGetter so a SSH user agent will not be created
+	// when connecting to the remote node
+	var sshSigner ssh.Signer
+	if isAgentlessNode {
+		client, err := r.GetSiteClient(ctx, clusterName)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		sshSigner, err = signer(ctx, client)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		agentGetter = nil
+	}
+
 	conn, err := site.Dial(reversetunnel.DialParams{
 		From:                  clientSrcAddr,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
 		OriginalClientDstAddr: clientDstAddr,
 		GetUserAgent:          agentGetter,
+		AgentlessSigner:       sshSigner,
 		Address:               host,
 		Principals:            principals,
 		ServerID:              serverID,
@@ -295,7 +317,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		ctx,
 		"router/getRemoteCluster",
 		oteltrace.WithAttributes(
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer span.End()
@@ -437,7 +459,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 		ctx,
 		"router/DialSite",
 		oteltrace.WithAttributes(
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer span.End()
@@ -465,4 +487,17 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 	}
 
 	return newProxiedMetricConn(conn), trace.Wrap(err)
+}
+
+// GetSiteClient returns an auth client for the provided cluster.
+func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	if clusterName == r.clusterName {
+		return r.localSite.GetClient()
+	}
+
+	site, err := r.siteGetter.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return site.GetClient()
 }

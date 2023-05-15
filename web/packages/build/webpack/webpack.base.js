@@ -35,6 +35,7 @@ const configFactory = {
       return new ForkTsCheckerWebpackPlugin({
         typescript: {
           configFile: tsconfigPath,
+          memoryLimit: 4096,
         },
         issue: {
           exclude: [{ file: '**/*.story.tsx' }],
@@ -110,6 +111,9 @@ const configFactory = {
             options: {
               onlyCompileBundledFiles: true,
               configFile: tsconfigPath,
+              compilerOptions: {
+                jsx: 'preserve',
+              },
             },
           },
         ],

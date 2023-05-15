@@ -45,7 +45,9 @@ export default function SplitPane({
           {children[0]}
         </PaneSide>
       )}
-      {hasTwoSides && <Holder bg="primary.main" onMouseDown={onMouseDown} />}
+      {hasTwoSides && (
+        <Holder bg="levels.surfaceSecondary" onMouseDown={onMouseDown} />
+      )}
       {hasSecondSide && <Flex flex="1 1 0%">{children[1]}</Flex>}
     </Pane>
   );

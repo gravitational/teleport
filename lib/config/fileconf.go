@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -89,6 +90,12 @@ type FileConfig struct {
 	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
+
+	// Okta is the "okta_service" section in the Teleport configuration file
+	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -435,6 +442,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	conf.Okta.defaultEnabled = false
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -504,6 +512,20 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			if !slices.Contains(regions, region) {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
 					region, regions)
+			}
+		}
+
+		if matcher.AssumeRoleARN != "" {
+			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
+			if err != nil {
+				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
+			}
+		} else if matcher.ExternalID != "" {
+			for _, t := range matcher.Types {
+				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
+					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+						matcher.ExternalID)
+				}
 			}
 		}
 
@@ -827,6 +849,8 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
+	// MaxBackoff sets the maximum backoff on error.
+	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
 // Enabled determines if a given "_service" section has been set to 'true'
@@ -841,7 +865,8 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
 	out := servicecfg.CachePolicy{
-		Enabled: c.Enabled(),
+		Enabled:        c.Enabled(),
+		MaxRetryPeriod: c.MaxBackoff,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -985,6 +1010,19 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1295,12 +1333,36 @@ type DeviceTrust struct {
 	// Mode is the trusted device verification mode.
 	// Mirrors types.DeviceTrust.Mode.
 	Mode string `yaml:"mode,omitempty"`
+	// AutoEnroll is the toggle for the device auto-enroll feature.
+	AutoEnroll string `yaml:"auto_enroll,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
+	autoEnroll := false
+	if dt.AutoEnroll != "" {
+		var err error
+		autoEnroll, err = apiutils.ParseBool(dt.AutoEnroll)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return &types.DeviceTrust{
-		Mode: dt.Mode,
+		Mode:       dt.Mode,
+		AutoEnroll: autoEnroll,
 	}, nil
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+type AssistOptions struct {
+	// OpenAI is a set of options related to the OpenAI assist backend.
+	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// OpenAIOptions stores options related to the OpenAI assist backend.
+type OpenAIOptions struct {
+	// APITokenPath is the path to a file with OpenAI API key.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -1478,6 +1540,15 @@ type Discovery struct {
 
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1625,6 +1696,11 @@ type AWSMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// InstallParams sets the join method when installing on
@@ -1739,6 +1815,10 @@ type DatabaseAD struct {
 	Domain string `yaml:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `yaml:"spn"`
+	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+	LDAPCert string `yaml:"ldap_cert,omitempty"`
+	// KDCHostName is the host name for a KDC for x509 Authentication.
+	KDCHostName string `yaml:"kdc_host_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -1783,6 +1863,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// AssumeRoleARN is the AWS role to assume to before accessing the database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
@@ -1968,6 +2050,9 @@ type Proxy struct {
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 
+	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
+
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
@@ -1987,6 +2072,9 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
@@ -2285,4 +2373,15 @@ func (s *TracingService) Enabled() bool {
 		return false
 	}
 	return v
+}
+
+// Okta represents an okta_service section in the config file.
+type Okta struct {
+	Service `yaml:",inline"`
+
+	// APIEndpoint is the Okta API endpoint to use.
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+
+	// APITokenPath is the path to the Okta API token.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }

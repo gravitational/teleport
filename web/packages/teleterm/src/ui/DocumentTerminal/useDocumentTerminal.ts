@@ -85,6 +85,12 @@ async function startTerminalSession(
   documentsService: DocumentsService,
   doc: types.DocumentTerminal
 ) {
+  // DELETE IN 14.0.0
+  //
+  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
+  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
+  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
+  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
   if (isDocumentTshNodeWithLoginHost(doc)) {
     doc = await resolveLoginHost(ctx, logger, documentsService, doc);
   }
@@ -216,11 +222,11 @@ async function setUpPtyProcess(
   const cmd = createCmd(doc, rootCluster.proxyHost, getClusterName());
   const ptyProcess = await createPtyProcess(ctx, cmd);
 
-  if (cmd.kind === 'pty.tsh-login') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'ssh');
+  if (doc.kind === 'doc.terminal_tsh_node') {
+    ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (cmd.kind === 'pty.tsh-kube-login') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'kube');
+  if (doc.kind === 'doc.terminal_tsh_kube') {
+    ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();

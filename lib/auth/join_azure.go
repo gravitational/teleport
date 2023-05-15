@@ -376,7 +376,21 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req.RegisterUsingTokenRequest,
+			nil,
+		)
+		return certs, trace.Wrap(err)
+	}
+	certs, err := a.generateCerts(
+		ctx,
+		provisionToken,
+		req.RegisterUsingTokenRequest,
+		nil,
+	)
 	return certs, trace.Wrap(err)
 }
 

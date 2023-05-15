@@ -25,7 +25,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -62,11 +64,23 @@ type Config struct {
 	Log logrus.FieldLogger
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
 		return trace.BadParameter("no matchers configured for discovery")
@@ -167,7 +181,7 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitAWSMatchers(otherMatchers, db.IsAWSMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.Clients, databaseMatchers)
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.Clients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -180,7 +194,14 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					client, err := s.Clients.GetAWSEKSClient(region)
+					client, err := s.Clients.GetAWSEKSClient(
+						s.ctx,
+						region,
+						cloud.WithAssumeRole(
+							matcher.AssumeRole.RoleARN,
+							matcher.AssumeRole.ExternalID,
+						),
+					)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -358,7 +379,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(amk): once agentless node inventory management is
 	//            implemented, create nodes after a successful SSM run
 
-	ec2Client, err := s.Clients.GetAWSSSMClient(instances.Region)
+	// TODO(gavin): support assume_role_arn for ec2.
+	ec2Client, err := s.Clients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -396,12 +418,14 @@ func (s *Server) handleEC2Discovery() {
 				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
 
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
-				if trace.IsNotFound(err) {
+				var aErr awserr.Error
+				if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+					s.Log.WithError(err).Error("SSM SendCommand failed with ErrCodeInvalidInstanceId. Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.")
+				} else if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
 				}
-
 			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()

@@ -19,7 +19,7 @@ package maintenance
 import (
 	"context"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -33,7 +33,7 @@ import (
 // of error.
 type Trigger interface {
 	Name() string
-	CanStart(ctx context.Context, object v1.Object) (bool, error)
+	CanStart(ctx context.Context, object client.Object) (bool, error)
 	Default() bool
 }
 
@@ -41,7 +41,9 @@ type Trigger interface {
 // list will cause the maintenance to be triggered.
 type Triggers []Trigger
 
-func (t Triggers) CanStart(ctx context.Context, object v1.Object) bool {
+// CanStart checks if the maintenance can be started. It will return true if at
+// least a Trigger approves the maintenance.
+func (t Triggers) CanStart(ctx context.Context, object client.Object) bool {
 	log := ctrllog.FromContext(ctx).V(1)
 	for _, trigger := range t {
 		start, err := trigger.CanStart(ctx, object)

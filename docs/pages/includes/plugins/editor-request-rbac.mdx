@@ -36,32 +36,9 @@ role 'editor-requester' has been created
 ```
 
 Allow yourself to review requests by users with the `editor-requester` role by
-assigning yourself the `editor-reviewer` role. First, retrieve your user
-definition:
+assigning yourself the `editor-reviewer` role. 
 
-```code
-$ TELEPORT_USER=$(tsh status --format=json | jq -r .active.username)
-$ tctl get user/${TELEPORT_USER?} > user.yaml
-```
-
-Edit `user.yaml` to add the `editor-reviewer` role:
-
-```diff
- spec:
-   roles:
-   - access
-   - editor
-+  - editor-reviewer
-```
-
-Update your user definition:
-
-```code
-$ tctl create -f user.yaml
-```
-
-Log out of Teleport and log in again. You will now have the ability to review
-requests for the `editor` role.
+(!docs/pages/includes/add-role-to-user.mdx role="editor-reviewer"!)
 
 Create a user called `myuser` who has the `editor-requester` role. This user
 cannot edit your cluster configuration unless they request the `editor` role:

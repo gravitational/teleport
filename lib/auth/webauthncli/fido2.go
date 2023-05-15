@@ -116,7 +116,7 @@ func fido2Login(
 	// Presence of any allowed credential is interpreted as the user identity
 	// being partially established, aka non-passwordless.
 	passwordless := len(allowedCreds) == 0
-	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v", passwordless, uv)
+	log.Debugf("FIDO2: assertion: passwordless=%v, uv=%v, %v allowed credentials", passwordless, uv, len(allowedCreds))
 
 	// Prepare challenge data for the device.
 	ccdJSON, err := json.Marshal(&CollectedClientData{
@@ -726,7 +726,12 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 			// Device not chosen.
 			return false, &nonInteractiveError{filterErr}
 		case errors.Is(waitErr, libfido2.ErrNoCredentials):
-			// Device chosen, error is useful in this case.
+			// Device chosen.
+			// Escalate error to ErrUsingNonRegisteredDevice, if appropriate, so we
+			// send a better message to the user.
+			if errors.Is(filterErr, errNoRegisteredCredentials) {
+				filterErr = ErrUsingNonRegisteredDevice
+			}
 		default:
 			log.Warnf("FIDO2: Device %v: unexpected wait error: %q", info.path, waitErr)
 		}

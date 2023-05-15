@@ -72,9 +72,9 @@ func TestServersCompare(t *testing.T) {
 		node2.Spec.Addr = "localhost:3033"
 		require.Equal(t, CompareServers(node, &node2), Different)
 
-		// Public addr has changed
+		// Proxy addr has changed
 		node2 = *node
-		node2.Spec.PublicAddr = "localhost:3033"
+		node2.Spec.PublicAddrs = []string{"localhost:3033"}
 		require.Equal(t, CompareServers(node, &node2), Different)
 
 		// Hostname has changed
@@ -159,13 +159,13 @@ func TestGuessProxyHostAndVersion(t *testing.T) {
 	require.Equal(t, version, proxyA.Spec.Version)
 	require.NoError(t, err)
 
-	// At least one proxy has public address set.
+	// At least one proxy has proxy address set.
 	proxyB := types.ServerV2{}
-	proxyB.Spec.PublicAddr = "test-B"
+	proxyB.Spec.PublicAddrs = []string{"test-B"}
 	proxyB.Spec.Version = "test-B"
 
 	host, version, err = GuessProxyHostAndVersion([]types.Server{&proxyA, &proxyB})
-	require.Equal(t, host, proxyB.Spec.PublicAddr)
+	require.Equal(t, host, proxyB.Spec.PublicAddrs[0])
 	require.Equal(t, version, proxyB.Spec.Version)
 	require.NoError(t, err)
 }

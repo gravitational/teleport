@@ -194,6 +194,13 @@ type AuthenticateWebUserRequest struct {
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
+type HeadlessRequest struct {
+	// Actions can be either accept or deny.
+	Action string `json:"action"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+}
+
 // SSHLogin contains common SSH login parameters.
 type SSHLogin struct {
 	// ProxyAddr is the target proxy address

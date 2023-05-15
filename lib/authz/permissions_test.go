@@ -18,22 +18,26 @@ package authz
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const clusterName = "test-cluster"
@@ -179,9 +183,33 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 	}
 }
 
-func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
-	t.Parallel()
+func TestGetClientUserIsSSO(t *testing.T) {
+	ctx := context.Background()
 
+	u := LocalUser{
+		Username: "someuser",
+		Identity: tlsca.Identity{
+			Username: "someuser",
+			Groups:   []string{"somerole"},
+		},
+	}
+
+	// Non SSO user must return false
+	nonSSOUserCtx := context.WithValue(ctx, contextUser, u)
+
+	isSSO, err := GetClientUserIsSSO(nonSSOUserCtx)
+	require.NoError(t, err)
+	require.False(t, isSSO, "expected a non-SSO user")
+
+	// An SSO user must return true
+	u.Identity.UserType = types.UserTypeSSO
+	ssoUserCtx := context.WithValue(ctx, contextUser, u)
+	localUserIsSSO, err := GetClientUserIsSSO(ssoUserCtx)
+	require.NoError(t, err)
+	require.True(t, localUserIsSSO, "expected an SSO user")
+}
+
+func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	client, watcher, _ := newTestResources(t)
 
 	ctx := context.Background()
@@ -424,6 +452,171 @@ func TestContext_GetAccessState(t *testing.T) {
 			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Errorf("GetAccessState mismatch (-want +got)\n%s", diff)
 			}
+		})
+	}
+}
+
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "expected type net.Addr, got <nil>",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP, nil)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
+	}
+}
+
+func TestAuthorizeWithVerbs(t *testing.T) {
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	accessService := local.NewAccessService(backend)
+
+	role, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.ActionRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = accessService.CreateRole(context.Background(), role)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		delegate     Authorizer
+		kind         string
+		verbs        []string
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "regular auth",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return &Context{}, nil
+			}),
+			errAssertion: require.NoError,
+		},
+		{
+			name: "regular auth with verbs",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
+					Roles: []string{"test"},
+				}, "test-cluster", accessService)
+				require.NoError(t, err)
+				return &Context{
+					Checker: accessChecker,
+				}, nil
+			}),
+			kind:         types.KindUser,
+			verbs:        []string{types.VerbRead},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "connection problem",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.ConnectionProblem(errors.New("err msg"), "err msg")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsConnectionProblem(err))
+				require.Equal(t, "failed to connect to the database", err.Error())
+			},
+		},
+		{
+			name: "not found",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.NotFound("err msg")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+				require.Equal(t, "access denied\n\taccess denied\n\t\terr msg", trace.UserMessage(err))
+			},
+		},
+		{
+			name: "access denied",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.AccessDenied("access denied")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+			},
+		},
+		{
+			name: "private key policy error",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, keys.NewPrivateKeyPolicyError("error")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorIs(t, err, keys.NewPrivateKeyPolicyError("error"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			log := logrus.New()
+			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
+			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
 		})
 	}
 }

@@ -19,15 +19,25 @@ package usagereporter
 import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 const (
-	// tcpSessionType is the session_type in tp.session.start for TCP
+	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
-	tcpSessionType = "app_tcp"
-	// portSessionType is the session_type in tp.session.start for SSH port
+	TCPSessionType = "app_tcp"
+	// PortSessionType is the session_type in tp.session.start for SSH or Kube
+	// port forwarding.
+	//
+	// Deprecated: used in older versions to mean either SSH or Kube. Use
+	// PortSSHSessionType or PortKubeSessionType instead.
+	PortSessionType = "ssh_port"
+	// PortSSHSessionType is the session_type in tp.session.start for SSH port
 	// forwarding.
-	portSessionType = "ssh_port"
+	PortSSHSessionType = "ssh_port_v2"
+	// PortKubeSessionType is the session_type in tp.session.start for Kube port
+	// forwarding.
+	PortKubeSessionType = "k8s_port"
 )
 
 func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
@@ -38,12 +48,18 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			return nil
 		}
 
+		var deviceID string
+		if e.TrustedDevice != nil {
+			deviceID = e.TrustedDevice.DeviceId
+		}
+
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
 			UserName:      e.User,
 			ConnectorType: e.Method,
+			DeviceId:      deviceID,
 		}
 
 	case *apievents.SessionStart:
@@ -58,9 +74,13 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			SessionType: string(sessionType),
 		}
 	case *apievents.PortForward:
+		sessionType := PortSSHSessionType
+		if e.ConnectionMetadata.Protocol == events.EventProtocolKube {
+			sessionType = PortKubeSessionType
+		}
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: portSessionType,
+			SessionType: sessionType,
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -70,7 +90,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.AppSessionStart:
 		sessionType := string(types.AppSessionKind)
 		if types.IsAppTCP(e.AppURI) {
-			sessionType = tcpSessionType
+			sessionType = TCPSessionType
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,

@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // KubeServer represents a single Kubernetes server.
@@ -233,6 +233,19 @@ func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *KubernetesServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.Cluster != nil {
+		if v, ok := s.Spec.Cluster.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.Cluster`.
 // * Dynamic labels from `Spec.Cluster.Spec`.
@@ -266,7 +279,7 @@ func (s *KubernetesServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this kube server object.
 func (s *KubernetesServerV3) Copy() KubeServer {
-	return proto.Clone(s).(*KubernetesServerV3)
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to

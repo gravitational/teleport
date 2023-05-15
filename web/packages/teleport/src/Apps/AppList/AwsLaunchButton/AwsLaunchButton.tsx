@@ -51,7 +51,7 @@ export default class AwsLaunchButton extends React.Component<Props> {
           onClick={this.onOpen}
         >
           LAUNCH
-          <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+          <CarrotDown ml={1} fontSize={2} color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           menuListCss={() => ({
@@ -117,7 +117,15 @@ function RoleItemList({
 
   return (
     <>
-      <Text px="2" fontSize="11px" mb="2" color="grey.400" bg="subtle">
+      <Text
+        px="2"
+        fontSize="11px"
+        mb="2"
+        css={`
+          color: ${props => props.theme.colors.text.main};
+          background: ${props => props.theme.colors.spotBackground[2]};
+        `}
+      >
         Select IAM Role
       </Text>
       {awsRoleItems.length ? (
@@ -140,12 +148,13 @@ type Props = {
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.grey[400]};
+  color: ${theme.colors.text.slightlyMuted};
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.subtle};
+  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
   &:hover {
-    color: ${theme.colors.link};
+    background: ${theme.colors.spotBackground[0]};
+    color: ${theme.colors.text.main};
   }
 
   :last-child {

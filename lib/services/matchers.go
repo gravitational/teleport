@@ -69,12 +69,38 @@ type InstallerParams struct {
 	PublicProxyAddr string
 }
 
+// AssumeRole provides a role ARN and ExternalID to assume an AWS role
+// when interacting with AWS resources.
+type AssumeRole struct {
+	// RoleARN is the fully specified AWS IAM role ARN.
+	RoleARN string
+	// ExternalID is the external ID used to assume a role in another account.
+	ExternalID string
+}
+
+// IsEmpty is a helper function that returns whether the assume role info
+// is empty.
+func (a *AssumeRole) IsEmpty() bool {
+	return a.RoleARN == "" && a.ExternalID == ""
+}
+
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) AssumeRole {
+	return AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
+}
+
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
 	// Types are AWS database types to match, "rds" or "redshift".
 	Types []string
 	// Regions are AWS regions to query for databases.
 	Regions []string
+	// AssumeRole is the AWS role to assume when discovering AWS databases.
+	AssumeRole AssumeRole
 	// Tags are AWS tags to match.
 	Tags types.Labels
 	// Params are passed to AWS when executing the SSM document
@@ -192,7 +218,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
-		types.KindWindowsDesktop, types.KindWindowsDesktopService:
+		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindUserGroup:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -332,15 +359,29 @@ const (
 
 // SupportedAWSMatchers is list of AWS services currently supported by the
 // Teleport discovery service.
-var SupportedAWSMatchers = []string{
+var SupportedAWSMatchers = append([]string{
 	AWSMatcherEC2,
 	AWSMatcherEKS,
+}, SupportedAWSDatabaseMatchers...)
+
+// SupportedAWSDatabaseMatchers is a list of the AWS databases currently
+// supported by the Teleport discovery service.
+var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRDS,
 	AWSMatcherRDSProxy,
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
+}
+
+// RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
+// require AWS IAM roles as database users.
+// IMPORTANT: if you add database matchers for AWS keyspaces, OpenSearch, or
+// DynamoDB discovery, add them here and in RequireAWSIAMRolesAsUsers in
+// api/types.
+var RequireAWSIAMRolesAsUsersMatchers = []string{
+	AWSMatcherRedshiftServerless,
 }
 
 const (

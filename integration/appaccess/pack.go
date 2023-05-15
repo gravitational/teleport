@@ -145,6 +145,10 @@ type Pack struct {
 	flushAppURI         string
 }
 
+func (p *Pack) RootWebAddr() string {
+	return p.rootCluster.Web
+}
+
 func (p *Pack) RootAppClusterName() string {
 	return p.rootAppClusterName
 }
@@ -299,6 +303,20 @@ func (p *Pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []
 	}
 }
 
+// CreateAppSessionWithClientCert creates an application session with the root
+// cluster and returns the client cert that can be used for an application
+// request.
+func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
+	session, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.username,
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
+	})
+	require.NoError(t, err)
+	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
+	return config.Certificates
+}
+
 // LockUser will lock the configured user for this pack.
 func (p *Pack) LockUser(t *testing.T) {
 	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
@@ -396,7 +414,7 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
-func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName string) *tls.Config {
+func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName, pinnedIP string) *tls.Config {
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
@@ -415,6 +433,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 			PublicAddr:  publicAddr,
 			ClusterName: clusterName,
 			SessionID:   sessionID,
+			PinnedIP:    pinnedIP,
 		})
 	require.NoError(t, err)
 

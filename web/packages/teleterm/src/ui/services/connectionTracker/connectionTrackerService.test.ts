@@ -105,6 +105,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
     targetName: 'test',
     targetSubresourceName: 'pg',
     port: '12345',
+    origin: 'resource_table',
   };
 
   const { connectionTrackerService, workspacesService } =
@@ -142,6 +143,7 @@ it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
     rootClusterId: 'localhost',
     leafClusterId: undefined,
     login: 'user',
+    origin: 'resource_table',
   };
 
   const { connectionTrackerService } = getTestSetupWithMockedDocuments([
@@ -170,6 +172,7 @@ it('ignores doc.terminal_tsh_node docs with no serverUri', () => {
     loginHost: 'user@foo',
     rootClusterId: 'test',
     leafClusterId: undefined,
+    origin: 'resource_table',
   };
 
   const { connectionTrackerService } = getTestSetupWithMockedDocuments([

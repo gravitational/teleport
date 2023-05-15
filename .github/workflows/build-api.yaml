@@ -8,12 +8,16 @@ on:
       - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
+      - 'go.mod'
+      - 'go.sum'
   merge_group:
     paths:
       - .github/workflows/build-api.yaml
       - 'api/**/*.go'
       - 'api/go.mod'
       - 'api/go.sum'
+      - 'go.mod'
+      - 'go.sum'
 
 jobs:
   build:

@@ -280,6 +280,11 @@ EOF
         echo "  license_file: /var/lib/teleport/license.pem" >> ${USE_CONFIG_PATH}
     fi
 
+    # configure proxy_listener_mode
+    if [[ -n "${PROXY_MULTIPLEXING}" ]]; then
+        echo "  proxy_listener_mode: ${PROXY_MULTIPLEXING}" >> ${USE_CONFIG_PATH}
+    fi
+
     # enable/start token services and timers
     systemctl_wrap enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer
     systemctl_wrap start teleport-ssm-publish-tokens.timer
@@ -477,6 +482,11 @@ EOF
         aws ssm get-parameter --with-decryption --name /teleport/${TELEPORT_CLUSTER_NAME}/license --region ${EC2_REGION} --query 'Parameter.Value' --output text > /var/lib/teleport/license.pem
         chown teleport:adm /var/lib/teleport/license.pem
         echo "  license_file: /var/lib/teleport/license.pem" >> ${USE_CONFIG_PATH}
+    fi
+
+    # configure proxy_listener_mode
+    if [[ -n "${PROXY_MULTIPLEXING}" ]]; then
+        echo "  proxy_listener_mode: ${PROXY_MULTIPLEXING}" >> ${USE_CONFIG_PATH}
     fi
 
 cat >>${USE_CONFIG_PATH} <<EOF

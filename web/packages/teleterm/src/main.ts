@@ -26,7 +26,10 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import { createConfigService } from 'teleterm/services/config';
+import {
+  createConfigService,
+  runConfigFileMigration,
+} from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -43,12 +46,14 @@ async function initializeApp(): Promise<void> {
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
   const {
     appStateFileStorage,
     configFileStorage,
     configJsonSchemaFileStorage,
   } = await createFileStorages(settings.userDataDir);
 
+  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
@@ -66,7 +71,8 @@ async function initializeApp(): Promise<void> {
     settings,
     logger,
     configService,
-    fileStorage: appStateFileStorage,
+    appStateFileStorage,
+    configFileStorage,
     windowsManager,
   });
 

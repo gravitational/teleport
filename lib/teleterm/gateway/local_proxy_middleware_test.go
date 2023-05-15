@@ -39,7 +39,7 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 	require.NoError(t, err)
 	tlsCert, err := keys.X509KeyPair(testCert.Cert, testCert.PrivateKey)
 	require.NoError(t, err)
-	x509cert, err := utils.TLSCertToX509(tlsCert)
+	x509cert, err := utils.TLSCertLeaf(tlsCert)
 	require.NoError(t, err)
 
 	clockAfterCertExpiry := clockwork.NewFakeClockAt(x509cert.NotAfter)

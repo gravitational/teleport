@@ -44,9 +44,10 @@ to integrate with your infrastructure.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - Fluentd version v(=fluentd.version=) or greater.
+
 - Docker version v(=docker.version=).
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 - On your workstation, create a folder called `event-handler`, to hold configuration files and plugin state:
 
@@ -71,36 +72,7 @@ key from the same certificate authority for the Teleport Event Handler to use.
 
 ## Step 3/6. Create a user and role for reading audit events
 
-The `configure` command generates a file called `teleport-event-handler-role.yaml`
-that defines a `teleport-event-handler` role and a user with read-only access to
-the `event` API:
-
-```yaml
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
----
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event']
-        verbs: ['list','read']
-version: v5
-```
-
-Use `tctl` to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-user 'teleport-event-handler' has been created
-role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 ## Step 4/6. Create teleport-event-handler credentials
 
@@ -228,6 +200,22 @@ accept events using TLS and print them:
       time_type string
       time_format %Y-%m-%dT%H:%M:%S
     </parse>
+
+    # If the number of events is high, fluentd will start failing the ingestion
+    # with the following error message: buffer space has too many data errors.
+    # The following configuration prevents data loss in case of a restart and
+    # overcomes the limitations of the default fluentd buffer configuration.
+    # This configuration is optional.
+    # See https://docs.fluentd.org/configuration/buffer-section for more details.
+    <buffer>
+      @type file
+      flush_thread_count 8
+      flush_interval 1s
+      chunk_limit_size 10M
+      queue_limit_length 16
+      retry_max_interval 30
+      retry_forever true
+    </buffer>
 </source>
 
 # Events sent to test.log will be dumped to STDOUT.
@@ -378,7 +366,7 @@ Teleport Cluster, ensure that:
 ## Next Steps
 
 Read more about
-[impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/)
+[impersonation](../../access-controls/guides/impersonation.mdx)
 here.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the

@@ -25,6 +25,12 @@ export type Kind =
   | 'doc.terminal_tsh_node'
   | 'doc.terminal_tsh_kube';
 
+export type DocumentOrigin =
+  | 'resource_table'
+  | 'search_bar'
+  | 'connection_list'
+  | 'reopened_session';
+
 interface DocumentBase {
   uri: uri.DocumentUri;
   title: string;
@@ -37,6 +43,12 @@ export interface DocumentBlank extends DocumentBase {
 
 export type DocumentTshNode =
   | DocumentTshNodeWithServerId
+  // DELETE IN 14.0.0
+  //
+  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
+  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
+  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
+  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
   | DocumentTshNodeWithLoginHost;
 
 interface DocumentTshNodeBase extends DocumentBase {
@@ -45,6 +57,7 @@ interface DocumentTshNodeBase extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
   rootClusterId: string;
   leafClusterId: string | undefined;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
@@ -83,6 +96,7 @@ export interface DocumentTshKube extends DocumentBase {
   kubeConfigRelativePath: string;
   rootClusterId: string;
   leafClusterId?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentGateway extends DocumentBase {
@@ -93,6 +107,7 @@ export interface DocumentGateway extends DocumentBase {
   targetName: string;
   targetSubresourceName?: string;
   port?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -151,6 +166,7 @@ export type CreateGatewayDocumentOpts = {
   targetSubresourceName?: string;
   title?: string;
   port?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateClusterDocumentOpts = {
@@ -160,6 +176,7 @@ export type CreateClusterDocumentOpts = {
 export type CreateTshKubeDocumentOptions = {
   kubeUri: uri.KubeUri;
   kubeConfigRelativePath?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateAccessRequestDocumentOpts = {

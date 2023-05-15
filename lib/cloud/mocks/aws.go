@@ -17,7 +17,9 @@ limitations under the License.
 package mocks
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
@@ -34,17 +36,63 @@ import (
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 )
 
 // STSMock mocks AWS STS API.
 type STSMock struct {
 	stsiface.STSAPI
-	ARN string
+	ARN                    string
+	assumedRoleARNs        []string
+	assumedRoleExternalIDs []string
+	mu                     sync.Mutex
+}
+
+func (m *STSMock) GetAssumedRoleARNs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.assumedRoleARNs
+}
+
+func (m *STSMock) GetAssumedRoleExternalIDs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.assumedRoleExternalIDs
+}
+
+func (m *STSMock) ResetAssumeRoleHistory() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.assumedRoleARNs = nil
+	m.assumedRoleExternalIDs = nil
 }
 
 func (m *STSMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
 		Arn: aws.String(m.ARN),
+	}, nil
+}
+
+func (m *STSMock) AssumeRole(in *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
+	return m.AssumeRoleWithContext(context.Background(), in)
+}
+
+func (m *STSMock) AssumeRoleWithContext(ctx aws.Context, in *sts.AssumeRoleInput, _ ...request.Option) (*sts.AssumeRoleOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !slices.Contains(m.assumedRoleARNs, aws.StringValue(in.RoleArn)) {
+		m.assumedRoleARNs = append(m.assumedRoleARNs, aws.StringValue(in.RoleArn))
+		m.assumedRoleExternalIDs = append(m.assumedRoleExternalIDs, aws.StringValue(in.ExternalId))
+	}
+	expiry := time.Now().Add(60 * time.Minute)
+	return &sts.AssumeRoleOutput{
+		Credentials: &sts.Credentials{
+			AccessKeyId:     in.RoleArn,
+			SecretAccessKey: aws.String("secret"),
+			SessionToken:    aws.String("token"),
+			Expiration:      &expiry,
+		},
 	}, nil
 }
 
@@ -243,11 +291,11 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 	defer m.mu.RUnlock()
 	policy, ok := m.attachedRolePolicies[*input.RoleName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("role policy %v not found", *input.RoleName)
 	}
 	policyDocument, ok := policy[*input.PolicyName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("role %v policy name %v not found", *input.RoleName, *input.PolicyName)
 	}
 	return &iam.GetRolePolicyOutput{
 		PolicyDocument: &policyDocument,
@@ -283,11 +331,11 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 	defer m.mu.RUnlock()
 	policy, ok := m.attachedUserPolicies[*input.UserName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("user policy %v not found", *input.UserName)
 	}
 	policyDocument, ok := policy[*input.PolicyName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("user %v policy name %v not found", *input.UserName, *input.PolicyName)
 	}
 	return &iam.GetUserPolicyOutput{
 		PolicyDocument: &policyDocument,
@@ -321,9 +369,16 @@ func (m *IAMMock) DeleteUserPolicyWithContext(ctx aws.Context, input *iam.Delete
 // RedshiftMock mocks AWS Redshift API.
 type RedshiftMock struct {
 	redshiftiface.RedshiftAPI
-	Clusters []*redshift.Cluster
+	Clusters                    []*redshift.Cluster
+	GetClusterCredentialsOutput *redshift.GetClusterCredentialsOutput
 }
 
+func (m *RedshiftMock) GetClusterCredentialsWithContext(aws.Context, *redshift.GetClusterCredentialsInput, ...request.Option) (*redshift.GetClusterCredentialsOutput, error) {
+	if m.GetClusterCredentialsOutput == nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+	return m.GetClusterCredentialsOutput, nil
+}
 func (m *RedshiftMock) DescribeClustersWithContext(ctx aws.Context, input *redshift.DescribeClustersInput, options ...request.Option) (*redshift.DescribeClustersOutput, error) {
 	if aws.StringValue(input.ClusterIdentifier) == "" {
 		return &redshift.DescribeClustersOutput{
@@ -698,4 +753,16 @@ func instanceEngineMatches(instance *rds.DBInstance, filterSet map[string]struct
 func clusterEngineMatches(cluster *rds.DBCluster, filterSet map[string]struct{}) bool {
 	_, ok := filterSet[aws.StringValue(cluster.Engine)]
 	return ok
+}
+
+// RedshiftGetClusterCredentialsOutput return a sample redshift.GetClusterCredentialsOutput.
+func RedshiftGetClusterCredentialsOutput(user, password string, clock clockwork.Clock) *redshift.GetClusterCredentialsOutput {
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+	return &redshift.GetClusterCredentialsOutput{
+		DbUser:     aws.String(user),
+		DbPassword: aws.String(password),
+		Expiration: aws.Time(clock.Now().Add(15 * time.Minute)),
+	}
 }

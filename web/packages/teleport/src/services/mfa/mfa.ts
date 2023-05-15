@@ -22,7 +22,6 @@ import {
   MfaDevice,
   AddNewTotpDeviceRequest,
   AddNewHardwareDeviceRequest,
-  IsMfaRequiredRequest,
 } from './types';
 import makeMfaDevice from './makeMfaDevice';
 
@@ -41,10 +40,6 @@ class MfaService {
     return api
       .get(cfg.api.mfaDevicesPath)
       .then(devices => devices.map(makeMfaDevice));
-  }
-
-  isMfaRequired(req: IsMfaRequiredRequest): Promise<{ required: boolean }> {
-    return api.post(cfg.getMfaRequiredUrl(), req);
   }
 
   addNewTotpDevice(req: AddNewTotpDeviceRequest) {

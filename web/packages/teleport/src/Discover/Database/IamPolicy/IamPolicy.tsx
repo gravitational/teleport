@@ -56,7 +56,7 @@ export function IamPolicyView({
       {attempt.status === 'failed' ? (
         <>
           <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="danger" />
+            <Icons.Warning ml={1} mr={2} color="error.main" />
             Encountered Error: {attempt.statusText}
           </Text>
           <ButtonBlueText ml={1} onClick={fetchIamPolicy}>
@@ -64,7 +64,7 @@ export function IamPolicyView({
           </ButtonBlueText>
         </>
       ) : (
-        <Flex height="428px">
+        <Flex height="460px">
           {attempt.status === 'processing' && (
             <Flex width="404px" justifyContent="center" alignItems="center">
               <Indicator />
@@ -73,24 +73,9 @@ export function IamPolicyView({
           {attempt.status === 'success' && (
             <Box>
               <Text bold>
-                Run this AWS CLI command to create a IAM policy. <br />
-                Then attach this policy to appropriate AWS resources (eg.{' '}
-                <Link
-                  href="https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-create-and-attach-iam-policy.html"
-                  target="_blank"
-                >
-                  IAM users
-                </Link>
-                ,{' '}
-                <Link
-                  href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#attach-iam-role"
-                  target="_blank"
-                >
-                  ec2 instance
-                </Link>
-                ).
+                Run this AWS CLI command to create an IAM policy:
               </Text>
-              <Box mt={2} mb={1}>
+              <Box mt={2} mb={2}>
                 <TextSelectCopyMulti
                   lines={[
                     {
@@ -107,6 +92,25 @@ export function IamPolicyView({
                   ]}
                 />
               </Box>
+              <Text bold>
+                Then attach this policy to your AWS EC2 instance role.
+              </Text>
+              <Text>
+                See{' '}
+                <Link
+                  href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage-attach-detach.html#add-policies-console"
+                  target="_blank"
+                >
+                  Attach policy to an IAM role
+                </Link>{' '}
+                and{' '}
+                <Link
+                  href="https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#attach-iam-role"
+                  target="_blank"
+                >
+                  Attach an IAM role to an instance
+                </Link>
+              </Text>
             </Box>
           )}
         </Flex>

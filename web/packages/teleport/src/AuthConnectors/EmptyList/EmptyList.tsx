@@ -22,16 +22,18 @@ import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function EmptyList({ onCreate }: Props) {
   return (
-    <Card maxWidth="700px" p={6} as={Flex} alignItems="center">
+    <Card maxWidth="700px" p={4} as={Flex} alignItems="center">
       <Icons.Github
         style={{ textAlign: 'center' }}
         fontSize="150px"
-        color="primary.lighter"
+        css={`
+          color: ${props => props.theme.colors.spotBackground[1]};
+        `}
         mr={5}
       />
       <Box>
         <Text typography="h6" mb={3} caps>
-          Create Your First Github Connector
+          Create Your First GitHub Connector
         </Text>
         <Text typography="subtitle1" mb={3}>
           Authentication connectors allow Teleport to authenticate users via an
@@ -42,7 +44,7 @@ export default function EmptyList({ onCreate }: Props) {
           Open Source Teleport supports only GitHub connectors. Please{' '}
           <Text
             as="a"
-            color="light"
+            color="text.main"
             href="https://goteleport.com/docs/setup/admin/github-sso/"
             target="_blank"
           >
@@ -51,7 +53,7 @@ export default function EmptyList({ onCreate }: Props) {
           on how to configure a GitHub connector.
         </Text>
         <ButtonPrimary onClick={onCreate} mt={4} width="240px">
-          New Github Connector
+          New GitHub Connector
         </ButtonPrimary>
       </Box>
     </Card>

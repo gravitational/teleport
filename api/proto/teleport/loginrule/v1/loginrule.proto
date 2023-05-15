@@ -19,7 +19,7 @@ package teleport.loginrule.v1;
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1;loginrulev1";
 
 // LoginRule is a resource to configure rules and logic which should run during
 // Teleport user login.

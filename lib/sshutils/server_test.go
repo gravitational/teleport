@@ -368,7 +368,9 @@ func startSSHServer(t *testing.T, listener net.Listener) {
 	go func() {
 		for newReq := range reqs {
 			if newReq.Type == "echo" {
-				newReq.Reply(true, newReq.Payload)
+				err := newReq.Reply(true, newReq.Payload)
+				assert.NoError(t, err)
+				continue
 			}
 			err := newReq.Reply(false, nil)
 			assert.NoError(t, err)

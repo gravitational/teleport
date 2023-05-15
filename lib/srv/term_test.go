@@ -88,14 +88,18 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newTestServerContext(t, srv, nil)
 
-	lsPath, err := exec.LookPath("sh")
+	shPath, err := exec.LookPath("sh")
 	require.NoError(t, err)
-	scx.execRequest.SetCommand(lsPath)
+	scx.execRequest.SetCommand(shPath)
 
 	term, err := newLocalTerminal(scx)
 	require.NoError(t, err)
 
 	term.SetTermType("xterm")
+
+	// Mark the terminal allocation to make sh wait indefinitely.
+	// Without it, sh quits immediately as stdin is not set.
+	scx.termAllocated = true
 
 	ctx := context.Background()
 

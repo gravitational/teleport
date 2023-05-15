@@ -279,6 +279,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DeviceEvent{
 			DeviceEvent: e,
 		}
+	case *DeviceEvent2:
+		out.Event = &OneOf_DeviceEvent2{
+			DeviceEvent2: e,
+		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
 			BillingCardCreate: e,
@@ -403,6 +407,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *OpenSearchRequest:
+		out.Event = &OneOf_OpenSearchRequest{
+			OpenSearchRequest: e,
+		}
 	case *DynamoDBRequest:
 		out.Event = &OneOf_DynamoDBRequest{
 			DynamoDBRequest: e,
@@ -510,6 +518,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SAMLIdPServiceProviderDeleteAll:
 		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
 			SAMLIdPServiceProviderDeleteAll: e,
+		}
+	case *OktaResourcesUpdate:
+		out.Event = &OneOf_OktaResourcesUpdate{
+			OktaResourcesUpdate: e,
+		}
+	case *OktaSyncFailure:
+		out.Event = &OneOf_OktaSyncFailure{
+			OktaSyncFailure: e,
+		}
+	case *OktaAssignmentResult:
+		out.Event = &OneOf_OktaAssignmentResult{
+			OktaAssignmentResult: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

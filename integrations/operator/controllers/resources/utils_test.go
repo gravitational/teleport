@@ -34,13 +34,6 @@ func TestCheckOwnership(t *testing.T) {
 		isOwned                 bool
 	}{
 		{
-			name:                    "new resource",
-			existingResource:        nil,
-			expectedConditionStatus: metav1.ConditionTrue,
-			expectedConditionReason: ConditionReasonNewResource,
-			isOwned:                 true,
-		},
-		{
 			name: "existing owned resource",
 			existingResource: &types.UserV2{
 				Metadata: types.Metadata{

@@ -172,14 +172,13 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.Host = req.ResourceName
 	clientConf.HostKeyCallback = hostkeyCallback
 	clientConf.HostLogin = req.SSHPrincipal
-	clientConf.SkipLocalAuth = true
+	clientConf.NonInteractive = true
 	clientConf.SSHProxyAddr = s.sshProxyAddr
 	clientConf.Stderr = io.Discard
 	clientConf.Stdin = &bytes.Buffer{}
 	clientConf.Stdout = processStdout
 	clientConf.TLS = clientConfTLS
 	clientConf.TLSRoutingEnabled = s.cfg.TLSRoutingEnabled
-	clientConf.UseKeyPrincipals = true
 	clientConf.Username = currentUser.GetName()
 	clientConf.WebProxyAddr = s.webProxyAddr
 	clientConf.SiteName = clusterName.GetClusterName()

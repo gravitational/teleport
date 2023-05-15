@@ -34,7 +34,7 @@ proxy_service:
     peer_listen_addr: 0.0.0.0:3021
 
     # The HTTPS listen address to serve the Web UI and authenticate users.
-    # Handles the PostgreSQL proxy if Database Access is enabled.
+    # Handles the PostgreSQL proxy if the Database Service is enabled.
     web_listen_addr: 0.0.0.0:3080
 
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
@@ -133,8 +133,8 @@ proxy_service:
         enabled: yes
 
     # Configuration options for the Web UI served by the Proxy Service.
-    ui_config:
+    ui:
       # The amount of scrollback in the terminal. Scrollback is the amount of
       # rows that are retained when lines are scrolled beyond the initial
       # viewport. Does not apply to session recording view.
-      scrollback_length: 1000
+      scrollback_lines: 1000

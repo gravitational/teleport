@@ -19,6 +19,7 @@ import path from 'path';
 import fs from 'fs/promises';
 
 import { promisify } from 'util';
+
 import {
   app,
   dialog,
@@ -50,7 +51,8 @@ type Options = {
   settings: RuntimeSettings;
   logger: Logger;
   configService: ConfigService;
-  fileStorage: FileStorage;
+  appStateFileStorage: FileStorage;
+  configFileStorage: FileStorage;
   windowsManager: WindowsManager;
 };
 
@@ -60,7 +62,8 @@ export default class MainProcess {
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
   private sharedProcess: ChildProcess;
-  private fileStorage: FileStorage;
+  private appStateFileStorage: FileStorage;
+  private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
 
@@ -68,7 +71,8 @@ export default class MainProcess {
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
-    this.fileStorage = opts.fileStorage;
+    this.appStateFileStorage = opts.appStateFileStorage;
+    this.configFileStorage = opts.configFileStorage;
     this.windowsManager = opts.windowsManager;
   }
 
@@ -276,10 +280,16 @@ export default class MainProcess {
       }
     });
 
+    ipcMain.handle('main-process-open-config-file', async () => {
+      const path = this.configFileStorage.getFilePath();
+      await shell.openPath(path);
+      return path;
+    });
+
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
-    subscribeToFileStorageEvents(this.fileStorage);
+    subscribeToFileStorageEvents(this.appStateFileStorage);
   }
 
   private _setAppMenu() {

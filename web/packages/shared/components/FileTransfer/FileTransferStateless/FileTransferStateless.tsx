@@ -28,6 +28,8 @@ export interface FileTransferStatelessProps {
   openedDialog: FileTransferDialogDirection;
   files: TransferredFile[];
   backgroundColor?: string;
+  // errorText is any general error that isn't related to a specific transfer
+  errorText?: string;
 
   onClose(): void;
 
@@ -71,6 +73,9 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
         <ButtonClose onClick={props.onClose} />
       </Flex>
       {items.Form}
+      <Text color="error.hover" typography="body2" mt={1}>
+        {props.errorText}
+      </Text>
       <FileList files={props.files} onCancel={props.onCancel} />
     </Container>
   );
@@ -86,14 +91,9 @@ function ButtonClose(props: { onClick(): void }) {
 
 const Container = styled.div`
   background: ${props =>
-    props.backgroundColor || props.theme.colors.primary.light};
+    props.backgroundColor || props.theme.colors.levels.surface};
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
   border-radius: ${props => props.theme.radii[2]}px;
   padding: 8px 16px 16px;
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 500px;
-  z-index: 10;
 `;

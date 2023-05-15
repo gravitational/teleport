@@ -18,7 +18,10 @@ package metadata
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,9 +29,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -58,7 +59,6 @@ type Metadata struct {
 
 // fetchConfig contains the configuration used by the FetchMetadata method.
 type fetchConfig struct {
-	context context.Context
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -71,20 +71,13 @@ type fetchConfig struct {
 	execCommand func(name string, args ...string) ([]byte, error)
 	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
-	httpDo func(req *http.Request) (*http.Response, error)
-	// kubeClient is a kubernetes client used to retrieve the
-	// server version.
-	// It is configurable so that it can be mocked in tests.
-	kubeClient kubernetes.Interface
+	httpDo func(req *http.Request, insecureSkipVerify bool) (*http.Response, error)
 }
 
 // setDefaults sets the values of several methods used to read files, execute
 // commands, performing http requests, etc.
 // Having these methods configurable allows us to mock them in tests.
 func (c *fetchConfig) setDefaults() {
-	if c.context == nil {
-		c.context = context.Background()
-	}
 	if c.getenv == nil {
 		c.getenv = os.Getenv
 	}
@@ -97,38 +90,29 @@ func (c *fetchConfig) setDefaults() {
 		}
 	}
 	if c.httpDo == nil {
-		c.httpDo = func(req *http.Request) (*http.Response, error) {
-			client, err := defaults.HTTPClient()
+		c.httpDo = func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+			transport, err := defaults.Transport()
 			if err != nil {
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
-			client.Timeout = 5 * time.Second
+
+			// Initialize transport.TLSClientConfig if defaults.Transport() returns a nil one
+			if transport.TLSClientConfig == nil {
+				transport.TLSClientConfig = &tls.Config{}
+			}
+
+			transport.TLSClientConfig.InsecureSkipVerify = insecureSkipVerify
+			client := &http.Client{
+				Transport: transport,
+				Timeout:   5 * time.Second,
+			}
 			return client.Do(req)
 		}
 	}
-	if c.kubeClient == nil {
-		c.kubeClient = getKubeClient()
-	}
-}
-
-// getKubeClient returns a kubernetes client in case the instance is running on
-// kubernetes. It returns nil otherwise.
-func getKubeClient() kubernetes.Interface {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Debugf("Failed to get kubernetes cluster config: %s", err)
-		return nil
-	}
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Debugf("Failed to create kubernetes client: %s", err)
-		return nil
-	}
-	return client
 }
 
 // fetch fetches all metadata.
-func (c *fetchConfig) fetch() *Metadata {
+func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 	return &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
@@ -136,8 +120,8 @@ func (c *fetchConfig) fetch() *Metadata {
 		GlibcVersion:          c.fetchGlibcVersion(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
-		ContainerOrchestrator: c.fetchContainerOrchestrator(),
-		CloudEnvironment:      c.fetchCloudEnvironment(),
+		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
+		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
 	}
 }
 
@@ -210,14 +194,41 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 
 // fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the instance is
 // running on kubernetes.
-func (c *fetchConfig) fetchContainerOrchestrator() string {
-	if c.kubeClient == nil {
+// This function performs the equivalent of the following:
+// curl -k https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/version | jq .gitVersion
+func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
+	host := c.getenv("KUBERNETES_SERVICE_HOST")
+	port := c.getenv("KUBERNETES_SERVICE_PORT")
+	if host == "" || port == "" {
 		return ""
 	}
 
-	version, err := c.kubeClient.Discovery().ServerVersion()
+	url := fmt.Sprintf("https://%s:%s/version", host, port)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to retrieve kubernetes server version: %s", err)
+		return ""
+	}
+
+	const insecureSkipVerify = true
+	resp, err := c.httpDo(req, insecureSkipVerify)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	var version struct {
+		GitVersion string `json:"gitVersion"`
+	}
+	if err := json.Unmarshal(body, &version); err != nil {
+		return ""
+	}
+	if version.GitVersion == "" {
+		return ""
 	}
 
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
@@ -225,15 +236,36 @@ func (c *fetchConfig) fetchContainerOrchestrator() string {
 
 // fetchCloudEnvironment returns aws, gpc or azure if the instance is running on
 // such cloud environments.
-func (c *fetchConfig) fetchCloudEnvironment() string {
-	if c.awsHTTPGetSuccess() {
-		return "aws"
+func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	// kick off 3 checks in parallel, at most 1 will succeed
+	checks := []struct {
+		env string
+		f   func(context.Context) bool
+	}{
+		{"aws", c.awsHTTPGetSuccess},
+		{"gcp", c.gcpHTTPGetSuccess},
+		{"azure", c.azureHTTPGetSuccess},
 	}
-	if c.gcpHTTPGetSuccess() {
-		return "gcp"
+
+	cloudEnv := make(chan string, len(checks))
+	for _, check := range checks {
+		check := check
+		go func() {
+			if check.f(ctx) {
+				cloudEnv <- check.env
+			} else {
+				cloudEnv <- ""
+			}
+		}()
 	}
-	if c.azureHTTPGetSuccess() {
-		return "azure"
+
+	for range checks {
+		if env := <-cloudEnv; env != "" {
+			return env
+		}
 	}
 	return ""
 }
@@ -241,11 +273,10 @@ func (c *fetchConfig) fetchCloudEnvironment() string {
 // awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
 // the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *fetchConfig) awsHTTPGetSuccess() bool {
+func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
 	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -255,11 +286,10 @@ func (c *fetchConfig) awsHTTPGetSuccess() bool {
 // gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
 // the instance is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *fetchConfig) gcpHTTPGetSuccess() bool {
+func (c *fetchConfig) gcpHTTPGetSuccess(ctx context.Context) bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
-	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -270,11 +300,10 @@ func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 // azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
 // the instance is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *fetchConfig) azureHTTPGetSuccess() bool {
+func (c *fetchConfig) azureHTTPGetSuccess(ctx context.Context) bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -286,7 +315,6 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
-		log.Debugf("Failed to execute command '%s': %s", name, err)
 		return "", err
 	}
 
@@ -297,7 +325,6 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 func (c *fetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
-		log.Debugf("Failed to read file '%s': %s", name, err)
 		return "", err
 	}
 
@@ -307,9 +334,9 @@ func (c *fetchConfig) read(name string) (string, error) {
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
 func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
-	resp, err := c.httpDo(req)
+	const insecureSkipVerify = false
+	resp, err := c.httpDo(req, insecureSkipVerify)
 	if err != nil {
-		log.Debugf("Failed to perform http GET request: %s", err)
 		return false
 	}
 	defer resp.Body.Close()

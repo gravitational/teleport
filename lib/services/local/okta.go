@@ -18,8 +18,11 @@ package local
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,12 +39,14 @@ const (
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
+	log           logrus.FieldLogger
+	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(backend backend.Backend) (*OktaService, error) {
+func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
 		Backend:       backend,
 		PageLimit:     oktaImportRuleMaxPageSize,
@@ -67,6 +72,8 @@ func NewOktaService(backend backend.Backend) (*OktaService, error) {
 	}
 
 	return &OktaService{
+		log:           logrus.WithFields(logrus.Fields{trace.Component: "okta:local-service"}),
+		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
 	}, nil
@@ -83,13 +90,13 @@ func (o *OktaService) GetOktaImportRule(ctx context.Context, name string) (types
 }
 
 // CreateOktaImportRule creates a new Okta import rule resource.
-func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
-	return o.importRuleSvc.CreateResource(ctx, importRule)
+func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return importRule, o.importRuleSvc.CreateResource(ctx, importRule)
 }
 
 // UpdateOktaImportRule updates an existing Okta import rule resource.
-func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) error {
-	return o.importRuleSvc.UpdateResource(ctx, importRule)
+func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return importRule, o.importRuleSvc.UpdateResource(ctx, importRule)
 }
 
 // DeleteOktaImportRule removes the specified Okta import rule resource.
@@ -107,22 +114,46 @@ func (o *OktaService) ListOktaAssignments(ctx context.Context, pageSize int, nex
 	return o.assignmentSvc.ListResources(ctx, pageSize, nextToken)
 }
 
-// GetOktaAssignmentreturns the specified Okta assignment resources.
+// GetOktaAssignment returns the specified Okta assignment resources.
 func (o *OktaService) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
 	return o.assignmentSvc.GetResource(ctx, name)
 }
 
-// CreateOktaAssignmentcreates a new Okta assignment resource.
-func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	return o.assignmentSvc.CreateResource(ctx, assignment)
+// CreateOktaAssignment creates a new Okta assignment resource.
+func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return assignment, o.assignmentSvc.CreateResource(ctx, assignment)
 }
 
-// UpdateOktaAssignmentupdates an existing Okta assignment resource.
-func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) error {
-	return o.assignmentSvc.UpdateResource(ctx, assignment)
+// UpdateOktaAssignment updates an existing Okta assignment resource.
+func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return assignment, o.assignmentSvc.UpdateResource(ctx, assignment)
 }
 
-// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(currentAssignment types.OktaAssignment) error {
+		// Only update the status if the given duration has passed.
+		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
+		if sinceLastTransition < timeHasPassed {
+			return trace.BadParameter("only %s has passed since last transition", sinceLastTransition)
+		}
+
+		if err := currentAssignment.SetStatus(status); err != nil {
+			return trace.Wrap(err)
+		}
+		currentAssignment.SetLastTransition(o.clock.Now())
+
+		return nil
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteOktaAssignment removes the specified Okta assignment resource.
 func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return o.assignmentSvc.DeleteResource(ctx, name)
 }

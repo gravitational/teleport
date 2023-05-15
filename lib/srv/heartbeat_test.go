@@ -277,7 +277,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
 
 			// advance time, and heartbeat will move to announce
-			clock.Advance(hb.AnnouncePeriod * time.Second)
+			clock.Advance(hb.AnnouncePeriod + time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
 			require.Equal(t, hb.state, HeartbeatStateAnnounce)
@@ -379,12 +379,7 @@ func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
-	f.upsertCalls[HeartbeatModeWindowsDesktop]++
-	return f.err
-}
-
-func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+func (f *fakeAnnouncer) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	f.upsertCalls[HeartbeatModeWindowsDesktop]++
 	return f.err
 }

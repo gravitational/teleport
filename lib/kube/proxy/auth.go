@@ -17,6 +17,7 @@ package proxy
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/url"
@@ -35,6 +36,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/azure"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -166,6 +168,11 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
+	transport, err := newDirectTransports(tlsConfig, transportConfig)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
+	}
+
 	log.Debug("Initialized Kubernetes credentials")
 	return &staticKubeCreds{
 		tlsConfig:       tlsConfig,
@@ -173,6 +180,24 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		targetAddr:      targetAddr,
 		kubeClient:      client,
 		clientRestCfg:   clientCfg,
+		transport:       transport,
+	}, nil
+}
+
+// newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
+// It is a direct connection, not going through a proxy.
+func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
+	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
+	if err != nil {
+		return httpTransport{}, trace.Wrap(err)
+	}
+	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
+	if err != nil {
+		return httpTransport{}, trace.Wrap(err)
+	}
+
+	return httpTransport{
+		transport: h2Transport,
 	}, nil
 }
 

@@ -360,7 +360,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.Equal(t, localClusterName, osshCAs[0].GetName())
 	})
 
-	t.Run("only Host and User CA are returned for v9", func(t *testing.T) {
+	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
 		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
 			Token:           validToken,
@@ -369,10 +369,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 2)
+		require.Len(t, resp.CAs, 3)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
 	})
 
@@ -454,7 +454,7 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
 	types.RemoveCASecrets(remoteHostCA)
 
-	err = a.UpsertCertAuthority(remoteHostCA)
+	err = a.UpsertCertAuthority(ctx, remoteHostCA)
 	require.NoError(t, err)
 
 	// Run the migration
@@ -518,10 +518,10 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(trustedCluster, []types.CertAuthority{ca})
+	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ca)
+	err = a.UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
 	err = a.createReverseTunnel(trustedCluster)

@@ -279,7 +279,6 @@ func TestUsageReporterDiscard(t *testing.T) {
 
 	// Wait the regular submit delay (to ensure submit finishes), as we have
 	// enough events to fill two batches.
-	fakeClock.BlockUntil(1)
 	fakeSubmitClock.BlockUntil(1)
 	advanceClocks(testSubmitDelay, fakeClock, fakeSubmitClock)
 

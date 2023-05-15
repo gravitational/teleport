@@ -94,5 +94,5 @@ export function Terminal(props: TerminalProps) {
 const StyledXterm = styled(Box)`
   height: 100%;
   width: 100%;
-  background-color: ${props => props.theme.colors.primary.darker};
+  background-color: ${props => props.theme.colors.levels.sunken};
 `;

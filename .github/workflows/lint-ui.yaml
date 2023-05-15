@@ -2,9 +2,6 @@ name: Lint UI
 run-name: Lint UI - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
       - 'web/**'

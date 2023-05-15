@@ -1,6 +1,6 @@
 ---
 title: Application Access Reference Documentation
-description: Configuration and CLI reference documentation for Teleport Application Access.
+description: Configuration and CLI reference documentation for Teleport application access.
 ---
 
 ## Configuration
@@ -14,9 +14,9 @@ appearing in the `teleport.yaml` configuration file:
 app_service:
   # Enables application proxy service.
   enabled: yes
-  # Enable debug app that can be used to make sure application access is
-  # working correctly. It'll output JWTs so it can be useful for when
-  # extending your application.
+  # Teleport provides a small debug app called "dumper" that can be used
+  # to make sure application access is working correctly. It outputs JWTs,
+  #  so it can be useful when extending your application.
   debug_app: true
   # Matchers for application resources created with "tctl create" command.
   resources:
@@ -93,8 +93,10 @@ spec:
     - "grafana.internal.dev"
     # Headers passthrough configuration.
     headers:
-    - "X-Custom-Header: example"
-    - "X-External-Trait: {{external.env}}"
+    - name: "X-Custom-Header"
+      value: "example"
+    - name: "X-External-Trait"
+      value: "{{external.env}}"
   # Optional dynamic labels.
   dynamic_labels:
   - name: "hostname"
@@ -130,7 +132,7 @@ $ tctl create -f app.yaml
 
 ## CLI
 
-This section shows CLI commands relevant for Application Access.
+This section shows CLI commands relevant for application access.
 
 ### tsh apps ls
 
@@ -190,7 +192,7 @@ $ curl $(tsh apps config --format=uri) \
 | - | - |
 | `--format` | Optional print format, one of: `uri` to print app address, `ca` to print CA cert path, `cert` to print cert path, `key` print key path, `curl` to print example curl command.|
 
-### tsh az 
+### tsh az
 
 Run an Azure CLI command via the Teleport Application Service:
 
@@ -208,4 +210,3 @@ To run this command, one of the user's roles must include the
 Application Service. To learn how to set up secure access to Azure via Teleport,
 read [Protect the Azure CLI with Teleport Application
 Access](cloud-apis/azure.mdx).
-

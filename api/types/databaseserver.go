@@ -21,10 +21,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // DatabaseServer represents a database access server.
@@ -266,6 +266,19 @@ func (s *DatabaseServerV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *DatabaseServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.Database != nil {
+		if v, ok := s.Spec.Database.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.Database`.
 // * Dynamic labels from `Spec.DynamicLabels`.
@@ -296,7 +309,7 @@ func (s *DatabaseServerV3) SetStaticLabels(sl map[string]string) {
 
 // Copy returns a copy of this database server object.
 func (s *DatabaseServerV3) Copy() DatabaseServer {
-	return proto.Clone(s).(*DatabaseServerV3)
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to

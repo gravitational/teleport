@@ -88,4 +88,9 @@ type ClusterConfiguration interface {
 	DeleteInstaller(ctx context.Context, name string) error
 	// DeleteAllInstallers removes all installer script resources from the backend
 	DeleteAllInstallers(context.Context) error
+
+	// GetClusterMaintenanceConfig loads the current maintenance config singleton.
+	GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error)
+	// UpdateClusterMaintenanceConfig updates the maintenance config singleton.
+	UpdateClusterMaintenanceConfig(ctx context.Context, cfg types.ClusterMaintenanceConfig) error
 }
