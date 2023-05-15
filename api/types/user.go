@@ -374,6 +374,7 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
+	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
 // SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
