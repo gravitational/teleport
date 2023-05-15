@@ -59,7 +59,9 @@ module.exports = {
     }
     if (packed.appOutDir.endsWith('mac-universal')) {
       if (!tshAppPlist) {
-        throw new Error('Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.')
+        throw new Error(
+          'Failed to copy tsh.app Info.plist file from the x64 build. Check if the path "mac-universal-x64-temp" was not changed by electron-builder.'
+        );
       }
       fs.writeFileSync(path, tshAppPlist);
     }
