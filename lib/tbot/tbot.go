@@ -22,6 +22,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
@@ -257,6 +259,38 @@ func (b *Bot) Run(ctx context.Context) error {
 		cancel()
 		return nil
 	})
+	if b.cfg.Debug && b.cfg.DiagAddr != "" {
+		eg.Go(func() error {
+			b.log.WithField("addr", b.cfg.DiagAddr).Info(
+				"DiagAddr configured, diagnostics service will be started.",
+			)
+			mux := http.NewServeMux()
+			mux.HandleFunc("/debug/pprof/", pprof.Index)
+			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about."
+				_, _ = w.Write([]byte(msg))
+			}))
+			srv := http.Server{
+				Addr:    b.cfg.DiagAddr,
+				Handler: mux,
+			}
+			go func() {
+				<-egCtx.Done()
+				if err := srv.Close(); err != nil {
+					b.log.WithError(err).Warn("Failed to close HTTP server.")
+				}
+			}()
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				return err
+			}
+			return nil
+		})
+	}
 
 	return eg.Wait()
 }
