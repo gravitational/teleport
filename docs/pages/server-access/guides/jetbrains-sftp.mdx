@@ -65,6 +65,13 @@ $ ssh user@[node name].[cluster name]
 </Details>
 
 <Admonition type="note">
+  Include the port number for OpenSSH servers, by default `22`, or you can experience an error.
+  See the [OpenSSH guide](./openssh.mdx) for more information.
+  Example connecting to a OpenSSH server:
+  ```code
+  $ ssh -p 22 user@[node name].[cluster name]
+  ```
+  
   Teleport's certificates expire fairly quickly, after which SSH
   attempts will fail with an error like the following:
 
@@ -99,7 +106,7 @@ Click the three dots next to `SSH configuration` as in the picture above.
 Create a new configuration by clicking the plus sign on the top left and providing:
 
 - `Host` - name of the Teleport Node.
-- `Port` - the Teleport Node's SSH port (3022 by default).
+- `Port` - the Teleport Node's SSH port (`3022` by default or `22` for OpenSSH servers).
 - `Username` - the system username.
 
 As an `Authentication type` pick `OpenSSH config and authentication agent`.
