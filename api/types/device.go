@@ -126,6 +126,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			PublicKeyDer:          res.Spec.Credential.PublicKeyDer,
 			DeviceAttestationType: attestationType,
 			TpmEkcertSerial:       res.Spec.Credential.TpmEkcertSerial,
+			TpmAkPublic:           res.Spec.Credential.TpmAkPublic,
 		}
 	}
 
