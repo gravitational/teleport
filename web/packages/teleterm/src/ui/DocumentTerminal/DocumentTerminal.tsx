@@ -170,6 +170,7 @@ function getReconnectCopy(doc: types.DocumentTerminal) {
         buttonText: 'Reconnect',
       };
     }
+    case 'doc.gateway_cli_client':
     case 'doc.terminal_shell':
     case 'doc.terminal_tsh_kube': {
       return {
