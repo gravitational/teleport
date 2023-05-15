@@ -1,23 +1,15 @@
+{{ clientType="database client" }}
 TLS routing is when the Teleport Proxy Service multiplexes on a single port for multiple protocols (e.g., web, database, and Kubernetes traffic)
-instead of utilizing multiple ports for each protocol type. If enabled that can require using a TLS proxy.
+instead of utilizing multiple ports for each protocol type. If enabled on the Teleport cluster that requires using a local proxy for
+{{clientType}} connections.
+
 To get details of the Teleport cluster you can invoke the `/webapi/ping` path
 on the Teleport Proxy Service. The `proxy.tls_routing_enabled` value indicates if TLS routing is enabled:
 
-<ScopedBlock scope={["cloud"]}>
+Replace <Var name="teleport.example.com" /> with your Teleport Proxy address (e.g. mytenant.teleport.sh for 
+Teleport Enterprise Cloud)..
+
 ```code
-$ curl https://mytenant.teleport.sh/webapi/ping |  jq '.proxy.tls_routing_enabled'
+$ curl https://<Var name="teleport.example.com" />/webapi/ping |  jq '.proxy.tls_routing_enabled'
 true
 ```
-
-Replace `mytenant.teleport.sh` with your Teleport Enterprise Cloud tenant address.
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-```code
-$ curl https://teleport.example.com/webapi/ping |  jq '.proxy.tls_routing_enabled'
-true
-```
-
-Replace `teleport.example.com` with your Teleport Proxy address.
-</ScopedBlock>
-
-
