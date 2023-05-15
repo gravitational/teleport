@@ -68,8 +68,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "100"),
+				` ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: timeRangeParams,
 		},
 		{
 			name: "query on time range order DESC",
@@ -81,8 +81,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` ORDER BY event_time DESC, uid DESC LIMIT ?`,
-			wantParams: append(timeRangeParams, "100"),
+				` ORDER BY event_time DESC, uid DESC LIMIT 100;`,
+			wantParams: timeRangeParams,
 		},
 		{
 			name: "query with event types",
@@ -94,8 +94,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "'app.create'", "'app.delete'", "100"),
+				` AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: append(timeRangeParams, "'app.create'", "'app.delete'"),
 		},
 		{
 			name: "session id",
@@ -107,8 +107,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND session_id = ? ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND session_id = ? ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'"),
 		},
 		{
 			name: "query on time range with keyset",
@@ -123,8 +123,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT ?`,
-			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND (event_time, uid) > (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`,
+			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'"),
 		},
 		{
 			name: "query on time range DESC with keyset",
@@ -140,8 +140,8 @@ func Test_querier_prepareQuery(t *testing.T) {
 				tablename: tablename,
 			},
 			wantQuery: selectFromPrefix + whereTimeRange +
-				` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT ?`,
-			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "100"),
+				` AND (event_time, uid) < (?,?) ORDER BY event_time DESC, uid DESC LIMIT 100;`,
+			wantParams: append(timeRangeParams, otherTimestampParam, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'"),
 		},
 	}
 	for _, tt := range tests {
