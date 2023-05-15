@@ -121,7 +121,7 @@ func (tt *firestoreContext) testPagination(t *testing.T) {
 
 func (tt *firestoreContext) testSearchSessionEvensBySessionID(t *testing.T) {
 	tt.setupTest(t)
-	tt.suite.SearchSessionEvensBySessionID(t)
+	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
 func TestFirestoreEvents(t *testing.T) {
