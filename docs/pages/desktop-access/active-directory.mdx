@@ -20,9 +20,10 @@ This guide will help you configure Teleport and Active Directory in order to
 provide secure, passwordless access to Windows desktops.
 
 <Admonition title="Azure AD" type="warning">
-  Microsoft's fully managed Azure Active Directory offering does not give
-  administrators the required permissions to trust your Teleport cluster's
-  certificates. At this time, Teleport does support Azure AD.
+  Microsoft's Azure Active Directory (Azure AD) offering does not support the
+  Kerberos authentication protocol, which is required for Teleport's
+  certificate-based authentication integration. At this time, Teleport does not
+  support Azure AD.
 </Admonition>
 
 <Details title="Compare Desktop Access to other RDP clients">
@@ -118,19 +119,19 @@ proxy_service:
 windows_desktop_service:
   enabled: yes
   ldap:
-    addr:     '10.10.1.50:636'
-    domain:   'windows.teleport.example.com'
+    addr: '10.10.1.50:636'
+    domain: 'windows.teleport.example.com'
     username: 'WIN\svc-teleport'
     server_name: 'windows-server-hostname'
     # insecure_skip_verify prevents teleport from authenticating the LDAP CA
     # against the systems trust store.
     insecure_skip_verify: false
     ldap_ca_cert: |
-        -----BEGIN CERTIFICATE-----
-        MIIDnzCCAoegAwIBAgIQT/UIn+MT4aZC9ix/QuiV9zANBgkqhkiG9w0BAQsFADBi
-        ...
-        31qA4dO3if7RdikD9hVbiIF9jQ==
-        -----END CERTIFICATE-----
+      -----BEGIN CERTIFICATE-----
+      MIIDnzCCAoegAwIBAgIQT/UIn+MT4aZC9ix/QuiV9zANBgkqhkiG9w0BAQsFADBi
+      ...
+      31qA4dO3if7RdikD9hVbiIF9jQ==
+      -----END CERTIFICATE-----
 
   discovery:
     base_dn: '*'
