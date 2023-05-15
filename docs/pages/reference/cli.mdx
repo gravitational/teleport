@@ -829,6 +829,9 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
+<Admonition type="note">
+  `tsh scp` will not work from the CLI if the user requires session moderation. You can transfer files in a moderated session by joining the SSH session from the Web UI and requesting the file transfer there. Both the session initiator and moderators must be present in the Web UI in order to approve the file transfer request.
+</Admonition>
 
 ### tsh ls
 
