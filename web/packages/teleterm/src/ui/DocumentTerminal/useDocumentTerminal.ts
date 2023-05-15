@@ -346,6 +346,10 @@ function createCmd(
     };
   }
 
+  if (doc.kind === 'doc.gateway_cli_client') {
+    throw new Error('TODO not implemented');
+  }
+
   return {
     ...doc,
     kind: 'pty.shell',
