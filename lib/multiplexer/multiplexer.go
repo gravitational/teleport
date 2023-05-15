@@ -496,18 +496,12 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 
 			proxyLine = newProxyLine
 			// repeat the cycle to detect the protocol
-		case ProtoTLS, ProtoSSH, ProtoHTTP:
+		case ProtoTLS, ProtoSSH, ProtoHTTP, ProtoPostgres:
 			return &Conn{
 				protocol:  proto,
 				Conn:      conn,
 				reader:    reader,
 				proxyLine: proxyLine,
-			}, nil
-		case ProtoPostgres:
-			return &Conn{
-				protocol: proto,
-				Conn:     conn,
-				reader:   reader,
 			}, nil
 		}
 	}

@@ -43,6 +43,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -239,6 +240,9 @@ type Config struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// OpenAIConfig provides config options for the OpenAI integration.
+	OpenAIConfig *openai.ClientConfig
 }
 
 type APIHandler struct {
@@ -647,6 +651,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.handleDatabaseUpdate))
 	h.GET("/webapi/sites/:site/databases/:database", h.WithClusterAuth(h.clusterDatabaseGet))
 	h.GET("/webapi/sites/:site/databases/:database/iam/policy", h.WithClusterAuth(h.handleDatabaseGetIAMPolicy))
+	h.GET("/webapi/scripts/databases/configure/sqlserver/:token/configure-ad.ps1", httplib.MakeHandler(h.sqlServerConfigureADScriptHandle))
 
 	// DatabaseService handlers
 	h.GET("/webapi/sites/:site/databaseservices", h.WithClusterAuth(h.clusterDatabaseServicesList))
@@ -722,6 +727,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
 	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
 
+	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 
 	// AWS OIDC Integration specific endpoints:
@@ -740,6 +746,27 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
+
+	h.GET("/webapi/sites/:site/user-groups", h.WithClusterAuth(h.getUserGroups))
+
+	// WebSocket endpoint for the chat conversation
+	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuth(h.assistant))
+
+	// Sets the title for the conversation.
+	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
+	h.POST("/webapi/assistant/title/summary", h.WithAuth(h.generateAssistantTitle))
+
+	// Creates a new conversation - the conversation ID is returned in the response.
+	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	// Returns all conversations for the given user.
+	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
+
+	// Returns all messages in the given conversation.
+	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
+
+	// Allows executing an arbitrary command on multiple nodes.
+	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -973,27 +1000,27 @@ func deviceTrustDisabled(cap types.AuthPreference) bool {
 }
 
 func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.AuthenticationSettings, error) {
-	cap, err := authClient.GetAuthPreference(ctx)
+	authPreference, err := authClient.GetAuthPreference(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 
 	var as webclient.AuthenticationSettings
 
-	switch cap.GetType() {
+	switch authPreference.GetType() {
 	case constants.Local:
-		as, err = localSettings(cap)
+		as, err = localSettings(authPreference)
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 	case constants.OIDC:
-		if cap.GetConnectorName() != "" {
-			oidcConnector, err := authClient.GetOIDCConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			oidcConnector, err := authClient.GetOIDCConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = oidcSettings(oidcConnector, cap)
+			as = oidcSettings(oidcConnector, authPreference)
 		} else {
 			oidcConnectors, err := authClient.GetOIDCConnectors(ctx, false)
 			if err != nil {
@@ -1003,16 +1030,16 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no oidc connectors found")
 			}
 
-			as = oidcSettings(oidcConnectors[0], cap)
+			as = oidcSettings(oidcConnectors[0], authPreference)
 		}
 	case constants.SAML:
-		if cap.GetConnectorName() != "" {
-			samlConnector, err := authClient.GetSAMLConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			samlConnector, err := authClient.GetSAMLConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
 
-			as = samlSettings(samlConnector, cap)
+			as = samlSettings(samlConnector, authPreference)
 		} else {
 			samlConnectors, err := authClient.GetSAMLConnectors(ctx, false)
 			if err != nil {
@@ -1022,15 +1049,15 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no saml connectors found")
 			}
 
-			as = samlSettings(samlConnectors[0], cap)
+			as = samlSettings(samlConnectors[0], authPreference)
 		}
 	case constants.Github:
-		if cap.GetConnectorName() != "" {
-			githubConnector, err := authClient.GetGithubConnector(ctx, cap.GetConnectorName(), false)
+		if authPreference.GetConnectorName() != "" {
+			githubConnector, err := authClient.GetGithubConnector(ctx, authPreference.GetConnectorName(), false)
 			if err != nil {
 				return webclient.AuthenticationSettings{}, trace.Wrap(err)
 			}
-			as = githubSettings(githubConnector, cap)
+			as = githubSettings(githubConnector, authPreference)
 		} else {
 			githubConnectors, err := authClient.GetGithubConnectors(ctx, false)
 			if err != nil {
@@ -1039,13 +1066,13 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 			if len(githubConnectors) == 0 {
 				return webclient.AuthenticationSettings{}, trace.BadParameter("no github connectors found")
 			}
-			as = githubSettings(githubConnectors[0], cap)
+			as = githubSettings(githubConnectors[0], authPreference)
 		}
 	default:
-		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", cap.GetType())
+		return webclient.AuthenticationSettings{}, trace.BadParameter("unknown type %v", authPreference.GetType())
 	}
 
-	as.HasMessageOfTheDay = cap.GetMessageOfTheDay() != ""
+	as.HasMessageOfTheDay = authPreference.GetMessageOfTheDay() != ""
 	pingResp, err := authClient.Ping(ctx)
 	if err != nil {
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
@@ -1129,6 +1156,23 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO: This part should be removed once the plugin support is added to OSS.
+	if proxyConfig.AssistEnabled {
+		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
+		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
+		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
+		if err != nil {
+			return webclient.AuthenticationSettings{}, trace.Wrap(err)
+		}
+
+		// disable if per-session MFA is enabled and it's ok by the auth
+		proxyConfig.AssistEnabled = enabled.Enabled && !mfaRequired
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1354,6 +1398,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(h.ClusterFeatures),
+		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -1607,11 +1652,15 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		repoChannel = stableCloudChannelRepo
 	}
 
+	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
+	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
+
 	tmpl := installers.Template{
-		PublicProxyAddr: h.PublicProxyAddr(),
-		MajorVersion:    version,
-		TeleportPackage: teleportPackage,
-		RepoChannel:     repoChannel,
+		PublicProxyAddr:   h.PublicProxyAddr(),
+		MajorVersion:      version,
+		TeleportPackage:   teleportPackage,
+		RepoChannel:       repoChannel,
+		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -1686,7 +1735,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		// If FIPS mode was requested, make sure older clients that use NaCl get rejected.
 		if response.FIPS {
 			return nil, trace.BadParameter("non-FIPS compliant encryption: NaCl, check " +
-				"that tsh release was downloaded from https://dashboard.gravitational.com")
+				"that tsh release was downloaded from a Teleport account https://teleport.sh")
 		}
 
 		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)
@@ -2426,7 +2475,8 @@ func (h *Handler) getClusterLocks(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2452,7 +2502,8 @@ func (h *Handler) createClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	var req *createLockReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -2499,7 +2550,8 @@ func (h *Handler) deleteClusterLock(
 	r *http.Request,
 	p httprouter.Params,
 	sessionCtx *SessionContext,
-	site reversetunnel.RemoteSite) (interface{}, error) {
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
 	ctx := r.Context()
 	clt, err := sessionCtx.GetUserClient(ctx, site)
 	if err != nil {
@@ -2604,6 +2656,7 @@ func (h *Handler) siteNodeConnect(
 		Term:               req.Term,
 		SessionCtx:         sessionCtx,
 		AuthProvider:       clt,
+		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
 		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
@@ -2632,94 +2685,14 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
-	var (
-		id   string
-		host string
-		port int
-	)
 	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	if _, err := uuid.Parse(req.Server); err != nil {
-		// The requested server is either a hostname or an address. Get all
-		// servers that may fuzzily match by populating SearchKeywords
-		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
-			ResourceType:   types.KindNode,
-			Namespace:      apidefaults.Namespace,
-			SearchKeywords: []string{req.Server},
-		})
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
-
-		if len(servers) == 0 {
-			// If we didn't find the resource set host and port,
-			// so we can try direct dial.
-			host, port, err = serverHostPort(req.Server)
-			if err != nil {
-				return session.Session{}, trace.Wrap(err)
-			}
-			id = host
-		}
-
-		matches := 0
-		for _, server := range servers {
-			// match by hostname
-			if server.GetHostname() == req.Server {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host = server.GetHostname()
-				id = server.GetName()
-				port = 0
-
-				matches++
-				continue
-			}
-
-			// exact match by address
-			if server.GetAddr() == req.Server {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host = req.Server
-				id = server.GetName()
-				port = 0
-
-				matches++
-				continue
-			}
-		}
-
-		// there was either at least one partial match or multiple
-		// exact matches on the server. connect with the resolved
-		// host and port of the requested server.
-		if matches > 1 || host == "" && id == "" {
-			host, port, err = serverHostPort(req.Server)
-			if err != nil {
-				return session.Session{}, trace.Wrap(err)
-			}
-			id = req.Server
-		}
-	} else {
-		// Even though the UUID was provided and can be dialed directly, the UI
-		// requires the hostname to populate the title of the session window.
-		// Looking the node up directly by UUID is the most efficient we can be until
-		// the UI is modified to remember the hostname when the connect button is
-		// used to establish a session.
-		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
-
-		host = server.GetHostname()
-		port = 0
-		id = req.Server
+	host, err := findByHost(ctx, clt, req.Server)
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
 	}
+
 	accessChecker, err := scx.GetUserAccessChecker()
 	if err != nil {
 		return session.Session{}, trace.Wrap(err)
@@ -2730,10 +2703,10 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	return session.Session{
 		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
-		ServerID:       id,
+		ServerID:       host.id,
 		ClusterName:    clusterName,
-		ServerHostname: host,
-		ServerHostPort: port,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
 		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
@@ -2741,6 +2714,142 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		Namespace:      apidefaults.Namespace,
 		Owner:          owner,
 	}, nil
+}
+
+func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, owner string) (session.Session, error) {
+	h.log.Infof("Generating new session for %s in %s\n", host.hostName, clusterName)
+
+	return session.Session{
+		Login:          login,
+		ServerID:       host.id,
+		ClusterName:    clusterName,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
+	}, nil
+}
+
+// hostInfo is a helper struct used to store host information.
+type hostInfo struct {
+	id       string
+	hostName string
+	port     int
+}
+
+// findByQuery returns all hosts matching the given query/predicate.
+// The query is a predicate expression that can be used to filter hosts.
+func findByQuery(ctx context.Context, clt auth.ClientI, query string) ([]hostInfo, error) {
+	servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
+		ResourceType:        types.KindNode,
+		Namespace:           apidefaults.Namespace,
+		PredicateExpression: query,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hosts := make([]hostInfo, 0, len(servers))
+	for _, server := range servers {
+		h := hostInfo{
+			hostName: server.GetHostname(),
+			id:       server.GetName(),
+			port:     defaultPort,
+		}
+		hosts = append(hosts, h)
+	}
+
+	return hosts, nil
+}
+
+// findByHost return a host matching by the host name.
+func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
+	var host hostInfo
+
+	if _, err := uuid.Parse(serverName); err != nil {
+		// The requested server is either a hostname or an address. Get all
+		// servers that may fuzzily match by populating SearchKeywords
+		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{serverName},
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(servers) == 0 {
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
+			host.hostName, host.port, err = serverHostPort(serverName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			host.id = host.hostName
+		}
+
+		matches := 0
+		for _, server := range servers {
+			// match by hostname
+			if server.GetHostname() == serverName {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host.hostName = server.GetHostname()
+				host.id = server.GetName()
+				host.port = 0
+
+				matches++
+				continue
+			}
+
+			// exact match by address
+			if server.GetAddr() == serverName {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host.hostName = serverName
+				host.id = server.GetName()
+				host.port = 0
+
+				matches++
+				continue
+			}
+		}
+
+		// there was either at least one partial match or multiple
+		// exact matches on the server. connect with the resolved
+		// host and port of the requested server.
+		if matches > 1 || host.hostName == "" && host.id == "" {
+			host.hostName, host.port, err = serverHostPort(serverName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			host.id = serverName
+		}
+	} else {
+		// Even though the UUID was provided and can be dialed directly, the UI
+		// requires the hostname to populate the title of the session window.
+		// Looking the node up directly by UUID is the most efficient we can be until
+		// the UI is modified to remember the hostname when the connect button is
+		// used to establish a session.
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		host.hostName = server.GetHostname()
+		host.port = 0
+		host.id = serverName
+	}
+	return &host, nil
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
@@ -2764,7 +2873,7 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// When joining an existing session use the specially handled
 	// `SSHSessionJoinPrincipal` login instead of the provided login so that
 	// users are able to join sessions without having permissions to create
-	// new ones themselves for auditing purposes. Otherwise the user would
+	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
 	// Using the Login above will then display `-teleport-internal-join` as the
@@ -3339,7 +3448,6 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
 	if err != nil {
-		h.log.WithError(err).Warn("Failed to authenticate.")
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -3446,17 +3554,14 @@ type ProvisionTokenHandler func(w http.ResponseWriter, r *http.Request, p httpro
 func (h *Handler) WithProvisionTokenAuth(fn ProvisionTokenHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		ctx := r.Context()
-		logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
 		token, err := h.consumeTokenForAPICall(ctx, creds.Password)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to authenticate.")
 			return nil, trace.AccessDenied("need auth")
 		}
 
@@ -3642,33 +3747,25 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
-	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
 	cookie, err := r.Cookie(CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
-		if err != nil {
-			logger.Warn(err)
-		}
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
 	decodedCookie, err := DecodeCookie(cookie.Value)
 	if err != nil {
-		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
 		creds, err := roundtrip.ParseAuthHeaders(r)
 		if err != nil {
-			logger.WithError(err).Warn("No auth headers.")
 			return nil, trace.AccessDenied("need auth")
 		}
 		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
-			logger.WithError(err).Warn("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}

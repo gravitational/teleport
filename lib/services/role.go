@@ -270,19 +270,20 @@ func validateRule(r types.Rule) error {
 }
 
 func filterInvalidUnixLogins(candidates []string) []string {
-	// The tests for `ApplyTraits()` require that an empty list is nil
-	// rather than a 0-size slice, and I don't understand the potential
-	// knock-on effects of changing that, so the  default value is `nil`
-	output := []string(nil)
+	var output []string
 
 	for _, candidate := range candidates {
-		if !cstrings.IsValidUnixUser(candidate) {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		if cstrings.IsValidUnixUser(candidate) {
+			// A valid variable was found in the traits, append it to the list of logins.
+			output = append(output, candidate)
 			continue
 		}
 
-		// A valid variable was found in the traits, append it to the list of logins.
-		output = append(output, candidate)
+		// Log any invalid logins which were added by a user but ignore any
+		// Teleport internal logins which are known to be invalid.
+		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		}
 	}
 	return output
 }

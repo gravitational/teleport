@@ -1151,6 +1151,8 @@ message ProvisionTokenSpecV2 {
   ProvisionTokenSpecV2Azure Azure = 11 [(gogoproto.jsontag) = "azure,omitempty"];
   // GitLab allows the configuration of options specific to the "gitlab" join method.
   ProvisionTokenSpecV2GitLab GitLab = 12 [(gogoproto.jsontag) = "gitlab,omitempty"];
+  // GCP allows the configuration of options specific to the "gcp" join method.
+  ProvisionTokenSpecV2GCP GCP = 13 [(gogoproto.jsontag) = "gcp,omitempty"];
 }
 
 // ProvisionTokenSpecV2Github contains the GitHub-specific part of the
@@ -1275,6 +1277,26 @@ message ProvisionTokenSpecV2Azure {
     // ResourceGroups is a list of Azure resource groups the node is allowed
     // to join from.
     repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
+  }
+  // Allow is a list of Rules, nodes using this token must match one
+  // allow rule to use this token.
+  repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2GCP contains the GCP-specific part of the
+// ProvisionTokenSpecV2.
+message ProvisionTokenSpecV2GCP {
+  // Rule is a set of properties the GCP-ussued token might have to be allowed
+  // to use this ProvisionToken.
+  message Rule {
+    // ProjectIDs is a list of project IDs (e.g. "<example-id-123456>").
+    repeated string ProjectIDs = 1 [(gogoproto.jsontag) = "project_ids,omitempty"];
+    // Locations is a list of regions (e.g. "us-west1") and/or zones (e.g.
+    // "us-west1-b").
+    repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
+    // ServiceAccounts is a list of service account emails (e.g.
+    // "<project-number>-compute@developer.gserviceaccount.com").
+    repeated string ServiceAccounts = 3 [(gogoproto.jsontag) = "service_accounts,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -5030,6 +5052,8 @@ message PluginSpecV1 {
     PluginSlackAccessSettings slack_access_plugin = 1;
     // Settings for the Opsgenie access plugin
     PluginOpsgenieAccessSettings opsgenie = 2;
+    // Settings for OpenAI plugin
+    PluginOpenAISettings openai = 3;
   }
 }
 
@@ -5052,9 +5076,15 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
 }
 
+// Defines settings for the OpenAI plugin. Currently there are no settings.
+message PluginOpenAISettings {
+  option (gogoproto.equal) = true;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5089,6 +5119,7 @@ enum PluginStatusCode {
 message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5099,6 +5130,19 @@ message PluginOAuth2AccessTokenCredentials {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+}
+
+message PluginBearerTokenCredentials {
+  // Token is the literal bearer token to be submitted to the 3rd-party API provider.
+  string token = 1;
+
+  // TokenFile is a path to the local file containing a bearer token.
+  // This takes precedence over Token, and is currently only used by
+  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
+  // This avoids exposing the token itself to the cluster.
+  // The file must exist and be readable on whatever runs the plugin
+  // (in the OpenAI case, it is the Proxy).
+  string token_file = 2;
 }
 
 // PluginList represents a list of plugin resources
@@ -5496,4 +5540,37 @@ message WatchStatusSpecV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds"
   ];
+}
+
+// ServerInfoV1 contains info that should be applied to joining Nodes.
+message ServerInfoV1 {
+  // Kind is the resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind. Currently unused for this resource.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the resource metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the resource spec.
+  ServerInfoSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
+message ServerInfoSpecV1 {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  message AWSInfo {
+    // AccountID is an AWS account ID.
+    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+    // InstanceID is an EC2 instance ID.
+    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  }
+  // AWS matches an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }

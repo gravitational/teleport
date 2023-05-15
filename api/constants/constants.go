@@ -421,3 +421,11 @@ const (
 	// used for connection upgrades.
 	WebAPIConnUpgradeConnectionType = "Upgrade"
 )
+
+const (
+	// InitiateFileTransfer is used when creating a new file transfer request
+	InitiateFileTransfer string = "file-transfer@goteleport.com"
+	// FileTransferDecision is a request that will approve or deny an active file transfer.
+	// Multiple decisions can be sent for the same request if the policy requires it.
+	FileTransferDecision string = "file-transfer-decision@goteleport.com"
+)

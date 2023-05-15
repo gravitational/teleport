@@ -226,9 +226,9 @@ We recommend configuring Teleport as per the below steps:
 
 <Tabs>
 	<TabItem label="Open Source">
-**1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
-or use DEB/RPM packages available from our [Downloads Page](https://goteleport.com/download/).
+**1. Configure Teleport Auth Server** using the below example `teleport.yaml`,and start it
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+automatically include the `systemd` configuration.
 
 ```yaml
 #
@@ -265,8 +265,8 @@ ssh_service:
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
-or use DEB/RPM packages available from the [Customer Portal](https://dashboard.gravitational.com).
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+automatically include the `systemd` configuration.
 
 ```yaml
 #

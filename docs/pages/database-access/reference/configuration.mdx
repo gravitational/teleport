@@ -36,6 +36,10 @@ proxy_service:
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
   mysql_listen_addr: "0.0.0.0:3036"
+  # MySQL Server version allows you to overwrite the default Teleport Proxy Service MySQL version (8.0.0-Teleport)
+  # Note that if the MySQL client connection is using TLS Routing the dynamic MySQL Server Version takes
+  # precedence over the mysql_server_version proxy settings.
+  # mysql_server_version: "8.0.4"
   # Postgres proxy listening address. If provided, proxy will use a separate listener
   # instead of multiplexing Postgres protocol on web_listener_addr.
   # postgres_listen_addr: "0.0.0.0:5432"

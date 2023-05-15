@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -173,7 +172,9 @@ func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
+// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users
+// to applications or groups. When modifying this object, please make sure to update
+// tool/tctl/common/oktaassignment to reflect any new fields that were added.
 type OktaAssignment interface {
 	ResourceWithLabels
 
@@ -337,7 +338,7 @@ func (o *OktaAssignmentV1) SetFinalized(finalized bool) {
 
 // Copy returns a copy of this Okta assignment resource.
 func (o *OktaAssignmentV1) Copy() OktaAssignment {
-	return proto.Clone(o).(*OktaAssignmentV1)
+	return utils.CloneProtoMsg(o)
 }
 
 // String returns the Okta assignment rule string representation.

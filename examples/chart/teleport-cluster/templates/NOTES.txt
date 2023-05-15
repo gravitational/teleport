@@ -8,14 +8,6 @@ NOTE: For certificates to be provisioned, you must also install cert-manager (ht
       Issuer with access to your DNS provider to handle DNS01 challenges (https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers)
 
 For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/kubernetes-access/helm/guides/)
-{{- else if (gt (int .Values.highAvailability.replicaCount) 1) }}
-{{- if not (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") }}
-You have requested more than 1 replica but have not enabled cert-manager support (highAvailability.certManager.enabled=true) to get ACME certificates, or enabled AWS ACM
-for TLS termination using the service.beta.kubernetes.io/aws-load-balancer-ssl-cert service annotation.
-Your Teleport cluster will not be properly accessible by remote nodes until TLS certificates with the correct clusterName ({{ .Values.clusterName }}) are configured.
-
-For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/kubernetes-access/helm/guides/)
-{{- end }}
 {{- end }}
 
 {{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) }}
@@ -30,4 +22,14 @@ the namespace "{{.Release.Namespace}}" by adding the label
 See https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 
 To remove this warning, explicitly set "podSecurityPolicy.enabled=false".
+{{- end }}
+
+{{- if .Values.teleportVersionOverride }}
+
+DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run Teleport version {{ .Chart.AppVersion }}.
+You will face compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version {{.Values.teleportVersionOverride}},
+you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
 {{- end }}

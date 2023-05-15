@@ -16,31 +16,16 @@
 
 import styled from 'styled-components';
 
+import { ButtonIcon } from 'design';
 import Icon from 'design/Icon';
 
-export const StyledArrowBtn = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-
+export const StyledArrowBtn = styled(ButtonIcon)`
   ${Icon} {
     font-size: 20px;
-    transition: all 0.3s;
-    opacity: 0.5;
   }
-
-  &:hover,
-  &:focus {
-    ${Icon} {
-      opacity: 1;
-    }
-  }
-
-  &:disabled {
-    cursor: default;
-    ${Icon} {
-      opacity: 0.1;
-    }
+  ${Icon}:before {
+    // arrow icons have some padding that makes them look slightly off-center, padding compensates it
+    padding-left: 1px;
   }
 `;
 
