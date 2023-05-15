@@ -104,6 +104,15 @@ message UpdateAssistantConversationInfoRequest {
   string title = 3;
 }
 
+// IsAssistEnabledRequest is a request to the assistant service on if assist is enabled or not.
+message IsAssistEnabledRequest {}
+
+// IsAssistEnabledResponse is a response from the assistant service on if assist is enabled or not.
+message IsAssistEnabledResponse {
+  // enabled is true if the assist is enabled or not on the auth level.
+  bool enabled = 1;
+}
+
 // AssistService is a service that provides an ability to communicate with the Teleport Assist.
 service AssistService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -120,4 +129,7 @@ service AssistService {
 
   // UpdateAssistantConversationInfo updates the conversation info.
   rpc UpdateAssistantConversationInfo(UpdateAssistantConversationInfoRequest) returns (google.protobuf.Empty);
+
+  // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+  rpc IsAssistEnabled(IsAssistEnabledRequest) returns (IsAssistEnabledResponse);
 }

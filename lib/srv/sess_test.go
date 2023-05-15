@@ -114,7 +114,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	})
 	auditorRoleSet := services.NewRoleSet(auditorRole)
 	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
-	// change the teleport user so we dont match the user in the test cases
+	// change the teleport user so we don't match the user in the test cases
 	auditScx.Identity.TeleportUser = "mod"
 	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
 	approvers := make(map[string]*party)
@@ -557,7 +557,7 @@ func TestParties(t *testing.T) {
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
-	p.Close()
+	require.NoError(t, p.Close())
 
 	partyIsRemoved := func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
@@ -566,8 +566,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-	err = p.ctx.Close()
-	require.NoError(t, err)
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -579,7 +578,8 @@ func TestParties(t *testing.T) {
 	})
 
 	// If all parties are gone, the session should linger for a short duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -589,12 +589,13 @@ func TestParties(t *testing.T) {
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
-	// andvance clock and give lingerAndDie goroutine a second to complete.
+	// advance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
 	// If no parties remain it should be closed after the duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -889,7 +890,12 @@ func TestTrackingSession(t *testing.T) {
 				access:    sessionEvaluator{moderated: tt.moderated},
 			}
 
-			err = sess.trackSession(ctx, me.Name, nil)
+			p := &party{
+				user: me.Name,
+				id:   rsession.NewID(),
+				mode: types.SessionPeerMode,
+			}
+			err = sess.trackSession(ctx, me.Name, nil, p)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})
