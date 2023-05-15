@@ -349,8 +349,3 @@ function createCmd(
     initCommand: doc.initCommand,
   };
 }
-
-export type Props = {
-  doc: types.DocumentTerminal;
-  visible: boolean;
-};
