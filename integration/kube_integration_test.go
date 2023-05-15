@@ -1723,6 +1723,7 @@ func kubeJoinByWebAddr(t *testing.T, teleport *helpers.TeleInstance, username st
 	tc.Stdout = buffer
 	return kubeJoinObserverWithSNISet(t, tc, teleport, kubeUsers, kubeGroups), buffer
 }
+
 func kubeJoinByALBAddr(t *testing.T, teleport *helpers.TeleInstance, username string, kubeUsers, kubeGroups []string, albAddr string) (*client.KubeSession, *bytes.Buffer) {
 	t.Helper()
 
@@ -1738,6 +1739,7 @@ func kubeJoinByALBAddr(t *testing.T, teleport *helpers.TeleInstance, username st
 	tc.Stdout = buffer
 	return kubeJoinObserverWithSNISet(t, tc, teleport, kubeUsers, kubeGroups), buffer
 }
+
 func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, teleport *helpers.TeleInstance, kubeUsers, kubeGroups []string) *client.KubeSession {
 	t.Helper()
 
@@ -1752,5 +1754,6 @@ func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, telepor
 		KubeGroups:          kubeGroups,
 		CustomTLSServerName: constants.KubeTeleportProxyALPNPrefix + Host,
 	}, tc, sessions[0], types.SessionObserverMode)
+	require.NoError(t, err)
 	return stream
 }

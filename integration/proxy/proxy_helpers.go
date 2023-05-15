@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -600,19 +599,6 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
-}
-
-func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
-	t.Helper()
-
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName: "localhost",
-	}, []string{"localhost"}, defaults.CATTL)
-	require.NoError(t, err)
-
-	cert, err := tls.X509KeyPair(caCert, caKey)
-	require.NoError(t, err)
-	return cert
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
