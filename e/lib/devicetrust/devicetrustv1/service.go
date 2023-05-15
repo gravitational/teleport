@@ -7,6 +7,8 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -617,6 +619,51 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	}
 	dev, err = c.AuthenticateDevice(stream)
 	return trace.Wrap(err)
+}
+
+func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
+	if !dtent.MDMFeatureActive {
+		// Mimic gRPC error.
+		return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
+	}
+
+	ctx := stream.Context()
+	if err := s.authorizeVerbs(ctx, types.KindDevice, []string{types.VerbCreate, types.VerbUpdate, types.VerbDelete}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMeta := getUserMetadata(ctx)
+	auditCB := func(eventType, eventCode string, dev *devicepb.Device, err error) {
+		if err != nil {
+			return // Don't issue failures for create/update/delete.
+		}
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
+			Metadata: apievents.Metadata{
+				Type: eventType,
+				Code: eventCode,
+			},
+			Status: apievents.Status{
+				Success: true,
+			},
+			Device:       getDeviceMetadata(dev),
+			UserMetadata: userMeta,
+		})
+	}
+
+	syncer := &inventorySyncer{
+		logger:  s.logger,
+		storage: s.storage,
+		createAuditCallback: func(dev *devicepb.Device, err error) {
+			auditCB(events.DeviceCreateEvent, events.DeviceCreateCode, dev, err)
+		},
+		updateAuditCallback: func(dev *devicepb.Device, err error) {
+			auditCB(events.DeviceUpdateEvent, events.DeviceUpdateCode, dev, err)
+		},
+		deleteAuditCallback: func(dev *devicepb.Device, err error) {
+			auditCB(events.DeviceDeleteEvent, events.DeviceDeleteCode, dev, err)
+		},
+	}
+	return trace.Wrap(syncer.SyncInventory(stream))
 }
 
 func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {

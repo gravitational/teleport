@@ -1,0 +1,981 @@
+package devicetrustv1_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+)
+
+type syncInventoryTest struct {
+	name string
+
+	start       *devicepb.SyncInventoryStart
+	end         *devicepb.SyncInventoryEnd
+	devicePages [][]*devicepb.Device
+
+	wantCodes         [][]codes.Code // expected response codes, per page
+	wantUniqueDevices int            // total unique IDs in the response
+
+	// assertSync performs additional checks after all other assertions pass.
+	assertSync func(t *testing.T, got [][]*devicepb.DeviceOrStatus, devsBefore []*devicepb.Device)
+}
+
+func TestService_SyncInventory(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	env := testenv.MustNew()
+	defer env.Close()
+
+	ctx := context.Background()
+	devices := env.DevicesClient
+
+	jamfSource := &devicepb.DeviceSource{
+		Name:   "jamf",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+	}
+
+	endSuccess := &devicepb.SyncInventoryEnd{
+		ExternalSyncSuccessful: true,
+	}
+
+	oldProfile := &devicepb.DeviceProfile{
+		ModelIdentifier:   "MacBookPro9,2",
+		OsVersion:         "13.2.1",
+		OsBuild:           "22D68",
+		OsUsernames:       []string{"admin", "llama"},
+		JamfBinaryVersion: "10.45.0-t1678116779",
+	}
+	newProfile := &devicepb.DeviceProfile{
+		ModelIdentifier:   oldProfile.ModelIdentifier,
+		OsVersion:         "13.3.1",     // newer
+		OsBuild:           "22E772610a", // newer
+		OsUsernames:       oldProfile.OsUsernames,
+		JamfBinaryVersion: oldProfile.JamfBinaryVersion,
+	}
+
+	// allDevices is the canonical set of devices for most tests.
+	// A few test cases will add additional devices, but subsequent cases will
+	// often restore storage to `allDevices`.
+	allDevices := []*devicepb.Device{
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+			// Complete profile.
+			Profile: oldProfile,
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "alpaca",
+			// Profile omitted from here onwards for brevity.
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "ignoresource",
+			Source: &devicepb.DeviceSource{
+				Name:   "ignored",
+				Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, // Sync source takes precedence.
+			},
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "dev1",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "dev2",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "dev3",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+			AssetTag: "dev1", // same tag, different OS
+		},
+	}
+	llamaDev := allDevices[0]
+	alpacaDev := allDevices[1]
+	// ignoresource skipped
+	dev1 := allDevices[3]
+	dev2 := allDevices[4]
+	dev3 := allDevices[5]
+	// dev1/Windows skipped
+
+	// Codes default to OK.
+	allDevicesOK := make([]codes.Code, len(allDevices))
+
+	assertNoChanges := func(t *testing.T, _ [][]*devicepb.DeviceOrStatus, devsBefore []*devicepb.Device) {
+		t.Helper()
+
+		got, err := listAllDevices(ctx, devices)
+		if err != nil {
+			t.Fatalf("listAllDevices failed: %v", err)
+		}
+		if diff := cmp.Diff(devsBefore, got, protocmp.Transform()); diff != "" {
+			t.Errorf("Stored devices mismatch (-want +got)\n%s", diff)
+		}
+	}
+
+	// assertStoredTags matches stored devices against `want`, considering only
+	// the OsType and AssetTag fields.
+	assertStoredDevs := func(wantDevs ...*devicepb.Device) func(t *testing.T, _ [][]*devicepb.DeviceOrStatus, _ []*devicepb.Device) {
+		return func(t *testing.T, _ [][]*devicepb.DeviceOrStatus, _ []*devicepb.Device) {
+			t.Helper()
+
+			stored, err := listAllDevices(ctx, devices)
+			if err != nil {
+				t.Fatalf("listAllDevices failed: %v", err)
+			}
+
+			type deviceKey struct {
+				OsType   devicepb.OSType
+				AssetTag string
+			}
+
+			toDeviceKeys := func(devs []*devicepb.Device) map[deviceKey]struct{} {
+				res := make(map[deviceKey]struct{})
+				for _, d := range devs {
+					res[deviceKey{
+						OsType:   d.OsType,
+						AssetTag: d.AssetTag,
+					}] = struct{}{}
+				}
+				return res
+			}
+
+			got := toDeviceKeys(stored)
+			want := toDeviceKeys(wantDevs)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("Stored devices mismatch (-want +got)\n%s", diff)
+			}
+		}
+	}
+
+	// Run sync tests against `allDevices`.
+	// The first test case creates `allDevices`, subsequent tests make no changes.
+	runSyncInventoryTests(t, ctx, devices, []syncInventoryTest{
+		{
+			name: "partial sync",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices[0:2],
+				allDevices[2:4],
+				allDevices[4:],
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+					codes.OK,
+				},
+				{
+					codes.OK,
+					codes.OK,
+				},
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+				},
+			},
+			wantUniqueDevices: len(allDevices),
+		},
+		{
+			name: "partial no changes",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices,
+			},
+			wantCodes: [][]codes.Code{
+				allDevicesOK,
+			},
+			wantUniqueDevices: len(allDevices),
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "partial doesn't cause deletion",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{llamaDev}, // only one device
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK},
+			},
+			wantUniqueDevices: 1,
+			assertSync: func(t *testing.T, got [][]*devicepb.DeviceOrStatus, devsBefore []*devicepb.Device) {
+				// Sanity check.
+				if got, want := len(devsBefore), len(allDevices); got != want {
+					t.Errorf("Got %v devices before sync, want %v", got, want)
+				}
+
+				// No changes or deletions.
+				assertNoChanges(t, got, devsBefore)
+			},
+		},
+		{
+			// The same as above, except for on_missing_action=DELETE.
+			name: "partial ignores on_missing_action",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{llamaDev}, // only one device
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK},
+			},
+			wantUniqueDevices: 1,
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "full multiple pages",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices[0:3],
+				allDevices[3:6],
+				allDevices[6:],
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+				},
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+				},
+				{
+					codes.OK,
+				},
+			},
+			wantUniqueDevices: len(allDevices),
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "full single page",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices,
+			},
+			wantCodes: [][]codes.Code{
+				allDevicesOK,
+			},
+			wantUniqueDevices: len(allDevices),
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "full on_missing_action=NOOP",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{llamaDev}, // only one device
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK},
+			},
+			wantUniqueDevices: 1,
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "full with external failure causes no deletions",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: &devicepb.SyncInventoryEnd{
+				ExternalSyncSuccessful: false, // disables on_missing_action=DELETE
+			},
+			devicePages: [][]*devicepb.Device{
+				{llamaDev}, // only one device
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK},
+			},
+			wantUniqueDevices: 1,
+			assertSync:        assertNoChanges,
+		},
+		{
+			name: "empty full sync causes no deletions",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{}, // empty page
+				{
+					{OsType: 0, AssetTag: "missingOsType"},                // invalid
+					{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: ""}, // invalid
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{}, // empty first page
+				{codes.InvalidArgument, codes.InvalidArgument},
+			},
+			wantUniqueDevices: 0, // nothing generated an Id
+			assertSync:        assertNoChanges,
+		},
+	})
+
+	// Test updates against `allDevices`.
+	runSyncInventoryTests(t, ctx, devices, []syncInventoryTest{
+		{
+			name: "partial with update",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					alpacaDev,
+				},
+				{
+					dev1,
+					dev1, // repeated
+					dev2,
+					{OsType: 0, AssetTag: "missingOsType"}, // invalid
+					{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: ""}, // invalid
+				},
+				{
+					dev3,
+					{
+						OsType:   llamaDev.OsType,
+						AssetTag: llamaDev.AssetTag,
+						Profile:  newProfile, // changed
+					},
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+				},
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+					codes.InvalidArgument,
+					codes.InvalidArgument,
+				},
+				{
+					codes.OK,
+					codes.OK, // llama update
+				},
+			},
+			wantUniqueDevices: 5,
+		},
+		{
+			name: "full with update",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+				Mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					dev1,
+					{
+						OsType:   alpacaDev.OsType,
+						AssetTag: alpacaDev.AssetTag,
+						Profile:  newProfile, // added
+					},
+					dev2,
+					dev3,
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+					codes.OK, // alpaca update
+					codes.OK,
+					codes.OK,
+				},
+			},
+			wantUniqueDevices: 4,
+		},
+	})
+
+	// Add new devices.
+	runSyncInventoryTests(t, ctx, devices, []syncInventoryTest{
+		{
+			name: "partial with update and create",
+			start: &devicepb.SyncInventoryStart{
+				Source: jamfSource,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					dev1,
+					dev2,
+					{
+						OsType:   devicepb.OSType_OS_TYPE_MACOS,
+						AssetTag: "dev40",
+					},
+					{
+						OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+						AssetTag: "dev40",
+					},
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+					codes.OK,
+				},
+			},
+			wantUniqueDevices: 4,
+		},
+	})
+
+	// Destructive FULL updates.
+	dev50 := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "dev50",
+	}
+	dev50Win := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+		AssetTag: "dev50",
+	}
+	runSyncInventoryTests(t, ctx, devices, []syncInventoryTest{
+		{
+			name: "full with deletion",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					dev2,
+					dev3,
+					llamaDev,
+					alpacaDev,
+				},
+				{
+					dev50,    // new
+					dev50Win, // new
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK, // noop
+					codes.OK, // noop
+					codes.OK, // noop
+					codes.OK, // noop
+				},
+				{
+					codes.OK, // created
+					codes.OK, // created
+				},
+				{
+					codes.OK, // dev1, deleted
+					codes.OK, // ignoresource, deleted
+					codes.OK, // dev1/Windows, deleted
+					codes.OK, // dev40 deleted
+					codes.OK, // dev40/Windows, deleted
+				},
+			},
+			wantUniqueDevices: 11,
+			assertSync:        assertStoredDevs(dev2, dev3, llamaDev, alpacaDev, dev50, dev50Win),
+		},
+		{
+			name: "full with inventory wipe",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{dev2},
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK}, // dev2, kept
+				{
+					codes.OK, // dev3, deleted
+					codes.OK, // alpaca, deleted
+					codes.OK, // llama, deleted
+					codes.OK, // dev50, deleted
+					codes.OK, // dev50/Windows, deleted
+				},
+			},
+			wantUniqueDevices: 6,
+			assertSync:        assertStoredDevs(dev2),
+		},
+
+		{
+			name: "full doesn't delete devices that failed to update",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					{
+						OsType:   dev2.OsType,
+						AssetTag: dev2.AssetTag,
+						Profile: &devicepb.DeviceProfile{
+							OsUsernames: []string{"" /* invalid */, "llama"},
+						},
+					},
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{codes.InvalidArgument},
+			},
+			wantUniqueDevices: 0,                      // non-OK status for dev2
+			assertSync:        assertStoredDevs(dev2), // dev2 not deleted!
+		},
+		{
+			name: "full rebuild",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices,
+			},
+			wantCodes: [][]codes.Code{
+				allDevicesOK,
+			},
+			wantUniqueDevices: len(allDevices),
+			assertSync:        assertStoredDevs(allDevices...),
+		},
+	})
+
+	// Deletions and multiple sources.
+	tctlDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "createdByTctl",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	otherSource := &devicepb.DeviceSource{
+		Name:   "myscript",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
+	}
+	runSyncInventoryTests(t, ctx, devices, []syncInventoryTest{
+		{
+			name: "other source takes ownership",
+			start: &devicepb.SyncInventoryStart{
+				Source:          otherSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{
+					dev1, // takes ownership
+					dev2, // takes ownership
+					dev3, // takes ownership
+				},
+			},
+			wantCodes: [][]codes.Code{
+				{
+					codes.OK,
+					codes.OK,
+					codes.OK,
+				},
+			},
+			wantUniqueDevices: 3,
+			assertSync:        assertStoredDevs(append(allDevices, tctlDev)...),
+		},
+		{
+			name: "on_missing_action respects source",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				{dev1}, // takes ownership again
+			},
+			wantCodes: [][]codes.Code{
+				{codes.OK},
+				{
+					codes.OK, // llama, deleted
+					codes.OK, // alpaca, deleted
+					codes.OK, // ignoresource, deleted
+					codes.OK, // dev1/Windows, deleted
+				},
+			},
+			wantUniqueDevices: 5,
+			assertSync: assertStoredDevs(
+				dev1,       // owned by jamf
+				dev2, dev3, // owned by otherSource
+				tctlDev, // owned by "null" source
+			),
+		},
+		{
+			name: "full rebuild",
+			start: &devicepb.SyncInventoryStart{
+				Source:          jamfSource,
+				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+			},
+			end: endSuccess,
+			devicePages: [][]*devicepb.Device{
+				allDevices,
+			},
+			wantCodes: [][]codes.Code{
+				allDevicesOK,
+			},
+			wantUniqueDevices: len(allDevices),
+			assertSync:        assertStoredDevs(append(allDevices, tctlDev)...),
+		},
+	})
+}
+
+func runSyncInventoryTests(t *testing.T, ctx context.Context, devices devicepb.DeviceTrustServiceClient, tests []syncInventoryTest) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Fetch stored devices prior to sync.
+			devsBefore, err := listAllDevices(ctx, devices)
+			if err != nil {
+				t.Fatalf("listAllDevices failed: %v", err)
+			}
+
+			// Sync!
+			got, err := syncInventoryPages(ctx, devices, test.start, test.end, test.devicePages)
+			if err != nil {
+				t.Fatalf("SyncInventory failed: %v", err)
+			}
+
+			// Verify response codes.
+			gotCodes := make([][]codes.Code, len(got))
+			for i, page := range got {
+				gotCodes[i] = make([]codes.Code, len(page))
+				for j, s := range page {
+					gotCodes[i][j] = codes.Code(s.GetStatus().GetCode())
+				}
+			}
+			if diff := cmp.Diff(test.wantCodes, gotCodes); diff != "" {
+				t.Fatalf("SyncInventory codes mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify that non-end pages are not deletions.
+			l := len(got)
+			for i, page := range got[:l-1] {
+				for j, s := range page {
+					if s.Deleted {
+						t.Errorf("got[%v][%v]: item in non-end page is a deletion: %v", i, j, s)
+					}
+				}
+			}
+			// End page is either all deletes or no deletes.
+			var isDeleted *bool
+			for i, s := range got[l-1] {
+				if codes.Code(s.GetStatus().GetCode()) != codes.OK {
+					continue
+				}
+				if isDeleted == nil {
+					isDeleted = &s.Deleted
+					continue
+				}
+				if s.Deleted != *isDeleted {
+					t.Errorf("got[%v][%v]: end page has a mix of deletes and non-deletes: %v (want %v)", l-1, i, s, *isDeleted)
+				}
+			}
+
+			// Verify response against storage.
+			uniqueDevs := make(map[string]struct{})
+			for i, page := range got {
+				for j, s := range page {
+					switch {
+					// Skip non-OK codes.
+					case codes.Code(s.GetStatus().GetCode()) != codes.OK:
+						continue
+					// All OK codes must have an ID.
+					case s.Id == "":
+						t.Errorf("got[%v][%v].Id is empty", i, j)
+						continue
+					}
+					uniqueDevs[s.Id] = struct{}{}
+
+					// Fetch stored device.
+					got, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+						DeviceId: s.Id,
+					})
+					switch {
+					case s.Deleted && trace.IsNotFound(err):
+						continue
+					case s.Deleted:
+						t.Errorf("got[%v][%v]: GetDevice returned unexpected err=%v, want not found", i, j, err)
+						continue
+					case err != nil:
+						t.Errorf("got[%v][%v]: GetDevice failed: %v", i, j, err)
+						continue
+					}
+
+					// Verify stored device against request.
+					want := proto.Clone(test.devicePages[i][j]).(*devicepb.Device)
+					want.Id = s.Id                       // Acquired from DeviceOrStatus
+					want.Source = test.start.Source      // Copied from start.Source
+					want.ApiVersion = got.ApiVersion     // system-managed
+					want.CreateTime = got.CreateTime     // system-managed
+					want.UpdateTime = got.UpdateTime     // system-managed
+					want.EnrollStatus = got.EnrollStatus // system-managed
+					if want.Profile != nil {
+						want.Profile.UpdateTime = got.Profile.GetUpdateTime() // system-managed
+					}
+					if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+						t.Errorf("SyncInventory: stored device mismatch (-want +got)\n%s", diff)
+					}
+				}
+			}
+
+			// Verify that the number of unique IDs is as expected.
+			if got, want := len(uniqueDevs), test.wantUniqueDevices; got != want {
+				t.Errorf("SyncInventory: got %v unique devices in response, want %v", got, want)
+			}
+
+			if test.assertSync != nil {
+				test.assertSync(t, got, devsBefore)
+			}
+		})
+	}
+}
+
+func TestService_SyncInventory_audit(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	ctx := context.Background()
+	devices := env.DevicesClient
+
+	startFullDelete := &devicepb.SyncInventoryStart{
+		Source: &devicepb.DeviceSource{
+			Name:   "jamf",
+			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+		},
+		Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+		OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+	}
+	endSuccess := &devicepb.SyncInventoryEnd{
+		ExternalSyncSuccessful: true,
+	}
+
+	mustSync := func(t *testing.T, devs []*devicepb.Device) {
+		t.Helper()
+		_, err := syncInventoryPages(ctx, devices, startFullDelete, endSuccess, [][]*devicepb.Device{devs})
+		if err != nil {
+			t.Fatalf("SyncInventory failed: %v", err)
+		}
+	}
+
+	createEvent := wantEvent{Type: events.DeviceCreateEvent, Code: events.DeviceCreateCode}
+	updateEvent := wantEvent{Type: events.DeviceUpdateEvent, Code: events.DeviceUpdateCode}
+	deleteEvent := wantEvent{Type: events.DeviceDeleteEvent, Code: events.DeviceDeleteCode}
+
+	// Create the initial batch of devices.
+	dev1 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev1"}
+	dev1Win := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_WINDOWS, AssetTag: "dev1"}
+	dev2 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev2"}
+	dev3 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev3"}
+	dev4 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev4"}
+	mustSync(t, []*devicepb.Device{
+		dev1,
+		dev1Win,
+		dev2,
+		dev3,
+		dev4,
+	})
+	assertEvents(t, emitter.Events(), []wantEvent{
+		createEvent,
+		createEvent,
+		createEvent,
+		createEvent,
+		createEvent,
+	})
+	emitter.Reset()
+
+	// Cause a few additional creations, updates and deletions.
+	dev11 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev11"}
+	dev12 := &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev12"}
+	newProfile := &devicepb.DeviceProfile{
+		OsVersion: "13.3.1",
+		OsBuild:   "22E772610a",
+	}
+	mustSync(t, []*devicepb.Device{
+		dev1Win, // noop
+		dev2,    // noop
+		{OsType: 0, AssetTag: "invalid1"},
+		{OsType: 0, AssetTag: "invalid2"},
+		dev11, // created
+		dev12, // created
+		{OsType: dev3.OsType, AssetTag: dev3.AssetTag, Profile: newProfile}, // updated
+		// dev1 deleted
+		// dev4 deleted
+	})
+	assertEvents(t, emitter.Events(), []wantEvent{
+		createEvent,
+		createEvent,
+		updateEvent,
+		deleteEvent,
+		deleteEvent,
+	})
+
+	// TODO(codingllama): Test audit on devices_to_remove.
+}
+
+// syncInventoryPages sends `startReq`, then `devicePages` as `devices_to_add`
+// (one send per page), and finally `endReq` to a SyncInventory stream.
+// Statuses are captured, one per sent page, and returned. Deletion reports are
+// flattened and appended as a single result page in the end, if present.
+func syncInventoryPages(
+	ctx context.Context,
+	devices devicepb.DeviceTrustServiceClient,
+	startReq *devicepb.SyncInventoryStart,
+	endReq *devicepb.SyncInventoryEnd,
+	devicePages [][]*devicepb.Device) ([][]*devicepb.DeviceOrStatus, error) {
+	stream, err := devices.SyncInventory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start sync.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_Start{
+			Start: startReq,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("start: Send: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("start Recv: %w", err)
+	}
+	if resp.GetAck() == nil {
+		return nil, fmt.Errorf("start: got payload=%T, want Ack", resp.GetPayload())
+	}
+
+	// Send device pages.
+	results := make([][]*devicepb.DeviceOrStatus, 0, len(devicePages)+1)
+	for _, page := range devicePages {
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
+				DevicesToUpsert: &devicepb.SyncInventoryDevices{
+					Devices: page,
+				},
+			},
+		}); err != nil {
+			return nil, fmt.Errorf("devices: Send: %w", err)
+		}
+		resp, err = stream.Recv()
+		if err != nil {
+			return nil, fmt.Errorf("devices: Recv: %w", err)
+		}
+		res := resp.GetResult()
+		if res == nil {
+			return nil, fmt.Errorf("devices: got payload=%T, want Result", resp.GetPayload())
+		}
+		results = append(results, res.Devices)
+	}
+
+	// End sync.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_End{
+			End: endReq,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("end: Send: %w", err)
+	}
+
+	// Capture (flattened) deletion reports.
+	var deletes []*devicepb.DeviceOrStatus
+	for {
+		resp, err = stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break // Server closed the stream.
+		}
+		if err != nil {
+			return nil, fmt.Errorf("end: Recv: %w", err)
+		}
+		res := resp.GetResult()
+		if res == nil {
+			return nil, fmt.Errorf("end: got payload=%T, want Result", resp.GetPayload())
+		}
+		deletes = append(deletes, resp.GetResult().GetDevices()...)
+	}
+	if len(deletes) > 0 {
+		results = append(results, deletes)
+	}
+
+	return results, nil
+}
+
+func listAllDevices(ctx context.Context, devices devicepb.DeviceTrustServiceClient) ([]*devicepb.Device, error) {
+	var devs []*devicepb.Device
+	var pageToken string
+	for {
+		resp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{
+			PageToken: pageToken,
+			View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		devs = append(devs, resp.Devices...)
+
+		if resp.NextPageToken == "" {
+			return devs, nil
+		}
+		pageToken = resp.NextPageToken
+	}
+}

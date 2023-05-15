@@ -1,0 +1,285 @@
+package devicetrustv1
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+	log "github.com/sirupsen/logrus"
+	spb "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+)
+
+type inventorySyncer struct {
+	logger  *log.Entry
+	storage *storage.S
+
+	createAuditCallback, updateAuditCallback, deleteAuditCallback func(dev *devicepb.Device, err error)
+}
+
+// SyncInventory executes its namesake stream.
+//
+// The `implicitSource` is the source acquired from an MDM Service certificate,
+// if present. If absent, then the source supplied in the start message is used.
+//
+// Audit callbacks are invoked as appropriate, regardless of the outcome (`dev`
+// may be nil and `err` may be non-nil). The exception are successful noop
+// updates, which don't generate audit calls.
+//
+// Authorization checks are the responsibility of the caller.
+func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
+	// Start step.
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	startReq := req.GetStart()
+	if startReq == nil {
+		return trace.BadParameter("first message must be SyncInventoryStart")
+	}
+
+	// start: Sync defaults to PARTIAL/NOOP.
+	if startReq.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_UNSPECIFIED {
+		startReq.Mode = devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL
+	}
+	if startReq.OnMissingAction == devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_UNSPECIFIED {
+		startReq.OnMissingAction = devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP
+	}
+
+	// start: Validate source.
+	source := startReq.Source
+	if err := storage.ValidateDeviceSource(source); err != nil {
+		return trace.Wrap(err, "start: source")
+	}
+
+	// start: Ack.
+	if err := stream.Send(&devicepb.SyncInventoryResponse{
+		Payload: &devicepb.SyncInventoryResponse_Ack{
+			Ack: &devicepb.SyncInventoryAck{},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx := stream.Context()
+
+	sendResult := func(statuses []*devicepb.DeviceOrStatus) error {
+		return stream.Send(&devicepb.SyncInventoryResponse{
+			Payload: &devicepb.SyncInventoryResponse_Result{
+				Result: &devicepb.SyncInventoryResult{
+					Devices: statuses,
+				},
+			},
+		})
+	}
+
+	// FULL sync types, flags and helpers.
+	type deviceKey struct {
+		osType   devicepb.OSType
+		assetTag string
+	}
+
+	fullDeleteSync := startReq.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL &&
+		startReq.OnMissingAction == devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE
+
+	seenDevices := make(map[deviceKey]struct{})
+	updateSeen := func(devs []*devicepb.Device) {
+		if !fullDeleteSync {
+			return
+		}
+
+		for _, dev := range devs {
+			if dev == nil || dev.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED || dev.AssetTag == "" {
+				continue
+			}
+
+			seenDevices[deviceKey{
+				osType:   dev.OsType,
+				assetTag: dev.AssetTag,
+			}] = struct{}{}
+		}
+	}
+
+	// Devices step.
+Devices:
+	for {
+		req, err = stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		var statuses []*devicepb.DeviceOrStatus
+		var err error
+		switch req := req.Payload.(type) {
+		case *devicepb.SyncInventoryRequest_End:
+			break Devices
+		case *devicepb.SyncInventoryRequest_DevicesToUpsert:
+			devs := req.DevicesToUpsert.GetDevices()
+			statuses, err = s.upsertDevices(ctx, source, devs)
+			// err handled below.
+
+			// Mark all devices as seen, regardless of outcome.
+			// We don't want an Update failure to cause a device to be deleted.
+			updateSeen(devs)
+		case *devicepb.SyncInventoryRequest_DevicesToRemove:
+			statuses, err = s.deleteDevices(ctx, req.DevicesToRemove.GetDevices())
+			// err handled below.
+		default:
+			return trace.BadParameter("unexpected payload type %T during devices phase", req)
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := sendResult(statuses); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// End step.
+	// If we are not running the on_missing action just return.
+	// This also applies if we saw no devices above, as a deletion would wipe out
+	// storage otherwise. Better safe than sorry.
+	endReq := req.GetEnd()
+	if !fullDeleteSync ||
+		!endReq.GetExternalSyncSuccessful() ||
+		len(seenDevices) == 0 {
+		return nil
+	}
+
+	// end: FULL mode cleanup.
+	const pageSize = 0 // use default
+	var pageToken string
+	for {
+		// Use RESOURCE view so we get the Source back.
+		devs, nextPageToken, err := s.storage.ListDevices(ctx, pageSize, pageToken, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		var statuses []*devicepb.DeviceOrStatus
+		for _, dev := range devs {
+			// Is the device managed by the source?
+			if dev.Source == nil ||
+				dev.Source.Name != source.Name ||
+				dev.Source.Origin != source.Origin {
+				continue
+			}
+
+			// Did we see the device previously in the sync?
+			key := deviceKey{
+				osType:   dev.OsType,
+				assetTag: dev.AssetTag,
+			}
+			if _, seen := seenDevices[key]; seen {
+				continue
+			}
+
+			// Attempt delete and record the result.
+			err := s.storage.DeleteDevice(ctx, dev.Id)
+			s.deleteAuditCallback(dev, err)
+			statuses = append(statuses, &devicepb.DeviceOrStatus{
+				Status: errToStatus(err),
+				// Always set the ID here, the client has no input to compare
+				// otherwise.
+				Id:      dev.Id,
+				Deleted: err == nil,
+			})
+		}
+
+		// Send deleted devices report.
+		if len(statuses) > 0 {
+			if err := sendResult(statuses); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if nextPageToken == "" {
+			break
+		}
+		pageToken = nextPageToken
+	}
+
+	return nil
+}
+
+func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.DeviceSource, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
+	if len(devs) == 0 {
+		return nil, nil
+	}
+
+	statuses := make([]*devicepb.DeviceOrStatus, len(devs))
+	for i, dev := range devs {
+		// Avoid querying clearly-invalid devices.
+		const createAsResource = false
+		if err := storage.ValidateDeviceForCreate(dev, createAsResource); err != nil {
+			statuses[i] = &devicepb.DeviceOrStatus{
+				Status: errToStatus(err),
+			}
+			continue
+		}
+
+		// Synced devices always use the "global" source.
+		dev.Source = source
+
+		// Find if the device exists.
+		// A non-empty ID is not a guarantee that the device exists, as indexes can
+		// have leftover data, but it's a strong sign that it does.
+		deviceID, err := s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
+		// err handled below.
+
+		// Attempt Update first.
+		var stored *devicepb.Device
+		if err == nil {
+			var prevUpdateTime *timestamppb.Timestamp
+			stored, err = s.storage.UpdateDevice(ctx, deviceID, func(stored *devicepb.Device) *devicepb.Device {
+				prevUpdateTime = stored.UpdateTime
+
+				// Copy system-managed fields and fields that sync can't, by
+				// definition, change.
+				// Everything else we take from the sync device.
+				dev.ApiVersion = stored.ApiVersion
+				dev.Id = stored.Id
+				dev.CreateTime = stored.CreateTime
+				dev.UpdateTime = stored.UpdateTime
+				dev.EnrollStatus = stored.EnrollStatus
+				dev.Credential = stored.Credential
+				return dev
+			})
+			// err handled below
+
+			// Do not issue update audit events for noop updates.
+			// It's too noisy.
+			if err != nil || !proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
+				s.updateAuditCallback(stored, err)
+			}
+		}
+		// Attempt Create if either GetDeviceIDByOSTag or UpdateDevice failed with
+		// not found.
+		if trace.IsNotFound(err) {
+			stored, err = s.storage.CreateDevice(ctx, dev, createAsResource)
+			s.createAuditCallback(stored, err)
+			// err handled below.
+		}
+
+		statuses[i] = &devicepb.DeviceOrStatus{
+			Status: errToStatus(err),
+			Id:     stored.GetId(), // only present on success.
+		}
+	}
+
+	return statuses, nil
+}
+
+func (s *inventorySyncer) deleteDevices(ctx context.Context, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
+	return nil, trace.NotImplemented("devices_to_remove not implemented")
+}
+
+func errToStatus(err error) *spb.Status {
+	return status.Convert(trail.ToGRPC(err)).Proto()
+}

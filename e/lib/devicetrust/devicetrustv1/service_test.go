@@ -39,6 +39,8 @@ import (
 )
 
 func TestService_authz(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
 	authorizer := &fakeAuthorizer{}
 	env := testenv.MustNew(testenv.WithAuthorizer(authorizer))
 	defer env.Close()
@@ -211,6 +213,31 @@ func TestService_authz(t *testing.T) {
 			},
 			rpc: func() error {
 				_, err := devices.UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "SyncInventory",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreate},
+					{rule: types.KindDevice, verb: types.VerbUpdate},
+					{rule: types.KindDevice, verb: types.VerbDelete},
+				},
+			},
+			rpc: func() error {
+				stream, err := devices.SyncInventory(ctx)
+				if err != nil {
+					return err
+				}
+				if err := stream.Send(&devicepb.SyncInventoryRequest{
+					Payload: nil, // missing start payload
+				}); err != nil {
+					return err
+				}
+				// Validation errors from Send typically arrive at Recv.
+				_, err = stream.Recv()
 				return err
 			},
 			assertErr: trace.IsBadParameter,
