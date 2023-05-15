@@ -29,7 +29,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"

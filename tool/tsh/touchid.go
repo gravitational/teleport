@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/asciitable"

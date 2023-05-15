@@ -26,10 +26,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/dustin/go-humanize"
 	ui "github.com/gizak/termui/v3"
 	"github.com/gizak/termui/v3/widgets"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"

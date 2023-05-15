@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
