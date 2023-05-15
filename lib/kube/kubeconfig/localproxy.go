@@ -151,3 +151,32 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 	}
 	return clusters
 }
+
+// LocalProxySelectClusterFromDefaultConfig loads the Teleport kube cluster
+// based on provided context name.
+func LocalProxySelectClusterFromDefaultConfig(defaultConfig *clientcmdapi.Config, clusterAddr, selectContextName string) LocalProxyClusters {
+	if selectContextName == "" {
+		selectContextName = defaultConfig.CurrentContext
+	}
+	context, found := defaultConfig.Contexts[selectContextName]
+	if !found {
+		return nil
+	}
+
+	cluster, found := defaultConfig.Clusters[context.Cluster]
+	if !found || cluster.Server != clusterAddr {
+		return nil
+	}
+	auth, found := defaultConfig.AuthInfos[context.AuthInfo]
+	if !found {
+		return nil
+	}
+
+	return LocalProxyClusters{{
+		TeleportCluster:   context.Cluster,
+		KubeCluster:       KubeClusterFromContext(selectContextName, context.Cluster),
+		Namespace:         context.Namespace,
+		Impersonate:       auth.Impersonate,
+		ImpersonateGroups: auth.ImpersonateGroups,
+	}}
+}

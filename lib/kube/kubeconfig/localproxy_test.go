@@ -50,6 +50,7 @@ func TestLocalProxy(t *testing.T) {
 		KubeClusters:        []string{"kube2"},
 		Credentials:         creds,
 		Exec:                exec,
+		SelectCluster:       "kube2",
 	}, false))
 	require.NoError(t, Update(kubeconfigPath, Values{
 		TeleportClusterName: leafClusterName,
@@ -84,6 +85,48 @@ func TestLocalProxy(t *testing.T) {
 				ImpersonateGroups: []string{"group1", "group2"},
 			},
 		}, clusters)
+	})
+
+	t.Run("LocalProxySelectClusterFromDefaultConfig", func(t *testing.T) {
+		tests := []struct {
+			name          string
+			selectContext string
+			wantClusters  LocalProxyClusters
+		}{
+			{
+				name:          "not Teleport cluster",
+				selectContext: "dev",
+				wantClusters:  nil,
+			},
+			{
+				name:          "not found",
+				selectContext: "not-found",
+				wantClusters:  nil,
+			},
+			{
+				name:          "select Teleport cluster",
+				selectContext: rootClusterName + "-kube1",
+				wantClusters: LocalProxyClusters{{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube1",
+				}},
+			},
+			{
+				name:          "select Teleport cluster (current context)",
+				selectContext: "",
+				wantClusters: LocalProxyClusters{{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube2",
+				}},
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				clusters := LocalProxySelectClusterFromDefaultConfig(configAfterLogins, rootKubeClusterAddr, test.selectContext)
+				require.ElementsMatch(t, test.wantClusters, clusters)
+			})
+		}
 	})
 
 	t.Run("CreateLocalProxyConfig", func(t *testing.T) {

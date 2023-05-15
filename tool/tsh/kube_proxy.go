@@ -91,10 +91,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 	defer localProxy.Close()
 
-	if err := localProxy.WriteKubeConfig(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := c.printTemplate(cf, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
@@ -257,6 +253,10 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	kubeProxy.kubeconfig, err = kubeProxy.createKubeConfig(originalKubeConfig)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := kubeProxy.WriteKubeConfig(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

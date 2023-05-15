@@ -218,6 +218,32 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	return currentProfile, profiles, nil
 }
 
+// TODO
+func LoadProfileFromStore(ps ProfileStore, proxy string) (*profile.Profile, error) {
+	var profileName string
+	var err error
+	if proxy == "" {
+		profileName, err = ps.CurrentProfile()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		profileName, err = utils.Host(proxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	profile, err := ps.GetProfile(profileName)
+	return profile, trace.Wrap(err)
+}
+
+// TODO
+func LoadProfileFromDir(dirPath, proxy string) (*profile.Profile, error) {
+	profile, err := LoadProfileFromStore(NewFSProfileStore(dirPath), proxy)
+	return profile, trace.Wrap(err)
+}
+
 // LoadKeysToKubeFromStore loads the keys for a given teleport cluster and kube cluster from the store.
 // It returns the certificate and private key to be used for the kube cluster.
 // If the keys are not found, it returns an error.
@@ -231,29 +257,8 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 // - $TSH_HOME/$profile.yaml
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 // - $TSH_HOME/keys/$PROXY/$USER
-func LoadKeysToKubeFromStore(dirPath, proxy, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
-	dirPath = profile.FullProfilePath(dirPath)
-
-	profileStore := NewFSProfileStore(dirPath)
-	// tsh stores the profiles using the proxy host as the profile name.
-	profileName, err := utils.Host(proxy)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	if profileName == "" {
-		// If no profile name is provided, default to the current profile.
-		profileName, err = profileStore.CurrentProfile()
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	}
-	// Load the desired profile.
-	profile, err := profileStore.GetProfile(profileName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	fsKeyStore := NewFSKeyStore(dirPath)
+func LoadKeysToKubeFromStore(profile *profile.Profile, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+	fsKeyStore := NewFSKeyStore(profile.Dir)
 
 	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
 	kubeCert, err := os.ReadFile(certPath)
