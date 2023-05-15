@@ -446,12 +446,12 @@ regular expression using Go's `re2` syntax (see the `re2`
 [README](https://github.com/google/re2/wiki/Syntax)).
 
 <Notice type="tip" >
-  For a user to have Kubernetes access they must be asssigned a Teleport role that
-  contains `kubernetes_groups` or `kubernetes_users`. The groups or user assigned
-  must be associated to roles with access to the pods within that Kubernetes
-  cluster. Teleport does not alter those roles to allow or deny access.
-  Teleport confirms access based on the Teleport `pod` role settings at 
-  the Teleport Kubernetes service, and then by the Kubernetes cluster RBAC.
+For a user to access a pod named in a role's `kubernetes_resources` field, the user
+must be assigned a Teleport role that contains at least one value within 
+`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes 
+roles to allow or deny access. Read the next section for an explanation of how the 
+Kubernetes Service evaluates Teleport roles in order to allow or deny access to 
+pods in a cluster.
 </Notice>
  
 ## How the Kubernetes Service evaluates Teleport roles
