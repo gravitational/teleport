@@ -409,7 +409,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		// Try to consume a small amount of tokens first.
 		const lookaheadTokens = 100
 		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
-			if err := sendRateLimitedMessage(h, conversationID, ws); err != nil {
+			err := onMessageFn(assist.MessageKindUIMessage, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
+			if err != nil {
 				return trace.Wrap(err)
 			}
 			continue
@@ -418,10 +419,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		//TODO(jakule): Should we sanitize the payload?
 		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
 			return trace.Wrap(err)
-
-		promptTokens, err := chat.PromptTokens()
-		if err != nil {
-			log.Warnf("Failed to calculate prompt tokens: %v", err)
 		}
 
 		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
@@ -431,7 +428,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 		// Once we know how many tokens were consumed for prompt+completion,
 		// consume the remaining tokens from the rate limiter bucket.
-		extraTokens := promptTokens + completionTokens - lookaheadTokens
+		extraTokens := usedTokens.Prompt + usedTokens.Completion - lookaheadTokens
 		if extraTokens < 0 {
 			extraTokens = 0
 		}
@@ -442,9 +439,9 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
 					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
 						ConversationId:   conversationID,
-						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Competition),
+						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Completion),
 						PromptTokens:     int64(usedTokens.Prompt),
-						CompletionTokens: int64(usedTokens.Competition),
+						CompletionTokens: int64(usedTokens.Completion),
 					},
 				},
 			},
@@ -457,15 +454,4 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	h.log.Debugf("end assistant conversation loop")
 
 	return nil
-}
-
-// Sends a "rate-limited" message to the user without persisting it in the conversation.
-func sendRateLimitedMessage(h *Handler, conversationID string, ws *websocket.Conn) error {
-	protoMsg := &assistantMessage{
-		Type:        messageKindAssistantMessage,
-		Payload:     "You have reached the rate limit. Please try again later.",
-		CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
-	}
-	err := ws.WriteJSON(protoMsg)
-	return trace.Wrap(err)
 }
