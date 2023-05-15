@@ -128,7 +128,7 @@ func TestChat_Complete(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedResp := &Message{Role: "assistant",
-			Content: "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via GPT4.",
+			Content: "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via OpenAI GPT-4.",
 			Idx:     0,
 		}
 		require.Equal(t, expectedResp, msg)
