@@ -120,7 +120,6 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
-	highLimiter             *limiter.RateLimiter
 	// assistantLimiter limits the amount of tokens that can be consumed
 	// by OpenAI API calls when using a shared key.
 	// golang.org/x/time/rate is used, as the oxy ratelimiter
