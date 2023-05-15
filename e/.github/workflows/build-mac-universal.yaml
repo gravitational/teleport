@@ -1,4 +1,4 @@
-name: Build MacOS (Darwin)
+name: Build MacOS (Darwin) Universal
 
 on:
   workflow_call:
@@ -23,11 +23,6 @@ on:
         default: ""
         type: string
 
-      arch:
-        description: 'Build architecture. Either amd64 or arm64'
-        required: true
-        type: string
-
       release:
         description: 'Release level to build. Currently supports `oss` and `enterprise`'
         required: true
@@ -39,6 +34,21 @@ on:
           Use this override to specify a tag for build debugging purposes.
         type: string
         default: ""
+
+      save-artifacts:
+        description: 'Should the build export the build artifacts'
+        required: false
+        type: boolean
+        default: false
+
+      build-packages:
+        description: |
+          Build Mac packages for Teleport, tsh and Teleport Connect.
+          Packages are not build for push builds. Release builds do
+          build packages.
+        required: false
+        type: boolean
+        default: false
 
       environment:
         description: |
@@ -59,7 +69,6 @@ jobs:
     env:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
-      ARCH: ${{ inputs.arch }}
     steps:
       # --- Setup -------------------------------------------------------------
       - name: Checkout Teleport
@@ -75,16 +84,8 @@ jobs:
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
-          echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
-          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
-          echo PKG_CONFIG_PATH="$(make print-fido2-pkg-path)" >> $GITHUB_ENV
-
-      - name: Print versions
-        run: |
           echo "make: $(make --version)"
           echo "node: ${NODE_VERSION}"
-          echo "go: ${GOLANG_VERSION}"
-          echo "rust: ${RUST_VERSION}"
 
       - name: Install Node Toolchain
         uses: actions/setup-node@v3
@@ -95,15 +96,6 @@ jobs:
         run: |
           corepack enable yarn
 
-      - name: Install Go Toolchain
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GOLANG_VERSION }}
-
-      - name: Install Rust Toolchain
-        run: |
-          make ARCH=${ARCH} RUST_VERSION=${RUST_VERSION} rustup-install-target-toolchain
-
       - name: Setup keychain
         env:
           APP_KEY: ${{ secrets.APPLE_APPLICATION_PRIVATE_KEY }}
@@ -113,11 +105,14 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
-      # --- Build -------------------------------------------------------------
-      - name: Build FIDO2
-        run: |
-          make ARCH=${ARCH} build-fido2
+      - name: Download architecture-specific artifacts
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: release
+          path: build/artifacts
 
+      # --- Build -------------------------------------------------------------
       - name: Build Teleport Tarball
         env:
           APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
@@ -125,10 +120,57 @@ jobs:
           ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
           TELEPORT_VERSION: ${{ inputs.release-version }}
         run: |
-          make release OS=darwin ARCH=${ARCH} FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          make release OS=darwin ARCH=universal FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+
+      - name: Build Teleport Package
+        if: inputs.build-packages
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          make pkg ARCH=universal OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+
+      - name: Build tsh Package
+        if: inputs.build-packages
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          make pkg-tsh ARCH=universal OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+
+      - name: Prepare tsh Package for Teleport Connect
+        if: inputs.build-packages
+        env:
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          mkdir -p build/pkg
+          cd build/pkg
+          pkgutil --expand-full ../tsh-*.pkg tsh
+          echo "CONNECT_TSH_APP_PATH=$PWD/tsh/Payload/tsh.app" >> $GITHUB_ENV
+
+      - name: Build Teleport Connect
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CONNECT_TSH_BIN_PATH: ${{ github.workspace }}/build/tsh
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          # Make CONNECT_TSH_APP_PATH override CONNECT_TSH_BIN_PATH by unsetting
+          # the latter if the former is set (by the previous step).
+          [ -n "${CONNECT_TSH_APP_PATH:-}" ] && unset CONNECT_TSH_BIN_PATH
+          make release-connect ARCH=universal ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
       - name: Checksum artifacts
+        if: inputs.save-artifacts
         run: |
           cd build/artifacts
           for f in *; do
@@ -137,10 +179,13 @@ jobs:
           done
 
       - name: Upload artifacts
+        if: inputs.save-artifacts
         uses: actions/upload-artifact/@v3
         with:
           name: release
           path: |
             build/artifacts
             !**/*-unsigned*
+            !**/*-arm64*
+            !**/*-amd64*
           retention-days: 1
