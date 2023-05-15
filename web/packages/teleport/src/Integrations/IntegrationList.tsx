@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
+import openaiIcon from 'design/assets/images/icons/openai.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -36,7 +37,10 @@ import {
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
-  onDeleteIntegration?(i: Integration): void;
+  integrationOps?: {
+    onDeleteIntegration(i: Integration): void;
+    onEditIntegration(i: Integration): void;
+  };
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -86,7 +90,16 @@ export function IntegrationList(props: Props<IntegrationLike>) {
             return (
               <Cell align="right">
                 <MenuButton>
-                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                  <MenuItem
+                    onClick={() => props.integrationOps.onEditIntegration(item)}
+                  >
+                    Edit...
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() =>
+                      props.integrationOps.onDeleteIntegration(item)
+                    }
+                  >
                     Delete...
                   </MenuItem>
                 </MenuButton>
@@ -169,6 +182,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'slack':
         formattedText = 'Slack';
         icon = <IconContainer src={slackIcon} />;
+        break;
+      case 'openai':
+        formattedText = 'OpenAI';
+        icon = <IconContainer src={openaiIcon} />;
         break;
     }
   } else {
