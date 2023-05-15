@@ -208,7 +208,7 @@ session   required   pam_permit.so
 
 Next, create a script that will be run by `pam_exec.so`.
 
-```code
+```bash
 mkdir -p /etc/pam-exec.d
 cat > /etc/pam-exec.d/teleport_acct <<"EOF"
 #!/bin/sh
@@ -221,7 +221,7 @@ chmod +x /etc/pam-exec.d/teleport_acct
 
 This script will check if the login assigned to `TELEPORT_LOGIN` exists and, if
 it does not, it will create it. Any error from `useradd` will be written to
-`/tmp/pam.error`. 
+`/tmp/pam.error`.
 
 The environment variables `TELEPORT_USERNAME` and `TELEPORT_ROLES` can be used
 to write richer scripts that may change the system in other ways based on
@@ -232,7 +232,7 @@ identity information.
   The `useradd` command can have a different path than the example above
   depending on your Linux distribution. Adjust to your particular system as needed
   depending on the result of the following command:
-  
+
   ```code
   $ which useradd
   ```
