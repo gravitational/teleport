@@ -149,6 +149,10 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -214,6 +218,9 @@ type BotConfig struct {
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string `yaml:"diag_addr,omitempty"`
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
@@ -423,6 +430,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		}
 
 		config.Onboarding.SetToken(cf.Token)
+	}
+
+	if cf.DiagAddr != "" {
+		if config.DiagAddr != "" {
+			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+		}
+		config.DiagAddr = cf.DiagAddr
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {
