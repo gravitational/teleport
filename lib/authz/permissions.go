@@ -601,18 +601,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 						),
 					).String(),
 				},
-				// this rule allows the local proxy to read the local SAML IdP CA.
-				{
-					Resources: []string{types.KindCertAuthority},
-					Verbs:     []string{types.VerbRead},
-					Where: builder.And(
-						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
-						builder.Equals(
-							services.ResourceNameExpr,
-							builder.String(clusterName),
-						),
-					).String(),
-				},
 			},
 		},
 	}

@@ -1,5 +1,177 @@
 # Changelog
 
+## 13.0.1 (05/xx/23)
+
+* Helm Charts
+  * Fixed issue with invite token being incorrectly overridden when it was manually created. [#26055](https://github.com/gravitational/teleport/pull/26055)
+
+### Breaking Changes
+
+Please familiarize yourself with the following potentially disruptive changes in
+Teleport 13 before upgrading.
+
+#### Teleport Kubernetes Agent helm chart
+
+When upgrading to Teleport 13, users of the Teleport Kubernetes Agent Helm chart
+that manually create their own Teleport token secret (`secretName=<secretName>` and no auth token provided)
+will need to set the following values:
+
+```yaml
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: false
+  # Name of the Secret to store the teleport join token.
+  name: <secretName>
+```
+
+The Helm chart parameter `secretName` was deprecated in Teleport 13 in favor of
+`joinTokenSecret.name`. `joinTokenSecret.create` indicates whether the Helm
+chart should create and manage the join token secret. If `create` is set to
+`false`, the chart assumes that the secret with the configured name already
+exists at the installation namespace.
+
+## 13.0.0 (05/08/23)
+
+Teleport 13 brings the following marquee features and improvements:
+
+* (Preview) Automatic agent upgrades.
+* (Preview) TLS routing through ALB for Server, Kubernetes and Application Access.
+* (Preview, Enterprise-only) Ability to import applications and groups from Okta to Application Access.
+* (Preview) AWS OpenSearch support for Database Access.
+* (Preview) View and control access to OpenSSH nodes natively in Teleport.
+* Cross-cluster search for Teleport Connect.
+* Kubernetes Access performance improvements.
+* Universal binaries (including Apple Silicon) for macOS.
+* Simplified RDS onboarding flow in Access Management UI.
+* Light theme for Web UI.
+
+### (Preview) Automatic agent upgrades
+
+In Teleport 13 users can configure their Teleport agents deployed via apt/yum
+repositories or a Helm chart to be upgraded automatically.
+
+### (Preview) TLS routing through ALB for Server, Kubernetes and Application Access
+
+Teleport 13 adds single-port TLS routing mode support to Server, Kubernetes and
+Application Access for clusters deployed behind application layer load balancers
+such as AWS ALB.
+
+### (Preview, Enterprise-only) Ability to import applications and groups from Okta to Application Access
+
+In Teleport 13  users can import apps and groups from Okta and use Teleport
+access requests for requesting short-term access to them. This feature is only
+available in the Teleport Enterprise edition.
+
+### (Preview) AWS OpenSearch support for Database Access
+
+Database Access users can now connect to AWS OpenSearch databases.
+
+### (Preview) View and control access to OpenSSH nodes natively in Teleport
+
+In Teleport 13 users will be able register OpenSSH nodes as a resource with the
+cluster.
+
+This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
+and use RBAC to control access to them.
+
+See updated OpenSSH integration guide: https://goteleport.com/docs/ver/13.x/server-access/guides/openssh/.
+
+### Cross-cluster search for Teleport Connect
+
+Teleport Connect now includes a new search experience, allowing you to search
+for and connect to resources across all logged-in clusters.
+
+### Kubernetes Access performance improvements
+
+In Teleport 13 we improved the way Teleport Proxy handles Kubernetes Access
+credentials.
+
+Users will experience better performance when interacting with Kubernetes
+clusters using kubectl or via the API.
+
+### Universal binaries (including Apple Silicon) for macOS
+
+Teleport 13 binaries (including Teleport Connect) will have universal
+architecture and run natively on both Intel and ARM macOS systems.
+
+### Simplified RDS onboarding flow in Access Management UI
+
+When connecting an RDS database using Teleport 13 Access Management UI, users
+can connect their AWS account and select the RDS database to add instead of
+entering details manually.
+
+To try out the new flow, add an RDS database using the Resource Management UI
+in your cluster’s Web UI dashboard.
+
+### Light theme for Web UI
+
+Teleport's web UI includes an optional light theme.
+
+The light theme is enabled by default but can be changed back to the dark theme
+via the top-right corner user settings menu.
+
+### Desktop Access recording export
+
+Session recordings for Windows desktop sessions can now be exported to video
+format for offline playback with the new tsh recordings export command.
+
+### SFTP in Moderated Sessions
+
+Teleport 13 adds the ability to transfer files in Moderated Sessions.
+This feature requires that both the session originator and the moderator
+have joined the session via the web UI.
+
+### Breaking changes
+
+Please familiarize yourself with the following potentially disruptive changes
+in Teleport 13 before upgrading.
+
+#### Default session join mode
+
+Teleport 13 defaults to observer (read-only) mode when joining SSH and Kubernetes
+sessions. Prior versions of Teleport would default to peer mode for SSH sessions
+and moderator mode for Kubernetes sessions. To override the default join mode,
+specify the --mode flag with tsh join.
+
+#### CA rotation deprecation
+
+Teleport 13 removes support for rotating all certificate authorities with
+`tctl auth rotate --type=all`. The `type` flag is now required, which ensures
+that only one CA is rotated at a time, increasing cluster stability during
+rotations.
+
+#### Join token API changes
+
+The default 30-minute expiry no longer applies to tokens created via YAML
+resource files. If you want to enforce an expiration, ensure this is set in the
+`metadata.expires` field. Tokens created using `tctl nodes add` and `tctl tokens add`
+will continue to have a default 30m expiry applied.
+
+Additionally, users of Teleport’s API module will note that the `CreateToken`
+and `UpsertToken` RPCs are now deprecated in favor of `CreateTokenV2` and
+`UpsertTokenV2`. The new V2 variants no longer have a default expiry, so be sure
+to set a TTL if you want your tokens to expire.
+
+The original RPCs are still supported in Teleport 13 and will be removed
+completely for Teleport 14.
+
+#### Enhanced user validation
+
+Teleport 13 will refuse to create or update users that reference non-existent
+roles. In some circumstances, older versions of Teleport would permit you to
+create users and assign them invalid roles. In Teleport 13 this is a hard error.
+
+#### Quay.io registry
+
+Quay.io registry was deprecated in Teleport 11 and starting with Teleport 13,
+Teleport container images are no longer being published to it.
+
+Users should use the public ECR registry: https://goteleport.com/docs/installation/#docker.
+
 ## 12.3.0 (05/01/23)
 
 This release of Teleport contains multiple improvements and bug fixes.

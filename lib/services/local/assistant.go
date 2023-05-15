@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 )
 
 // Conversation is a conversation entry in the backend.
@@ -233,4 +234,20 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 
 	_, err = s.Create(ctx, item)
 	return trace.Wrap(err)
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	reporter, ok := a.Backend.(*backend.Reporter)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	sanitizer, ok := reporter.Backend.(*backend.Sanitizer)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
+	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
 }

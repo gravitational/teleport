@@ -42,6 +42,7 @@ import (
 	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -356,6 +357,89 @@ func (m *mockReceiver) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMe
 	m.receiveMessageCount++
 	m.receiveMessageCountMu.Unlock()
 	return m.receiveMessageRespFn()
+}
+
+func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
+	log := utils.NewLoggerForTests()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	batchInterval := 20 * time.Millisecond
+
+	c1 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	c2 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	m1 := mockEventsProcessor{interval: batchInterval}
+	m2 := mockEventsProcessor{interval: batchInterval}
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	// start two consumer with different mocks in background.
+	go c1.runContinuouslyOnSingleAuth(ctx1, m1.Run)
+	go c2.runContinuouslyOnSingleAuth(ctx2, m2.Run)
+
+	// We want wait till we processing of events starts.
+	// Check if there only single consumer is processing is below.
+	require.Eventually(t, func() bool {
+		// let's wait for at least 2 iteration.
+		return m1.getCount() >= 2 || m2.getCount() >= 2
+	}, 5*batchInterval, batchInterval/2, "events were never processed by mock")
+
+	m1Processing := m1.getCount() >= 2
+	if m1Processing {
+		require.Zero(t, m2.getCount(), "expected 0 events by mock2")
+	} else {
+		require.Zero(t, m1.getCount(), "expected 0 events by mock1")
+	}
+
+	// let's cancel ctx of single mock and verify if 2nd take over.
+	if m1Processing {
+		cancel1()
+		require.Eventually(t, func() bool {
+			return m2.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock2 hasn't started processing")
+	} else {
+		cancel2()
+		require.Eventually(t, func() bool {
+			return m1.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock1 hasn't started processing")
+	}
+}
+
+type mockEventsProcessor struct {
+	mu       sync.Mutex
+	count    int
+	interval time.Duration
+}
+
+func (m *mockEventsProcessor) Run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(m.interval):
+			m.mu.Lock()
+			m.count++
+			m.mu.Unlock()
+		}
+	}
+}
+
+func (m *mockEventsProcessor) getCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.count
 }
 
 func TestRunWithMinInterval(t *testing.T) {
