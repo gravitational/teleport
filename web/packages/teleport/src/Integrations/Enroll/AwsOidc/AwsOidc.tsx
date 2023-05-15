@@ -74,6 +74,7 @@ const RestartAnimation = styled.div`
   left: 50%;
   transform: translate(-50%, 0);
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  color: ${props => props.theme.colors.light};
 
   &:hover {
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
@@ -105,7 +106,9 @@ enum InstructionStep {
 
 export function AwsOidc() {
   const ctx = useTeleport();
-  let clusterPublicUri = ctx.storeUser.state.cluster.publicURL;
+  let clusterPublicUri = getClusterPublicUri(
+    ctx.storeUser.state.cluster.publicURL
+  );
 
   const [stage, setStage] = useState(Stage.Initial);
   const [showRestartAnimation, setShowRestartAnimation] = useState(false);
@@ -358,4 +361,16 @@ function getStageConfig(stage: Stage) {
       restartStage: Stage.ListRoles,
     };
   }
+}
+
+function getClusterPublicUri(uri: string) {
+  const uriParts = uri.split(':');
+  const port = uriParts.length > 1 ? uriParts[1] : '';
+
+  // Strip 443 ports from uri.
+  if (port === '443') {
+    return uriParts[0];
+  }
+
+  return uri;
 }

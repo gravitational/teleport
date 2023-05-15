@@ -421,28 +421,10 @@ policies specified in the next section.
 
 ### IAM policies
 
-Make sure that the IAM role assigned to the Teleport Auth Service is configured
-with sufficient access to DynamoDB. Below is the example of the IAM policy you
-can use: 
+Make sure that the IAM role assigned to Teleport is configured with sufficient
+access to DynamoDB.
 
-```js
-{
-    "Version": "2012-10-17",
-    "Statement": [{
-            "Sid": "AllAPIActionsOnTeleportAuth",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportStreams",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
-        }
-    ]
-}
-```
+(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### Configuring the DynamoDB backend
 
@@ -498,13 +480,6 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
 - `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
-
-### Assigning permissions to the Teleport Auth Service
-
-Make sure that the IAM role assigned to Teleport is configured with sufficient
-access to DynamoDB. Below is an example of the IAM policy we recommend.
-
-(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### DynamoDB autoscaling
 

@@ -134,16 +134,22 @@ func (w *Watcher) fetchAndSend() {
 				// never return the error otherwise it will impact other watchers.
 				return nil
 			}
-			if w.cfg.DiscoveryGroup != "" {
-				// Add the discovery group name to the static labels of each resource.
-				for _, r := range resources {
-					staticLabels := r.GetStaticLabels()
-					if staticLabels == nil {
-						staticLabels = make(map[string]string)
-					}
-					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
-					r.SetStaticLabels(staticLabels)
+
+			for _, r := range resources {
+				staticLabels := r.GetStaticLabels()
+				if staticLabels == nil {
+					staticLabels = make(map[string]string)
 				}
+
+				if w.cfg.DiscoveryGroup != "" {
+					// Add the discovery group name to the static labels of each resource.
+					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
+				}
+
+				// Set the origin to Cloud indicating that the resource was imported from a cloud provider.
+				staticLabels[types.OriginLabel] = types.OriginCloud
+
+				r.SetStaticLabels(staticLabels)
 			}
 
 			fetchersLock.Lock()

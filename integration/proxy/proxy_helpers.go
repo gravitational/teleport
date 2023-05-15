@@ -37,6 +37,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,11 +48,13 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/breaker"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -440,23 +443,28 @@ func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
 	require.NoError(t, err)
 }
 
+const (
+	kubeClusterName             = "gke_project_europecentral2a_cluster1"
+	kubeClusterDefaultNamespace = "default"
+	kubePodName                 = "firstcontainer-66b6c48dd-bqmwk"
+)
+
 func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
-	const clusterName = "gke_project_europecentral2a_cluster1"
 	return clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
-			clusterName: {
+			kubeClusterName: {
 				Server:                serverAddr,
 				InsecureSkipTLSVerify: true,
 				TLSServerName:         sni,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
-			clusterName: {
-				Cluster:  clusterName,
-				AuthInfo: clusterName,
+			kubeClusterName: {
+				Cluster:  kubeClusterName,
+				AuthInfo: kubeClusterName,
 			},
 		},
-		CurrentContext: clusterName,
+		CurrentContext: kubeClusterName,
 	}
 }
 
@@ -469,7 +477,8 @@ func mkPodList() *v1.PodList {
 		Items: []v1.Pod{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "firstcontainer-66b6c48dd-bqmwk",
+					Name:      kubePodName,
+					Namespace: kubeClusterDefaultNamespace,
 				},
 			},
 		},
@@ -587,7 +596,10 @@ func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeClust
 	require.NoError(t, err)
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(teleportCluster, kubeCluster, cert)
-	return alpnproxy.NewKubeMiddleware(certs)
+
+	return alpnproxy.NewKubeMiddleware(certs, func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		return tls.Certificate{}, nil
+	}, clockwork.NewRealClock(), nil)
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -635,6 +647,10 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 
 		conn, err := m.Accept()
 		if err != nil {
+			if utils.IsUseOfClosedNetworkError(err) {
+				continue
+			}
+
 			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
@@ -645,6 +661,7 @@ func (m *mockAWSALBProxy) serve(ctx context.Context) {
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
+				ClientAuth:   tls.NoClientCert,
 			})
 
 			// api.Client may try different connection methods. Just close the
@@ -771,4 +788,22 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
+}
+
+func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
+	t.Helper()
+
+	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
+	require.NoError(t, err)
+
+	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
+		ResourceType:        types.KindKubePod,
+		KubernetesCluster:   kubeClusterName,
+		KubernetesNamespace: kubeClusterDefaultNamespace,
+		TeleportCluster:     tc.SiteName,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.Resources, 1)
+	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
+	require.Equal(t, kubePodName, response.Resources[0].GetName())
 }

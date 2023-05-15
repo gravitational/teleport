@@ -122,7 +122,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		Default(fmt.Sprintf("%v", apidefaults.CertDuration)).
 		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
-	a.authSign.Flag("proxy", `Address of the teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
+	a.authSign.Flag("proxy", `Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
 	a.authSign.Flag("overwrite", "Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.").BoolVar(&a.signOverwrite)
 	// --kube-cluster was an unfortunately chosen flag name, before teleport
 	// supported kubernetes_service and registered kubernetes clusters that are
@@ -656,6 +656,9 @@ Orapki binary was not found. Please create oracle wallet file manually by runnin
 orapki wallet create -wallet {{.walletDir}} -auto_login_only
 orapki wallet import_pkcs12 -wallet {{.walletDir}} -auto_login_only -pkcs12file {{.output}}.p12 -pkcs12pwd {{.password}}
 orapki wallet add -wallet {{.walletDir}} -trusted_cert -auto_login_only -cert {{.output}}.crt
+{{else}}
+Oracle wallet stored in {{.output}} directory created with Oracle Orapki.
+
 {{end}}
 To enable mutual TLS on your Oracle server, add the following settings to Oracle sqlnet.ora configuration file:
 

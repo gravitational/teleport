@@ -77,6 +77,8 @@ export interface Acl {
   plugins: Access;
   integrations: AccessWithUse;
   deviceTrust: Access;
+  lock: Access;
+  assist: Access;
 }
 
 export interface User {

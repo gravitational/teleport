@@ -56,6 +56,8 @@ const (
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
+
+	uiCallToActionClickEvent = "tp.ui.callToAction.click"
 )
 
 // Events that require extra metadata.
@@ -259,6 +261,17 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			}},
 			nil
 
+	case uiCallToActionClickEvent:
+		var cta int32
+		if err := json.Unmarshal([]byte(*req.EventData), &cta); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent{
+				UiCallToActionClickEvent: &usageeventsv1.UICallToActionClickEvent{
+					Cta: usageeventsv1.CTA(cta),
+				}}},
+			nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)
