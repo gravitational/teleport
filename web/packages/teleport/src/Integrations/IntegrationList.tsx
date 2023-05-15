@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Image } from 'design';
-import awsIcon from 'design/assets/images/icons/aws.svg';
+import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import Table, { Cell } from 'design/DataTable';
@@ -193,7 +193,11 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
         formattedText = item.name;
-        icon = <IconContainer src={awsIcon} />;
+        icon = (
+          <SvgIconContainer>
+            <AWSIcon />
+          </SvgIconContainer>
+        );
         break;
     }
   }
@@ -214,5 +218,9 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(Image)`
   width: 22px;
-  padding-right: 8px;
+  margin-right: 10px;
+`;
+
+const SvgIconContainer = styled(Flex)`
+  margin-right: 10px;
 `;
