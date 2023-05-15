@@ -27,12 +27,13 @@ if [ "$1" = "upgrade" ] || [ "$1" = "1" ]; then
   exit 0
 fi
 
+APP="/opt/${sanitizedProductName}"
 BIN=/usr/local/bin
 TSH_SYMLINK_TARGET=$BIN/tsh
 
 # Remove the link to the Electron app binary.
 if type update-alternatives >/dev/null 2>&1; then
-  update-alternatives --remove "${executable}" "$BIN/${executable}"
+  update-alternatives --remove "${executable}" "$APP/${executable}"
  else
   rm -f "$BIN/${executable}"
  fi
