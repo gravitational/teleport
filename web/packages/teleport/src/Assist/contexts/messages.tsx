@@ -165,7 +165,10 @@ async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
-  if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
+  if (
+    message.type === 'CHAT_MESSAGE_ASSISTANT' ||
+    message.type === 'CHAT_MESSAGE_ERROR'
+  ) {
     const newMessage: Message = {
       author: Author.Teleport,
       timestamp: message.created_time,
@@ -276,6 +279,8 @@ async function convertServerMessage(
 
     return (messages: Message[]) => messages.push(newMessage);
   }
+
+  throw new Error('unrecognized message type');
 }
 
 function findIntersection<T>(elems: T[][]): T[] {
@@ -377,9 +382,12 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
+      // When a streaming message ends, or a non-streaming message arrives
       if (
         value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
-        value.type === 'COMMAND'
+        value.type === 'COMMAND' ||
+        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
+        value.type === 'CHAT_MESSAGE_ERROR'
       ) {
         setResponding(false);
       }
