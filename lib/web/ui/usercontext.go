@@ -98,6 +98,8 @@ type userACL struct {
 	Plugins access `json:"plugins"`
 	// Integrations defines whether the user has access to manage integrations.
 	Integrations access `json:"integrations"`
+	// Assist defines access to assist feature.
+	Assist access `json:"assist"`
 }
 
 type authType string
@@ -192,6 +194,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
+	var assistAccess access
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
+
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
@@ -235,6 +242,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
+		Assist:                  assistAccess,
 	}
 
 	// local user

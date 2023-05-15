@@ -313,7 +313,15 @@ func FullProfilePath(dir string) string {
 
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
-	home := os.TempDir()
+	// start with UserHomeDir, which is the fastest option as it
+	// relies only on environment variables and does not perform
+	// a user lookup (which can be very slow on large AD environments)
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		return filepath.Join(home, profileDir)
+	}
+
+	home = os.TempDir()
 	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}

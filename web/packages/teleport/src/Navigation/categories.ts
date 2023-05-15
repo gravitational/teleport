@@ -17,6 +17,7 @@ limitations under the License.
 export enum NavigationCategory {
   Resources = 'Resources',
   Management = 'Management',
+  Assist = 'Assist',
 }
 
 export enum ManagementSection {
@@ -36,4 +37,5 @@ export const MANAGEMENT_NAVIGATION_SECTIONS = [
 export const NAVIGATION_CATEGORIES = [
   NavigationCategory.Resources,
   NavigationCategory.Management,
+  NavigationCategory.Assist,
 ];

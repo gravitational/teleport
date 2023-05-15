@@ -152,7 +152,12 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+
+	if e.Ctx.recordNonInteractiveSession {
+		e.Cmd.Stdout = io.MultiWriter(e.Ctx.multiWriter, channel)
+	} else {
+		e.Cmd.Stdout = channel
+	}
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
