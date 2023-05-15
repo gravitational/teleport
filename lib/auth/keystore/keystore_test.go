@@ -127,16 +127,15 @@ JhuTMEqUaAOZBoQLn+txjl3nu9WwTThJzlY0L4w=
 )
 
 func TestKeyStore(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	modules.SetTestModules(t, &modules.TestModules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			HSM: true,
 		},
 	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
 	skipSoftHSM := os.Getenv("SOFTHSM2_PATH") == ""
 	var softHSMConfig Config
@@ -164,10 +163,11 @@ func TestKeyStore(t *testing.T) {
 
 	yubiSlotNumber := 0
 	backends := []struct {
-		desc       string
-		config     Config
-		isSoftware bool
-		shouldSkip func() bool
+		desc        string
+		config      Config
+		isSoftware  bool
+		shouldSkip  func() bool
+		fakeKeyHack func([]byte) []byte
 	}{
 		{
 			desc: "software",
@@ -233,6 +233,15 @@ func TestKeyStore(t *testing.T) {
 			},
 			shouldSkip: func() bool {
 				return false
+			},
+			fakeKeyHack: func(key []byte) []byte {
+				// GCP KMS keys are never really deleted, their state is just
+				// set to destroyed, so this hack modifies a key to make it
+				// unrecognizable
+				kmsKey, err := parseGCPKMSKeyID(key)
+				require.NoError(t, err)
+				kmsKey.keyVersionName += "fake"
+				return kmsKey.marshal()
 			},
 		},
 	}
@@ -420,6 +429,17 @@ func TestKeyStore(t *testing.T) {
 				_, err := keyStore.getSigner(ctx, rawKeys[i])
 				require.Error(t, err)
 			}
+
+			// Make sure key deletion is aborted when one of the active keys
+			// cannot be found.
+			// Use rawKeys[1] as a fake active key, it was just deleted in the
+			// previous step.
+			fakeActiveKey := rawKeys[1]
+			if tc.fakeKeyHack != nil {
+				fakeActiveKey = tc.fakeKeyHack(fakeActiveKey)
+			}
+			err = keyStore.DeleteUnusedKeys(ctx, [][]byte{fakeActiveKey})
+			require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 			// delete the final key so we don't leak it
 			err = keyStore.deleteKey(ctx, rawKeys[0])

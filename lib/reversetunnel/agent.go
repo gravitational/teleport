@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -115,6 +116,8 @@ type agentConfig struct {
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.
@@ -186,6 +189,8 @@ type agent struct {
 	// drainWG tracks transports and other concurrent operations required
 	// to drain a connection are finished.
 	drainWG sync.WaitGroup
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -202,6 +207,7 @@ func newAgent(config agentConfig) (*agent, error) {
 		drainCancel:    noop,
 		unclaim:        noop,
 		doneConnecting: make(chan struct{}),
+		proxySigner:    config.proxySigner,
 	}, nil
 }
 

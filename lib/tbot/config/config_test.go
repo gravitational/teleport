@@ -56,6 +56,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 		Token:          "foo",
 		CAPins:         []string{"abc123"},
 		AuthServer:     "auth.example.com",
+		DiagAddr:       "127.0.0.1:1337",
+		Debug:          true,
 	}
 	cfg, err := FromCLIConf(&cf)
 	require.NoError(t, err)
@@ -91,6 +93,8 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.True(t, ok)
 
 	require.Equal(t, cf.DestinationDir, destImplReal.Path)
+	require.Equal(t, cf.Debug, cfg.Debug)
+	require.Equal(t, cf.DiagAddr, cfg.DiagAddr)
 }
 
 func TestConfigFile(t *testing.T) {
@@ -130,6 +134,9 @@ func TestConfigFile(t *testing.T) {
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
+
+	require.True(t, cfg.Debug)
+	require.Equal(t, "127.0.0.1:1337", cfg.DiagAddr)
 }
 
 func TestLoadTokenFromFile(t *testing.T) {
@@ -149,6 +156,8 @@ func TestLoadTokenFromFile(t *testing.T) {
 const exampleConfigFile = `
 auth_server: auth.example.com
 renewal_interval: 5m
+debug: true
+diag_addr: 127.0.0.1:1337
 onboarding:
   token: %s
   ca_pins:
@@ -162,3 +171,93 @@ destinations:
       - ssh_client:
           proxy_port: 1234
 `
+
+func TestStorageConfigFromCLIConf(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    *StorageConfig
+		wantErr bool
+	}{
+		{
+			in: "/absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "relative/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "relative/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "./relative/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "./relative/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "file:///absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in: "file:/absolute/dir",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path: "/absolute/dir",
+					},
+				},
+			},
+		},
+		{
+			in:      "file://host/absolute/dir",
+			wantErr: true,
+		},
+		{
+			in: "memory://",
+			want: &StorageConfig{
+				DestinationMixin: DestinationMixin{
+					Memory: &DestinationMemory{},
+				},
+			},
+		},
+		{
+			in:      "memory://foo/bar",
+			wantErr: true,
+		},
+		{
+			in:      "foobar://",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, err := storageConfigFromCLIConf(tt.in)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

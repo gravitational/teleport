@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -83,6 +84,137 @@ func TestParseAccessRequestIDs(t *testing.T) {
 			out, err := ParseAccessRequestIDs(tt.input)
 			tt.assertErr(t, err)
 			require.Equal(t, out, tt.result)
+		})
+	}
+}
+
+func TestIsApprovedFileTransfer(t *testing.T) {
+	// set enterprise for tests
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	// init a session registry
+	reg, _ := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	t.Cleanup(func() { reg.Close() })
+
+	// Create the auditorRole and moderator Party
+	auditorRole, _ := types.NewRole("auditor", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"access"},
+				Kinds: []string{string(types.SSHSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode)},
+			}},
+		},
+	})
+	auditorRoleSet := services.NewRoleSet(auditorRole)
+	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
+	// change the teleport user so we don't match the user in the test cases
+	auditScx.Identity.TeleportUser = "mod"
+	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
+	approvers := make(map[string]*party)
+	auditChan := newMockSSHChannel()
+	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
+
+	// create the accessRole to be used for the requester
+	accessRole, _ := types.NewRole("access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, \"auditor\")", // escape to avoid illegal rune
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionModeratorMode)},
+				Count:  1,
+			}},
+		},
+	})
+	accessRoleSet := services.NewRoleSet(accessRole)
+
+	cases := []struct {
+		name           string
+		expectedResult bool
+		expectedError  string
+		req            *fileTransferRequest
+		reqID          string
+		location       string
+	}{
+
+		{
+			name:           "no file request found with supplied ID",
+			expectedResult: false,
+			expectedError:  "",
+			reqID:          "",
+			req:            nil,
+		},
+		{
+			name:           "no file request found with supplied ID",
+			expectedResult: false,
+			expectedError:  "File transfer request not found",
+			reqID:          "111",
+			req:            nil,
+		},
+		{
+			name:           "current requester does not match original requester",
+			expectedResult: false,
+			expectedError:  "Teleport user does not match original requester",
+			reqID:          "123",
+			req: &fileTransferRequest{
+				requester: "michael",
+				approvers: make(map[string]*party),
+			},
+		},
+		{
+			name:           "current request location does not match original location",
+			expectedResult: false,
+			expectedError:  "requested destination path does not match the current request",
+			reqID:          "123",
+			location:       "~/Downloads",
+			req: &fileTransferRequest{
+				requester: "michael",
+				approvers: make(map[string]*party),
+				location:  "~/badlocation",
+			},
+		},
+		{
+			name:           "approved request",
+			expectedResult: true,
+			expectedError:  "",
+			reqID:          "123",
+			location:       "~/Downloads",
+			req: &fileTransferRequest{
+				requester: "teleportUser",
+				approvers: approvers,
+				location:  "~/Downloads",
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			// create and add a session to the registry
+			sess, _ := testOpenSession(t, reg, accessRoleSet)
+
+			// create a fileTransferRequest. can be nil
+			sess.fileTransferRequests = map[string]*fileTransferRequest{
+				"123": tt.req,
+			}
+
+			// new exec request context
+			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
+			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
+			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
+			scx.SetEnv(sftp.FileTransferDstPath, tt.location)
+			result, err := reg.isApprovedFileTransfer(scx)
+			if err != nil {
+				require.Equal(t, tt.expectedError, err.Error())
+			}
+
+			require.Equal(t, tt.expectedResult, result)
 		})
 	}
 }
@@ -425,7 +557,7 @@ func TestParties(t *testing.T) {
 
 	// If a party leaves, the session should remove the party and continue.
 	p := sess.getParties()[0]
-	p.Close()
+	require.NoError(t, p.Close())
 
 	partyIsRemoved := func() bool {
 		return len(sess.getParties()) == 2 && !sess.isStopped()
@@ -434,8 +566,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-	err = p.ctx.Close()
-	require.NoError(t, err)
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -447,7 +578,8 @@ func TestParties(t *testing.T) {
 	})
 
 	// If all parties are gone, the session should linger for a short duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -457,12 +589,13 @@ func TestParties(t *testing.T) {
 	testJoinSession(t, reg, sess)
 	require.Equal(t, 1, len(sess.getParties()))
 
-	// andvance clock and give lingerAndDie goroutine a second to complete.
+	// advance clock and give lingerAndDie goroutine a second to complete.
 	regClock.Advance(defaults.SessionIdlePeriod)
 	require.False(t, sess.isStopped())
 
 	// If no parties remain it should be closed after the duration.
-	sess.getParties()[0].Close()
+	p = sess.getParties()[0]
+	require.NoError(t, p.Close())
 	require.False(t, sess.isStopped())
 
 	// Wait for session to linger (time.Sleep)
@@ -757,7 +890,12 @@ func TestTrackingSession(t *testing.T) {
 				access:    sessionEvaluator{moderated: tt.moderated},
 			}
 
-			err = sess.trackSession(ctx, me.Name, nil)
+			p := &party{
+				user: me.Name,
+				id:   rsession.NewID(),
+				mode: types.SessionPeerMode,
+			}
+			err = sess.trackSession(ctx, me.Name, nil, p)
 			tt.assertion(t, err)
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})

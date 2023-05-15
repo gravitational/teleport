@@ -27,12 +27,13 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // CertReloaderConfig contains the configuration of the certificate reloader.
 type CertReloaderConfig struct {
 	// KeyPairs are the key and certificate pairs that the proxy will load.
-	KeyPairs []KeyPairPath
+	KeyPairs []servicecfg.KeyPairPath
 	// KeyPairsReloadInterval is the interval between attempts to reload
 	// x509 key pairs. If set to 0, then periodic reloading is disabled.
 	KeyPairsReloadInterval time.Duration

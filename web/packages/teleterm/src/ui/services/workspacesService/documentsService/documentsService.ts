@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, paths, routing, ServerUri } from 'teleterm/ui/uri';
+import { DocumentUri, ServerUri, paths, routing } from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -27,8 +27,10 @@ import {
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
+  DocumentTshNodeWithServerId,
 } from './types';
 
 export class DocumentsService {
@@ -96,22 +98,28 @@ export class DocumentsService {
         options.kubeConfigRelativePath ||
         `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
+      origin: options.origin,
     };
   }
 
-  createTshNodeDocument(serverUri: ServerUri): DocumentTshNode {
-    const { params } = routing.parseServerUri(serverUri);
+  createTshNodeDocument(
+    serverUri: ServerUri,
+    params: { origin: DocumentOrigin }
+  ): DocumentTshNodeWithServerId {
+    const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
+
     return {
       uri,
       kind: 'doc.terminal_tsh_node',
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-      serverId: params.serverId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
+      serverId: routingParams.serverId,
       serverUri,
       title: '',
       login: '',
+      origin: params.origin,
     };
   }
 
@@ -126,6 +134,7 @@ export class DocumentsService {
       targetSubresourceName,
       port,
       gatewayUri,
+      origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
     const title = `${targetUser}@${targetName}`;
@@ -140,6 +149,7 @@ export class DocumentsService {
       gatewayUri,
       title,
       port,
+      origin,
     };
   }
 

@@ -17,11 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -77,6 +77,10 @@ type Database interface {
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
 	SetStatusAWS(AWS)
+	// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+	SetAWSExternalID(id string)
+	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+	SetAWSAssumeRole(roleARN string)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
@@ -223,6 +227,17 @@ func (d *DatabaseV3) SetDynamicLabels(dl map[string]CommandLabel) {
 	d.Spec.DynamicLabels = LabelsToV2(dl)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := d.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := d.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
@@ -329,6 +344,16 @@ func (d *DatabaseV3) SetStatusAWS(aws AWS) {
 	d.Status.AWS = aws
 }
 
+// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSExternalID(id string) {
+	d.Spec.AWS.ExternalID = id
+}
+
+// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
+	d.Spec.AWS.AssumeRoleARN = roleARN
+}
+
 // GetGCP returns GCP information for Cloud SQL databases.
 func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
@@ -397,8 +422,14 @@ func (d *DatabaseV3) IsAWSKeyspaces() bool {
 	return d.GetType() == DatabaseTypeAWSKeyspaces
 }
 
+// IsDynamoDB returns true if this is an AWS hosted DynamoDB database.
 func (d *DatabaseV3) IsDynamoDB() bool {
 	return d.GetType() == DatabaseTypeDynamoDB
+}
+
+// IsOpenSearch returns true if this is an AWS hosted OpenSearch instance.
+func (d *DatabaseV3) IsOpenSearch() bool {
+	return d.GetType() == DatabaseTypeOpenSearch
 }
 
 // IsAWSHosted returns true if database is hosted by AWS.
@@ -418,11 +449,13 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 	aws := d.GetAWS()
 	switch d.Spec.Protocol {
 	case DatabaseTypeCassandra:
-		if aws.AccountID != "" {
+		if !aws.IsEmpty() {
 			return DatabaseTypeAWSKeyspaces, true
 		}
 	case DatabaseTypeDynamoDB:
 		return DatabaseTypeDynamoDB, true
+	case DatabaseTypeOpenSearch:
+		return DatabaseTypeOpenSearch, true
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -468,7 +501,7 @@ func (d *DatabaseV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (d *DatabaseV3) Copy() *DatabaseV3 {
-	return proto.Clone(d).(*DatabaseV3)
+	return utils.CloneProtoMsg(d)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -499,6 +532,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	for key := range d.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("database %q invalid label key: %q", d.GetName(), key)
@@ -507,16 +541,24 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if d.Spec.Protocol == "" {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
-	if d.IsDynamoDB() {
-		// DynamoDB gets its own checking logic for its unusual config.
-		return trace.Wrap(d.handleDynamoDBConfig())
-	}
 	if d.Spec.URI == "" {
-		switch {
-		case d.IsAWSKeyspaces() && d.GetAWS().Region != "":
-			// In case of AWS Hosted Cassandra allow to omit URI.
-			// The URL will be constructed from the database resource based on the region and account ID.
-			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+		switch d.GetType() {
+		case DatabaseTypeAWSKeyspaces:
+			if d.Spec.AWS.Region != "" {
+				// In case of AWS Hosted Cassandra allow to omit URI.
+				// The URL will be constructed from the database resource based on the region and account ID.
+				d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+			} else {
+				return trace.BadParameter("AWS Keyspaces database %q URI is empty and cannot be derived without a configured AWS region",
+					d.GetName())
+			}
+		case DatabaseTypeDynamoDB:
+			if d.Spec.AWS.Region != "" {
+				d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
+			} else {
+				return trace.BadParameter("DynamoDB database %q URI is empty and cannot be derived without a configured AWS region",
+					d.GetName())
+			}
 		default:
 			return trace.BadParameter("database %q URI is empty", d.GetName())
 		}
@@ -529,6 +571,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	// In case of RDS, Aurora or Redshift, AWS information such as region or
 	// cluster ID can be extracted from the endpoint if not provided.
 	switch {
+	case d.IsDynamoDB():
+		if err := d.handleDynamoDBConfig(); err != nil {
+			return trace.Wrap(err)
+		}
+	case d.IsOpenSearch():
+		if err := d.handleOpenSearchConfig(); err != nil {
+			return trace.Wrap(err)
+		}
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
 		details, err := awsutils.ParseRDSEndpoint(d.Spec.URI)
 		if err != nil {
@@ -672,6 +722,13 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if d.Spec.AWS.ExternalID != "" && d.Spec.AWS.AssumeRoleARN == "" && !d.RequireAWSIAMRolesAsUsers() {
+		// Databases that use database username to assume an IAM role do not
+		// need assume_role_arn in configuration when external_id is set.
+		return trace.BadParameter("AWS database %q has external_id %q, but assume_role_arn is empty",
+			d.GetName(), d.Spec.AWS.ExternalID)
+	}
+
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
@@ -710,7 +767,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		d.Spec.AWS.Region = info.Region
 	case d.Spec.AWS.Region != info.Region:
 		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
-		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q, "+
+		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q,"+
 			" omit the URI and it will be derived automatically for the configured AWS region",
 			d.GetName(), d.Spec.AWS.Region, info.Region)
 	}
@@ -718,6 +775,40 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.URI == "" {
 		d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 	}
+	return nil
+}
+
+// handleOpenSearchConfig handles OpenSearch configuration checks.
+func (d *DatabaseV3) handleOpenSearchConfig() error {
+	if d.Spec.AWS.AccountID == "" {
+		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
+	}
+
+	info, err := awsutils.ParseOpensearchEndpoint(d.Spec.URI)
+	switch {
+	case err != nil:
+		// parsing the endpoint can return an error, especially if the custom endpoint feature is in use.
+		// this is fine as long as we have the region explicitly configured.
+		if d.Spec.AWS.Region == "" {
+			// the AWS region is empty, and we can't derive it from the URI, so this is a config error.
+			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
+				d.GetName(), d.Spec.URI)
+		}
+		if awsutils.IsAWSEndpoint(d.Spec.URI) {
+			// The user configured an AWS URI that doesn't look like a OpenSearch endpoint.
+			// The URI must look like: <region>.<service>.<partition>.
+			return trace.Wrap(err)
+		}
+	case d.Spec.AWS.Region == "":
+		// if the AWS region is empty we can just use the region extracted from the URI.
+		d.Spec.AWS.Region = info.Region
+	case d.Spec.AWS.Region != info.Region:
+		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
+		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q,"+
+			" omit the URI and it will be derived automatically for the configured AWS region",
+			d.GetName(), d.Spec.AWS.Region, info.Region)
+	}
+
 	return nil
 }
 
@@ -738,6 +829,9 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 
 // RequireAWSIAMRolesAsUsers returns true for database types that require AWS
 // IAM roles as database users.
+// IMPORTANT: if you add a database that requires AWS IAM Roles as users,
+// and that database supports discovery, be sure to update RequireAWSIAMRolesAsUsersMatchers
+// in lib/services as well.
 func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	awsType, ok := d.getAWSType()
 	if !ok {
@@ -747,6 +841,7 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	switch awsType {
 	case DatabaseTypeAWSKeyspaces,
 		DatabaseTypeDynamoDB,
+		DatabaseTypeOpenSearch,
 		DatabaseTypeRedshiftServerless:
 		return true
 	default:
@@ -779,6 +874,8 @@ const (
 	DatabaseTypeCassandra = "cassandra"
 	// DatabaseTypeDynamoDB is a DynamoDB database.
 	DatabaseTypeDynamoDB = "dynamodb"
+	// DatabaseTypeOpenSearch is AWS-hosted OpenSearch instance.
+	DatabaseTypeOpenSearch = "opensearch"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".
@@ -827,3 +924,58 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+
+// UnmarshalJSON supports parsing DatabaseTLSMode from number or string.
+func (d *DatabaseTLSMode) UnmarshalJSON(data []byte) error {
+	type loopBreaker DatabaseTLSMode
+	var val loopBreaker
+	// try as number first.
+	if err := json.Unmarshal(data, &val); err == nil {
+		*d = DatabaseTLSMode(val)
+		return nil
+	}
+
+	// fallback to string.
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+// UnmarshalYAML supports parsing DatabaseTLSMode from number or string.
+func (d *DatabaseTLSMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// try as number first.
+	type loopBreaker DatabaseTLSMode
+	var val loopBreaker
+	if err := unmarshal(&val); err == nil {
+		*d = DatabaseTLSMode(val)
+		return nil
+	}
+
+	// fallback to string.
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+// decodeName decodes DatabaseTLSMode from a string. This is necessary for
+// allowing tctl commands to work with the same names as documented in Teleport
+// configuration, rather than requiring it be specified as an unreadable enum
+// number.
+func (d *DatabaseTLSMode) decodeName(name string) error {
+	switch name {
+	case "verify-full", "":
+		*d = DatabaseTLSMode_VERIFY_FULL
+		return nil
+	case "verify-ca":
+		*d = DatabaseTLSMode_VERIFY_CA
+		return nil
+	case "insecure":
+		*d = DatabaseTLSMode_INSECURE
+		return nil
+	}
+	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}

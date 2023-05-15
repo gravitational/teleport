@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -123,11 +124,11 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.Len(t, allRC, 2)
 
 	// delete cluster
-	err = presenceBackend.DeleteRemoteCluster("foo")
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 
 	// make sure it's really gone
-	err = presenceBackend.DeleteRemoteCluster("foo")
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
 }
@@ -581,23 +582,30 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
-		"KubeService": {
-			resourceType: types.KindKubeService,
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: name, StaticLabels: labels},
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
 					},
-				}, labels)
+					types.KubernetesClusterSpecV3{},
+				)
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
 				if err != nil {
 					return err
 				}
 
 				// Upsert server.
-				return presence.UpsertKubeService(ctx, server)
+				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+				return err
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				return presence.DeleteAllKubeServices(ctx)
+				return presence.DeleteAllKubernetesServers(ctx)
 			},
 		},
 		"Node": {
@@ -1247,7 +1255,8 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 								Name:   names[i],
 								Labels: labels[i],
 							},
-							Spec: types.AppSpecV3{URI: "_"}},
+							Spec: types.AppSpecV3{URI: "_"},
+						},
 					})
 					require.NoError(t, err)
 					_, err = presence.UpsertApplicationServer(ctx, server)
@@ -1260,16 +1269,25 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
 				for i := 0; i < len(names); i++ {
-					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
-						KubernetesClusters: []*types.KubernetesCluster{
-							// Test dedup inside this list as well as from each service.
-							{Name: names[i], StaticLabels: labels[i]},
-							{Name: names[i], StaticLabels: labels[i]},
+
+					kube, err := types.NewKubernetesClusterV3(
+						types.Metadata{
+							Name:   names[i],
+							Labels: labels[i],
 						},
-					})
+						types.KubernetesClusterSpecV3{},
+					)
 					require.NoError(t, err)
-					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					kubeServer, err := types.NewKubernetesServerV3FromCluster(
+						kube,
+						fmt.Sprintf("host-%v", i),
+						fmt.Sprintf("hostID-%v", i),
+					)
 					require.NoError(t, err)
+					// Upsert server.
+					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+
 				}
 			},
 		},
@@ -1292,4 +1310,85 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
 		})
 	}
+}
+
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presence := NewPresenceService(bk)
+
+	serverInfoA, err := types.NewServerInfo(types.Metadata{
+		Name: "server1",
+		Labels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}, types.ServerInfoSpecV1{
+		AWS: &types.ServerInfoSpecV1_AWSInfo{
+			AccountID:  "abcd",
+			InstanceID: "1234",
+		},
+	})
+	require.NoError(t, err)
+
+	serverInfoB, err := types.NewServerInfo(types.Metadata{
+		Name: "server2",
+	}, types.ServerInfoSpecV1{
+		AWS: &types.ServerInfoSpecV1_AWSInfo{
+			AccountID:  "efgh",
+			InstanceID: "5678",
+		},
+	})
+	require.NoError(t, err)
+
+	// No infos present initially.
+	out, err := stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create infos.
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoA))
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+
+	// Get server infos.
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	_, err = presence.GetServerInfo(ctx, "nonexistant")
+	require.True(t, trace.IsNotFound(err))
+
+	// Delete a server info.
+	require.NoError(t, presence.DeleteServerInfo(ctx, serverInfoA.GetName()))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update server info.
+	serverInfoB.SetStaticLabels(map[string]string{
+		"e": "f",
+		"g": "h",
+	})
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Delete all server infos.
+	require.NoError(t, presence.DeleteAllServerInfos(ctx))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
 }

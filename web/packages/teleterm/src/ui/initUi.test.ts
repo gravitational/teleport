@@ -21,12 +21,6 @@ import { Dialog } from 'teleterm/ui/services/modals';
 
 import { initUi } from './initUi';
 
-jest.mock('teleterm/staticConfig', () => ({
-  staticConfig: {
-    prehogAddress: 'localhost',
-  },
-}));
-
 beforeAll(() => {
   Logger.init(new NullService());
 });
@@ -107,6 +101,25 @@ describe('usage reporting dialogs', () => {
       expect.objectContaining({ kind: 'user-job-role' })
     );
   });
+});
+
+test('no dialog is shown when config file did not load properly', async () => {
+  const mockedAppContext = new MockAppContext();
+  jest
+    .spyOn(mockedAppContext.mainProcessClient.configService, 'getConfigError')
+    .mockImplementation(() => ({ source: 'file-loading', error: new Error() }));
+  mockOpenRegularDialog(mockedAppContext);
+
+  await initUi(mockedAppContext);
+
+  expect(
+    mockedAppContext.modalsService.openRegularDialog
+  ).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'usage-data' }));
+  expect(
+    mockedAppContext.modalsService.openRegularDialog
+  ).not.toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'user-job-role' })
+  );
 });
 
 function mockUsageReportingEnabled(

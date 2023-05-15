@@ -20,6 +20,7 @@ export function makeDesktop(json): Desktop {
   const { os, name, addr, host_id } = json;
 
   const labels = json.labels || [];
+  const logins = json.logins || [];
 
   return {
     os,
@@ -27,6 +28,7 @@ export function makeDesktop(json): Desktop {
     addr,
     labels,
     host_id,
+    logins,
   };
 }
 

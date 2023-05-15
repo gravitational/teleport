@@ -1,0 +1,9 @@
+Create the bot data directory and grant permissions to access it to the Linux user (in our example, `teleport`) which `tbot` will run as.
+
+```code
+# Make the bot directory and assign ownership to teleport user
+$ sudo mkdir -p /var/lib/teleport/bot
+$ sudo chown teleport:teleport /var/lib/teleport/bot
+# Allow teleport user to open directory
+$ sudo chmod +x /var/lib/teleport /var/lib/teleport/bot
+```

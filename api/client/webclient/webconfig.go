@@ -55,6 +55,20 @@ type WebConfig struct {
 	TunnelPublicAddress string `json:"tunnelPublicAddress,omitempty"`
 	// RecoveryCodesEnabled is a flag that determines if recovery codes are enabled in the cluster.
 	RecoveryCodesEnabled bool `json:"recoveryCodesEnabled,omitempty"`
+	// UIConfig is the configuration for the web UI
+	UI UIConfig `json:"ui,omitempty"`
+	// IsDashboard is a flag that determines if the cluster is running as a "dashboard".
+	// The web UI for dashboards provides functionality for downloading self-hosted licenses and
+	// Teleport Enterprise binaries.
+	IsDashboard bool `json:"isDashboard,omitempty"`
+	// IsUsageBasedBilling determines if the cloud user subscription is usage-based (pay-as-you-go).
+	IsUsageBasedBilling bool `json:"isUsageBasedBilling,omitempty"`
+}
+
+// UIConfig provides config options for the web UI served by the proxy service.
+type UIConfig struct {
+	// ScrollbackLines is the max number of lines the UI terminal can display in its history
+	ScrollbackLines int `json:"scrollbackLines,omitempty"` //nolint:unused // marshaled in config/configuration.go for WebConfig
 }
 
 // WebConfigAuthProvider describes auth. provider

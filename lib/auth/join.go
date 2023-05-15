@@ -125,6 +125,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 		joinAttributeSrc = claims
+	case types.JoinMethodGitLab:
+		claims, err := a.checkGitLabJoinRequest(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		joinAttributeSrc = claims
 	case types.JoinMethodCircleCI:
 		claims, err := a.checkCircleCIJoinRequest(ctx, req)
 		if err != nil {
@@ -133,6 +139,10 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		joinAttributeSrc = claims
 	case types.JoinMethodKubernetes:
 		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case types.JoinMethodGCP:
+		if err := a.checkGCPJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodToken:
@@ -189,8 +199,11 @@ func (a *Server) generateCertsBot(
 		renewable = true
 	case types.JoinMethodIAM,
 		types.JoinMethodGitHub,
+		types.JoinMethodGitLab,
 		types.JoinMethodCircleCI,
-		types.JoinMethodKubernetes:
+		types.JoinMethodKubernetes,
+		types.JoinMethodAzure,
+		types.JoinMethodGCP:
 		shouldDeleteToken = false
 		renewable = false
 	default:

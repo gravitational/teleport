@@ -49,7 +49,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	for _, authMethod := range d.authMethods {
 		// Create a dialer (that respects HTTP proxies) and connect to remote host.
 		dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
-		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultDialTimeout)
+		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
 		if err != nil {
 			d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
 			continue
@@ -75,7 +75,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			User:            d.username,
 			Auth:            []ssh.AuthMethod{authMethod},
 			HostKeyCallback: callback,
-			Timeout:         apidefaults.DefaultDialTimeout,
+			Timeout:         apidefaults.DefaultIOTimeout,
 		})
 		if err != nil {
 			d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)

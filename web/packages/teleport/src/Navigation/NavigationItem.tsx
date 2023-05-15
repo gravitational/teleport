@@ -21,7 +21,6 @@ import { NavLink } from 'react-router-dom';
 
 import { ExternalLinkIcon } from 'design/SVGIcon';
 
-import { useTeleport } from 'teleport';
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
 import {
@@ -30,7 +29,14 @@ import {
   NavigationItemSize,
 } from 'teleport/Navigation/common';
 
-import type { TeleportFeature } from 'teleport/types';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import { useTeleport } from 'teleport';
+
+import type {
+  TeleportFeature,
+  TeleportFeatureNavigationItem,
+} from 'teleport/types';
 
 interface NavigationItemProps {
   feature: TeleportFeature;
@@ -43,20 +49,21 @@ const ExternalLink = styled.a`
   ${commonNavigationItemStyles};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
+  color: ${props => props.theme.colors.text.main};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: #512fc9;
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
 
     ${LinkContent} {
       font-weight: 700;
@@ -75,9 +82,10 @@ const ExternalLinkIndicator = styled.div`
 
 export function NavigationItem(props: NavigationItemProps) {
   const ctx = useTeleport();
-  const clusterId = ctx.storeUser.getClusterId();
+  const { clusterId } = useStickyClusterId();
 
-  const { navigationItem, route } = props.feature;
+  const { navigationItem, route, isLocked, lockedNavigationItem, lockedRoute } =
+    props.feature;
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -178,18 +186,33 @@ export function NavigationItem(props: NavigationItemProps) {
       );
     }
 
+    let navigationItemVersion: TeleportFeatureNavigationItem;
     if (route) {
+      navigationItemVersion = navigationItem;
+    }
+
+    // use locked item version if feature is locked
+    if (lockedRoute && isLocked?.(ctx.lockedFeatures)) {
+      if (!lockedNavigationItem) {
+        throw new Error(
+          'locked feature without an alternative navigation item'
+        );
+      }
+      navigationItemVersion = lockedNavigationItem;
+    }
+
+    if (navigationItemVersion) {
       return (
         <Link
           {...linkProps}
           onKeyDown={handleKeyDown}
           tabIndex={props.visible ? 0 : -1}
-          to={navigationItem.getLink(clusterId)}
-          exact={navigationItem.exact}
+          to={navigationItemVersion.getLink(clusterId)}
+          exact={navigationItemVersion.exact}
         >
           <LinkContent size={props.size}>
             {getIcon(props.feature, props.size)}
-            {navigationItem.title}
+            {navigationItemVersion.title}
           </LinkContent>
         </Link>
       );

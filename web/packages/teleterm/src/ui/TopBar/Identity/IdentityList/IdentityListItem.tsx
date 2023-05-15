@@ -15,15 +15,11 @@
  */
 
 import React, { useState } from 'react';
-
 import { ButtonIcon, Flex, Label, Text } from 'design';
-
 import { ExitRight } from 'design/Icon';
 
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
-
 import { getUserWithClusterName } from 'teleterm/ui/utils';
 
 interface IdentityListItemProps {
@@ -31,10 +27,8 @@ interface IdentityListItemProps {
   userName?: string;
   clusterName: string;
   isSelected: boolean;
-  isSyncing: boolean;
 
   onSelect(): void;
-
   onLogout(): void;
 }
 
@@ -63,7 +57,6 @@ export function IdentityListItem(props: IdentityListItemProps) {
       }}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
-        {props.isSyncing && <LinearProgress />}
         <Text typography="body1" title={userWithClusterName}>
           {userWithClusterName}
         </Text>

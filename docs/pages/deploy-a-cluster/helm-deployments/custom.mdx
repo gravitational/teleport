@@ -7,17 +7,24 @@ In this guide, we'll explain how to set up a Teleport cluster in Kubernetes
 with a custom [`teleport.yaml`](../../reference/config.mdx) config file
 using Teleport Helm charts.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 This setup can be useful when you already have an existing Teleport cluster and would
 like to start running it in Kubernetes, or when migrating your setup from a legacy
 version of the Helm charts.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+
+## Prerequisites
 
 <Admonition type="warning">
 Those instructions are both for v12 Teleport and the v12 `teleport-cluster` chart.
 If you are running an older Teleport version, use the version selector at the top
 of this page to choose the correct version.
 </Admonition>
-
-## Prerequisites
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
@@ -94,7 +101,7 @@ proxy:
         severity: INFO
     proxy_service:
       enabled: true
-      listen_addr: 0.0.0.0:3080
+      web_listen_addr: 0.0.0.0:3080
       public_addr: custom.example.com:443
       
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
@@ -129,9 +136,7 @@ namespace/teleport labeled
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
-Download your Teleport Enterprise license from the
-[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
-a file called `license.pem`.
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
@@ -151,7 +156,7 @@ Due to this, your `proxy_service.public_addr` should always end in `:443`:
 
 ```yaml
 proxy_service:
-  listen_addr: 0.0.0.0:3080
+  web_listen_addr: 0.0.0.0:3080
   public_addr: custom.example.com:443
 ```
 
@@ -261,9 +266,10 @@ install a new version with the appropriate values.
 
 ## Next steps
 
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/introduction.mdx) section to get started enrolling
+users and setting up RBAC.
+
 To see all of the options you can set in the values file for the
 `teleport-cluster` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-cluster.mdx).
-
-You can follow our [Getting Started with Teleport guide](../../management/guides/docker.mdx#step-34-creating-a-teleport-user)
-to finish setting up your Teleport cluster.

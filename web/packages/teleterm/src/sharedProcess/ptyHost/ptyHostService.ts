@@ -42,6 +42,7 @@ export function createPtyHostService(): IPtyHostServer {
       } catch (error) {
         logger.error(`failed to create PTY process for id ${ptyId}`, error);
         callback(error);
+        return;
       }
       callback(null, new PtyId().setId(ptyId));
       logger.info(`created PTY process for id ${ptyId}`);

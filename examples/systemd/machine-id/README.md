@@ -31,8 +31,8 @@ destination directory so that this user is able to read from it and that the
 ```bash
 $ sudo tbot init \
     --destination-dir=/opt/machine-id \
-    --owner=teleport:teleport
-    --bot-user=teleport
+    --owner=teleport:teleport \
+    --bot-user=teleport \
     --reader-user=jenkins
 ```
 

@@ -91,8 +91,13 @@ func compareServers(a, b types.Server) int {
 	if a.GetNamespace() != b.GetNamespace() {
 		return Different
 	}
-	if a.GetPublicAddr() != b.GetPublicAddr() {
+	if len(a.GetPublicAddrs()) != len(b.GetPublicAddrs()) {
 		return Different
+	}
+	for i := range a.GetPublicAddrs() {
+		if a.GetPublicAddrs()[i] != b.GetPublicAddrs()[i] {
+			return Different
+		}
 	}
 	r := a.GetRotation()
 	if !r.Matches(b.GetRotation()) {
@@ -113,9 +118,7 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
-		return Different
-	}
+
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
@@ -344,38 +347,28 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 		return nil, trace.BadParameter("missing server data")
 	}
 
-	var h types.ResourceHeader
-	if err = utils.FastUnmarshal(bytes, &h); err != nil {
+	var s types.ServerV2
+	if err := utils.FastUnmarshal(bytes, &s); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	s.Kind = kind
+	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch h.Version {
-	case types.V2:
-		var s types.ServerV2
-
-		if err := utils.FastUnmarshal(bytes, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-		s.Kind = kind
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		if s.Metadata.Expires != nil {
-			apiutils.UTC(s.Metadata.Expires)
-		}
-		// Force the timestamps to UTC for consistency.
-		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		apiutils.UTC(&s.Spec.Rotation.Started)
-		apiutils.UTC(&s.Spec.Rotation.LastRotated)
-		return &s, nil
+	if cfg.ID != 0 {
+		s.SetResourceID(cfg.ID)
 	}
-	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
+	if !cfg.Expires.IsZero() {
+		s.SetExpiry(cfg.Expires)
+	}
+	if s.Metadata.Expires != nil {
+		apiutils.UTC(s.Metadata.Expires)
+	}
+	// Force the timestamps to UTC for consistency.
+	// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
+	apiutils.UTC(&s.Spec.Rotation.Started)
+	apiutils.UTC(&s.Spec.Rotation.LastRotated)
+	return &s, nil
 }
 
 // MarshalServer marshals the Server resource to JSON.

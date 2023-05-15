@@ -17,8 +17,10 @@ limitations under the License.
 import { useState, useEffect } from 'react';
 import Logger from 'shared/libs/logger';
 
-import { fetchClusterAlerts } from 'teleport/services/alerts';
+import { alertNames, fetchClusterAlerts } from 'teleport/services/alerts';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+
+import cfg from 'teleport/config';
 
 import type { ClusterAlert } from 'teleport/services/alerts';
 
@@ -69,6 +71,17 @@ export function useAlerts(initialAlerts: ClusterAlert[] = []) {
         if (!res) {
           return;
         }
+
+        // filter upgrade suggestions from showing on dashboards
+        if (cfg.isDashboard) {
+          res = res.filter(alert => {
+            return (
+              alert.metadata.name !== alertNames.RELEASE_ALERT_ID &&
+              alert.metadata.name !== alertNames.SEC_ALERT_ID
+            );
+          });
+        }
+
         setAlerts(res);
       })
       .catch(err => {

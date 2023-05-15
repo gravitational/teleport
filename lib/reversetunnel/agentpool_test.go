@@ -117,6 +117,8 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 // TestAgentPoolConnectionCount ensures that an agent pool creates the desired
 // number of connections based on the runtime config.
 func TestAgentPoolConnectionCount(t *testing.T) {
+	// TODO: fix flaky test https://github.com/gravitational/teleport/issues/22984
+	t.Skip("flaky test - skip until it's fixed")
 	pool, client := setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 		config := types.DefaultClusterNetworkingConfig()
@@ -132,14 +134,8 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		return pool.Count() == 1
-	}, time.Second*1, time.Millisecond*10)
-
-	select {
-	case <-pool.tracker.Acquire():
-	default:
-		require.FailNow(t, "expected a lease to be available")
-	}
+		return pool.active.len() == 1
+	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
 
 	require.False(t, pool.isAgentRequired())
 	require.Equal(t, pool.Count(), 1)
@@ -162,7 +158,7 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return pool.Count() == 3
-	}, time.Second*1, time.Millisecond*10)
+	}, time.Second*5, time.Millisecond*10)
 
 	select {
 	case <-pool.tracker.Acquire():

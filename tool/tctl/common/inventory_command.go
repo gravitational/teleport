@@ -32,14 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
 type InventoryCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	serverID string
 
@@ -59,14 +59,14 @@ type InventoryCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *InventoryCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	inventory := app.Command("inventory", "Manage Teleport instance inventory").Hidden()
 
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
-	c.inventoryList = inventory.Command("list", "List teleport instance inventory").Alias("ls")
+	c.inventoryList = inventory.Command("list", "List Teleport instance inventory").Alias("ls")
 	c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)

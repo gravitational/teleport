@@ -37,14 +37,9 @@ var allowedAzureCommonNames = []string{
 	"metadata.microsoftazure.de",
 }
 
-func isAllowedDomain(rawURL string, domains []string) bool {
-	addr, err := utils.ParseAddr(rawURL)
-	if err != nil {
-		return false
-	}
-	hostname := addr.Host()
+func isAllowedDomain(cn string, domains []string) bool {
 	for _, domain := range domains {
-		if hostname == domain || strings.HasSuffix(hostname, "."+domain) {
+		if cn == domain || strings.HasSuffix(cn, "."+domain) {
 			return true
 		}
 	}
@@ -64,8 +59,12 @@ func getAzureIssuerCert(ctx context.Context, cert *x509.Certificate) (*x509.Cert
 
 	// Azure sends only one issuing cert.
 	issuerURL := cert.IssuingCertificateURL[0]
-	if !isAllowedDomain(issuerURL, allowedAzureCommonNames) {
-		return nil, trace.AccessDenied("certificate issued by an unexpected authority")
+	commonName := cert.Subject.CommonName
+	if !isAllowedDomain(commonName, allowedAzureCommonNames) {
+		return nil, trace.AccessDenied(
+			"certificate common name does not match allow-list (%s)",
+			commonName,
+		)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, issuerURL, nil)
 	if err != nil {

@@ -17,11 +17,11 @@ limitations under the License.
 import React, { useState } from 'react';
 import { components } from 'react-select';
 import 'react-day-picker/lib/style.css';
-import { Text } from 'design';
+import { Text, Box } from 'design';
 import Dialog from 'design/DialogConfirmation';
 import { displayDate } from 'shared/services/loc';
 
-import Select, { Option, DarkStyledSelect } from 'shared/components/Select';
+import Select, { Option } from 'shared/components/Select';
 
 import { State } from 'teleport/Audit/useAuditEvents';
 
@@ -53,7 +53,7 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
 
   return (
     <>
-      <DarkStyledSelect ml={ml} width="210px">
+      <Box ml={ml} width="210px">
         <Select
           isSearchable={false}
           components={{ ValueContainer }}
@@ -61,7 +61,7 @@ export default function DataRange({ ml, range, onChangeRange, ranges }: Props) {
           onChange={handleOnChange}
           value={{ value: range, label: range.name }}
         />
-      </DarkStyledSelect>
+      </Box>
       <Dialog
         dialogCss={() => ({ padding: '0' })}
         disableEscapeKeyDown={false}
@@ -85,7 +85,7 @@ const ValueContainer = ({ children, ...props }) => {
   if (isCustom) {
     return (
       <components.ValueContainer {...props}>
-        <Text color="text.primary">
+        <Text color="text.main">
           {`${displayDate(from)} - ${displayDate(to)}`}
         </Text>
         {children}

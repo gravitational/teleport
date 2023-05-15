@@ -114,7 +114,6 @@ func TestSessionTrackerStorage(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
 	require.Nil(t, tracker)
-
 }
 
 func TestSessionTrackerImplicitExpiry(t *testing.T) {
@@ -234,6 +233,17 @@ func TestSessionTrackerTermination(t *testing.T) {
 		}},
 	}))
 
+	// Try to change the state to running, this should fail because the tracker
+	// is now in a terminal state
+	err = srv.UpdateSessionTracker(ctx, &proto.UpdateSessionTrackerRequest{
+		SessionID: id,
+		Update: &proto.UpdateSessionTrackerRequest_UpdateState{UpdateState: &proto.SessionTrackerUpdateState{
+			State: types.SessionState_SessionStateRunning,
+		}},
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
+
 	// Validate that the tracker still exists
 	sessions, err = srv.GetActiveSessionTrackers(ctx)
 	require.NoError(t, err)
@@ -247,5 +257,4 @@ func TestSessionTrackerTermination(t *testing.T) {
 	sessions, err = srv.GetActiveSessionTrackers(ctx)
 	require.NoError(t, err)
 	require.Empty(t, sessions)
-
 }

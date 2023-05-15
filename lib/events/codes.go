@@ -185,6 +185,13 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
+	ElasticsearchRequestFailureCode = "TES00E"
+
+	// OpenSearchRequestCode is the db.session.opensearch.request event code.
+	OpenSearchRequestCode = "TOS00I"
+	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
+	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
@@ -307,6 +314,8 @@ const (
 	SFTPReadlinkFailureCode = "TS017E"
 	SFTPSymlinkCode         = "TS018I"
 	SFTPSymlinkFailureCode  = "TS018E"
+	SFTPLinkCode            = "TS019I"
+	SFTPLinkFailureCode     = "TS019E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -398,11 +407,61 @@ const (
 	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
+	// DeviceUpdateCode is the device update code.
+	DeviceUpdateCode = "TV007I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
 	// LoginRuleDeleteCode is the login rule delete code.
 	LoginRuleDeleteCode = "TLR01I"
+
+	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
+	SAMLIdPAuthAttemptCode = "TSI000I"
+
+	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
+	SAMLIdPServiceProviderCreateCode = "TSI001I"
+
+	// SAMLIdPServiceProviderCreateFailureCode is the SAML IdP service provider create failure code.
+	SAMLIdPServiceProviderCreateFailureCode = "TSI001W"
+
+	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
+	SAMLIdPServiceProviderUpdateCode = "TSI002I"
+
+	// SAMLIdPServiceProviderUpdateFailureCode is the SAML IdP service provider update failure code.
+	SAMLIdPServiceProviderUpdateFailureCode = "TSI002W"
+
+	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
+	SAMLIdPServiceProviderDeleteCode = "TSI003I"
+
+	// SAMLIdPServiceProviderDeleteFailureCode is the SAML IdP service provider delete failure code.
+	SAMLIdPServiceProviderDeleteFailureCode = "TSI003W"
+
+	// SAMLIdPServiceProviderDeleteAllCode is the SAML IdP service provider delete all code.
+	SAMLIdPServiceProviderDeleteAllCode = "TSI004I"
+
+	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
+	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
+
+	// OktaGroupsUpdateCode is the Okta groups updated code.
+	OktaGroupsUpdateCode = "TOK001I"
+
+	// OktaApplicationsUpdateCode is the Okta applications updated code.
+	OktaApplicationsUpdateCode = "TOK002I"
+
+	// OktaSyncFailureCode is the Okta synchronization failure code.
+	OktaSyncFailureCode = "TOK003E"
+
+	// OktaAssignmentProcessSuccessCode is the Okta assignment process success code.
+	OktaAssignmentProcessSuccessCode = "TOK004I"
+
+	// OktaAssignmentProcessFailureCode is the Okta assignment process failure code.
+	OktaAssignmentProcessFailureCode = "TOK004E"
+
+	// OktaAssignmentCleanupSuccessCode is the Okta assignment cleanup success code.
+	OktaAssignmentCleanupSuccessCode = "TOK005I"
+
+	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
+	OktaAssignmentCleanupFailureCode = "TOK005E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

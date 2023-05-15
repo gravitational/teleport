@@ -14,35 +14,96 @@
  * limitations under the License.
  */
 
-import fs, { existsSync, readFileSync, writeFileSync } from 'fs';
+import fs from 'fs/promises';
 
-import { debounce } from 'lodash';
+import { debounce } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
 const logger = new Logger('FileStorage');
 
 export interface FileStorage {
-  put(path: string, json: any): void;
+  /** Asynchronously updates value for a given key. */
+  put(key: string, json: any): void;
 
-  putAllSync(): void;
+  /** Asynchronously replaces the entire storage state with a new value. */
+  replace(json: any): void;
 
-  get<T>(path?: string): T;
+  /** Asynchronously writes the storage state to disk. */
+  write(): Promise<void>;
+
+  /** Returns value for a given key. If the key is omitted, the entire storage state is returned. */
+  // TODO(ravicious): Add a generic type to createFileStorage rather than returning `unknown`.
+  // https://github.com/gravitational/teleport/pull/22728#discussion_r1129566566
+  get(key?: string): unknown;
+
+  /** Returns the file path used to create the storage. */
+  getFilePath(): string;
+
+  /** Returns the error that could occur while reading and parsing the file. */
+  getFileLoadingError(): Error | undefined;
 }
 
-export function createFileStorage(opts: {
+export async function createFileStorage(opts: {
   filePath: string;
   debounceWrites: boolean;
-}): FileStorage {
+  /** Prevents state updates when the file has not been loaded correctly, so its content will not be overwritten. */
+  discardUpdatesOnLoadError?: boolean;
+}): Promise<FileStorage> {
   if (!opts || !opts.filePath) {
     throw Error('missing filePath');
   }
 
   const { filePath } = opts;
-  const state = loadState(opts.filePath);
 
-  function put(key: string, json: any) {
+  let state: any, error: Error | undefined;
+  try {
+    state = await loadState(filePath);
+  } catch (e) {
+    state = {};
+    error = e;
+    logger.error(`Cannot read ${filePath} file`, e);
+  }
+
+  const discardUpdates = error && opts.discardUpdatesOnLoadError;
+
+  function put(key: string, json: any): void {
+    if (discardUpdates) {
+      return;
+    }
     state[key] = json;
+    stringifyAndWrite();
+  }
+
+  function write(): Promise<void> {
+    if (discardUpdates) {
+      return;
+    }
+    const text = stringify(state);
+    writeFile(filePath, text);
+  }
+
+  function replace(json: any): void {
+    if (discardUpdates) {
+      return;
+    }
+    state = json;
+    stringifyAndWrite();
+  }
+
+  function get(key?: string): unknown {
+    return key ? state[key] : state;
+  }
+
+  function getFilePath(): string {
+    return opts.filePath;
+  }
+
+  function getFileLoadingError(): Error | undefined {
+    return error;
+  }
+
+  function stringifyAndWrite(): void {
     const text = stringify(state);
 
     opts.debounceWrites
@@ -50,36 +111,31 @@ export function createFileStorage(opts: {
       : writeFile(filePath, text);
   }
 
-  function putAllSync() {
-    const text = stringify(state);
-    try {
-      fs.writeFileSync(filePath, text);
-    } catch (error) {
-      logger.error(`Cannot update ${filePath} file`, error);
-    }
-  }
-
-  function get<T>(key?: string): T {
-    return key ? state[key] : (state as T);
-  }
-
   return {
     put,
-    putAllSync,
+    write,
     get,
+    replace,
+    getFilePath,
+    getFileLoadingError,
   };
 }
 
-function loadState(filePath: string) {
-  try {
-    if (!existsSync(filePath)) {
-      writeFileSync(filePath, '{}');
-    }
+async function loadState(filePath: string): Promise<any> {
+  const file = await readOrCreateFile(filePath);
+  return JSON.parse(file);
+}
 
-    return JSON.parse(readFileSync(filePath, { encoding: 'utf-8' }));
+async function readOrCreateFile(filePath: string): Promise<string> {
+  try {
+    return await fs.readFile(filePath, { encoding: 'utf-8' });
   } catch (error) {
-    logger.error(`Cannot read ${filePath} file`, error);
-    return {};
+    const defaultValue = '{}';
+    if (error?.code === 'ENOENT') {
+      await fs.writeFile(filePath, defaultValue);
+      return defaultValue;
+    }
+    throw error;
   }
 }
 
@@ -93,6 +149,6 @@ const writeFileDebounced = debounce(
 );
 
 const writeFile = (filePath: string, text: string) =>
-  fs.promises.writeFile(filePath, text).catch(error => {
+  fs.writeFile(filePath, text).catch(error => {
     logger.error(`Cannot update ${filePath} file`, error);
   });

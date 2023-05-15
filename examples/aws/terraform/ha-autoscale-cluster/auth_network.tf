@@ -87,7 +87,7 @@ resource "aws_security_group_rule" "auth_ingress_allow_cidr_traffic" {
 
 // Allow traffic from nodes to auth servers.
 // Teleport nodes heartbeat presence to auth server.
-// This rule uses CIDR as opposed to security group ip becasue traffic coming from NLB
+// This rule uses CIDR as opposed to security group ip because traffic coming from NLB
 // (network load balancer from Amazon)
 // is not marked with security group ID and rules using the security group ids do not work,
 // so CIDR ranges are necessary.

@@ -15,8 +15,8 @@
  */
 
 import { useStore } from 'shared/libs/stores';
+import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-import { isEqual } from 'lodash';
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
 // @ts-ignore
 import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
@@ -316,6 +316,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           return {
             ...d,
             status: 'connecting',
+            origin: 'reopened_session',
+          };
+        }
+
+        if (d.kind === 'doc.gateway') {
+          return {
+            ...d,
+            origin: 'reopened_session',
           };
         }
         return d;
@@ -344,7 +352,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     return (
       previousDocuments?.length &&
-      !isEqual(
+      !arrayObjectIsEqual(
         omitUriAndTitle(previousDocuments),
         omitUriAndTitle(currentDocuments)
       )

@@ -45,7 +45,7 @@ export function ClusterConnectPanel() {
           <Text typography="h3" bold mb={2}>
             Connect a Cluster
           </Text>
-          <Text color="text.secondary" mb={3} textAlign="center">
+          <Text color="text.slightlyMuted" mb={3} textAlign="center">
             Connect an existing Teleport cluster <br /> to start using Teleport
             Connect.
           </Text>
@@ -60,7 +60,7 @@ export function ClusterConnectPanel() {
 }
 
 const ScrollingContainer = styled(Flex)`
-  background: ${props => props.theme.colors.primary.darker};
+  background: ${props => props.theme.colors.levels.sunken};
   width: 100%;
   overflow: auto;
 `;

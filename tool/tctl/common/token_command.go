@@ -37,14 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format, e.g. text or json
 	format string
@@ -90,7 +90,7 @@ type TokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")

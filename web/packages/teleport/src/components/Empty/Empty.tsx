@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-import { Text, Box, Flex, ButtonPrimary, ButtonOutlined } from 'design';
+import { Text, Box, Flex, ButtonPrimary, ButtonBorder } from 'design';
 import Image from 'design/Image';
 
 import cfg from 'teleport/config';
@@ -58,7 +58,7 @@ export default function Empty(props: Props) {
         mx="auto"
         maxWidth="664px"
         textAlign="center"
-        color="text.primary"
+        color="text.main"
         borderRadius="12px"
       >
         <Text typography="h2" mb="3">
@@ -111,7 +111,7 @@ export default function Empty(props: Props) {
           >
             <ButtonPrimary width="224px">Add {resourceType}</ButtonPrimary>
           </Link>
-          <ButtonOutlined
+          <ButtonBorder
             size="medium"
             as="a"
             href={docsURL}
@@ -121,7 +121,7 @@ export default function Empty(props: Props) {
             rel="noreferrer"
           >
             View Documentation
-          </ButtonOutlined>
+          </ButtonBorder>
         </Box>
       </Box>
     </Box>

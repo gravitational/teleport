@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -29,6 +30,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/integration/helpers"
 )
 
 var testLog = log.WithField(trace.Component, "test")
@@ -74,8 +77,14 @@ func mustGetCandidatePorts(servers []*httptest.Server) []int {
 	return result
 }
 
-func makeTestServer(t *testing.T, h http.Handler) *httptest.Server {
-	svr := httptest.NewTLSServer(h)
+type testServerOption func(*httptest.Server)
+
+func makeTestServer(t *testing.T, h http.Handler, opts ...testServerOption) *httptest.Server {
+	svr := httptest.NewUnstartedServer(h)
+	for _, opt := range opts {
+		opt(svr)
+	}
+	svr.StartTLS()
 	t.Cleanup(func() { svr.Close() })
 	return svr
 }
@@ -258,4 +267,36 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 	// Expect that the resolution will fail with `Deadline Exceeded` due to
 	// the call timing out.
 	require.Equal(t, context.DeadlineExceeded, err)
+}
+
+func TestResolveDefaultAddrHTTPProxy(t *testing.T) {
+	proxyHandler := &helpers.ProxyHandler{}
+	proxyServer := httptest.NewServer(proxyHandler)
+	t.Cleanup(proxyServer.Close)
+
+	// Go won't proxy to localhost, so use this address instead.
+	localIP, err := helpers.GetLocalIP()
+	require.NoError(t, err)
+
+	var serverAddr net.Addr
+	respondingHandler := newRespondingHandler()
+	server := makeTestServer(t, respondingHandler, func(srv *httptest.Server) {
+		// Replace the test server's address.
+		l, err := net.Listen("tcp", localIP+":0")
+		require.NoError(t, err)
+		require.NoError(t, srv.Listener.Close())
+		srv.Listener = l
+		serverAddr = l.Addr()
+	})
+
+	ports := mustGetCandidatePorts([]*httptest.Server{server})
+
+	// Given an http proxy address...
+	t.Setenv("HTTPS_PROXY", proxyServer.URL)
+	// When I attempt to resove an address...
+	addr, err := pickDefaultAddr(context.Background(), true, localIP, ports)
+	// Expect that pickDefaultAddr uses the http proxy.
+	require.NoError(t, err)
+	require.Equal(t, serverAddr.String(), addr)
+	require.Equal(t, 1, proxyHandler.Count())
 }

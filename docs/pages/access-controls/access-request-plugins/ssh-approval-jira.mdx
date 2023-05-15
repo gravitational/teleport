@@ -1,44 +1,39 @@
 ---
-title: SSH login approval using Jira and Teleport
-description: How to configure SSH login approval using Jira and Teleport
-h1: SSH login approvals using Jira
+title: Access Requests using Jira and Teleport
+description: How to configure Access Request approval using Jira and Teleport
 ---
 
 This guide will talk through how to set up Teleport with Jira. Teleport's Jira
 integration allows you to treat Teleport access and permission requests using
 Jira tickets.
 
-## Setup
+## Prerequisites
 
-This guide assumes that you have:
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A running Teleport Cluster
-- Admin privileges with access to `tctl`
 - Jira Server or Jira Cloud installation with an owner privileges, specifically
   to set up webhooks, issue types, and workflows
+- (!docs/pages/includes/tctl.mdx!)
 
-Teleport Cloud requires that plugins connect through the Proxy Service (`mytenant.teleport.sh:443`). Open Source and Enterprise installations can connect to the Auth Service (`auth.example.com:3025`) directly.
-
-
-### Create a user and role for access
+## Step 1/6. Create a user and role for access
 
 (!docs/pages/includes/plugins/rbac-update.mdx!)
 
-### Export the access-plugin certificate
+## Step 2/6. Export the access-plugin certificate
 
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
-We'll reference these files later when [configuring the plugins](#configuration-file).
+We'll reference these files later when configuring the plugin.
 
-## Setting up your Jira project
+## Step 3/6. Set up your Jira project
 
-### Creating the permission management project
+### Create the permission management project
 
 All new permission requests are going to show up in a project you choose. We recommend that you create a separate project for permissions management, and a new board in said project.
 
 You'll need the project Jira key to configure the plugin.
 
-### Setting up the status board
+### Set up the status board
 
 Create a new board for tasks in the permission management project. The board has to have at least these three columns:
 
@@ -48,13 +43,13 @@ Create a new board for tasks in the permission management project. The board has
 
 Teleport's Jira plugin will create a new issue for each new permission request in the first available column on the board. When you drag the request task to the Approved column in Jira, the request will be approved. If you drag the request task to the Denied column in Jira, the request will be denied.
 
-### Getting your Jira API token
+### Get your Jira API token
 
 If you're using Jira Cloud, navigate to [Account Settings → Security → API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens) and create a new app specific API token in your Jira installation. You'll need this token later to configure the plugin.
 
 For Jira Server, the URL of the API tokens page will be different depending on your installation.
 
-### Setting up Jira webhooks
+### Set up Jira webhooks
 
 Go to Settings → General → System → Webhooks and create a new webhook for Jira to tell the Teleport plugin about updates.
 
@@ -73,7 +68,7 @@ The webhook needs to be notified only about new issues being created, issues bei
 
 In the webhook settings page, make sure that the webhook will only send Issue Updated updates. It's not critical if anything else gets sent, since the plugin will just ignore everything else.
 
-## Installing
+## Step 4/6. Install the plugin
 
 We recommend installing Teleport plugins alongside the Teleport Proxy. This is an ideal
 location as plugins have a low memory footprint, and will require both public internet access
@@ -109,16 +104,15 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 </TabItem>
 </Tabs>
 
-## Configuration file
+## Step 5/6. Configure the plugin
 
 Depending on whether you are running the plugin as an executable in a
 non-containerized environment or on Kubernetes, follow the appropriate
 instructions for your environment to configure the plugin: 
 
-<Tabs dropdownCaption="Environment type" dropDownSelected="Executable">
+<Tabs>
 <TabItem 
-label="Connect to the Proxy Service" 
-options="Executable" 
+label="Executable" 
 >
 
 The Teleport Jira plugin uses a config file in TOML format. Generate a
@@ -140,31 +134,7 @@ The configuration file will resemble the following:
 ```
 </TabItem>
 <TabItem 
-label="Connect to the Auth Service" 
-options="Executable" 
->
-
-The Teleport Jira plugin uses a config file in TOML format. Generate a
-boilerplate config by running the following command:
-
-```code
-$ teleport-jira configure > teleport-jira.toml
-$ sudo mv teleport-jira.toml /etc
-```
-
-By default, the Jira Teleport plugin will use a config in
-`/etc/teleport-jira.toml`, and you can override it with `-c
-config/file/path.toml` flag.
-
-The configuration file will resemble the following:
-
-```toml
-(!examples/resources/plugins/teleport-jira-self-hosted.toml!)
-```
-</TabItem>
-<TabItem 
-options="Helm Chart" 
-label="Connect to the Proxy Service "
+label="Helm Chart" 
 >
 
 Create a file called `values.yaml` with the following content, which configures
@@ -181,28 +151,10 @@ values file from the identity file you generated earlier:
 kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
 ```
 </TabItem>
-<TabItem 
-options="Helm Chart" 
-label="Connect to the Auth Service "
->
-
-Create a file called `values.yaml` with the following content, which configures
-the Helm chart for the plugin. It should resemble the following:
-
-```yaml
-(!examples/resources/plugins/teleport-jira-helm-self.yaml!)
-```
-
-Use the following command to create the Kubernetes secret referenced in the
-values file from the identity file you generated earlier:
-
-```console
-kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
-```
-</TabItem>
 </Tabs>
 
-The `[teleport]` section describes where the teleport service running, and what keys should the plugin use to authenticate itself. Use the keys that you've generated.
+The `[teleport]` sections includes configuration options for connecting the Jira
+plugin to Teleport.
 
 The `[jira]` section requires a few things:
 
@@ -216,10 +168,9 @@ The `[http]` setting block describes how the plugin's HTTP server works. The HTT
 You must provide an address the server should listen on, and a certificate to use. It's possible to
 run the Jira plugin on the same server as the Teleport Proxy, so you can use the same TLS certificate.
 
-## Testing
+## Step 6/6. Test the plugin
 
 You should be able to run the Teleport plugin now!
-
 
 <Tabs>
 <TabItem label="Executable" scopes={["oss", "enterprise", "cloud"]}>

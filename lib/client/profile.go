@@ -449,6 +449,36 @@ func (p *ProfileStatus) DatabaseCertPathForCluster(clusterName string, databaseN
 	return keypaths.DatabaseCertPath(p.Dir, p.Name, p.Username, clusterName, databaseName)
 }
 
+// OracleWalletDir returns path to the specified database access
+// certificate for this profile, for the specified cluster.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/<cluster>/dbname-wallet/
+//
+// If the input cluster name is an empty string, the selected cluster in the
+// profile will be used.
+func (p *ProfileStatus) OracleWalletDir(clusterName string, databaseName string) string {
+	if clusterName == "" {
+		clusterName = p.Cluster
+	}
+
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, VirtualPathDatabaseParams(databaseName)); ok {
+		return path
+	}
+
+	return keypaths.DatabaseOracleWalletDirectory(p.Dir, p.Name, p.Username, clusterName, databaseName)
+}
+
+// DatabaseLocalCAPath returns the specified db 's self-signed localhost CA path for
+// this profile.
+//
+// It's kept in <profile-dir>/keys/<proxy>/<user>-db/proxy-localca.pem
+func (p *ProfileStatus) DatabaseLocalCAPath() string {
+	if path, ok := p.virtualPathFromEnv(VirtualPathDatabase, nil); ok {
+		return path
+	}
+	return filepath.Join(keypaths.DatabaseDir(p.Dir, p.Name, p.Username), "proxy-localca.pem")
+}
+
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //

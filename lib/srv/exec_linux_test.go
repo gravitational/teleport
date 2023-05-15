@@ -22,7 +22,7 @@ package srv
 import (
 	"fmt"
 	"os"
-	os_exec "os/exec"
+	"os/exec"
 	"os/user"
 	"strconv"
 	"syscall"
@@ -30,26 +30,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-// TestMain will re-execute Teleport to run a command if "exec" is passed to
-// it as an argument. Otherwise it will run tests as normal.
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if IsReexec() {
-		RunAndExit(os.Args[1])
-		return
-	}
-
-	// Otherwise run tests as normal.
-	code := m.Run()
-	os.Exit(code)
-}
 
 func TestOSCommandPrep(t *testing.T) {
 	srv := newMockServer(t)
@@ -139,7 +120,7 @@ func TestContinue(t *testing.T) {
 
 	// Configure Session Context to re-exec "ls".
 	var err error
-	lsPath, err := os_exec.LookPath("ls")
+	lsPath, err := exec.LookPath("ls")
 	require.NoError(t, err)
 	scx.execRequest.SetCommand(lsPath)
 
@@ -164,7 +145,7 @@ func TestContinue(t *testing.T) {
 	case <-time.After(5 * time.Second):
 	}
 
-	// Close the continue pipe to signal to Teleport to now execute the
+	// Close the continue and terminate pipe to signal to Teleport to now execute the
 	// requested program.
 	err = scx.contw.Close()
 	require.NoError(t, err)

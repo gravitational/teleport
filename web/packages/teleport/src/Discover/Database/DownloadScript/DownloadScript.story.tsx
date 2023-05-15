@@ -22,7 +22,7 @@ import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/mocks/contexts';
+import { getUserContext } from 'teleport/mocks/contexts';
 
 import DownloadScript from './DownloadScript';
 
@@ -55,7 +55,10 @@ export const InitWithLabels = () => {
         {...props}
         agentMeta={{
           ...props.agentMeta,
-          agentMatcherLabels: [{ name: 'env', value: 'prod' }],
+          agentMatcherLabels: [
+            { name: 'env', value: 'staging' },
+            { name: 'os', value: 'windows' },
+          ],
         }}
       />
     </Provider>
@@ -157,7 +160,7 @@ function createTeleportContext() {
   const ctx = new TeleportContext();
 
   ctx.isEnterprise = false;
-  ctx.storeUser.setState(userContext);
+  ctx.storeUser.setState(getUserContext());
 
   return ctx;
 }

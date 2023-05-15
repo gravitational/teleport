@@ -126,14 +126,16 @@ func onAppLogin(cf *CLIConf) error {
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if app.IsAWSConsole() {
+
+	switch {
+	case app.IsAWSConsole():
 		return awsCliTpl.Execute(os.Stdout, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
 			"awsRoleARN": awsRoleARN,
 		})
-	}
-	if app.IsAzureCloud() {
+
+	case app.IsAzureCloud():
 		if azureIdentity == "" {
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
@@ -160,27 +162,38 @@ func onAppLogin(cf *CLIConf) error {
 			"appName":  app.GetName(),
 			"identity": azureIdentity,
 		})
-	}
-	if app.IsGCP() {
+
+	case app.IsGCP():
 		return gcpCliTpl.Execute(os.Stdout, map[string]string{
 			"appName":        app.GetName(),
 			"serviceAccount": gcpServiceAccount,
 		})
-	}
-	if app.IsTCP() {
+
+	case app.IsTCP():
 		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
 			"appName": app.GetName(),
 		})
+
+	case localProxyRequiredForApp(tc):
+		return appLoginLocalProxyTpl.Execute(os.Stdout, map[string]interface{}{
+			"appName": app.GetName(),
+		})
+
+	default:
+		curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+			"appName":  app.GetName(),
+			"curlCmd":  curlCmd,
+			"insecure": cf.InsecureSkipVerify,
+		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
-		"appName":  app.GetName(),
-		"curlCmd":  curlCmd,
-		"insecure": cf.InsecureSkipVerify,
-	})
+}
+
+func localProxyRequiredForApp(tc *client.TeleportClient) bool {
+	return tc.TLSRoutingConnUpgradeRequired
 }
 
 // appLoginTpl is the message that gets printed to a user upon successful login
@@ -192,6 +205,18 @@ var appLoginTpl = template.Must(template.New("").Parse(
 
 WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
 {{- end }}
+`))
+
+// appLoginLocalProxyTpl is the message that gets printed to a user upon successful login
+// into an HTTP application and local proxy is required.
+var appLoginLocalProxyTpl = template.Must(template.New("").Parse(
+	`Logged into app {{.appName}}. Start the local proxy for it:
+
+  tsh proxy app {{.appName}} -p 8080
+
+Then connect to the application through this proxy:
+
+  curl http://127.0.0.1:8080
 `))
 
 // appLoginTCPTpl is the message that gets printed to a user upon successful
@@ -241,6 +266,7 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
+			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
 		})
 		return trace.Wrap(err)
@@ -462,34 +488,38 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 
 // removeAppLocalFiles removes generated local files for the provided app.
 func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
-	removeFileIfExist(profile.AppLocalCAPath(appName))
-}
-
-// removeFileIfExist removes a local file if it exists.
-func removeFileIfExist(filePath string) {
-	if !utils.FileExists(filePath) {
-		return
-	}
-
-	if err := os.Remove(filePath); err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", filePath)
-	}
+	utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
 }
 
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
 func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	caPath := profile.AppLocalCAPath(appName)
-	keyPath := profile.KeyPath()
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
 
+	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(appName), profile.KeyPath(), appCertsExpireAt, "localhost")
+	return cert, trace.Wrap(err)
+}
+
+func loadSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
 	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
-		return caTLSCert, trace.Wrap(err)
+		if expire, err := getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
+			return caTLSCert, nil
+		}
+	}
+	if err != nil && !trace.IsNotFound(err) {
+		log.WithError(err).Debugf("Failed to load certificate from %v.", caPath)
 	}
 
 	// Generate and load again.
-	log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
-	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
+	if err = generateSelfSignedCA(caPath, keyPath, validUntil, dnsNames...); err != nil {
 		return tls.Certificate{}, err
 	}
 
@@ -500,20 +530,11 @@ func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClien
 	return caTLSCert, nil
 }
 
-// generateAppSelfSignedCA generates a new self-signed CA for provided app and
-// saves/overwrites the local CA file in the profile directory.
-func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) error {
-	appCerts, err := loadAppCertificate(tc, appName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	keyPem, err := utils.ReadPath(profile.KeyPath())
+// generateSelfSignedCA generates a new self-signed CA for provided dnsNames
+// and saves/overwrites the local CA file in the profile directory.
+func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) error {
+	log.Debugf("Generating local self signed CA at %v", caPath)
+	keyPem, err := utils.ReadPath(keyPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -529,16 +550,20 @@ func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportC
 			Organization: []string{"Teleport"},
 		},
 		Signer:      key,
-		DNSNames:    []string{"localhost"},
+		DNSNames:    dnsNames,
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(appCertsExpireAt),
+		TTL:         time.Until(validUntil),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if _, err := utils.EnsureLocalPath(caPath, "", ""); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// WriteFile truncates existing file before writing.
-	if err = os.WriteFile(profile.AppLocalCAPath(appName), certPem, 0600); err != nil {
+	if err = os.WriteFile(caPath, certPem, 0600); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil

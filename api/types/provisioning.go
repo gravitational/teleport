@@ -55,6 +55,13 @@ const (
 	// JoinMethodAzure indicates that the node will join with the Azure join
 	// method.
 	JoinMethodAzure JoinMethod = "azure"
+	// JoinMethodGitLab indicates that the node will join with the GitLab
+	// join method. Documentation regarding implementation of this
+	// can be found in lib/gitlab
+	JoinMethodGitLab JoinMethod = "gitlab"
+	// JoinMethodGCP indicates that the node will join with the GCP join method.
+	// Documentation regarding implementation of this can be found in lib/gcp.
+	JoinMethodGCP JoinMethod = "gcp"
 )
 
 var JoinMethods = []JoinMethod{
@@ -65,6 +72,8 @@ var JoinMethods = []JoinMethod{
 	JoinMethodCircleCI,
 	JoinMethodKubernetes,
 	JoinMethodAzure,
+	JoinMethodGitLab,
+	JoinMethodGCP,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -262,6 +271,28 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			return trace.BadParameter(
 				`"azure" configuration must be provided for the join method %q`,
 				JoinMethodAzure,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodGitLab:
+		providerCfg := p.Spec.GitLab
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"gitlab" configuration must be provided for the join method %q`,
+				JoinMethodGitLab,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case JoinMethodGCP:
+		providerCfg := p.Spec.GCP
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"gcp" configuration must be provided for the join method %q`,
+				JoinMethodGCP,
 			)
 		}
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
@@ -562,6 +593,51 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 			return trace.BadParameter(
 				"the %q join method requires azure allow rules with non-empty subscription",
 				JoinMethodAzure,
+			)
+		}
+	}
+	return nil
+}
+
+const defaultGitLabDomain = "gitlab.com"
+
+func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter(
+			"the %q join method requires defined gitlab allow rules",
+			JoinMethodGitLab,
+		)
+	}
+	for _, allowRule := range a.Allow {
+		if allowRule.Sub == "" && allowRule.NamespacePath == "" && allowRule.ProjectPath == "" {
+			return trace.BadParameter(
+				"the %q join method requires allow rules with at least 'sub', 'project_path' or 'namespace_path' to ensure security.",
+				JoinMethodGitLab,
+			)
+		}
+	}
+
+	if a.Domain == "" {
+		a.Domain = defaultGitLabDomain
+	} else {
+		if strings.Contains(a.Domain, "/") {
+			return trace.BadParameter(
+				"'spec.gitlab.domain' should not contain the scheme or path",
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodGCP)
+	}
+	for _, allowRule := range a.Allow {
+		if len(allowRule.ProjectIDs) == 0 {
+			return trace.BadParameter(
+				"the %q join method requires gcp allow rules with at least one project ID",
+				JoinMethodGCP,
 			)
 		}
 	}

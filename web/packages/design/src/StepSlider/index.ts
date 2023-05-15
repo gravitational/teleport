@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { StepSlider, StepComponentProps, NewFlow } from './StepSlider';
+export { StepSlider } from './StepSlider';
 
-export { StepSlider };
-export type { StepComponentProps, NewFlow };
+export type { StepComponentProps, NewFlow } from './StepSlider';

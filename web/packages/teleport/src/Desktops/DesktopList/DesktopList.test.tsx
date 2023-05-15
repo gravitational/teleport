@@ -28,7 +28,6 @@ test('search generates correct url params', () => {
   render(
     <DesktopList
       {...props}
-      totalCount={50}
       username="joe"
       desktops={desktops}
       clusterId="im-a-cluster"

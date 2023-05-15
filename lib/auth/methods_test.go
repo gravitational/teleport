@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 )
 
 func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
+	ctx := context.Background()
 	emitter := &eventstest.MockEmitter{}
 	r := AuthenticateUserRequest{
 		ClientMetadata: &ForwardedClientMetadata{
@@ -34,7 +36,7 @@ func TestServerAuthenticateUserUserAgentTrim(t *testing.T) {
 		},
 	}
 	// Ignoring the error here because we really just care that the event was logged.
-	(&Server{emitter: emitter}).AuthenticateUser(r)
+	(&Server{emitter: emitter}).AuthenticateUser(ctx, r)
 	event := emitter.LastEvent()
 	loginEvent, ok := event.(*apievents.UserLogin)
 	require.True(t, ok)

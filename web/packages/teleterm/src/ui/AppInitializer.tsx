@@ -63,5 +63,5 @@ const Centered = styled.div`
   justify-content: center;
   align-items: center;
   z-index: 2; // renders the overlay above ConnectionsIconStatusIndicator
-  background: ${props => props.theme.colors.primary.darker};
+  background: ${props => props.theme.colors.levels.sunken};
 `;

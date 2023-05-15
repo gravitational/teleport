@@ -18,7 +18,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
 	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
-	github.com/russellhaering/gosaml2 v0.8.1 // indirect
+	github.com/russellhaering/gosaml2 v0.9.0 // indirect
 	github.com/russellhaering/goxmldsig v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.38.0 // indirect

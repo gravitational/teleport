@@ -85,7 +85,7 @@ describe('restoring workspace', () => {
     return { workspacesService, clusterDocument };
   }
 
-  it('restores the workspace if it there is a persisted state for given clusterUri', () => {
+  it('restores the workspace if there is a persisted state for given clusterUri', () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
       accessRequests: {
@@ -119,6 +119,7 @@ describe('restoring workspace', () => {
             node: {},
             role: {},
             windows_desktop: {},
+            user_group: {},
           },
           isBarCollapsed: false,
         },
@@ -152,6 +153,7 @@ describe('restoring workspace', () => {
             node: {},
             role: {},
             windows_desktop: {},
+            user_group: {},
           },
         },
         localClusterUri: testClusterUri,

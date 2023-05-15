@@ -25,10 +25,11 @@ export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
 
   constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
-    this.configService = createConfigService(
-      createMockFileStorage(),
-      this.getRuntimeSettings().platform
-    );
+    this.configService = createConfigService({
+      configFile: createMockFileStorage(),
+      jsonSchemaFile: createMockFileStorage(),
+      platform: this.getRuntimeSettings().platform,
+    });
   }
 
   getRuntimeSettings(): RuntimeSettings {
@@ -62,6 +63,10 @@ export class MockMainProcessClient implements MainProcessClient {
 
   async removeTshSymlinkMacOs() {
     return true;
+  }
+
+  async openConfigFile() {
+    return '';
   }
 }
 

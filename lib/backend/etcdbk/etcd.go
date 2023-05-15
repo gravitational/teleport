@@ -326,7 +326,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = apidefaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultIOTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := os.ReadFile(cfg.PasswordFile)

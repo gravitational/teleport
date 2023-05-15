@@ -19,10 +19,12 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -30,11 +32,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -60,11 +64,16 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// ClusterCAs contains cluster CAs.
+	ClusterCAs *x509.CertPool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	if c.Resolver == nil {
 		return trace.BadParameter("missing tunnel address resolver")
+	}
+	if c.ClusterCAs == nil {
+		return trace.BadParameter("missing cluster CAs")
 	}
 	return nil
 }
@@ -89,8 +98,14 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
+			TLSConfig: &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: t.InsecureSkipTLSVerify,
+			},
+			DialTimeout:             t.ClientConfig.Timeout,
+			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
 		}))
 	}
 
@@ -159,6 +174,15 @@ type transport struct {
 
 	// emitter is an audit stream emitter.
 	emitter events.StreamEmitter
+
+	// proxySigner is used to sign PROXY headers and securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
+
+	// forwardClientAddress indicates whether we should take into account ClientSrcAddr/ClientDstAddr on incoming
+	// dial request. If false, we ignore those fields and take address from the parent ssh connection. It allows
+	// preventing users connecting to the proxy tunnel listener spoofing their address; but we are still able to
+	// correctly propagate client address in reverse tunnel agents of nodes/services.
+	forwardClientAddress bool
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -185,7 +209,7 @@ func (p *transport) start() {
 		if req == nil {
 			return
 		}
-	case <-time.After(apidefaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultIOTimeout):
 		p.log.Warnf("Transport request failed: timed out waiting for request.")
 		return
 	}
@@ -196,7 +220,25 @@ func (p *transport) start() {
 		p.reply(req, false, []byte(err.Error()))
 		return
 	}
-	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
+
+	if !p.forwardClientAddress {
+		// This shouldn't happen in normal operation. Either malicious user or misconfigured client.
+		if dreq.ClientSrcAddr != "" || dreq.ClientDstAddr != "" {
+			p.log.Warnf("Received unexpected dial request with client source address %q, "+
+				"client destination address %q, when they should be empty.", dreq.ClientSrcAddr, dreq.ClientDstAddr)
+		}
+
+		// Make sure address fields are overwritten.
+		if p.sconn != nil {
+			dreq.ClientSrcAddr = p.sconn.RemoteAddr().String()
+			dreq.ClientDstAddr = p.sconn.LocalAddr().String()
+		} else {
+			dreq.ClientSrcAddr = ""
+			dreq.ClientDstAddr = ""
+		}
+	}
+
+	p.log.Debugf("Received out-of-band proxy transport request for %v [%v], from %v.", dreq.Address, dreq.ServerID, dreq.ClientSrcAddr)
 
 	// directAddress will hold the address of the node to dial to, if we don't
 	// have a tunnel for it.
@@ -237,7 +279,14 @@ func (p *transport) start() {
 			}
 
 			p.log.Debug("Handing off connection to a local kubernetes service")
-			p.server.HandleConnection(sshutils.NewChConn(p.sconn, p.channel))
+
+			// If dreq has ClientSrcAddr we wrap connection
+			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
+			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+			if err == nil {
+				clientConn = newConnectionWithSrcAddr(clientConn, src)
+			}
+			p.server.HandleConnection(clientConn)
 			return
 		default:
 			// This must be a proxy.
@@ -259,6 +308,7 @@ func (p *transport) start() {
 			p.reply(req, false, []byte("connection rejected: no local node"))
 			return
 		}
+
 		if p.server != nil {
 			if p.sconn == nil {
 				p.log.Debug("Connection rejected: server connection missing")
@@ -272,7 +322,14 @@ func (p *transport) start() {
 			}
 
 			p.log.Debugf("Handing off connection to a local %q service.", dreq.ConnType)
-			p.server.HandleConnection(sshutils.NewChConn(p.sconn, p.channel))
+
+			// If dreq has ClientSrcAddr we wrap connection
+			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
+			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+			if err == nil {
+				clientConn = newConnectionWithSrcAddr(clientConn, src)
+			}
+			p.server.HandleConnection(clientConn)
 			return
 		}
 		// If this is a proxy and not an SSH node, try finding an inbound
@@ -295,6 +352,27 @@ func (p *transport) start() {
 		return
 	}
 
+	var clientSrc, clientDst net.Addr
+	src, err := utils.ParseAddr(dreq.ClientSrcAddr)
+	if err == nil {
+		clientSrc = src
+	}
+	dst, err := utils.ParseAddr(dreq.ClientDstAddr)
+	if err == nil {
+		clientDst = dst
+	}
+	var signedHeader []byte
+	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == RemoteAuthServer
+	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
+		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
+		if err != nil {
+			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
+			fmt.Fprint(p.channel.Stderr(), errorMessage)
+			p.reply(req, false, []byte(errorMessage))
+			return
+		}
+	}
+
 	// Dial was successful.
 	if err := req.Reply(true, []byte("Connected.")); err != nil {
 		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
@@ -313,6 +391,17 @@ func (p *transport) start() {
 	go p.handleChannelRequests(ctx, useTunnel)
 
 	errorCh := make(chan error, 2)
+
+	if len(signedHeader) > 0 {
+		_, err = conn.Write(signedHeader)
+		if err != nil {
+			p.log.Errorf("Could not write PROXY header to the connection: %v", err)
+			if err := conn.Close(); err != nil {
+				p.log.Errorf("Failed closing connection: %v", err)
+			}
+			return
+		}
+	}
 
 	go func() {
 		// Make sure that we close the client connection on a channel
@@ -374,11 +463,13 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
+		// Connections to applications (including Okta applications) and databases should never occur over
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.OktaTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
 		case types.DatabaseTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}
@@ -415,7 +506,6 @@ func (p *transport) tunnelDial(r *sshutils.DialReq) (net.Conn, error) {
 	if !ok {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}
-
 	conn, err := localCluster.dialTunnel(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -440,7 +530,7 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	}
 
 	d := net.Dialer{
-		Timeout: apidefaults.DefaultDialTimeout,
+		Timeout: apidefaults.DefaultIOTimeout,
 	}
 	conn, err := d.DialContext(p.closeContext, "tcp", addr)
 	if err != nil {
@@ -448,4 +538,43 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	}
 
 	return conn, nil
+}
+
+// connectionWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
+type connectionWithSrcAddr struct {
+	net.Conn
+	clientSrcAddr net.Addr
+}
+
+// RemoteAddr returns specified client source address
+func (c *connectionWithSrcAddr) RemoteAddr() net.Addr {
+	return c.clientSrcAddr
+}
+
+// NetConn returns the underlying net.Conn.
+func (c *connectionWithSrcAddr) NetConn() net.Conn {
+	return c.Conn
+}
+
+// newConnectionWithSrcAddr wraps provided connection and overrides client remote address
+func newConnectionWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *connectionWithSrcAddr {
+	var addr net.Addr
+	if clientSrcAddr != nil {
+		addr = getTCPAddr(clientSrcAddr) // SSH package requires net.TCPAddr for source-address check
+	}
+	if addr == nil {
+		addr = conn.RemoteAddr()
+	}
+	return &connectionWithSrcAddr{
+		Conn:          conn,
+		clientSrcAddr: addr,
+	}
+}
+
+func getTCPAddr(addr net.Addr) *net.TCPAddr {
+	ap, err := netip.ParseAddrPort(addr.String())
+	if err != nil {
+		return nil
+	}
+	return net.TCPAddrFromAddrPort(ap)
 }

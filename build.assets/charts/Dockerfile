@@ -57,6 +57,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /tmp/*
 
+# Used to track whether a Teleport agent was installed using this method.
+ENV TELEPORT_INSTALL_METHOD_DOCKERFILE=true
+
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 

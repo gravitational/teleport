@@ -21,11 +21,11 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -52,17 +52,20 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	req, err := convertListResourcesRequest(r, types.KindAppServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+	page, err := client.GetResourcePage[types.AppServer](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	apps := removeUnsupportedApps(appServers)
+	var apps types.Apps
+	for _, server := range page.Resources {
+		apps = append(apps, server.GetApp())
+	}
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
@@ -72,8 +75,8 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Identity:          identity,
 			Apps:              apps,
 		}),
-		StartKey:   resp.NextKey,
-		TotalCount: len(apps),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -367,22 +370,4 @@ func (h *Handler) proxyDNSNames() (dnsNames []string) {
 		return []string{h.auth.clusterName}
 	}
 	return dnsNames
-}
-
-// removeUnsupportedApps filters unsupported (TCP, Cloud API-only) apps out of the list of app servers.
-func removeUnsupportedApps(appServers []types.AppServer) (apps types.Apps) {
-	for _, server := range appServers {
-		a := server.GetApp()
-		// Skip over API-only Cloud apps
-		if strings.HasPrefix(a.GetURI(), "cloud://") {
-			continue
-		}
-
-		// Skip over TCP apps since they cannot be accessed through web UI.
-		if server.GetApp().IsTCP() {
-			continue
-		}
-		apps = append(apps, server.GetApp())
-	}
-	return apps
 }

@@ -30,6 +30,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -151,10 +152,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 
 	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
+		Logger:      log,
 		// Device authorization breaks browser-based access.
 		DisableDeviceAuthorization: true,
 	})
@@ -220,7 +222,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
-			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
+			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
@@ -241,14 +243,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 	process.RegisterCriticalFunc("windows_desktop.serve", func() error {
 		if useTunnel {
 			log.Info("Starting Windows desktop service via proxy reverse tunnel.")
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting via proxy reverse tunnel.",
-				teleport.Version, teleport.Gitref)
 		} else {
 			log.Infof("Starting Windows desktop service on %v.", listener.Addr())
-			utils.Consolef(cfg.Console, log, teleport.ComponentWindowsDesktop,
-				"Windows desktop service %s:%s is starting on %v.",
-				teleport.Version, teleport.Gitref, listener.Addr())
 		}
 		process.BroadcastEvent(Event{Name: WindowsDesktopReady, Payload: nil})
 		err := srv.Serve(listener)

@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -81,7 +81,7 @@ type Reporter struct {
 	//
 	// This will keep an upper limit on our memory usage while still always
 	// reporting the most active keys.
-	topRequestsCache *lru.Cache
+	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
 }
 
 // NewReporter returns a new Reporter.
@@ -95,12 +95,7 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(key interface{}, value interface{}) {
-		labels, ok := key.(topRequestsCacheKey)
-		if !ok {
-			log.Errorf("BUG: invalid cache key type: %T", key)
-			return
-		}
+	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(labels topRequestsCacheKey, value struct{}) {
 		// Evict the key from requests metric.
 		requests.DeleteLabelValues(labels.component, labels.key, labels.isRange)
 	})

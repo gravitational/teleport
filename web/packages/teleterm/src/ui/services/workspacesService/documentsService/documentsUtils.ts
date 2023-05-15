@@ -17,16 +17,20 @@
 import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import { Document } from './types';
+import { Document, isDocumentTshNodeWithServerId } from './types';
 
-export function getResourceUri(document: Document): ClusterOrResourceUri {
+export function getResourceUri(
+  document: Document
+): ClusterOrResourceUri | undefined {
   switch (document.kind) {
     case 'doc.cluster':
       return document.clusterUri;
     case 'doc.gateway':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
-      return document.serverUri;
+      return isDocumentTshNodeWithServerId(document)
+        ? document.serverUri
+        : undefined;
     case 'doc.terminal_tsh_kube':
       return document.kubeUri;
     case 'doc.access_requests':

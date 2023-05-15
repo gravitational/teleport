@@ -36,7 +36,7 @@ resource "aws_route_table_association" "node" {
 }
 
 // Node security groups do not allow direct internet access
-// and only allow traffic comming in from proxies or
+// and only allow traffic coming in from proxies or
 // emergency access bastions
 resource "aws_security_group" "node" {
   name        = "${var.cluster_name}-node"

@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "g-start --config $(pwd)/webpack.dev.config.js",
-    "build": "g-build --config webpack.prod.config.js --progress --bail",
+    "start": "vite",
+    "build": "vite build",
     "test": "npx jest",
     "tdd": "jest . --watch"
   },
@@ -20,12 +20,13 @@
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
     "xterm": "^5.0.0",
-    "xterm-addon-fit": "^0.7.0"
+    "xterm-addon-fit": "^0.7.0",
+    "xterm-addon-web-links": "^0.8.0"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
     "@types/wicg-file-system-access": "^2020.9.5",
     "jest-canvas-mock": "^2.3.1",
-    "ts-loader": "^9.3.1"
+    "ts-loader": "^9.4.2"
   }
 }
