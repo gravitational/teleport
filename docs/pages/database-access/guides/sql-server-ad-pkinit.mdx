@@ -14,8 +14,7 @@ This guide will help you to:
 - Connect to SQL Server through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![SQL Server with self-hosted Teleport](../../../img/database-access/guides/sqlserver_selfhosted.png)
-{/*```mermaid
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -37,11 +36,10 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
+```
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport SQL Server access with Teleport Cloud](../../../img/database-access/guides/sqlserver_cloud.png)
-{/*```mermaid
+```mermaid
 %%{ init: { 'flowchart': { 'curve': 'stepBefore' } } }%%
 graph LR
 a(Users)
@@ -63,7 +61,7 @@ style local fill:#C0C0C0,stroke: #000000
   c-->e
   e-->d
 end
-```*/}
+```
 </ScopedBlock>
 
 This guide will focus on SQL Servers using self-hosted Active Directory
