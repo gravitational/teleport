@@ -18,8 +18,12 @@ import (
 	"context"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/google/uuid"
 )
 
 // fakeQueue is used to fake SNS+SQS combination on AWS.
@@ -57,11 +61,43 @@ func (f *fakeQueue) Publish(ctx context.Context, params *sns.PublishInput, optFn
 	return nil, nil
 }
 
-func (f *fakeQueue) getMessages() []fakeQueueMessage {
+func (f *fakeQueue) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+	msgs := f.dequeue()
+	if len(msgs) == 0 {
+		return &sqs.ReceiveMessageOutput{}, nil
+	}
+	out := make([]sqsTypes.Message, 0, 10)
+	for _, msg := range msgs {
+		out = append(out, sqsTypes.Message{
+			Body:              aws.String(msg.payload),
+			MessageAttributes: snsToSqsAttributes(msg.attributes),
+			ReceiptHandle:     aws.String(uuid.NewString()),
+		})
+	}
+	return &sqs.ReceiveMessageOutput{
+		Messages: out,
+	}, nil
+}
+
+func snsToSqsAttributes(in map[string]snsTypes.MessageAttributeValue) map[string]sqsTypes.MessageAttributeValue {
+	if in == nil {
+		return nil
+	}
+	out := map[string]sqsTypes.MessageAttributeValue{}
+	for k, v := range in {
+		out[k] = sqsTypes.MessageAttributeValue{
+			DataType:    v.DataType,
+			StringValue: v.StringValue,
+		}
+	}
+	return out
+}
+
+func (f *fakeQueue) dequeue() []fakeQueueMessage {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	batchSize := 10
-	if len(f.msgs) < 1 {
+	if len(f.msgs) == 0 {
 		return nil
 	}
 	if len(f.msgs) < batchSize {

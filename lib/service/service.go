@@ -1407,7 +1407,8 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 		case teleport.ComponentAthena:
 			hasNonFileLog = true
 			cfg := athena.Config{
-				Region: auditConfig.Region(),
+				Region:  auditConfig.Region(),
+				Backend: backend,
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
