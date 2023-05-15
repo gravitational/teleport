@@ -120,8 +120,13 @@ type Handler struct {
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
 	highLimiter             *limiter.RateLimiter
-	assistantLimiter        *rate.Limiter
-	healthCheckAppServer    healthCheckAppServerFunc
+	// assistantLimiter limits the amount of tokens that can be consumed
+	// by OpenAI API calls when using a shared key.
+	// golang.org/x/time/rate is used, as the oxy ratelimiter
+	// is quite tightly tied to individual http.Requests,
+	// and instead we want to consume arbitrary amounts of tokens.
+	assistantLimiter     *rate.Limiter
+	healthCheckAppServer healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
