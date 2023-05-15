@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -171,7 +172,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			return trace.Wrap(err)
 		}
 		keepAlive, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			g.Debugf("Connection closed.")
 			return nil
 		}
@@ -229,7 +230,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 
 	for {
 		request, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -2104,7 +2105,7 @@ func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSe
 
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 

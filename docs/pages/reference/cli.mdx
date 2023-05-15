@@ -2602,7 +2602,7 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
 
 ### tctl alerts ack
@@ -2625,7 +2625,7 @@ $ tctl alerts ack [<flags>] <id>
 | - | - | - | - |
 | `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
 | `--clear` | none | | Clear an existing alert acknowledgement |
-| `--reason` | none | | An optional reason for suppressing this alert |
+| `--reason` | none | | The reason for suppressing this alert |
 
 #### Examples
 

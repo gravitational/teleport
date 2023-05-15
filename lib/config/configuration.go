@@ -22,6 +22,7 @@ package config
 
 import (
 	"crypto/x509"
+	"errors"
 	"io"
 	stdlog "log"
 	"net"
@@ -220,7 +221,7 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, trace.Wrap(err)
@@ -891,6 +892,17 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+	}
+
+	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
+		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.BadParameter("failed to read OpenAI API key file at path %s: %v",
+				keyPath, trace.ConvertSystemError(err))
+		} else {
+			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
+		}
 	}
 
 	if fc.Proxy.MySQLServerVersion != "" {

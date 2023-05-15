@@ -39,7 +39,7 @@ type kubeCreds interface {
 	getTargetAddr() string
 	getKubeRestConfig() *rest.Config
 	getKubeClient() *kubernetes.Clientset
-	getTransport(upgradeH2 bool) http.RoundTripper
+	getTransport() http.RoundTripper
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
 }
@@ -68,24 +68,17 @@ type staticKubeCreds struct {
 }
 
 type httpTransport struct {
-	// h1Transport is the HTTP/1 transport used for requests that cannot be
-	// sent via HTTP/2. Examples include requests that use the websockets or
-	// SPDY protocols.
-	h1Transport http.RoundTripper
 	// h2Transport is the HTTP/2 transport used for requests that can be sent
 	// via HTTP/2.
-	h2Transport http.RoundTripper
+	transport http.RoundTripper
 }
 
 func (s *staticKubeCreds) getTLSConfig() *tls.Config {
-	return s.tlsConfig
+	return s.tlsConfig.Clone()
 }
 
-func (s *staticKubeCreds) getTransport(upgradeH2 bool) http.RoundTripper {
-	if upgradeH2 {
-		return s.transport.h2Transport
-	}
-	return s.transport.h1Transport
+func (s *staticKubeCreds) getTransport() http.RoundTripper {
+	return s.transport.transport
 }
 
 func (s *staticKubeCreds) getTransportConfig() *transport.Config {
@@ -240,10 +233,10 @@ func (d *dynamicKubeCreds) close() error {
 	return nil
 }
 
-func (d *dynamicKubeCreds) getTransport(upgradeH2 bool) http.RoundTripper {
+func (d *dynamicKubeCreds) getTransport() http.RoundTripper {
 	d.RLock()
 	defer d.RUnlock()
-	return d.staticCreds.getTransport(upgradeH2)
+	return d.staticCreds.getTransport()
 }
 
 // renewClientset generates the credentials required for accessing the cluster using the client function.

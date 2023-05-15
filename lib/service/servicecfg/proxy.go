@@ -132,6 +132,10 @@ type ProxyConfig struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that

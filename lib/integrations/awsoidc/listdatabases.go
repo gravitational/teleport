@@ -92,6 +92,11 @@ type ListDatabasesClient interface {
 	DescribeDBClusters(ctx context.Context, params *rds.DescribeDBClustersInput, optFns ...func(*rds.Options)) (*rds.DescribeDBClustersOutput, error)
 }
 
+// NewListDatabasesClient creates a new ListDatabasesClient using a AWSClientRequest.
+func NewListDatabasesClient(ctx context.Context, req *AWSClientRequest) (ListDatabasesClient, error) {
+	return newRDSClient(ctx, req)
+}
+
 // ListDatabases calls the following AWS API:
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBClusters.html
 // https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DescribeDBInstances.html

@@ -39,4 +39,7 @@ type Assistant interface {
 
 	// UpdateAssistantConversationInfo updates conversation info.
 	UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error
+
+	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+	IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error)
 }

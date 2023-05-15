@@ -1294,7 +1294,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:            "no registered credential",
 			createAssertion: func() *wanlib.CredentialAssertion { return mfaAssertion },
 			prompt:          notRegistered,
-			wantErr:         "lacks registered credential",
+			wantErr:         wancli.ErrUsingNonRegisteredDevice.Error(),
 		},
 		{
 			// Theoretically could happen, but not something we do today.
