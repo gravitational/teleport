@@ -94,6 +94,7 @@ const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
 
+	// assistantTokensPerHour defines how many assistant rate limiter tokens are replenished every hour.
 	assistantTokensPerHour = 140
 	// assistantLimiterRate is the rate (in tokens per second)
 	// at which tokens for the assistant rate limiter are replenished
