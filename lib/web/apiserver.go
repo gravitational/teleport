@@ -51,6 +51,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
@@ -92,6 +93,15 @@ import (
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
+
+	// assistantTokensPerHour defines how many assistant rate limiter tokens are replenished every hour.
+	assistantTokensPerHour = 140
+	// assistantLimiterRate is the rate (in tokens per second)
+	// at which tokens for the assistant rate limiter are replenished
+	assistantLimiterRate = rate.Limit(assistantTokensPerHour / float64(time.Hour/time.Second))
+	// assistantLimiterCapacity is the total capacity of the token bucket for the assistant rate limiter.
+	// The bucket starts full, prefilled for a week.
+	assistantLimiterCapacity = assistantTokensPerHour * 24 * 7
 )
 
 // healthCheckAppServerFunc defines a function used to perform a health check
@@ -110,7 +120,14 @@ type Handler struct {
 	sessionStreamPollPeriod time.Duration
 	clock                   clockwork.Clock
 	limiter                 *limiter.RateLimiter
-	healthCheckAppServer    healthCheckAppServerFunc
+	highLimiter             *limiter.RateLimiter
+	// assistantLimiter limits the amount of tokens that can be consumed
+	// by OpenAI API calls when using a shared key.
+	// golang.org/x/time/rate is used, as the oxy ratelimiter
+	// is quite tightly tied to individual http.Requests,
+	// and instead we want to consume arbitrary amounts of tokens.
+	assistantLimiter     *rate.Limiter
+	healthCheckAppServer healthCheckAppServerFunc
 	// sshPort specifies the SSH proxy port extracted
 	// from configuration
 	sshPort string
@@ -298,6 +315,15 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		clock:                clockwork.NewRealClock(),
 		ClusterFeatures:      cfg.ClusterFeatures,
 		healthCheckAppServer: cfg.HealthCheckAppServer,
+	}
+
+	// Check for self-hosted vs Cloud.
+	// TODO(justinas): this needs to be modified when we allow user-supplied API keys in Cloud
+	if modules.GetModules().Features().Cloud {
+		h.assistantLimiter = rate.NewLimiter(assistantLimiterRate, assistantLimiterCapacity)
+	} else {
+		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
+		h.assistantLimiter = rate.NewLimiter(rate.Inf, 0)
 	}
 
 	// for properly handling url-encoded parameter values.
