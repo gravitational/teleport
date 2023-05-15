@@ -16,10 +16,10 @@ package enroll
 
 import (
 	"context"
-	"golang.org/x/exp/slices"
 	"runtime"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"

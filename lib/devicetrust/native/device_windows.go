@@ -19,18 +19,20 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"github.com/google/go-attestation/attest"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"math/big"
 	"os"
 	"os/exec"
 	"os/user"
 	"path"
 	"strings"
+
+	"github.com/google/go-attestation/attest"
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
 const (

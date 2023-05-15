@@ -16,10 +16,12 @@ package devicetrust
 
 import (
 	"crypto"
-	"github.com/google/go-attestation/attest"
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/google/go-attestation/attest"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func TestAttestationParametersProto(t *testing.T) {
