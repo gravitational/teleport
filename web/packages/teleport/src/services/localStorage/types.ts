@@ -19,4 +19,5 @@ export const KeysEnum = {
   TOKEN_RENEW: 'grv_teleport_token_renew',
   LAST_ACTIVE: 'grv_teleport_last_active',
   DISCOVER: 'grv_teleport_discover',
+  SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
 };
