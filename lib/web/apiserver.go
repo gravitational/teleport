@@ -1678,7 +1678,7 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 		// If FIPS mode was requested, make sure older clients that use NaCl get rejected.
 		if response.FIPS {
 			return nil, trace.BadParameter("non-FIPS compliant encryption: NaCl, check " +
-				"that tsh release was downloaded from https://dashboard.gravitational.com")
+				"that tsh release was downloaded from a Teleport account https://teleport.sh")
 		}
 
 		secretKeyBytes, err := lemma_secret.EncodedStringToKey(secretV1)

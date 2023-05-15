@@ -107,6 +107,7 @@ export interface FeatureFlags {
   deviceTrust: boolean;
   locks: boolean;
   newLocks: boolean;
+  assist: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

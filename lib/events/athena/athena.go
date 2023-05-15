@@ -32,14 +32,16 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
-	// TODO(tobiaszheller): move to batcher.go in other PR.
-	// maxWaitTimeOnReceiveMessageFromSQS defines how long single
-	// receiveFromQueue will wait if there is no max events (10).
-	maxWaitTimeOnReceiveMessageFromSQS = 5 * time.Second
+	// defaultBatchItems defines default value for batch items count.
+	// 20000 items, per average 500KB event size = 10MB
+	defaultBatchItems = 20000
+	// defaultBatchInterval defines default batch interval.
+	defaultBatchInterval = 1 * time.Minute
 )
 
 // Config structure represents Athena configuration.
@@ -67,7 +69,10 @@ type Config struct {
 	TableName string
 	// LocationS3 is location on S3 where Parquet files partitioned by date are
 	// stored (required).
-	LocationS3 string
+	LocationS3       string
+	locationS3Bucket string
+	locationS3Prefix string
+
 	// QueryResultsS3 is location on S3 where Athena stored query results (optional).
 	// Default results path can be defined by in workgroup settings.
 	QueryResultsS3 string
@@ -101,6 +106,8 @@ type Config struct {
 	// AWSConfig is AWS config which can be used to construct varius AWS Clients
 	// using aws-sdk-go-v2.
 	AWSConfig *aws.Config
+
+	Backend backend.Backend
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
@@ -139,9 +146,15 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	if cfg.LocationS3 == "" {
 		return trace.BadParameter("LocationS3 is not specified")
 	}
-	if scheme, ok := isValidUrlWithScheme(cfg.LocationS3); !ok || scheme != "s3" {
-		return trace.BadParameter("LocationS3 must be valid url and start with s3")
+	locationS3URL, err := url.Parse(cfg.LocationS3)
+	if err != nil {
+		return trace.BadParameter("LocationS3 must be valid url")
 	}
+	if locationS3URL.Scheme != "s3" {
+		return trace.BadParameter("LocationS3 must starts with s3://")
+	}
+	cfg.locationS3Bucket = locationS3URL.Host
+	cfg.locationS3Prefix = strings.TrimSuffix(strings.TrimPrefix(locationS3URL.Path, "/"), "/")
 
 	if cfg.LargeEventsS3 == "" {
 		return trace.BadParameter("LargeEventsS3 is not specified")
@@ -169,12 +182,11 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	}
 
 	if cfg.BatchMaxItems == 0 {
-		// 20000 items, per average 500KB event size = 10MB
-		cfg.BatchMaxItems = 20000
+		cfg.BatchMaxItems = defaultBatchItems
 	}
 
 	if cfg.BatchMaxInterval == 0 {
-		cfg.BatchMaxInterval = 1 * time.Minute
+		cfg.BatchMaxInterval = defaultBatchInterval
 	}
 
 	if cfg.BatchMaxInterval < maxWaitTimeOnReceiveMessageFromSQS {
@@ -225,6 +237,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 			awsCfg.Region = cfg.Region
 		}
 		cfg.AWSConfig = &awsCfg
+	}
+
+	if cfg.Backend == nil {
+		return trace.BadParameter("Backend cannot be nil")
 	}
 
 	return nil
@@ -316,7 +332,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	publisher *publisher
+	publisher    *publisher
+	querier      *querier
+	consumerStop context.CancelFunc
 }
 
 // New creates an instance of an Athena based audit log.
@@ -325,12 +343,34 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+
 	l := &Log{
-		publisher: newPublisher(cfg),
+		publisher:    newPublisher(cfg),
+		consumerStop: consumerCancel,
 	}
 
-	// TODO(tobiaszheller): initialize batcher
-	// TODO(tobiaszheller): initialize querier
+	l.querier, err = newQuerier(querierConfig{
+		tablename:               cfg.TableName,
+		database:                cfg.Database,
+		workgroup:               cfg.Workgroup,
+		queryResultsS3:          cfg.QueryResultsS3,
+		getQueryResultsInterval: cfg.GetQueryResultsInterval,
+		awsCfg:                  cfg.AWSConfig,
+		logger:                  cfg.LogEntry,
+		clock:                   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	consumer, err := newConsumer(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	go consumer.run(consumerCtx)
 
 	return l, nil
 }
@@ -340,14 +380,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 }
 
 func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 }
 
 func (l *Log) Close() error {
+	l.consumerStop()
 	return nil
 }
 

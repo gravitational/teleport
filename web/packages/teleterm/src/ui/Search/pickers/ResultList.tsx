@@ -59,8 +59,8 @@ export function ResultList<T>(props: ResultListProps<T>) {
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const pickAndResetActiveItem = useCallback(
     (item: T) => {
-      onPick(item);
       setActiveItemIndex(0);
+      onPick(item);
     },
     [onPick]
   );

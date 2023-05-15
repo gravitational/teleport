@@ -790,7 +790,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		if !modules.GetModules().IsBoringBinary() {
 			return nil, trace.BadParameter("binary not compiled against BoringCrypto, check " +
 				"that Enterprise FIPS release was downloaded from " +
-				"https://dashboard.gravitational.com")
+				"a Teleport account https://teleport.sh")
 		}
 	}
 
@@ -1407,7 +1407,8 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 		case teleport.ComponentAthena:
 			hasNonFileLog = true
 			cfg := athena.Config{
-				Region: auditConfig.Region(),
+				Region:  auditConfig.Region(),
+				Backend: backend,
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
