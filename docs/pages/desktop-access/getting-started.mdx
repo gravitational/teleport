@@ -50,7 +50,7 @@ Export the Teleport user certificate authority by running the following from
 `cmd.exe` on your Windows system:
 
 ```code
-$ curl 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows' > teleport.cer
+$ curl -o teleport.cer 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows'
 ```
 
 <Admonition type="warning" title="PowerShell">
