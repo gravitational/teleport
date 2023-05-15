@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -19,6 +20,7 @@ type ServiceConfig struct {
 	Authorizer        authz.Authorizer
 	PluginAuthorizers *plugins.AuthorizerSet
 	BackendService    services.Plugins
+	Log               *logrus.Entry
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -32,6 +34,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.BackendService == nil {
 		return trace.BadParameter("backendService must be set")
 	}
+	if cfg.Log == nil {
+		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
+	}
 	return nil
 }
 
@@ -42,6 +47,7 @@ type Service struct {
 	authorizer        authz.Authorizer
 	pluginAuthorizers *plugins.AuthorizerSet
 	backendService    services.Plugins
+	log               *logrus.Entry
 }
 
 var _ pluginspb.PluginServiceServer = (*Service)(nil)
@@ -109,13 +115,31 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 
 // GetPlugin returns a plugin instance by name.
 func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest) (*types.PluginV1, error) {
-	if err := s.authorizeVerbs(ctx, types.VerbRead); err != nil {
+	readVerb := types.VerbReadNoSecrets
+
+	if req.WithSecrets {
+		readVerb = types.VerbRead
+	}
+
+	plugin, err := s.backendService.GetPlugin(ctx, req.Name, req.WithSecrets)
+	if err != nil {
+		// If the user has no RBAC to list the plugins,
+		// avoid leaking the information on whether the resource exists,
+		// and instead of possibly returning a "not found",
+		// return an "access denied" error.
+		// Log the original error instead.
+		if authErr := s.authorizeVerbs(ctx, types.VerbList); authErr != nil {
+			// Generate a fake auth error equivalent to a real one
+			// using a dummy context which does not have user info, so will never have permissions
+			fakeAuthError := s.authorizeVerbs(context.Background(), readVerb)
+			s.log.Error(err)
+			return nil, fakeAuthError
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
-	const withSecrets = false
-	plugin, err := s.backendService.GetPlugin(ctx, req.Name, withSecrets)
-	if err != nil {
+	if err := s.authorizeVerbsWithResource(ctx, plugin, readVerb); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -208,13 +232,18 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
+	return s.authorizeVerbsWithResource(ctx, nil, verbs...)
+}
+
+func (s *Service) authorizeVerbsWithResource(ctx context.Context, resource types.Resource, verbs ...string) error {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	ruleCtx := &services.Context{
-		User: authCtx.User,
+		User:     authCtx.User,
+		Resource: resource,
 	}
 	errs := make([]error, len(verbs))
 	for i, verb := range verbs {

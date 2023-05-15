@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -76,6 +77,7 @@ func createSuite(t *testing.T) *suite {
 			authorizer:        authorizer,
 			backendService:    backendService,
 			pluginAuthorizers: pluginAuthorizers,
+			log:               logrus.NewEntry(logrus.StandardLogger()),
 		},
 	}
 }
@@ -107,4 +109,9 @@ func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace 
 func assertAccessDenied(t require.TestingT, err error, msg ...interface{}) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected error to be AccessDenied, got %v instead", err)
+}
+
+func assertNotFound(t require.TestingT, err error, msg ...interface{}) {
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "expected error to be NotFound, got %v instead", err)
 }
