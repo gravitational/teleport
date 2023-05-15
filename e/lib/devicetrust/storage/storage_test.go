@@ -28,6 +28,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -1121,6 +1122,28 @@ func TestS_UpdateDevice(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:             "DeviceProfile.UpdateTime ignored for noop",
+			mdmFeatureActive: true,
+			baseDev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "mdmfields2",
+				Profile: &devicepb.DeviceProfile{
+					ModelIdentifier: "MacBookPro9,2",
+				},
+			},
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				// nil UpdateTime is allowed.
+				// Everything else is the same, so this shouldn't cause an update.
+				stored.Profile.UpdateTime = nil
+				return stored
+			},
+			assertUpdate: func(t *testing.T, base *devicepb.Device, updated *devicepb.Device) {
+				if diff := cmp.Diff(base, updated, protocmp.Transform()); diff != "" {
+					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1525,6 +1548,140 @@ func TestS_GetDeviceByID_errors(t *testing.T) {
 			_, err := s.GetDeviceByID(ctx, test.deviceID)
 			if !test.assertErr(err) {
 				t.Errorf("GetDeviceByID assertErr failed, err=%v", err)
+			}
+		})
+	}
+}
+
+func TestS_GetDeviceIDsByOSTag(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	// Create a few devices that we can query later.
+	const createAsResource = false
+	var allDevices []*devicepb.Device
+	for _, dev := range []*devicepb.Device{
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "llama"},
+		{OsType: devicepb.OSType_OS_TYPE_WINDOWS, AssetTag: "llama"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "alpaca"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev1"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev2"},
+	} {
+		created, err := s.CreateDevice(ctx, dev, createAsResource)
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevices = append(allDevices, created)
+	}
+	llama := allDevices[0]
+	llamaWin := allDevices[1]
+	alpaca := allDevices[2]
+	// dev1 unused
+	dev2 := allDevices[4]
+
+	// Simulate a bad asset tag mapping by deleting the device directly from
+	// storage.
+	// No normal storage.S interaction will get us into this state.
+	if err := env.mem.Delete(ctx, backend.Key("devices", "id", dev2.Id)); err != nil {
+		t.Fatalf("Direct deletion of %q failed: %v", dev2.AssetTag, err)
+	}
+
+	tests := []struct {
+		name            string
+		osType          devicepb.OSType
+		assetTag        string
+		verifyExistence bool
+		wantID          string
+		wantErr         string               // assert error message
+		assertErr       func(err error) bool // assert error type
+	}{
+		{
+			name:     "ok",
+			osType:   alpaca.OsType,
+			assetTag: alpaca.AssetTag,
+			wantID:   alpaca.Id,
+		},
+		{
+			name:            "ok with verifyExistence=true",
+			osType:          alpaca.OsType,
+			assetTag:        alpaca.AssetTag,
+			verifyExistence: true,
+			wantID:          alpaca.Id,
+		},
+		{
+			name:     "macOS with conflicting asset tag",
+			osType:   llama.OsType,
+			assetTag: llama.AssetTag, // same AssetTag as llamaWin
+			wantID:   llama.Id,
+		},
+		{
+			name:     "Windows with conflicting asset tag",
+			osType:   llamaWin.OsType,
+			assetTag: llamaWin.AssetTag, // same AssetTag as llama
+			wantID:   llamaWin.Id,
+		},
+		{
+			name:      "unknown os_type not found",
+			osType:    devicepb.OSType_OS_TYPE_LINUX,
+			assetTag:  llama.AssetTag,
+			wantErr:   "not found",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:      "unknown tag not found",
+			osType:    devicepb.OSType_OS_TYPE_MACOS,
+			assetTag:  "unknown",
+			wantErr:   "not found",
+			assertErr: trace.IsNotFound,
+		},
+		{
+			name:     "verifyExistence=false succeeds if mapping exists",
+			osType:   dev2.OsType,
+			assetTag: dev2.AssetTag,
+			wantID:   dev2.Id,
+		},
+		{
+			name:            "verifyExistence=true fails if only mapping exist",
+			osType:          dev2.OsType,
+			assetTag:        dev2.AssetTag,
+			verifyExistence: true,
+			wantErr:         "not found",
+			assertErr:       trace.IsNotFound,
+		},
+		{
+			name:      "OSType unspecified",
+			osType:    0,
+			assetTag:  "llama",
+			wantErr:   "os type",
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name:      "AssetTag empty",
+			osType:    devicepb.OSType_OS_TYPE_MACOS,
+			assetTag:  "",
+			wantErr:   "asset tag",
+			assertErr: trace.IsBadParameter,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := s.GetDeviceIDByOSTag(ctx, test.osType, test.assetTag, test.verifyExistence)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "GetDeviceIDByOSTag error mismatch")
+			} else if err != nil {
+				t.Errorf("GetDeviceIDByOSTag failed: %v", err)
+			}
+
+			if test.assertErr != nil && !test.assertErr(err) {
+				t.Errorf("GetDeviceIDByOSTag: assertErr failed, err=%q (%T)", err, err)
+			}
+
+			// Safe to do even on failures, ID is supposed to be empty.
+			if test.wantID != got {
+				t.Errorf("GetDeviceIDByOSTag() = %v, want = %v", got, test.wantID)
 			}
 		})
 	}

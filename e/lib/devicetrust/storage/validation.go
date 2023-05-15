@@ -202,7 +202,11 @@ func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devic
 	return trace.Wrap(validateDataLikeDrift(cd, profile))
 }
 
-func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
+// ValidateDeviceForCreate verifies that `d` is valid to be used as a new
+// Device.
+// ValidateDeviceForCreate is automatically called by the appropriate storage
+// methods, most callers don't need to use it directly.
+func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 	switch {
 	case d == nil:
 		return trace.BadParameter("device required")
@@ -216,7 +220,7 @@ func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 
 	if dtent.MDMFeatureActive {
 		if d.Source != nil {
-			if err := validateDeviceSource(d.Source); err != nil {
+			if err := ValidateDeviceSource(d.Source); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -274,8 +278,13 @@ func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 	return nil
 }
 
-func validateDeviceSource(source *devicepb.DeviceSource) error {
+// ValidateDeviceSource validates a device source for device create/updates.
+// ValidateDeviceSource is automatically called by the appropriate storage
+// methods, most callers don't need to use it directly.
+func ValidateDeviceSource(source *devicepb.DeviceSource) error {
 	switch {
+	case source == nil:
+		return trace.BadParameter("device source required")
 	case source.Name == "":
 		return trace.BadParameter("device source name required")
 	case len(source.Name) > maxSourceNameLength:
@@ -344,7 +353,7 @@ func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 	if dtent.MDMFeatureActive {
 		// Source is mutable.
 		if updated.Source != nil {
-			if err := validateDeviceSource(updated.Source); err != nil {
+			if err := ValidateDeviceSource(updated.Source); err != nil {
 				return trace.Wrap(err)
 			}
 		}

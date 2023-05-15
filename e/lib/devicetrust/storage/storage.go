@@ -84,7 +84,7 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device, crea
 		resp[i] = &devicepb.DeviceOrStatus{}
 
 		// Is the device valid?
-		if err := validateDeviceForCreate(dev, createAsResource); err != nil {
+		if err := ValidateDeviceForCreate(dev, createAsResource); err != nil {
 			resp[i].Status = errToStatus(err)
 			continue
 		}
@@ -149,7 +149,7 @@ type assetTagKey struct {
 // Prefer using [BulkCreateDevices] if you want to create multiple devices
 // concurrently.
 func (s *S) CreateDevice(ctx context.Context, dev *devicepb.Device, createAsResource bool) (*devicepb.Device, error) {
-	if err := validateDeviceForCreate(dev, createAsResource); err != nil {
+	if err := ValidateDeviceForCreate(dev, createAsResource); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -408,6 +408,11 @@ func (s *S) UpdateDevice(
 	// Ignore transient fields.
 	updated.EnrollToken = nil   // Safe to nil, saved to deviceTokenKey.
 	updated.CollectedData = nil // Safe to nil, saved to collectedDataKey.
+
+	// Ignore Profile.UpdateTime.
+	if updated.Profile != nil {
+		updated.Profile.UpdateTime = stored.GetProfile().GetUpdateTime()
+	}
 
 	// Has the device changed?
 	if proto.Equal(updated, stored) {
@@ -668,6 +673,54 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	return cd, nil
 }
 
+// GetDeviceIDByOSTag returns a device ID from an {osType,assetTag} pair.
+//
+// This is a lower-level method than [GetDeviceByID], which most callers should
+// prefer.
+//
+// The `verifyExistence` flag can be set so that the ID is checked against the
+// device key, instead of only against the asset tag mapping. Setting it to
+// `false` can cause [GetDeviceIDByOSTag] and [GetDeviceByID] to disagree on
+// whether a device exists, with the latter being the more accurate.
+// Be careful when setting it to `false`.
+func (s *S) GetDeviceIDByOSTag(ctx context.Context, osType devicepb.OSType, assetTag string, verifyExistence bool) (string, error) {
+	switch {
+	case osType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return "", trace.BadParameter("os type required")
+	case assetTag == "":
+		return "", trace.BadParameter("asset tag required")
+	}
+
+	refs, err := s.getDeviceRefsByTag(ctx, assetTag)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	var deviceID string
+	for _, dev := range refs.Devices {
+		if dev.OSType == int(osType) {
+			deviceID = dev.DeviceID
+			break
+		}
+	}
+	if deviceID == "" {
+		return "", trace.NotFound("device not found")
+	}
+	if !verifyExistence {
+		return deviceID, nil
+	}
+
+	// Make sure the device actually exists.
+	// We don't need the backend.Item.Value here, but there's no way to check
+	// that a key exists without fetching it.
+	// At least this saves an unmarshal and other reads that GetDeviceByID
+	// typically performs.
+	if _, err := s.backend.Get(ctx, deviceKey(deviceID)); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return deviceID, nil
+}
+
 // GetDevicesByAssetTag reads devices by asset tag.
 // Returns an empty slice if no devices are found.
 func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devicepb.Device, error) {
@@ -675,17 +728,12 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 		return nil, trace.BadParameter("asset tag required")
 	}
 
-	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
+	refs, err := s.getDeviceRefsByTag(ctx, assetTag)
 	switch {
 	case trace.IsNotFound(err):
 		return nil, nil
 	case err != nil:
 		return nil, trace.Wrap(err)
-	}
-
-	refs := &devicesRef{}
-	if err := json.Unmarshal(item.Value, refs); err != nil {
-		return nil, trace.Wrap(err, "unmarshal device references")
 	}
 
 	// In practice devices with the same asset tag are expected to be rare (eg,
@@ -733,6 +781,16 @@ func (s *S) GetDevicesByAssetTag(ctx context.Context, assetTag string) ([]*devic
 	}
 
 	return res, nil
+}
+
+func (s *S) getDeviceRefsByTag(ctx context.Context, assetTag string) (*devicesRef, error) {
+	item, err := s.backend.Get(ctx, devicesByAssetTagKey(assetTag))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	refs := &devicesRef{}
+	return refs, trace.Wrap(json.Unmarshal(item.Value, refs))
 }
 
 // ListDevices is a paginated search of devices. It returns the found devices
