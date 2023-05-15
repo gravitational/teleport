@@ -21,7 +21,6 @@ import { useAsync } from 'shared/hooks/useAsync';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useDocumentGateway(doc: types.DocumentGateway) {
@@ -37,7 +36,6 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
   const defaultPort = doc.port || '';
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
-  const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
     const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
@@ -92,14 +90,22 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
   });
 
   const runCliCommand = () => {
-    const { rootClusterId, leafClusterId } = routing.parseClusterUri(
-      cluster.uri
-    ).params;
-    workspaceDocumentsService.openNewTerminal({
-      initCommand: gateway.cliCommand.preview,
-      rootClusterId,
-      leafClusterId,
+    const [command] = gateway.cliCommand.argsList;
+    let title = `${command} · ${doc.targetUser}@${doc.targetName}`;
+
+    if (doc.targetSubresourceName) {
+      title += `/${doc.targetSubresourceName}`;
+    }
+
+    const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
+      title,
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+      targetName: doc.targetName,
+      targetProtocol: gateway.protocol,
     });
+    workspaceDocumentsService.add(cliDoc);
+    workspaceDocumentsService.setLocation(cliDoc.uri);
   };
 
   useEffect(
