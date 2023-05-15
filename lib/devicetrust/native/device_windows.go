@@ -92,7 +92,8 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	if len(eks) == 0 {
 		return nil, trace.BadParameter("no endorsement keys found in tpm")
 	}
-	// TODO(noah): Marshal EK Certificate instead of key if present.
+	// TODO(noah): Marshal EK Certificate instead of key if present:
+	// https://github.com/gravitational/teleport.e/issues/1393
 	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
 	if err != nil {
 		return nil, trace.Wrap(err)
