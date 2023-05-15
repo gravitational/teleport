@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
