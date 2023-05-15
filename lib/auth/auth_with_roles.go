@@ -1581,6 +1581,10 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+func (a *ServerWithRoles) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
+}
+
 const (
 	// kubeService is a special resource type that is used to keep compatibility
 	// with Teleport 12 clients.

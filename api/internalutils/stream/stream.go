@@ -312,3 +312,16 @@ func PageFunc[T any](fn func() ([]T, error), doneFuncs ...func()) Stream[T] {
 		},
 	}
 }
+
+// Take takes the next n items from a stream. It returns a slice of the items
+// and the result of the last call to stream.Next().
+func Take[T any](stream Stream[T], n int) ([]T, bool) {
+	items := make([]T, 0, n)
+	for i := 0; i < n; i++ {
+		if !stream.Next() {
+			return items, false
+		}
+		items = append(items, stream.Item())
+	}
+	return items, true
+}

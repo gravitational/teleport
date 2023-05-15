@@ -211,7 +211,7 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument(ctx)
+		params.ec2IdentityDocument, err = utils.GetRawEC2IdentityDocument(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
