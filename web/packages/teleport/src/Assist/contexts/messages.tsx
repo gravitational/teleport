@@ -62,7 +62,7 @@ interface ServerMessage {
 }
 
 interface ConversationHistoryResponse {
-  Messages: ServerMessage[];
+  messages: ServerMessage[];
 }
 
 const MessagesContext = createContext<MessageContextValue>({
@@ -331,12 +331,12 @@ export function MessagesContextProvider(
       cfg.getAssistConversationHistoryUrl(props.conversationId)
     );
 
-    if (!res.Messages) {
+    if (!res.messages) {
       return;
     }
 
     let messages: Message[] = [];
-    for (const m of res.Messages) {
+    for (const m of res.messages) {
       const action = await convertServerMessage(m, clusterId);
       action(messages);
     }

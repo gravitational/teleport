@@ -3558,6 +3558,15 @@ func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssist
 	return messages, nil
 }
 
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // GetAssistantConversations returns all conversations started by a user.
 func (c *Client) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	messages, err := c.grpc.GetAssistantConversations(ctx, request)
