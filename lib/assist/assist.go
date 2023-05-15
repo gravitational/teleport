@@ -58,6 +58,8 @@ const (
 	MessageKindAssistantPartialFinalize MessageType = "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE"
 	// MessageKindSystemMessage is the type of Assist message that contains the system message.
 	MessageKindSystemMessage MessageType = "CHAT_MESSAGE_SYSTEM"
+	// MessageKindError is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
+	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
 // Assist is the Teleport Assist client.
@@ -210,7 +212,7 @@ type TokensUsed struct {
 	// Prompt is a number of tokens used in the prompt.
 	Prompt int
 	// Completion is a number of tokens used in the completion.
-	Competition int
+	Completion int
 }
 
 // ProcessComplete processes the completion request and returns the number of tokens used.
@@ -386,8 +388,8 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	}
 
 	return &TokensUsed{
-		Prompt:      promptTokens,
-		Competition: numTokens,
+		Prompt:     promptTokens,
+		Completion: numTokens,
 	}, nil
 }
 
