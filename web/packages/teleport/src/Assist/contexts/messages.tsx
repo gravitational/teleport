@@ -154,7 +154,7 @@ async function convertServerMessage(
 ): Promise<MessagesAction> {
   if (
     message.type === 'CHAT_MESSAGE_ASSISTANT' ||
-    message.type === 'CHAT_MESSAGE_UI'
+    message.type === 'CHAT_MESSAGE_ERROR'
   ) {
     const newMessage: Message = {
       author: Author.Teleport,
@@ -374,7 +374,7 @@ export function MessagesContextProvider(
         value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
         value.type === 'COMMAND' ||
         value.type === 'CHAT_MESSAGE_ASSISTANT' ||
-        value.type === 'CHAT_MESSAGE_UI'
+        value.type === 'CHAT_MESSAGE_ERROR'
       ) {
         setResponding(false);
       }

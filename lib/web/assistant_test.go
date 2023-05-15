@@ -72,7 +72,7 @@ func Test_runAssistant(t *testing.T) {
 		err = json.Unmarshal(payload, &msg)
 		require.NoError(t, err)
 
-		require.Equal(t, assist.MessageKindUIMessage, msg.Type)
+		require.Equal(t, assist.MessageKindError, msg.Type)
 		require.Equal(t, msg.Payload, "You have reached the rate limit. Please try again later.")
 	}
 

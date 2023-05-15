@@ -58,8 +58,8 @@ const (
 	MessageKindAssistantPartialFinalize MessageType = "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE"
 	// MessageKindSystemMessage is the type of Assist message that contains the system message.
 	MessageKindSystemMessage MessageType = "CHAT_MESSAGE_SYSTEM"
-	// MessageKindUIMessage is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
-	MessageKindUIMessage MessageType = "CHAT_MESSAGE_UI"
+	// MessageKindError is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
+	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
 // Assist is the Teleport Assist client.

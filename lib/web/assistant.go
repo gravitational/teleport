@@ -409,7 +409,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		// Try to consume a small amount of tokens first.
 		const lookaheadTokens = 100
 		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
-			err := onMessageFn(assist.MessageKindUIMessage, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
+			err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
 			if err != nil {
 				return trace.Wrap(err)
 			}
