@@ -62,7 +62,7 @@ interface ServerMessage {
 }
 
 interface ConversationHistoryResponse {
-  Messages: ServerMessage[];
+  messages: ServerMessage[];
 }
 
 const MessagesContext = createContext<MessageContextValue>({
@@ -134,9 +134,22 @@ export const remoteCommandToMessage = async (
       errorMsg = 'no users found';
     }
 
+    // If the login has been selected, use it.
+    let avLogin = execCmd.selectedLogin;
+    if (!avLogin) {
+      // If the login has not been selected, use the first one.
+      avLogin = availableLogins ? availableLogins[0] : '';
+    } else {
+      // If the login has been selected, check if it is available.
+      // Updated query could have changed the available logins.
+      if (!availableLogins.includes(avLogin)) {
+        avLogin = availableLogins ? availableLogins[0] : '';
+      }
+    }
+
     return {
       ...execCmd,
-      selectedLogin: availableLogins ? availableLogins[0] : '',
+      selectedLogin: avLogin,
       availableLogins: availableLogins,
       errorMsg: errorMsg,
     };
@@ -152,7 +165,10 @@ async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
-  if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
+  if (
+    message.type === 'CHAT_MESSAGE_ASSISTANT' ||
+    message.type === 'CHAT_MESSAGE_ERROR'
+  ) {
     const newMessage: Message = {
       author: Author.Teleport,
       timestamp: message.created_time,
@@ -263,6 +279,8 @@ async function convertServerMessage(
 
     return (messages: Message[]) => messages.push(newMessage);
   }
+
+  throw new Error('unrecognized message type');
 }
 
 function findIntersection<T>(elems: T[][]): T[] {
@@ -331,12 +349,12 @@ export function MessagesContextProvider(
       cfg.getAssistConversationHistoryUrl(props.conversationId)
     );
 
-    if (!res.Messages) {
+    if (!res.messages) {
       return;
     }
 
     let messages: Message[] = [];
-    for (const m of res.Messages) {
+    for (const m of res.messages) {
       const action = await convertServerMessage(m, clusterId);
       action(messages);
     }
@@ -364,9 +382,12 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
+      // When a streaming message ends, or a non-streaming message arrives
       if (
         value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
-        value.type === 'COMMAND'
+        value.type === 'COMMAND' ||
+        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
+        value.type === 'CHAT_MESSAGE_ERROR'
       ) {
         setResponding(false);
       }

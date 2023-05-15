@@ -445,6 +445,15 @@ value begins with `^` and ends in `$`, the Kubernetes Service will treat it as a
 regular expression using Go's `re2` syntax (see the `re2`
 [README](https://github.com/google/re2/wiki/Syntax)).
 
+<Notice type="tip" >
+For a user to access a pod named in a role's `kubernetes_resources` field, the user
+must be assigned a Teleport role that contains at least one value within 
+`kubernetes_groups` or `kubernetes_users`. Teleport does not alter Kubernetes 
+roles to allow or deny access. Read the next section for an explanation of how the 
+Kubernetes Service evaluates Teleport roles in order to allow or deny access to 
+pods in a cluster.
+</Notice>
+ 
 ## How the Kubernetes Service evaluates Teleport roles
 
 When a Teleport user makes a request to a Kubernetes cluster's API server, the

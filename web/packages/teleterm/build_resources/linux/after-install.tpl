@@ -3,7 +3,7 @@ set -eu
 
 ###
 # Default after-install.tpl copied from electron-builder.
-# https://github.com/electron-userland/electron-builder/blob/v24.0.0-alpha.5/packages/app-builder-lib/templates/linux/after-install.tpl
+# https://github.com/electron-userland/electron-builder/blob/v24.4.0/packages/app-builder-lib/templates/linux/after-install.tpl
 ###
 
 # SUID chrome-sandbox for Electron 5+
@@ -32,7 +32,15 @@ TSH_SYMLINK_TARGET=$BIN/tsh
 [ ! -d "$BIN" ] && mkdir -p "$BIN"
 
 # Link to the Electron app binary.
-ln -sf "$APP/${executable}" "$BIN/${executable}"
+if type update-alternatives 2>/dev/null >&1; then
+  # Remove previous link if it doesn't use update-alternatives
+  if [ -L "$BIN/${executable}" -a -e "$BIN/${executable}" -a "`readlink "$BIN/${executable}"`" != "/etc/alternatives/${executable}" ]; then
+    rm -f "$BIN/${executable}"
+  fi
+  update-alternatives --install "$BIN/${executable}" "${executable}" "$APP/${executable}" 100
+else
+  ln -sf "$APP/${executable}" "$BIN/${executable}"
+fi
 
 # Link to the bundled tsh if the symlink doesn't exist already. Otherwise echo a message unless the
 # link points to teleport-connect's tsh already.

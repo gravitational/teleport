@@ -39,6 +39,7 @@ const (
 	AssistService_GetAssistantMessages_FullMethodName            = "/teleport.assist.v1.AssistService/GetAssistantMessages"
 	AssistService_CreateAssistantMessage_FullMethodName          = "/teleport.assist.v1.AssistService/CreateAssistantMessage"
 	AssistService_UpdateAssistantConversationInfo_FullMethodName = "/teleport.assist.v1.AssistService/UpdateAssistantConversationInfo"
+	AssistService_IsAssistEnabled_FullMethodName                 = "/teleport.assist.v1.AssistService/IsAssistEnabled"
 )
 
 // AssistServiceClient is the client API for AssistService service.
@@ -55,6 +56,8 @@ type AssistServiceClient interface {
 	CreateAssistantMessage(ctx context.Context, in *CreateAssistantMessageRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateAssistantConversationInfo updates the conversation info.
 	UpdateAssistantConversationInfo(ctx context.Context, in *UpdateAssistantConversationInfoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+	IsAssistEnabled(ctx context.Context, in *IsAssistEnabledRequest, opts ...grpc.CallOption) (*IsAssistEnabledResponse, error)
 }
 
 type assistServiceClient struct {
@@ -110,6 +113,15 @@ func (c *assistServiceClient) UpdateAssistantConversationInfo(ctx context.Contex
 	return out, nil
 }
 
+func (c *assistServiceClient) IsAssistEnabled(ctx context.Context, in *IsAssistEnabledRequest, opts ...grpc.CallOption) (*IsAssistEnabledResponse, error) {
+	out := new(IsAssistEnabledResponse)
+	err := c.cc.Invoke(ctx, AssistService_IsAssistEnabled_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AssistServiceServer is the server API for AssistService service.
 // All implementations must embed UnimplementedAssistServiceServer
 // for forward compatibility
@@ -124,6 +136,8 @@ type AssistServiceServer interface {
 	CreateAssistantMessage(context.Context, *CreateAssistantMessageRequest) (*emptypb.Empty, error)
 	// UpdateAssistantConversationInfo updates the conversation info.
 	UpdateAssistantConversationInfo(context.Context, *UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error)
+	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+	IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error)
 	mustEmbedUnimplementedAssistServiceServer()
 }
 
@@ -145,6 +159,9 @@ func (UnimplementedAssistServiceServer) CreateAssistantMessage(context.Context, 
 }
 func (UnimplementedAssistServiceServer) UpdateAssistantConversationInfo(context.Context, *UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateAssistantConversationInfo not implemented")
+}
+func (UnimplementedAssistServiceServer) IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IsAssistEnabled not implemented")
 }
 func (UnimplementedAssistServiceServer) mustEmbedUnimplementedAssistServiceServer() {}
 
@@ -249,6 +266,24 @@ func _AssistService_UpdateAssistantConversationInfo_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AssistService_IsAssistEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IsAssistEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistServiceServer).IsAssistEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistService_IsAssistEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistServiceServer).IsAssistEnabled(ctx, req.(*IsAssistEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AssistService_ServiceDesc is the grpc.ServiceDesc for AssistService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -275,6 +310,10 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateAssistantConversationInfo",
 			Handler:    _AssistService_UpdateAssistantConversationInfo_Handler,
+		},
+		{
+			MethodName: "IsAssistEnabled",
+			Handler:    _AssistService_IsAssistEnabled_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
