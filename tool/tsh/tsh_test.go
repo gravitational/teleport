@@ -4049,7 +4049,7 @@ func TestForwardingTraces(t *testing.T) {
 			proxyAddr, err := proxyProcess.ProxyWebAddr()
 			require.NoError(t, err)
 
-			// --trace should have no impact on login, since login is whitelisted
+			// --trace should have no impact on login, since login is ignored
 			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
