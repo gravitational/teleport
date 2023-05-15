@@ -931,12 +931,12 @@ func TestJoinScript(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
 				"    if [[ \"true\" == \"true\" ]]; then\n"+
-				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
 		})
@@ -945,12 +945,12 @@ func TestJoinScript(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
 				"    if [[ \"false\" == \"true\" ]]; then\n"+
-				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
 		})
