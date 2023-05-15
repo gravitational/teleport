@@ -298,14 +298,13 @@ func getDeviceBaseBoardSerial() (string, error) {
 }
 
 func getOSVersion() (string, error) {
-	// TODO(noah): Get-ComputerInfo is too slow. Find a faster alternative.
 	cmd := exec.Command(
 		"powershell",
 		"-NoProfile",
-		"Get-ComputerInfo | Select -ExpandProperty OsVersion",
+		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version",
 	)
 	// ThinkPad P P14s:
-	// PS>  Get-ComputerInfo | Select -ExpandProperty OsVersion
+	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty Version
 	// 10.0.22621
 	out, err := cmd.Output()
 	if err != nil {
