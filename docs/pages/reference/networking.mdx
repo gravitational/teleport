@@ -25,7 +25,7 @@ following use cases:
 - You want Teleport to issue an SSH certificate for the service with additional
   principals, e.g., host names.
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud"]} label="Cloud-Hosted Teleport">
 
 All Teleport services (e.g., the Application Service and Database Service) have
 an optional `public_addr` property that you can modify in each service's
@@ -164,14 +164,14 @@ In those cases, they can set up separate listeners in the config file.
 | 3025 | All Teleport services | TLS port used by the Auth Service to serve its gRPC API to other Teleport services in a cluster.|
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+<TabItem scope={["cloud"]} label="Cloud-Hosted Teleport">
 
 ### Proxy Service ports
 
-Teleport Enterprise Cloud allocates a different set of ports to each tenant's
-Proxy Service. To see which ports are available for your Teleport Enterprise
-Cloud tenant, run a command similar to the following, replacing
-`mytenant.teleport.sh` with your tenant domain:
+Cloud-hosted Teleport deployments allocate a different set of ports to each
+tenant's Proxy Service. To see which ports are available for your Teleport
+tenant, run a command similar to the following, replacing `mytenant.teleport.sh`
+with your tenant domain:
 
 ```code
 $ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
@@ -226,3 +226,22 @@ internet.
 Teleport agents dial the Teleport Proxy Service to establish a reverse tunnel.
 Client traffic flows via the Proxy Service to the agent, and the agent forwards
 traffic to resources in your infrastructure.
+
+Some Teleport services listen for traffic to one of their proxied resources,
+meaning that you can expose ports on that service's host directly to clients.
+The table below describes the ports that each Teleport Service opens for proxied
+traffic:
+
+| Port | Service | Traffic Type |
+| - | - | - |
+| 3022 | SSH Service | Incoming SSH connections.|
+| 3026 | Kubernetes Service | HTTPS traffic to a Kubernetes API server.| 
+| 3036 | Database Service | Traffic to MySQL databases.|
+| 5432 | Database Service | Traffic to Postgres databases.|
+| 27017 | Database Service | Traffic to MongoDB instances.|
+| 6379 | Database Service | Traffic to Redis instances.|
+| 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
+
+For applications registered with the Teleport Application Service, the Teleport
+Proxy Service assigns a subdomain of its domain name to each registered
+application, routing traffic to the correct Application Service instance. 
