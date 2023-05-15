@@ -494,7 +494,7 @@ func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
 func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	appCerts, err := loadAppCertificate(tc, appName)
+	appCerts, _, err := loadAppCertificate(tc, appName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

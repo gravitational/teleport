@@ -21,7 +21,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"strings"
 	"sync"
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
@@ -82,6 +81,8 @@ type awsApp struct {
 	localForwardProxy *alpnproxy.ForwardProxy
 	credentials       *credentials.Credentials
 	credentialsOnce   sync.Once
+
+	cloudAppImpl
 }
 
 // newAWSApp creates a new AWS app.
@@ -249,12 +250,12 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, a.appName)
+	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -356,12 +357,13 @@ func printAWSRoles(roles awsutils.Roles) {
 	}
 
 	roles.Sort()
-
 	t := asciitable.MakeTable([]string{"Role Name", "Role ARN"})
 	for _, role := range roles {
 		// Use role.Display for role names to match what AWS web console shows.
 		t.AddRow([]string{role.Display, role.ARN})
 	}
+
+	fmt.Println("Available AWS roles:")
 	fmt.Println(t.AsBuffer().String())
 }
 
@@ -405,59 +407,26 @@ func getARNFromFlags(cf *CLIConf, profile *client.ProfileStatus, app types.Appli
 	}
 }
 
+func matchAWSApp(app tlsca.RouteToApp) bool {
+	return app.AWSRoleARN != ""
+}
+
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	profile, err := cf.ProfileStatus()
+	info := cloudAppInfo{
+		cloudFriendlyName: types.CloudAWS,
+		matchRouteToApp:   matchAWSApp,
+		newCloudApp: func(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (cloudApp, error) {
+			return newAWSApp(cf, profile, route.Name)
+		},
+	}
+
+	app, err := info.pickActiveCloudApp(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to AWS app using 'tsh apps login' first")
+	typedApp, ok := (app).(*awsApp)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", app)
 	}
-	name := cf.AppName
-	if name != "" {
-		app, err := findApp(profile.Apps, name)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to AWS app using 'tsh apps login' first")
-			}
-			return nil, trace.Wrap(err)
-		}
-		if app.AWSRoleARN == "" {
-			return nil, trace.BadParameter(
-				"Selected app %q is not an AWS application", name,
-			)
-		}
-		return newAWSApp(cf, profile, name)
-	}
-
-	awsApps := getAWSAppsName(profile.Apps)
-	if len(awsApps) == 0 {
-		return nil, trace.NotFound("Please login to AWS App using 'tsh apps login' first")
-	}
-	if len(awsApps) > 1 {
-		names := strings.Join(awsApps, ", ")
-		return nil, trace.BadParameter(
-			"Multiple AWS apps are available (%v), please specify one using --app CLI argument", names,
-		)
-	}
-	return newAWSApp(cf, profile, awsApps[0])
-}
-
-func findApp(apps []tlsca.RouteToApp, name string) (*tlsca.RouteToApp, error) {
-	for _, app := range apps {
-		if app.Name == name {
-			return &app, nil
-		}
-	}
-	return nil, trace.NotFound("failed to find app with %q name", name)
-}
-
-func getAWSAppsName(apps []tlsca.RouteToApp) []string {
-	var out []string
-	for _, app := range apps {
-		if app.AWSRoleARN != "" {
-			out = append(out, app.Name)
-		}
-	}
-	return out
+	return typedApp, nil
 }

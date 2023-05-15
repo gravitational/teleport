@@ -72,6 +72,14 @@ func TestAWS(t *testing.T) {
 	)
 	require.NoError(t, err)
 
+	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
+	err = Run(
+		context.Background(),
+		[]string{"app", "logout", "aws-app"},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+
 	// Run "tsh aws". Use a custom "cmdRunner" instead of executing AWS CLI. We
 	// don't want to try a real AWS request as it might get sent to AWS
 	// eventually by the App Service.

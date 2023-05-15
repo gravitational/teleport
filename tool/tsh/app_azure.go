@@ -71,6 +71,8 @@ type azureApp struct {
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
+
+	cloudAppImpl
 }
 
 // newAzureApp creates a new Azure app.
@@ -202,12 +204,12 @@ func (a *azureApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, a.app.Name)
+	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -383,52 +385,26 @@ func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (stri
 	}
 }
 
+func matchAzureApp(app tlsca.RouteToApp) bool {
+	return app.AzureIdentity != ""
+}
+
 func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
-	profile, err := cf.ProfileStatus()
+	info := cloudAppInfo{
+		cloudFriendlyName: types.CloudAzure,
+		matchRouteToApp:   matchAzureApp,
+		newCloudApp: func(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (cloudApp, error) {
+			return newAzureApp(cf, profile, route)
+		},
+	}
+
+	app, err := info.pickActiveCloudApp(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to Azure app using 'tsh apps login' first")
+	typedApp, ok := (app).(*azureApp)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", app)
 	}
-	name := cf.AppName
-	if name != "" {
-		app, err := findApp(profile.Apps, name)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to Azure app using 'tsh apps login' first")
-			}
-			return nil, trace.Wrap(err)
-		}
-		if app.AzureIdentity == "" {
-			return nil, trace.BadParameter(
-				"Selected app %q is not an Azure application", name,
-			)
-		}
-		return newAzureApp(cf, profile, *app)
-	}
-	azureApps := getAzureApps(profile.Apps)
-	if len(azureApps) == 0 {
-		return nil, trace.NotFound("Please login to Azure App using 'tsh apps login' first")
-	}
-	if len(azureApps) > 1 {
-		var names []string
-		for _, app := range azureApps {
-			names = append(names, app.Name)
-		}
-		return nil, trace.BadParameter(
-			"Multiple Azure apps are available (%v), please specify one using --app CLI argument", strings.Join(names, ", "),
-		)
-	}
-	return newAzureApp(cf, profile, azureApps[0])
-}
-
-func getAzureApps(apps []tlsca.RouteToApp) []tlsca.RouteToApp {
-	var out []tlsca.RouteToApp
-	for _, app := range apps {
-		if app.AzureIdentity != "" {
-			out = append(out, app)
-		}
-	}
-	return out
+	return typedApp, nil
 }
