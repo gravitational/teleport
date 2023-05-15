@@ -306,13 +306,13 @@ func (u *UICallToActionClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.Submi
 	}
 }
 
-// UIBillingCardAdded is an UI event sent when a user adds a new credit card.
-type UIBillingCardAdded prehogv1a.UIBillingCardAddedClickEvent
+// UIBillingCardAddedClickEvent is an UI event sent when a user adds a new credit card.
+type UIBillingCardAddedClickEvent prehogv1a.UIBillingCardAddedClickEvent
 
-func (u UIBillingCardAdded) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+func (u *UIBillingCardAddedClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_UiBillingCardAdded{
-			UiOnboardAddFirstResourceClick: &prehogv1a.UIBillingCardAddedClickEvent{
+		Event: &prehogv1a.SubmitEventRequest_UiBillingCardAddedClickEvent{
+			UiBillingCardAddedClickEvent: &prehogv1a.UIBillingCardAddedClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
