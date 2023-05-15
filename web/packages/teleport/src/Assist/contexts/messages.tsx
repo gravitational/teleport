@@ -134,9 +134,22 @@ export const remoteCommandToMessage = async (
       errorMsg = 'no users found';
     }
 
+    // If the login has been selected, use it.
+    let avLogin = execCmd.selectedLogin;
+    if (!avLogin) {
+      // If the login has not been selected, use the first one.
+      avLogin = availableLogins ? availableLogins[0] : '';
+    } else {
+      // If the login has been selected, check if it is available.
+      // Updated query could have changed the available logins.
+      if (!availableLogins.includes(avLogin)) {
+        avLogin = availableLogins ? availableLogins[0] : '';
+      }
+    }
+
     return {
       ...execCmd,
-      selectedLogin: availableLogins ? availableLogins[0] : '',
+      selectedLogin: avLogin,
       availableLogins: availableLogins,
       errorMsg: errorMsg,
     };
