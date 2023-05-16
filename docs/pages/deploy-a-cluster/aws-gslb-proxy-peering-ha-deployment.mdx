@@ -7,8 +7,8 @@ description: "Deploying a high-availability Teleport cluster using Proxy Peering
 
 This deployment architecture features two important design decisions:
 
-1. AWS Route 53 Latency based routing is used for Global Server Load Balancing 
-   [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/). 
+1. AWS Route 53 latency-based routing is used for global server load balancing 
+   ([GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)).
    This allows for efficient distribution of traffic across resources that are globally distributed.
 
 2. Teleport's [Proxy Peering](../architecture/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
@@ -21,12 +21,12 @@ to customers.
 This architecture is best suited for globally distributed resources and end-users that prefer a single point of
 entry while also ensuring minimal latency when accessing connected resources.
 
-### Key deployment components
-- High Availability Teleport Cluster
+## Key deployment components
+- High-availability Teleport cluster
 - Deployed exclusively in AWS ecosystem
 - Auth Servers must remain in a single region
 - Proxy Servers are deployed across multiple regions
-- [AWS Route 53 latency based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
+- [AWS Route 53 latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
 - [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
 - [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
 - [Teleport Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) for reducing the number of resource connections
@@ -35,16 +35,18 @@ entry while also ensuring minimal latency when accessing connected resources.
 - [AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for session recording storage
 
 ## Advantages of this deployment architecture
-- Eliminates the complexity and cost of maintaining multiple Teleport clusters across multiple regions
-- Uses the lowest latency path to connect users to resources
+
+- Eliminates the complexity and cost of maintaining multiple Teleport clusters across multiple regions.
+- Uses the lowest-latency path to connect users to resources.
 - Provides a highly resilient, redundant HA architecture for Teleport that can quickly 
   scale with an organization's needs.
 - All required Teleport components can be provisioned within the AWS ecosystem.
-- Using load balancers for the Proxy and Auth services allows for increased availability 
-  during Teleport Cluster upgrades.
+- Using load balancers for the Proxy and Auth Services allows for increased availability 
+  during Teleport cluster upgrades.
 
 ## Disadvantages of this deployment architecture
-- When Teleport Auth servers are limited to a single region, there is a higher likelihood 
+
+- When Teleport Auth Service instances are limited to a single region, there is a higher likelihood 
   of decreased availability during an AWS regional outage.
 - Technically complex to deploy
 
@@ -54,7 +56,7 @@ architecture](../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.pn
 
 ## AWS Network Load Balancer (NLB)
 AWS NLBs are required for this highly available deployment architecture. 
-The NLB forwards traffic from users and services to an available Teleport instance. This must not 
+The NLB forwards traffic from users and services to an available Teleport Proxy Service instance. This must not 
 terminate TLS, and must transparently forward the TCP traffic it receives. 
 In other words, this must be a Layer 4 load balancer, not a Layer 7 
 (e.g., HTTP) load balancer. 
@@ -68,6 +70,7 @@ traffic across multiple zones. Doing this improves resiliency against localized 
 </Admonition>
 
 ### Configure the Proxy Service NLBs
+
 Configure the load balancer to forward traffic from the following ports on the
 load balancer to the corresponding port on an available Teleport instance.
 
@@ -82,6 +85,7 @@ load balancer to the corresponding port on an available Teleport instance.
 </Tabs>
 
 ### Configure the Auth Service NLB
+
 Configure the load balancer to forward traffic from the following ports on the
 load balancer to the corresponding port on an available Teleport instance.
 
@@ -141,6 +145,7 @@ Example Hosted Zone using AWS Route53 Latency Routing to create GSLB:
 |```*.teleport.example.com```|CNAME|AWS Route 53 nameservers|
 
 ### Teleport Proxy DNS records for GSLB:
+
 |Record name|Type|Routing Policy|Region|Value|
 |---|---|---|---|---|
 |```teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
@@ -157,6 +162,7 @@ manage Route53 DNS records in order to satisfy Let's Encrypt's DNS-01 challenge.
 </Admonition>
 
 ### Teleport resource agent configuration for GSLB
+
 To facilitate latency-based routing, resource agents must be configured to point ```proxy_server:``` to 
 the GSLB domain configured in Route53, **not** the specific proxy NLB address.
 
