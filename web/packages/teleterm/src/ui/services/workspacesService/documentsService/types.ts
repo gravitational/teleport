@@ -16,14 +16,7 @@ limitations under the License.
 
 import * as uri from 'teleterm/ui/uri';
 
-export type Kind =
-  | 'doc.access_requests'
-  | 'doc.cluster'
-  | 'doc.blank'
-  | 'doc.gateway'
-  | 'doc.terminal_shell'
-  | 'doc.terminal_tsh_node'
-  | 'doc.terminal_tsh_kube';
+export type Kind = Document['kind'];
 
 export type DocumentOrigin =
   | 'resource_table'
