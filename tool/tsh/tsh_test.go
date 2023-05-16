@@ -4089,8 +4089,6 @@ func TestForwardingTraces(t *testing.T) {
 }
 
 func TestExportingTraces(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name                  string
 		cfg                   func(c *tracing.Collector) servicecfg.TracingConfig
@@ -4132,10 +4130,7 @@ func TestExportingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			connector := mockConnector(t)
 			alice, err := types.NewUser("alice@example.com")
 			require.NoError(t, err)
