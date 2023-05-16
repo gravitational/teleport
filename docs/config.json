@@ -17,10 +17,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -2483,6 +2479,11 @@
     {
       "source": "/choose-an-edition/teleport-enterprise/getting-started/",
       "destination": "/choose-an-edition/teleport-enterprise/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]
