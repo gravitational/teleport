@@ -99,7 +99,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Set a timeout so the test won't block forever.
 			// We don't expect to hit the timeout for any of the test cases.
-			ctx, cancel := context.WithTimeout(ctx, 100000000*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			defer cancel()
 
 			// Prompt never has any input.

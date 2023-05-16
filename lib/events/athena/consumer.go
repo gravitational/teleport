@@ -611,11 +611,16 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 
 	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
 
+	var versionIDPtr *string
+	if versionID != "" {
+		versionIDPtr = aws.String(versionID)
+	}
+
 	buf := manager.NewWriteAtBuffer([]byte{})
 	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket:    aws.String(s.cfg.payloadBucket),
 		Key:       aws.String(path),
-		VersionId: aws.String(versionID),
+		VersionId: versionIDPtr,
 	})
 	if err != nil {
 		return nil, awsutils.ConvertS3Error(err)
