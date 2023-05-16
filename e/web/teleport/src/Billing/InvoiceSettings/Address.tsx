@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box, ButtonPrimary, Text } from 'design';
 import {
   AddressElement,
@@ -8,18 +8,54 @@ import {
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
+import * as stripeJs from '@stripe/stripe-js';
+
 import { AddressProps } from 'e-teleport/Billing/types';
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import useTeleport from 'e-teleport/useTeleportE';
 import { StripeBillingAddressRequest } from 'e-teleport/services/cloud';
 
-export const Address = ({ address, name }: AddressProps) => {
+export const Address = ({ address, name, reload }: AddressProps) => {
   const stripe = useStripe();
   const elements = useElements();
   const ctx = useTeleport();
 
   const [valid, setValid] = useState<boolean>(false);
+  const [updated, setUpdated] = useState<boolean>(false);
   const [networkState, setNetworkState] = useState<NetworkState>({});
+
+  const initialState = useMemo(() => {
+    return {
+      name: name,
+      address: {
+        line1: address?.addressLine1 || '',
+        line2: address?.addressLine2 || '',
+        city: address?.addressCity || '',
+        state: address?.addressState || '',
+        postal_code: address?.addressPostalCode || '',
+        country: address?.addressCountry || '',
+      },
+    };
+  }, [name, address]);
+
+  const handleUpdate = (event: stripeJs.StripeAddressElementChangeEvent) => {
+    if (event.complete) {
+      setValid(true);
+    } else {
+      setValid(false);
+    }
+
+    const updatedValues =
+      event.value.name !== initialState.name ||
+      event.value.address.country !== initialState.address.country ||
+      event.value.address.line1 !== initialState.address.line1 ||
+      event.value.address.line2 !== initialState.address.line2 ||
+      event.value.address.city !== initialState.address.city ||
+      event.value.address.state !== initialState.address.state ||
+      event.value.address.postal_code !== initialState.address.postal_code;
+
+    setUpdated(updatedValues);
+  };
 
   const handleClick = async (
     e: React.MouseEvent<HTMLButtonElement>
@@ -52,7 +88,7 @@ export const Address = ({ address, name }: AddressProps) => {
     ctx.cloudService
       .updateAddress(accountReq)
       .then(() => {
-        setNetworkState({ status: undefined });
+        reload();
       })
       .catch(error => {
         setNetworkState({ status: 'error', error: error });
@@ -69,25 +105,9 @@ export const Address = ({ address, name }: AddressProps) => {
       <AddressElement
         options={{
           mode: 'billing',
-          defaultValues: {
-            name: name,
-            address: {
-              line1: address?.addressLine1 || '',
-              line2: address?.addressLine2 || '',
-              city: address?.addressCity || '',
-              state: address?.addressState || '',
-              postal_code: address?.addressPostalCode || '',
-              country: address?.addressCountry || '',
-            },
-          },
+          defaultValues: initialState,
         }}
-        onChange={event => {
-          if (event.complete) {
-            setValid(true);
-          } else {
-            setValid(false);
-          }
-        }}
+        onChange={event => handleUpdate(event)}
       />
       {networkState.error != undefined && (
         <Box mt={2}>
@@ -97,7 +117,9 @@ export const Address = ({ address, name }: AddressProps) => {
       <ButtonPrimary
         mt="8px"
         width="200px"
-        disabled={!stripe || !valid || networkState.status == 'loading'}
+        disabled={
+          !stripe || !valid || networkState.status == 'loading' || !updated
+        }
         onClick={handleClick}
       >
         Save

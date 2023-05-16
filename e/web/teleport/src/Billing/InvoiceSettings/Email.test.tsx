@@ -9,7 +9,10 @@ describe('email', () => {
   let props: EmailProps;
 
   beforeEach(() => {
-    props = { email: 'test@example.com' };
+    props = {
+      email: 'test@example.com',
+      reload: jest.fn(),
+    };
   });
 
   test('renders with props', () => {
@@ -24,6 +27,20 @@ describe('email', () => {
     const input = screen.getByLabelText('email');
     expect(input).toHaveValue('test@example.com');
     expect(screen.getByLabelText('email')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  test('enables save when field updates', () => {
+    renderWithElementsAndContext(<Email {...props} />);
+    expect(screen.getByText('Invoice Email Recipient')).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    const input = screen.getByLabelText('email');
+    expect(input).toHaveValue('test@example.com');
+    fireEvent.change(input, { target: { value: 'new-email@hey.com' } });
+    expect(input).toHaveValue('new-email@hey.com');
+
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
   });
 

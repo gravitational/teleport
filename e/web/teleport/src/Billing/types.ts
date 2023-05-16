@@ -24,6 +24,7 @@ export interface InvoiceSettingsProps {
 export interface AddressProps {
   address?: StripeInvoiceBillingAddress;
   name?: string;
+  reload: () => void;
 }
 
 export interface PaymentsAndInvoicesProps {
@@ -53,10 +54,12 @@ export interface InvoiceListProps {
 
 export interface EmailProps {
   email?: string;
+  reload: () => void;
 }
 
 export interface PurchaseOrderProps {
   po?: string;
+  reload: () => void;
 }
 
 export interface PaymentAddDialogProps {

@@ -8,7 +8,7 @@ import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import useTeleport from 'e-teleport/useTeleportE';
 import { isValidPurchaseOrderPrefix } from 'e-teleport/validations/purchaseOrderPrefix';
 
-export const PurchaseOrder = ({ po }: PurchaseOrderProps) => {
+export const PurchaseOrder = ({ po, reload }: PurchaseOrderProps) => {
   const ctx = useTeleport();
   const [field, setField] = useState<string>(po ? po : '');
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -30,7 +30,7 @@ export const PurchaseOrder = ({ po }: PurchaseOrderProps) => {
     ctx.cloudService
       .updatePurchaseOrderPrefix({ po: field.toUpperCase() })
       .then(() => {
-        setNetworkState({ status: undefined });
+        reload();
       })
       .catch(error => {
         setNetworkState({ status: 'error', error: error });
@@ -65,7 +65,9 @@ export const PurchaseOrder = ({ po }: PurchaseOrderProps) => {
         width="200px"
         type="submit"
         onClick={handleClick}
-        disabled={networkState.status == 'loading'}
+        disabled={
+          networkState.status == 'loading' || field === po || field === ''
+        }
       >
         Save
       </ButtonPrimary>

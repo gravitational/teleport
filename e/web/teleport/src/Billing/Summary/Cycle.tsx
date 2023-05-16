@@ -63,7 +63,10 @@ export const Cycle = ({
           <Box key={u.name} width="30%" data-testid={u.name}>
             <h3>{u.name}</h3>
             {u.total} of {u.max} ({u.percentage}%)
-            <StyledBar percent={u.percentage} />
+            <StyledBar
+              percent={Math.min(u.percentage, 100)}
+              over={u.percentage > 100}
+            />
           </Box>
         ))}
       </Flex>
@@ -86,7 +89,7 @@ export const Cycle = ({
   );
 };
 
-const StyledBar = styled.div<{ percent: number }>`
+const StyledBar = styled.div<{ percent: number; over: boolean }>`
   background: ${props => props.theme.colors.spotBackground[1]};
   border-radius: 13px;
   height: 20px;
@@ -96,7 +99,8 @@ const StyledBar = styled.div<{ percent: number }>`
   &:after {
     content: '';
     display: block;
-    background: ${props => props.theme.colors.success};
+    background: ${props =>
+      props.over ? props.theme.colors.error.main : props.theme.colors.success};
     width: ${p => p.percent}%;
     height: 100%;
     border-radius: 9px;

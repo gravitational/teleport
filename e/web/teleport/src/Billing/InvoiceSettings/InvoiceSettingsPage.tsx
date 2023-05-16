@@ -16,13 +16,18 @@ export const InvoiceSettingsPage = ({
     stripeCustomerName,
     stripeSubscriptionStatus,
   },
+  reload,
 }: InvoiceSettingsProps) => (
   <>
     {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
       <CanceledBanner />
     )}
-    <Address address={stripeInvoiceBillingAddress} name={stripeCustomerName} />
-    <Email email={stripeInvoiceEmail} />
-    <PurchaseOrder po={stripeInvoicePurchaseOrderNumber} />
+    <Address
+      address={stripeInvoiceBillingAddress}
+      name={stripeCustomerName}
+      reload={reload}
+    />
+    <Email email={stripeInvoiceEmail} reload={reload} />
+    <PurchaseOrder po={stripeInvoicePurchaseOrderNumber} reload={reload} />
   </>
 );

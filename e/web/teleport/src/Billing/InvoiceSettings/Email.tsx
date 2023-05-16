@@ -8,7 +8,7 @@ import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import useTeleport from 'e-teleport/useTeleportE';
 import { isValidEmail } from 'e-teleport/validations/email';
 
-export const Email = ({ email }: EmailProps) => {
+export const Email = ({ email, reload }: EmailProps) => {
   const ctx = useTeleport();
   const [field, setField] = useState<string>(email ? email : '');
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -28,7 +28,7 @@ export const Email = ({ email }: EmailProps) => {
     ctx.cloudService
       .updateEmail({ email: field })
       .then(() => {
-        setNetworkState({ status: undefined });
+        reload();
       })
       .catch(error => {
         setNetworkState({ status: 'error', error: error });
@@ -64,7 +64,9 @@ export const Email = ({ email }: EmailProps) => {
         width="200px"
         type="submit"
         onClick={handleClick}
-        disabled={networkState.status == 'loading'}
+        disabled={
+          networkState.status == 'loading' || field === email || field === ''
+        }
       >
         Save
       </ButtonPrimary>
