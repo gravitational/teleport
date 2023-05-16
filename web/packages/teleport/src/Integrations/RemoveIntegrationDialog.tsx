@@ -25,22 +25,22 @@ import Dialog, {
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 type Props = {
-  onClose(): void;
-  onDelete(): Promise<void>;
+  close(): void;
+  remove(): Promise<void>;
   name: string;
 };
 
 export function DeleteIntegrationDialog(props: Props) {
-  const { onClose, onDelete } = props;
+  const { close, remove } = props;
   const { attempt, run } = useAttempt();
   const isDisabled = attempt.status === 'processing';
 
   function onOk() {
-    run(() => onDelete());
+    run(() => remove());
   }
 
   return (
-    <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
+    <Dialog disableEscapeKeyDown={false} onClose={close} open={true}>
       <DialogHeader>
         <DialogTitle>Delete Integration?</DialogTitle>
       </DialogHeader>
@@ -56,9 +56,9 @@ export function DeleteIntegrationDialog(props: Props) {
       </DialogContent>
       <DialogFooter>
         <ButtonWarning mr="3" disabled={isDisabled} onClick={onOk}>
-          Yes, Remove Integration
+          Yes, Delete Integration
         </ButtonWarning>
-        <ButtonSecondary disabled={isDisabled} onClick={onClose}>
+        <ButtonSecondary disabled={isDisabled} onClick={close}>
           Cancel
         </ButtonSecondary>
       </DialogFooter>

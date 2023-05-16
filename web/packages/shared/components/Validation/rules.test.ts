@@ -19,6 +19,7 @@ import {
   requiredPassword,
   requiredConfirmedPassword,
   requiredField,
+  requiredRoleArn,
 } from './rules';
 
 describe('requiredField', () => {
@@ -58,6 +59,23 @@ describe('requiredPassword', () => {
     ${null}             | ${{ valid: false, message: errMsg }}
   `('test password value with: $password', ({ password, expected }) => {
     expect(requiredPassword(password)()).toEqual(expected);
+  });
+});
+
+describe('requiredRoleArn', () => {
+  test.each`
+    roleArn                                      | valid
+    ${'arn:aws:iam::123456:role/some-role-name'} | ${true}
+    ${'arn:aws:iam::123456:role:some-role-name'} | ${true}
+    ${'arn:aws:iam:123456:role:some-role-name'}  | ${true}
+    ${'arn:iam:123456:role:some-role-name'}      | ${false}
+    ${'arn:aws:iam:123456:some-role-name'}       | ${false}
+    ${'arn:aws:123456:role:some-role-name'}      | ${false}
+    ${''}                                        | ${false}
+    ${null}                                      | ${false}
+  `('test valid role arn: $roleArn', ({ roleArn, valid }) => {
+    const result = requiredRoleArn(roleArn)();
+    expect(result.valid).toEqual(valid);
   });
 });
 
