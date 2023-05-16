@@ -3,6 +3,7 @@ module github.com/gravitational/teleport
 go 1.20
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/container v1.16.0
 	cloud.google.com/go/firestore v1.9.0
 	cloud.google.com/go/iam v1.0.0
@@ -24,6 +25,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
+	github.com/alecthomas/kingpin/v2 v2.3.1 // replaced
 	github.com/alicebob/miniredis/v2 v2.30.2
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
@@ -181,11 +183,6 @@ require (
 require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
-)
-
-require (
-	cloud.google.com/go/compute/metadata v0.2.3
-	github.com/alecthomas/kingpin/v2 v2.3.1
 )
 
 require (
