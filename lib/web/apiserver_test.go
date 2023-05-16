@@ -626,7 +626,7 @@ type authPack struct {
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
+func (s *WebSuite) authPack(t *testing.T, user string, roles ...string) *authPack {
 	login := s.user
 	pass := "abc123"
 	rawSecret := "def456"
@@ -640,7 +640,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	err = s.server.Auth().SetAuthPreference(s.ctx, ap)
 	require.NoError(t, err)
 
-	s.createUser(t, user, login, pass, otpSecret)
+	s.createUser(t, user, login, pass, otpSecret, roles...)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
@@ -679,7 +679,7 @@ func (s *WebSuite) authPack(t *testing.T, user string) *authPack {
 	}
 }
 
-func (s *WebSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string) {
+func (s *WebSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string, roles ...string) {
 	teleUser, err := types.NewUser(user)
 	require.NoError(t, err)
 	role := services.RoleForUser(teleUser)
@@ -690,6 +690,10 @@ func (s *WebSuite) createUser(t *testing.T, user string, login string, pass stri
 	err = s.server.Auth().UpsertRole(s.ctx, role)
 	require.NoError(t, err)
 	teleUser.AddRole(role.GetName())
+
+	for _, r := range roles {
+		teleUser.AddRole(r)
+	}
 
 	teleUser.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: "some-auth-user"},
@@ -7055,8 +7059,12 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 }
 
 func waitForOutput(stream *TerminalStream, substr string) error {
-	timeoutCh := time.After(10 * time.Second)
+	timeoutCh := time.After(100 * time.Second)
 
+	size := 100
+	if len(substr)*2 > size {
+		size = len(substr) * 2
+	}
 	for {
 		select {
 		case <-timeoutCh:
@@ -7064,7 +7072,7 @@ func waitForOutput(stream *TerminalStream, substr string) error {
 		default:
 		}
 
-		out := make([]byte, 100)
+		out := make([]byte, size)
 		n, err := stream.Read(out)
 
 		// check for the string before checking the error,
@@ -8788,13 +8796,53 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 }
 
 func TestModeratedSession(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	s := newWebSuite(t)
 
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"))
+	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:   "moderated",
+					Filter: "contains(user.roles, \"moderator\")",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Count:  1,
+					Modes:  []string{string(types.SessionModeratorMode)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, peerRole))
+
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{
+				{
+					Name:  "moderated",
+					Roles: []string{peerRole.GetName()},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.server.Auth().UpsertRole(s.ctx, moderatorRole))
+
+	peer := s.authPack(t, "foo", peerRole.GetName())
+	//moderator := s.authPack(t, "bar", moderatorRole.GetName())
+
+	ws, _, err := s.makeTerminal(t, peer)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	validateTerminalStream(t, ws)
+	stream, err := NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
+	require.NoError(t, err)
+
+	require.NoError(t, waitForOutput(stream, "Teleport > User foo joined the session with participant mode: peer."))
+
 }
 
 func TestModeratedSessionWithMFA(t *testing.T) {
