@@ -34,6 +34,18 @@ const (
 	PluginTypeSlack = "slack"
 	// PluginTypeOpenAI is the OpenAI plugin
 	PluginTypeOpenAI = "openai"
+	PluginTypeMDM    = "mdm"
+	// PluginTypeJamf is the Jamf MDM plugin
+	PluginTypeJamf = "jamf"
+)
+
+type PluginCredentialType string
+
+const (
+	PluginCredentialTypeUnknown     PluginCredentialType = ""
+	PluginCredentialTypeOAuth                            = "oauth"
+	PluginCredentialTypeBasicAuth                        = "basicauth"
+	PluginCredentialTypeBearerToken                      = "bearertoken"
 )
 
 // Plugin represents a plugin instance
@@ -110,6 +122,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if (bearer.Token == "") == (bearer.TokenFile == "") {
 			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		}
+	case *PluginSpecV1_Jamf:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
+			return trace.BadParameter("jamf plugin require jamf username and passowrd to query jamf API")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")

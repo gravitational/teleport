@@ -5054,6 +5054,8 @@ message PluginSpecV1 {
     PluginOpsgenieAccessSettings opsgenie = 2;
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
+    // Settings for device trust jamf plugin
+    PluginMDMJamfSettings jamf = 4;
   }
 }
 
@@ -5081,11 +5083,35 @@ message PluginOpenAISettings {
   option (gogoproto.equal) = true;
 }
 
+message PluginMDMJamfSettings {
+  option (gogoproto.equal) = true;
+  // apiEndpoint is the address of Jamf Cloud API.
+  string apiEndpoint = 1;
+  Inventory inventory = 5;
+}
+
+message Inventory {
+  option (gogoproto.equal) = true;
+
+  string filter_rsql = 1;
+  string sync_period_partial = 2;
+  string sync_period_full = 3;
+  string on_missing = 4;
+}
+
 message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginIdSecretCredential id_secret = 3;
   }
+}
+
+// PluginIdSecretCredential is customer owned credential which is to be used to fetch Bearer Token
+// id and secret can be OAuth 2 like client ID and Client Secret or generic username and password.
+message PluginIdSecretCredential {
+  string id = 1;
+  string secret = 2;
 }
 
 message PluginOAuth2AuthorizationCodeCredentials {
@@ -5120,6 +5146,7 @@ message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginIdSecretCredential id_secret = 3;
   }
 }
 
