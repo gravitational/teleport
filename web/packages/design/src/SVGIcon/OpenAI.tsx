@@ -18,7 +18,7 @@ import React from 'react';
 
 import type { SVGIconProps } from './common';
 
-export function ChatGPTIcon({ size = 20, fill = 'white' }: SVGIconProps) {
+export function OpenAIIcon({ size = 20, fill = 'white' }: SVGIconProps) {
   return (
     <svg
       data-testid="svg"
