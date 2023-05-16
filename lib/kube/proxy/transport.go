@@ -379,6 +379,12 @@ func (f *Forwarder) remoteClusterDiater(clusterName string) dialContextFunc {
 		}
 
 		return targetCluster.DialTCP(reversetunnel.DialParams{
+			// Send a sentinel value to the remote cluster because this connection
+			// will be used to forward multiple requests to the remote cluster from
+			// different users.
+			// IP Pinning is based on the source IP address of the connection that
+			// we transport over HTTP headers so it's not affected.
+			From: &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
 			// Proxy uses reverse tunnel dialer to connect to Kubernetes in a leaf cluster
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
@@ -457,6 +463,12 @@ func (f *Forwarder) localClusterDiater(kubeClusterName string) dialContextFunc {
 			// <host_id>.<cluster_name>
 			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
 			if conn, err := localCluster.DialTCP(reversetunnel.DialParams{
+				// Send a sentinel value to the remote cluster because this connection
+				// will be used to forward multiple requests to the remote cluster from
+				// different users.
+				// IP Pinning is based on the source IP address of the connection that
+				// we transport over HTTP headers so it's not affected.
+				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "0.0.0.0:0"},
 				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: s.GetHostname()},
 				ConnType: types.KubeTunnel,
 				ServerID: serverID,

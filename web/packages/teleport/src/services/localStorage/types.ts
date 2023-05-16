@@ -20,4 +20,5 @@ export const KeysEnum = {
   LAST_ACTIVE: 'grv_teleport_last_active',
   DISCOVER: 'grv_teleport_discover',
   THEME: 'grv_teleport_ui_theme',
+  SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
 };

@@ -19,6 +19,7 @@ package awsoidc
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
@@ -26,8 +27,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// RDSClientRequest contains the required fields to generate an Authenticated [rds.Client].
-type RDSClientRequest struct {
+// AWSClientRequest contains the required fields to set up an AWS service client.
+type AWSClientRequest struct {
 	// Token is the token used to issue the API Call.
 	Token string
 
@@ -39,7 +40,7 @@ type RDSClientRequest struct {
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
-func (req *RDSClientRequest) CheckAndSetDefaults() error {
+func (req *AWSClientRequest) CheckAndSetDefaults() error {
 	if req.Token == "" {
 		return trace.BadParameter("token is required")
 	}
@@ -55,8 +56,8 @@ func (req *RDSClientRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewRDSClient creates an [rds.Client] using the provided Token, RoleARN, Region and, optionally, a custom HTTP Client.
-func NewRDSClient(ctx context.Context, req RDSClientRequest) (*rds.Client, error) {
+// newAWSConfig creates a new [aws.Config] using the [AWSClientRequest] fields.
+func newAWSConfig(ctx context.Context, req *AWSClientRequest) (*aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(req.Region))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +69,17 @@ func NewRDSClient(ctx context.Context, req RDSClientRequest) (*rds.Client, error
 		IdentityToken(req.Token),
 	)
 
-	return rds.NewFromConfig(cfg), nil
+	return &cfg, nil
+}
+
+// newRDSClient creates an [rds.Client] using the provided Token, RoleARN and Region.
+func newRDSClient(ctx context.Context, req *AWSClientRequest) (*rds.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rds.NewFromConfig(*cfg), nil
 }
 
 // IdentityToken is an implementation of [stscreds.IdentityTokenRetriever] for returning a static token.

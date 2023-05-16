@@ -328,6 +328,11 @@ integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
+.PHONY:integration-kube
+integration-kube: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
+
 #
 # Runs linters on new changes inside a build container.
 #

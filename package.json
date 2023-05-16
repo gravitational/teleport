@@ -36,12 +36,8 @@
   },
   "workspaces": {
     "packages": [
-      "web/packages/build/**",
-      "web/packages/design/**",
-      "web/packages/shared/**",
-      "web/packages/teleport",
-      "web/packages/teleterm",
-      "e/web/**"
+      "web/packages/*",
+      "e/web/*"
     ]
   }
 }

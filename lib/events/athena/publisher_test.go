@@ -93,7 +93,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			}
 			err := p.EmitAuditEvent(context.Background(), tt.in)
 			require.NoError(t, err)
-			out := fq.getMessages()
+			out := fq.dequeue()
 			tt.wantCheck(t, out)
 		})
 	}

@@ -14,7 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, useEffect, useMemo } from 'react';
+import React, {
+  ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
@@ -51,8 +57,9 @@ import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 
 interface MainProps {
   initialAlerts?: ClusterAlert[];
-  customBanners?: React.ReactNode[];
+  customBanners?: ReactNode[];
   features: TeleportFeature[];
+  billingBanners?: ReactNode[];
 }
 
 export function Main(props: MainProps) {
@@ -79,7 +86,7 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
+  const [showOnboardDiscover, setShowOnboardDiscover] = useState(true);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -148,6 +155,7 @@ export function Main(props: MainProps) {
       <BannerList
         banners={banners}
         customBanners={props.customBanners}
+        billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
         <MainContainer>
