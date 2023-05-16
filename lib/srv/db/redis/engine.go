@@ -81,6 +81,10 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 // authorizeConnection does authorization check for Redis connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
+	if err := e.checkDefaultUserRequired(); err != nil {
+		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
+		return trace.Wrap(err)
+	}
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -100,6 +104,24 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkDefaultUserRequired checks if the session db user is the "default" Redis
+// user, and checks if the session db user must be the default user.
+// When the session db user is not "default", but it's required to be "default",
+// return an error.
+func (e *Engine) checkDefaultUserRequired() error {
+	// When the db user is already "default", there's no need to check if it's
+	// required to be "default".
+	if defaults.DefaultRedisUsername == e.sessionCtx.DatabaseUser {
+		return nil
+	}
+	if e.sessionCtx.Database.IsAzure() {
+		return trace.AccessDenied("access denied to non-default db user: "+
+			"Azure Cache for Redis requires authentication as default user %q",
+			defaults.DefaultRedisUsername)
 	}
 	return nil
 }

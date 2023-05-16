@@ -3,6 +3,7 @@ module github.com/gravitational/teleport
 go 1.20
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/container v1.16.0
 	cloud.google.com/go/firestore v1.9.0
 	cloud.google.com/go/iam v1.0.0
@@ -69,7 +70,9 @@ require (
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/google/btree v1.1.2
+	github.com/google/go-attestation v0.4.4-0.20220404204839-8820d49b18d9
 	github.com/google/go-cmp v0.5.9
+	github.com/google/go-tpm-tools v0.3.11
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gax-go/v2 v2.8.0
@@ -111,7 +114,7 @@ require (
 	github.com/opensearch-project/opensearch-go/v2 v2.2.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
 	github.com/pelletier/go-toml v1.9.5
-	github.com/pkg/sftp v1.13.5 // replaced
+	github.com/pkg/sftp v1.13.5
 	github.com/pquerna/otp v1.4.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
@@ -120,7 +123,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.3.0
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/sirupsen/logrus v1.9.0 // replaced
+	github.com/sirupsen/logrus v1.9.0
 	github.com/snowflakedb/gosnowflake v1.6.19
 	github.com/stretchr/testify v1.8.2
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
@@ -181,8 +184,6 @@ require (
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
-
-require cloud.google.com/go/compute/metadata v0.2.3
 
 require (
 	cloud.google.com/go v0.110.0 // indirect
@@ -257,9 +258,11 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/certificate-transparency-go v1.1.2 // indirect
 	github.com/google/flatbuffers v22.11.23+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-tpm v0.3.3 // indirect
+	github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.0 // indirect
@@ -355,7 +358,7 @@ require (
 	go.opentelemetry.io/otel/metric v0.37.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.7.0 // indirect
+	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
@@ -387,7 +390,6 @@ replace (
 	// replace module github.com/moby/spdystream until https://github.com/moby/spdystream/pull/91 merges and deps are updated
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
-	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
 	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
 	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
