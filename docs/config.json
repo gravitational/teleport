@@ -13,10 +13,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -2198,6 +2194,11 @@
     {
       "source": "/management/guides/elastic-stack/",
       "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]
