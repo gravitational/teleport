@@ -1523,10 +1523,6 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}, nil
 }
 
-func certRequestPinIP(pinIP bool) certRequestOption {
-	return func(r *certRequest) { r.pinIP = pinIP }
-}
-
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
 	Key            []byte
