@@ -5624,7 +5624,6 @@ message JamfInventoryEntry {
   // Jamf Pro API RSQL filter, used when querying endpoints like
   // "/api/v1/computers-inventory".
   // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
-  // Required.
   string filter_rsql = 1 [(gogoproto.jsontag) = "filter_rsql,omitempty"];
   // Sync period for PARTIAL syncs.
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
