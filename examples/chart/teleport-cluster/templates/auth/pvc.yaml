@@ -16,8 +16,8 @@ spec:
   resources:
     requests:
       storage: {{ required "persistence.volumeSize is required in chart values" $auth.persistence.volumeSize }}
-{{- if $persistence.storageClassName }}
-  storageClassName: {{ $persistence.storageClassName }}
+{{- if $auth.persistence.storageClassName }}
+  storageClassName: {{ $auth.persistence.storageClassName }}
 {{- end }}
     {{- end }}
   {{- end }}
