@@ -375,7 +375,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, db, err := getDatabaseInfo(cf, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
