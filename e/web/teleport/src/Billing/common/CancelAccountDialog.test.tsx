@@ -12,6 +12,8 @@ describe('cancelAccountDialog', () => {
     props = {
       open: true,
       setOpen: jest.fn(),
+      productName: 'SuperProTeamEnterprise',
+      stripeCurrentPeriodEnd: 1684165960,
       tenant: 'some-name',
     };
   });
@@ -20,21 +22,26 @@ describe('cancelAccountDialog', () => {
     renderWithElementsAndContext(<CancelAccountDialog {...props} />);
 
     expect(screen.getByText('Close Teleport Account')).toBeInTheDocument();
+
+    screen.getByText((content, node) => {
+      const hasText = node =>
+        node.textContent ===
+        'You are about to cancel your Teleport SuperProTeamEnterprise Plan. If you continue, at the end of your billing cycle on May 15, 2023:';
+      const nodeHasText = hasText(node);
+      const childrenDontHaveText = Array.from(node.children).every(
+        child => !hasText(child)
+      );
+      return nodeHasText && childrenDontHaveText;
+    });
+
     expect(
-      screen.getByText(
-        'You are about to cancel your Teleport Team Plan. If you cancel your Teleport plan:'
-      )
+      screen.getByText('Access to Teleport will be cut off.')
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Teleport will issue a final pro-rated charge for any usage during the current billing period.'
-      )
+      screen.getByText('Teleport will issue a final invoice.')
     ).toBeInTheDocument();
     expect(
-      screen.getByText('Access to Teleport resources will be cut off.')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Your entire account will be deleted in 7-14 days.')
+      screen.getByText('Your entire account will be deleted 7–14 days later.')
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -70,5 +77,23 @@ describe('cancelAccountDialog', () => {
       screen.getByRole('button', { name: 'Cancel Plan and Close Account' })
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  test('does not render zero date', () => {
+    props.stripeCurrentPeriodEnd = 0;
+
+    renderWithElementsAndContext(<CancelAccountDialog {...props} />);
+
+    expect(screen.getByText('Close Teleport Account')).toBeInTheDocument();
+    screen.getByText((content, node) => {
+      const hasText = node =>
+        node.textContent ===
+        'You are about to cancel your Teleport SuperProTeamEnterprise Plan. If you continue, at the end of your billing cycle:';
+      const nodeHasText = hasText(node);
+      const childrenDontHaveText = Array.from(node.children).every(
+        child => !hasText(child)
+      );
+      return nodeHasText && childrenDontHaveText;
+    });
   });
 });

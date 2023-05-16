@@ -12,9 +12,10 @@ import { CancelAccountDialog } from 'e-teleport/Billing/common/CancelAccountDial
 
 export const StatusBanner = ({
   productName,
-  stripeTrialEnd,
-  stripeSubscriptionStatus,
+  stripeCurrentPeriodEnd,
   stripeMissingPaymentMethod,
+  stripeSubscriptionStatus,
+  stripeTrialEnd,
 }: StatusBannerProps) => {
   const theme = useTheme();
   const [open, setOpen] = useState<boolean>(false);
@@ -90,7 +91,13 @@ export const StatusBanner = ({
         )}
       </Box>
       {open && (
-        <CancelAccountDialog open={open} setOpen={setOpen} tenant={clusterId} />
+        <CancelAccountDialog
+          open={open}
+          setOpen={setOpen}
+          productName={productName}
+          stripeCurrentPeriodEnd={stripeCurrentPeriodEnd}
+          tenant={clusterId}
+        />
       )}
     </>
   );

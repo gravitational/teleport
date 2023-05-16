@@ -11,6 +11,10 @@ import { useStripe } from '@stripe/react-stripe-js';
 
 import { Danger } from 'design/Alert';
 
+import { useTheme } from 'styled-components';
+
+import { displayUnixShortDate } from 'shared/services/loc/loc';
+
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { CancelDialogProps } from 'e-teleport/Billing/types';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -18,13 +22,30 @@ import useTeleport from 'e-teleport/useTeleportE';
 export const CancelAccountDialog = ({
   open,
   setOpen,
+  productName,
+  stripeCurrentPeriodEnd,
   tenant,
 }: CancelDialogProps) => {
+  const theme = useTheme();
   const ctx = useTeleport();
   const stripe = useStripe();
   const [networkState, setNetworkState] = useState<NetworkState>({});
   const [confirmed, setConfirmed] = useState<string>('');
   const [subdomain, setSubdomain] = useState<string>('');
+
+  const dialogText: React.ReactNode =
+    stripeCurrentPeriodEnd != 0 ? (
+      <Text>
+        You are about to cancel your Teleport {productName} Plan. If you
+        continue, at the end of your billing cycle on{' '}
+        <b>{displayUnixShortDate(stripeCurrentPeriodEnd)}</b>:
+      </Text>
+    ) : (
+      <Text>
+        You are about to cancel your Teleport {productName} Plan. If you
+        continue, at the end of your billing cycle:
+      </Text>
+    );
 
   const handleDelete = (): void => {
     setNetworkState({ status: 'loading' });
@@ -40,26 +61,21 @@ export const CancelAccountDialog = ({
       });
   };
 
-  // todo (michellescripts) update copy to align with billing cycle as part of https://github.com/gravitational/cloud/issues/3536
   return (
     <Dialog open={open}>
       <DialogHeader>
         <DialogTitle>Close Teleport Account</DialogTitle>
       </DialogHeader>
-      <DialogContent width="400px">
-        <Text>
-          You are about to cancel your Teleport Team Plan. If you cancel your
-          Teleport plan:
-        </Text>
+      <DialogContent maxWidth="636px">
+        {dialogText}
         <ul>
-          <li>
-            Teleport will issue a final pro-rated charge for any usage during
-            the current billing period.
-          </li>
-          <li>Access to Teleport resources will be cut off.</li>
-          <li>Your entire account will be deleted in 7-14 days.</li>
+          <li>Access to Teleport will be cut off.</li>
+          <li>Teleport will issue a final invoice.</li>
+          <li>Your entire account will be deleted 7–14 days later.</li>
         </ul>
-        <Text>Once deleted, your Teleport account cannot be recovered.</Text>
+        <Text mb={4} color={theme.colors.text.slightlyMuted} bold>
+          Once deleted, your Teleport account cannot be recovered.
+        </Text>
         <label htmlFor="subdomain">
           Please confirm your cluster's subdomain, <b>{tenant}</b> below:
         </label>

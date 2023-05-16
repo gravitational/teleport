@@ -13,6 +13,15 @@ jest.mock('teleport/useStickyClusterId', () =>
 
 describe('summaryPage', () => {
   let props: SummaryProps;
+  const defaultUsage = {
+    invoiceId: 'some-invoiceId',
+    status: 'some-status',
+    periodEnd: 0,
+    periodStart: 0,
+    usageMau: 0,
+    usageTia: 0,
+    usagePr: 0,
+  };
 
   beforeEach(() => {
     props = {
@@ -25,6 +34,7 @@ describe('summaryPage', () => {
         stripeMissingPaymentMethod: false,
         productName: 'some-productName',
         stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+        stripeCurrentUsage: defaultUsage,
       },
       reload: jest.fn(),
     };
@@ -52,21 +62,13 @@ describe('summaryPage', () => {
   });
 
   test('renders cycle if cycle usage is present', () => {
-    props.data.stripeCurrentUsage = {
-      invoiceId: 'some-invoiceId',
-      status: 'some-status',
-      periodEnd: 0,
-      periodStart: 0,
-      usageMau: 0,
-      usageTia: 0,
-      usagePr: 0,
-    };
     renderWithElementsAndContext(<SummaryPage {...props} />);
 
     expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
   });
 
   test('does not render cycle if cycle usage is not present', () => {
+    props.data.stripeCurrentUsage = null;
     renderWithElementsAndContext(<SummaryPage {...props} />);
 
     expect(screen.queryByText(/Current Cycle/i)).not.toBeInTheDocument();

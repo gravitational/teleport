@@ -9,11 +9,11 @@ import { CanceledBanner } from 'e-teleport/Billing/common/CanceledBanner';
 
 export const SummaryPage = ({
   data: {
-    stripeMissingPaymentMethod,
     productName,
-    stripeTrialEnd,
     stripeCurrentUsage,
+    stripeMissingPaymentMethod,
     stripeSubscriptionStatus,
+    stripeTrialEnd,
   },
   reload,
 }: SummaryProps) => (
@@ -31,9 +31,12 @@ export const SummaryPage = ({
     {stripeCurrentUsage && <Cycle currentUsage={stripeCurrentUsage} />}
     <StatusBanner
       productName={productName}
-      stripeTrialEnd={stripeTrialEnd}
-      stripeSubscriptionStatus={stripeSubscriptionStatus}
+      stripeCurrentPeriodEnd={
+        stripeCurrentUsage ? stripeCurrentUsage.periodEnd : 0
+      }
       stripeMissingPaymentMethod={stripeMissingPaymentMethod}
+      stripeSubscriptionStatus={stripeSubscriptionStatus}
+      stripeTrialEnd={stripeTrialEnd}
     />
   </>
 );

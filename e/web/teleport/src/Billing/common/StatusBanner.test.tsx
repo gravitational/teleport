@@ -21,6 +21,7 @@ describe('statusBanner', () => {
       stripeTrialEnd: 0,
       stripeSubscriptionStatus: StripeSubscriptionStatus.INCOMPLETE,
       stripeMissingPaymentMethod: false,
+      stripeCurrentPeriodEnd: 0,
     };
   });
 

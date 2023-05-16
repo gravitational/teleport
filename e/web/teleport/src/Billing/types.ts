@@ -78,9 +78,10 @@ export interface PaymentBannerProps {
 
 export interface StatusBannerProps {
   productName: string;
-  stripeTrialEnd: number;
-  stripeSubscriptionStatus: string;
+  stripeCurrentPeriodEnd: number;
   stripeMissingPaymentMethod: boolean;
+  stripeSubscriptionStatus: string;
+  stripeTrialEnd: number;
 }
 
 export type CycleUsage = {
@@ -100,5 +101,7 @@ export interface ExistingPaymentProps {
 export interface CancelDialogProps {
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  productName: string;
+  stripeCurrentPeriodEnd: number;
   tenant: string;
 }
