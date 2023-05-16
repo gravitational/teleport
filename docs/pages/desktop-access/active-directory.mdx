@@ -20,10 +20,16 @@ This guide will help you configure Teleport and Active Directory in order to
 provide secure, passwordless access to Windows desktops.
 
 <Admonition title="Azure AD" type="warning">
-  Microsoft's Azure Active Directory (Azure AD) offering does not support the
-  Kerberos authentication protocol, which is required for Teleport's
-  certificate-based authentication integration. At this time, Teleport does not
-  support Azure AD.
+
+Microsoft's Azure Active Directory (Azure AD) offering does not support the
+Kerberos authentication protocol, which is required for Teleport's
+certificate-based authentication integration.
+
+At this time, Teleport does not support integration with Azure AD, however
+Teleport Enterprise customers can access Windows desktops (including those
+joined to Azure AD) using local accounts via the process described in [Getting
+Started with Desktop Access](./getting-started.mdx).
+
 </Admonition>
 
 <Details title="Compare Desktop Access to other RDP clients">
