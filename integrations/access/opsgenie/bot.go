@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
+const (
+	ScheduleRecipientKind = "schedule"
+)
+
 // Bot is a opsgenie client that works with AccessRequest.
 // It's responsible for formatting and Opsgenie alerts when an
 // action occurs with an access request: a new request popped up, or a
@@ -44,11 +48,12 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // Broadcast creates an alert for the provided recipients (schedules)
-func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
+func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
 
 	schedules := []string{}
-	for _, recipient := range recipients {
-		schedules = append(schedules, recipient.Name)
+	// Use default schedules for now until reqData support requests annotations
+	for _, recipient := range b.client.DefaultSchedules {
+		schedules = append(schedules, recipient)
 	}
 	opsgeneieReqData := RequestData{
 		User:          reqData.User,
@@ -99,8 +104,7 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	return trace.NewAggregate(errs...)
 }
 
-// FetchRecipient
+// FetchRecipient is not used for bots where the recipients are on-call schedules.
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	// TODO: Change from BaseApp  get messageRecipients so this works via schedules
-	return nil, trace.NotImplemented("fetch recipient is not supported for the opsgenie plugin")
+	return nil, trace.NotImplemented("FetchRecipient is not used for bots where the recipients are on-call schedules")
 }
