@@ -28,15 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-// fakeLinuxDevice just returns the Linux OS type so we can be sure this fails.
-type fakeLinuxDevice struct {
-	fakeDevice
-}
-
-func (d *fakeLinuxDevice) GetOSType() devicepb.OSType {
-	return devicepb.OSType_OS_TYPE_LINUX
-}
-
 func TestRunCeremony(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
@@ -66,7 +57,7 @@ func TestRunCeremony(t *testing.T) {
 		},
 		{
 			name: "linux device fails",
-			dev:  &fakeLinuxDevice{},
+			dev:  testenv.NewFakeLinuxDevice(),
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				assert.True(
