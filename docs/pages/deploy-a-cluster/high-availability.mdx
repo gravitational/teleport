@@ -45,6 +45,11 @@ Infrastructure components include:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
+{/*
+The block of &nbsp is there to push the subgraph label out of the way of the
+diagram lines. This is a hacky solution to https://github.com/mermaid-js/mermaid/issues/1209
+*/}
+
 ```mermaid
 flowchart
    subgraph public[Public Network]
@@ -80,13 +85,12 @@ flowchart
    end
 
 classDef teleportColor fill:#844cff,color:#fff
-classDef teleportColor2 fill:#a379ff,color:#fff
 classDef nestedSub fill:#fff
 class proxies nestedSub
 class auth nestedSub
-class server1 teleportColor2
-class server2 teleportColor2
-class server3 teleportColor2
+class server1 teleportColor
+class server2 teleportColor
+class server3 teleportColor
 class tp1 teleportColor
 class tp2 teleportColor
 class ta1 teleportColor
