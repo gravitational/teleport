@@ -48,6 +48,8 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   start(cols: number, rows: number) {
+    // TODO(ravicious): Set argv0 when node-pty adds support for it.
+    // https://github.com/microsoft/node-pty/issues/472
     this._process = nodePTY.spawn(this.options.path, this.options.args, {
       cols,
       rows,
