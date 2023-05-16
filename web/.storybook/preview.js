@@ -74,7 +74,6 @@ export const globalTypes = {
     toolbar: {
       icon: 'contrast',
       items: ['Light Theme', 'Dark Theme'],
-      showName: true,
       dynamicTitle: true,
     },
   },
