@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -72,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -167,6 +169,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
+	}
+	if cfg.Assist == nil {
+		cfg.Assist = local.NewAssistService(cfg.Backend)
 	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
@@ -277,6 +282,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+		Assistant:               cfg.Assist,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -355,6 +361,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
 	}
 
+	if as.gcpIDTokenValidator == nil {
+		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
+			gcp.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+
 	return &as, nil
 }
 
@@ -379,6 +393,7 @@ type Services struct {
 	services.StatusInternal
 	services.Integrations
 	services.Okta
+	services.Assistant
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -579,6 +594,10 @@ type Server struct {
 	// kubernetesTokenValidator allows tokens from Kubernetes to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	kubernetesTokenValidator kubernetesTokenValidator
+
+	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
+	// server. It can be overridden for the purpose of tests.
+	gcpIDTokenValidator gcpIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1167,6 +1186,12 @@ func (a *Server) Close() error {
 
 	if err := a.inventory.Close(); err != nil {
 		errs = append(errs, err)
+	}
+
+	if a.Services.AuditLogSessionStreamer != nil {
+		if err := a.Services.AuditLogSessionStreamer.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
 	if a.bk != nil {
@@ -3444,6 +3469,18 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 	return rsp
 }
 
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedServiceCounts {
+	return proto.InventoryConnectedServiceCounts{
+		ServiceCounts: a.inventory.ConnectedServiceCounts(),
+	}
+}
+
+// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	return a.inventory.ConnectedServiceCount(service)
+}
+
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	const pingAttempt = "ping-attempt"
 	const pingSuccess = "ping-success"
@@ -5200,6 +5237,34 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	resp, err := a.Services.GetAssistantMessages(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
+}
+
+// UpdateAssistantConversationInfo stores the given conversation title in the backend.
+func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	resp, err := a.Services.CreateAssistantConversation(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	resp, err := a.Services.GetAssistantConversations(ctx, request)
+	return resp, trace.Wrap(err)
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare

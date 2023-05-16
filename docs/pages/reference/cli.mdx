@@ -829,6 +829,9 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
+<Admonition type="note">
+  `tsh scp` will not work from the CLI if the user requires session moderation. You can transfer files in a moderated session by joining the SSH session from the Web UI and requesting the file transfer there. Both the session initiator and moderators must be present in the Web UI in order to approve the file transfer request.
+</Admonition>
 
 ### tsh ls
 
@@ -2602,7 +2605,7 @@ Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
 | `--labels` | none | Comma-separated strings | A list of labels to filter by |
 
 ### tctl alerts ack
@@ -2625,7 +2628,7 @@ $ tctl alerts ack [<flags>] <id>
 | - | - | - | - |
 | `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
 | `--clear` | none | | Clear an existing alert acknowledgement |
-| `--reason` | none | | An optional reason for suppressing this alert |
+| `--reason` | none | | The reason for suppressing this alert |
 
 #### Examples
 

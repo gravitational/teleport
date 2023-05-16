@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -1104,6 +1105,16 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.Inve
 		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
 	}
 	return a.authServer.GetInventoryStatus(ctx, req), nil
+}
+
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
+	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
+	// the inventory APIs once they are more developed.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
+	}
+	return a.authServer.GetInventoryConnectedServiceCounts(), nil
 }
 
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
@@ -4484,7 +4495,7 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	}
 	// Users can only fetch their own SAML IdP sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindSAMLIdPSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -6077,6 +6088,60 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantMessages(ctx, req)
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.IsAssistEnabled(ctx)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantMessage(ctx, msg)
+}
+
+// UpdateAssistantConversationInfo updates the conversation info.
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")
@@ -6111,8 +6176,8 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 
 	if modules.GetModules().Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
-		// an external cloud-specific databse.
-		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)

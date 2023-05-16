@@ -29,18 +29,16 @@ interface IStaticConfig {
 
 let staticConfig: IStaticConfig;
 
-if (process.env.NODE_ENV === 'development') {
-  staticConfig = {
-    prehogAddress: 'https://reporting-connect-staging.teleportinfra.dev',
-    feedbackAddress:
-      'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod',
-  };
-}
-
 if (process.env.NODE_ENV === 'production') {
   staticConfig = {
     prehogAddress: 'https://reporting-connect.teleportinfra.sh',
     feedbackAddress: 'https://usage.teleport.dev',
+  };
+} else {
+  staticConfig = {
+    prehogAddress: 'https://reporting-connect-staging.teleportinfra.dev',
+    feedbackAddress:
+      'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod',
   };
 }
 

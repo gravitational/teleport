@@ -567,16 +567,17 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		err = trail.FromGRPC(err)
 		// Older versions will NOT reply with a MFARequired response in the
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
 		// certs without MFA.
-		if errors.Is(trail.FromGRPC(err), auth.ErrNoMFADevices) {
+		if errors.Is(err, auth.ErrNoMFADevices) {
 			if params.usage() != proto.UserCertsRequest_SSH {
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
@@ -590,16 +591,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {
@@ -1135,6 +1136,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
+		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1662,6 +1664,15 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
 	}
 
 	return nil
+}
+
+// AddEnv add environment variable to SSH session. This method needs to be called
+// before the session is created.
+func (c *NodeClient) AddEnv(key, value string) {
+	if c.TC.extraEnvs == nil {
+		c.TC.extraEnvs = make(map[string]string)
+	}
+	c.TC.extraEnvs[key] = value
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {

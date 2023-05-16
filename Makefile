@@ -49,8 +49,12 @@ else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -91,7 +95,6 @@ TARBINS = $(addprefix teleport/,$(BINS))
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
-RUST_VERSION ?= $(shell make --no-print-directory -C build.assets print-rust-version)
 RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
 # Have cargo use sparse crates.io protocol:
@@ -842,6 +845,20 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| $(RENDER_TESTS) -report-by test
 
 #
+# Integration tests that run Kubernetes tests in order to complete successfully
+# are run separately to all other integration tests.
+#
+INTEGRATION_KUBE_REGEX := TestKube.*
+.PHONY: integration-kube
+integration-kube: FLAGS ?= -v -race
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration-kube.json \
+		| $(RENDER_TESTS) -report-by test
+
+#
 # Integration tests which need to be run as root in order to complete successfully
 # are run separately to all other integration tests. Need a TTY to work.
 #
@@ -1319,6 +1336,7 @@ docker-ui:
 # defined in build.assets/Makefile. It assumes that `rustup` is already
 # installed for managing the rust toolchain.
 .PHONY: rustup-install-target-toolchain
+rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
 rustup-install-target-toolchain:
 	rustup override set $(RUST_VERSION)
 	rustup target add $(RUST_TARGET_ARCH)

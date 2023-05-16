@@ -1880,12 +1880,12 @@ func TestGetCertAuthority(t *testing.T) {
 	_, err = proxyClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// proxy can fetch SAML IdP CA with secrets
+	// proxy can't fetch SAML IdP CA with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.SAMLIDPCA,
 	}, true)
-	require.NoError(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// proxy can't fetch anything else with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{

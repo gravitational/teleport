@@ -304,6 +304,18 @@ message UICreateNewRoleCancelClickEvent {}
 // UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleViewDocumentationClickEvent {}
 
+// AssistCompletionEvent is an event that is emitted when a completion occurs in the Assistant
+message AssistCompletionEvent {
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 1;
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 4;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -336,6 +348,7 @@ message UsageEventOneOf {
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 27;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
     UICallToActionClickEvent ui_call_to_action_click_event = 29;
+    AssistCompletionEvent assist_completion = 30;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
