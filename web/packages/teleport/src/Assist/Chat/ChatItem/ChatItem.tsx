@@ -300,7 +300,8 @@ export function ExampleChatItem() {
     <Container teleport={true} isNew={false}>
       <Content isFirstFromUser={true} isLastFromUser={true}>
         Hey {ctx.storeUser.state.username}, I'm Teleport - a powerful tool that
-        can assist you in managing your Teleport cluster via ChatGPT. <br />
+        can assist you in managing your Teleport cluster via OpenAI GPT-4.
+        <br />
         <br />
         Start a new chat with me on the left to get started! Here's some of the
         things I can do:
