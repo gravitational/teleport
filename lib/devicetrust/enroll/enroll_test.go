@@ -16,6 +16,7 @@ package enroll_test
 
 import (
 	"context"
+	"github.com/gravitational/trace"
 	"os"
 	"testing"
 
@@ -26,6 +27,15 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
+
+// fakeLinuxDevice just returns the Linux OS type so we can be sure this fails.
+type fakeLinuxDevice struct {
+	fakeDevice
+}
+
+func (d *fakeLinuxDevice) GetOSType() devicepb.OSType {
+	return devicepb.OSType_OS_TYPE_LINUX
+}
 
 func TestRunCeremony(t *testing.T) {
 	env := testenv.MustNew()
@@ -39,12 +49,34 @@ func TestRunCeremony(t *testing.T) {
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
 
 	tests := []struct {
-		name string
-		dev  fakeDevice
+		name            string
+		dev             fakeDevice
+		assertErr       func(t *testing.T, err error)
+		assertGotDevice func(t *testing.T, device *devicepb.Device)
 	}{
 		{
-			name: "macOS device",
+			name: "macOS device succeeds",
 			dev:  macOSDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.NotNil(t, d, "RunCeremony returned nil device")
+			},
+		},
+		{
+			name: "linux device fails",
+			dev:  &fakeLinuxDevice{},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				assert.True(
+					t, trace.IsBadParameter(err), "RunCeremony did not return an error of the correct type",
+				)
+				assert.ErrorContains(t, err, "linux")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.Nil(t, d)
+			},
 		},
 	}
 	for _, test := range tests {
@@ -54,8 +86,8 @@ func TestRunCeremony(t *testing.T) {
 			*enroll.SignChallenge = test.dev.SignChallenge
 
 			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
-			require.NoError(t, err, "RunCeremony failed")
-			assert.NotNil(t, got, "RunCeremony returned nil device")
+			test.assertErr(t, err)
+			test.assertGotDevice(t, got)
 		})
 	}
 }

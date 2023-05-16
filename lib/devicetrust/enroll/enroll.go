@@ -16,6 +16,7 @@ package enroll
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
 	"runtime"
 
 	"github.com/gravitational/trace"
@@ -34,7 +35,10 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 		devicepb.OSType_OS_TYPE_MACOS,
 		devicepb.OSType_OS_TYPE_WINDOWS,
 	}, osType) {
-		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
+		return nil, trace.BadParameter(
+			"device enrollment not supported for current OS (%s)",
+			types.ResourceOSTypeToString(osType),
+		)
 	}
 
 	init, err := enrollInit()
