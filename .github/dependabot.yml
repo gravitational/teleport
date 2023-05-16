@@ -16,11 +16,11 @@ updates:
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/coreos/go-oidc
       - dependency-name: github.com/go-mysql-org/go-mysql
       - dependency-name: github.com/go-redis/redis/v9
       - dependency-name: github.com/gogo/protobuf
-      - dependency-name: github.com/alecthomas/kingpin/v2
       - dependency-name: github.com/julienschmidt/httprouter
       - dependency-name: github.com/keys-pub/go-libfido2
       - dependency-name: github.com/microsoft/go-mssqldb
