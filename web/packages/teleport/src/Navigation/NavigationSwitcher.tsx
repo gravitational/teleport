@@ -20,7 +20,7 @@ import styled, { useTheme } from 'styled-components';
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
-import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
+import { OpenAIIcon } from 'design/SVGIcon/OpenAI';
 
 import { useHistory, useLocation } from 'react-router';
 
@@ -295,10 +295,11 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
             <TooltipTitle>
               <TooltipTitleBackground>New!</TooltipTitleBackground>
             </TooltipTitle>{' '}
-            Connect Teleport to ChatGPT and try out our new Assist integration
+            Connect Teleport to OpenAI GPT-4 and try out our new Assist
+            integration
             <TooltipFooter>
               <TooltipLogos>
-                <ChatGPTIcon size={30} />
+                <OpenAIIcon size={30} />
                 <TooltipLogosSpacer>+</TooltipLogosSpacer>
                 <TeleportIcon light={theme.name === 'light'} />
               </TooltipLogos>
