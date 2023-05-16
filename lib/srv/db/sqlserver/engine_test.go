@@ -25,8 +25,8 @@ import (
 	"sync"
 	"testing"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/google/go-cmp/cmp"
+	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -125,6 +125,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Code: libevents.DatabaseSessionQueryCode,
 					},
 					DatabaseQuery: "\nselect 'foo' as 'bar'\n        ",
+					Status: events.Status{
+						Success: true,
+					},
 				}),
 			},
 		},
@@ -238,18 +241,18 @@ type mockChecker struct {
 	services.AccessChecker
 }
 
-func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
 	return nil
 }
 
-func (m *mockChecker) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	if authPrefMFARequirement.IsSessionMFARequired() {
-		return services.AccessMFAParams{
-			Required: services.MFARequiredAlways,
+func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		return services.AccessState{
+			MFARequired: services.MFARequiredAlways,
 		}
 	}
-	return services.AccessMFAParams{
-		Required: services.MFARequiredNever,
+	return services.AccessState{
+		MFARequired: services.MFARequiredNever,
 	}
 }
 

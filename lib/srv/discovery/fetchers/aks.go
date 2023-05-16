@@ -18,6 +18,7 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 type aksFetcher struct {
@@ -66,7 +68,7 @@ func (c *AKSFetcherConfig) CheckAndSetDefaults() error {
 }
 
 // NewAKSFetcher creates a new AKS fetcher configuration.
-func NewAKSFetcher(cfg AKSFetcherConfig) (Fetcher, error) {
+func NewAKSFetcher(cfg AKSFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -86,7 +88,12 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
 			continue
 		}
-		if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.Tags); err != nil {
+		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+		if err != nil {
+			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
+			continue
+		}
+		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
 			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
 			continue
 		} else if !match {
@@ -94,11 +101,6 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			continue
 		}
 
-		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
-		if err != nil {
-			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
-			continue
-		}
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources(), nil
@@ -136,4 +138,9 @@ func (a *aksFetcher) ResourceType() string {
 
 func (a *aksFetcher) Cloud() string {
 	return types.CloudAzure
+}
+
+func (a *aksFetcher) String() string {
+	return fmt.Sprintf("aksFetcher(ResourceGroups=%v, Regions=%v, FilterLabels=%v)",
+		a.ResourceGroups, a.Regions, a.FilterLabels)
 }

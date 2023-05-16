@@ -24,24 +24,28 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
 type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
 	// Standard port is 636 for LDAPS.
-	Addr string
+	Addr string //nolint:unused // False-positive
 	// Domain is an Active Directory domain name, like "example.com".
-	Domain string
+	Domain string //nolint:unused // False-positive
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
 	// "EXAMPLE" is the NetBIOS version of Domain.
-	Username string
+	Username string //nolint:unused // False-positive
+	// SID is the SID for the user specified by Username.
+	SID string //nolint:unused // False-positive
 	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool
+	InsecureSkipVerify bool //nolint:unused // False-positive
 	// ServerName is the name of the LDAP server for TLS.
-	ServerName string
+	ServerName string //nolint:unused // False-positive
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate
+	CA *x509.Certificate //nolint:unused // False-positive
 }
 
 // Check verifies this LDAPConfig
@@ -72,23 +76,31 @@ func (cfg LDAPConfig) DomainDN() string {
 	return sb.String()
 }
 
+// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 const (
-	// ComputerClass is the object class for computers in Active Directory
-	ComputerClass = "computer"
-	// ContainerClass is the object class for containers in Active Directory
-	ContainerClass = "container"
-	// GMSAClass is the object class for group managed service accounts in Active Directory.
-	GMSAClass = "msDS-GroupManagedServiceAccount"
-
-	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
-
 	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
 	WritableDomainControllerGroupID = "516"
 	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
 	ReadOnlyDomainControllerGroupID = "521"
+)
+
+const (
+	// ClassComputer is the object class for computers in Active Directory
+	ClassComputer = "computer"
+	// ClassContainer is the object class for containers in Active Directory
+	ClassContainer = "container"
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+	// ClassUser is the object class for users in Active Directory
+	ClassUser = "user"
+
+	// CategoryPerson is object category for persons in Active Directory
+	CategoryPerson = "person"
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
+	// AttrSAMAccountName is the SAM Account name of an LDAP object
+	AttrSAMAccountName = "sAMAccountName"
 	// AttrCommonName is the common name of an LDAP object, or "CN"
 	AttrCommonName = "cn"
 	// AttrDistinguishedName is the distinguished name of an LDAP object, or "DN"
@@ -103,16 +115,26 @@ const (
 	AttrOSVersion = "operatingSystemVersion"
 	// AttrPrimaryGroupID is the primary group id of an LDAP object
 	AttrPrimaryGroupID = "primaryGroupID"
-
-	// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
-	// so in most cases the 1000 search page size will result in the optimal amount of requests made to
-	// LDAP server.
-	searchPageSize = 1000
+	// AttrObjectSid is the Security Identifier of an LDAP object
+	AttrObjectSid = "objectSid"
+	// AttrObjectCategory is the object category of an LDAP object
+	AttrObjectCategory = "objectCategory"
+	// AttrObjectClass is the object class of an LDAP object
+	AttrObjectClass = "objectClass"
 )
+
+// searchPageSize is desired page size for LDAP search. In Active Directory the default search size limit is 1000 entries,
+// so in most cases the 1000 search page size will result in the optimal amount of requests made to
+// LDAP server.
+const searchPageSize = 1000
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 
-// LDAPClient is a windows LDAP client
+// LDAPClient is a windows LDAP client.
+//
+// It does not automatically detect when the underlying connection
+// is closed. Callers should check for trace.ConnectionProblem errors
+// and provide a new client with [SetClient].
 type LDAPClient struct {
 	// Cfg is the LDAPConfig
 	Cfg LDAPConfig
@@ -158,9 +180,9 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	defer c.mu.Unlock()
 	res, err := c.client.SearchWithPaging(req, searchPageSize)
 	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
-		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
+		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
 	} else if err != nil {
-		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
+		return nil, trace.Wrap(err, "fetching LDAP object %q with filter %q: %v", dn, filter, err)
 	}
 	return res.Entries, nil
 }
@@ -174,7 +196,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
-	return c.ReadWithFilter(dn, fmt.Sprintf("(objectClass=%s)", class), attrs)
+	return c.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
 // Create creates an LDAP entry at the given path, with the given class and
@@ -216,7 +238,7 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
 func (c *LDAPClient) CreateContainer(dn string) error {
-	err := c.Create(dn, ContainerClass, nil)
+	err := c.Create(dn, ClassContainer, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
@@ -256,10 +278,22 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(config LDAPConfig) string {
-	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + config.DomainDN()
+func crlContainerDN(config LDAPConfig, caType types.CertAuthType) string {
+	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), config.DomainDN())
 }
 
-func crlDN(clusterName string, config LDAPConfig) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config)
+func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) string {
+	return "CN=" + clusterName + "," + crlContainerDN(config, caType)
+}
+
+// crlKeyName returns the appropriate LDAP key given the CA type.
+//
+// Note: UserCA must use "Teleport" to keep backwards compatibility.
+func crlKeyName(caType types.CertAuthType) string {
+	switch caType {
+	case types.DatabaseCA:
+		return "TeleportDB"
+	default:
+		return "Teleport"
+	}
 }

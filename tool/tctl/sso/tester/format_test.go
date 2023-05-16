@@ -70,7 +70,7 @@ func Test_formatYAML(t *testing.T) {
 		{
 			name:        "simple object",
 			description: "my field",
-			object: types.RoleSpecV5{
+			object: types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:        []string{"username"},
 					ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -85,6 +85,7 @@ allow:
 deny: {}
 options:
   cert_format: ""
+  create_desktop_user: null
   create_host_user: null
   desktop_clipboard: null
   desktop_directory_sharing: null
@@ -121,7 +122,7 @@ func Test_formatJSON(t *testing.T) {
 		{
 			name:        "simple object",
 			description: "my field",
-			object: types.RoleSpecV5{
+			object: types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:        []string{"username"},
 					ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -137,7 +138,8 @@ func Test_formatJSON(t *testing.T) {
         "desktop_directory_sharing": null,
         "create_host_user": null,
         "pin_source_ip": false,
-        "ssh_file_copy": null
+        "ssh_file_copy": null,
+        "create_desktop_user": null
     },
     "allow": {
         "logins": [

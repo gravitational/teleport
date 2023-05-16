@@ -1,0 +1,21 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "teleport-cluster.auth.serviceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
+{{- if $auth.annotations.service }}
+  annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
+{{- end }}
+spec:
+  ports:
+  - name: auth
+    port: 3025
+    targetPort: 3025
+    protocol: TCP
+  - name: kube
+    port: 3026
+    targetPort: 3026
+    protocol: TCP
+  selector: {{- include "teleport-cluster.auth.selectorLabels" . | nindent 4 }}

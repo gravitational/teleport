@@ -21,11 +21,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
 )
 
@@ -40,7 +41,7 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 }
 
 func (process *TeleportProcess) initDatabases() {
-	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -48,7 +49,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	conn, err := process.waitForConnector(DatabasesIdentityEvent, log)
+	conn, err := process.WaitForConnector(DatabasesIdentityEvent, log)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -64,7 +65,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
-		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+		tunnelAddrResolver = process.SingleProcessModeResolver(resp.GetProxyListenerMode())
 
 		// run the resolver. this will check configuration for errors.
 		_, _, err := tunnelAddrResolver(process.ExitContext())
@@ -95,7 +96,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}
 
 	clusterName := conn.ServerIdentity.ClusterName
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Logger:      log,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +110,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -130,6 +136,18 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Clock:       process.Config.Clock,
+		ServerID:    process.Config.HostUUID,
+		Emitter:     asyncEmitter,
+		Logger:      process.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -143,7 +161,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Authorizer:           authorizer,
 		TLSConfig:            tlsConfig,
 		Limiter:              connLimiter,
-		GetRotation:          process.getRotation,
+		GetRotation:          process.GetRotation,
 		Hostname:             process.Config.Hostname,
 		HostID:               process.Config.HostUUID,
 		Databases:            databases,
@@ -151,8 +169,8 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
 		AWSMatchers:          process.Config.Databases.AWSMatchers,
 		AzureMatchers:        process.Config.Databases.AzureMatchers,
-		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
-		LockWatcher:          lockWatcher,
+		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentDatabase),
+		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
@@ -196,12 +214,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Execute this when the process running database proxy service exits.
 	process.OnExit("db.stop", func(payload interface{}) {
-		log.Info("Shutting down.")
 		if dbService != nil {
-			warnOnErr(dbService.Close(), process.log)
+			if payload == nil {
+				log.Info("Shutting down immediately.")
+				warnOnErr(dbService.Close(), log)
+			} else {
+				log.Info("Shutting down gracefully.")
+				warnOnErr(dbService.Shutdown(payloadContext(payload, log)), log)
+			}
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), process.log)
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 		if agentPool != nil {
 			agentPool.Stop()

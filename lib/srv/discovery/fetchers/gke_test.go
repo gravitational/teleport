@@ -177,6 +177,7 @@ func gkeClustersToResources(t *testing.T, clusters ...gcp.GKECluster) types.Reso
 	for _, cluster := range clusters {
 		kubeCluster, err := services.NewKubeClusterFromGCPGKE(cluster)
 		require.NoError(t, err)
+		require.True(t, kubeCluster.IsGCP())
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

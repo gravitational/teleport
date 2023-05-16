@@ -134,6 +134,9 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 		DatabaseMetadata:        MakeDatabaseMetadata(session),
 		DatabaseQuery:           query.Query,
 		DatabaseQueryParameters: query.Parameters,
+		Status: events.Status{
+			Success: true,
+		},
 	}
 	if query.Database != "" {
 		event.DatabaseMetadata.DatabaseName = query.Database

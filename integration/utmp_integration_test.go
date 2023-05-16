@@ -36,9 +36,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -233,7 +234,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 
 	s.nodeID = uuid.New().String()
 	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: s.nodeID,
 		},
@@ -283,7 +284,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(s.nodeClient),
 		regular.SetShell("/bin/sh"),
-		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		regular.SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{

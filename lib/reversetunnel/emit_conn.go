@@ -22,8 +22,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -59,7 +59,7 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 	n, err := conn.Conn.Read(p)
 
 	// Skip buffering if already could have emitted or will never emit.
-	if err != nil || conn.buffer.Len() == len(sshutils.ProxyHelloSignature) || conn.serverID == "" {
+	if err != nil || conn.buffer.Len() == len(constants.ProxyHelloSignature) || conn.serverID == "" {
 		conn.mu.RUnlock()
 		return n, err
 	}
@@ -68,15 +68,15 @@ func (conn *emitConn) Read(p []byte) (int, error) {
 	conn.mu.Lock()
 	defer conn.mu.Unlock()
 
-	remaining := len(sshutils.ProxyHelloSignature) - conn.buffer.Len()
+	remaining := len(constants.ProxyHelloSignature) - conn.buffer.Len()
 	_, err = conn.buffer.Write(p[:min(n, remaining)])
 	if err != nil {
 		return n, err
 	}
 
 	// Only emit when we don't see the proxy hello signature in the first few bytes.
-	if conn.buffer.Len() == len(sshutils.ProxyHelloSignature) &&
-		!bytes.HasPrefix(conn.buffer.Bytes(), []byte(sshutils.ProxyHelloSignature)) {
+	if conn.buffer.Len() == len(constants.ProxyHelloSignature) &&
+		!bytes.HasPrefix(conn.buffer.Bytes(), []byte(constants.ProxyHelloSignature)) {
 		event := &apievents.SessionConnect{
 			Metadata: apievents.Metadata{
 				Type: events.SessionConnectEvent,

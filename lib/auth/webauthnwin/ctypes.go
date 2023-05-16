@@ -128,7 +128,6 @@ type webauthnAuthenticatorMakeCredentialOptions struct {
 	_ uint32
 }
 
-//nolint:unused // This struct is kept just to keep size of struct valid.
 type webauthnCredentials struct {
 	_ uint32
 	_ *webauthnCredential

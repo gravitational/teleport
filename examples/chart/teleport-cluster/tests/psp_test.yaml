@@ -4,8 +4,8 @@ templates:
 tests:
   - it: creates a PodSecurityPolicy when enabled in values and supported
     capabilities:
-      apiVersions:
-        - policy/v1beta1
+      majorVersion: 1
+      minorVersion: 22
     set:
       podSecurityPolicy:
         enabled: true
@@ -27,6 +27,9 @@ tests:
     set:
       podSecurityPolicy:
         enabled: true
+    capabilities:
+      majorVersion: 1
+      minorVersion: 25
     asserts:
       - hasDocuments:
           count: 0

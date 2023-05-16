@@ -17,12 +17,9 @@ limitations under the License.
 package ui
 
 import (
-	"golang.org/x/exp/slices"
-
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -32,6 +29,7 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
+	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
@@ -80,8 +78,6 @@ type userACL struct {
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
 	Desktops access `json:"desktops"`
-	// WindowsLogins defines access to logins on windows desktop servers.
-	WindowsLogins []string `json:"windowsLogins"`
 	// AccessRequests defines access to access requests.
 	AccessRequests access `json:"accessRequests"`
 	// Billing defines access to billing information.
@@ -98,6 +94,16 @@ type userACL struct {
 	Download access `json:"download"`
 	// Download defines whether the user has access to download the license
 	License access `json:"license"`
+	// Plugins defines whether the user has access to manage hosted plugin instances
+	Plugins access `json:"plugins"`
+	// Integrations defines whether the user has access to manage integrations.
+	Integrations access `json:"integrations"`
+	// DeviceTrust defines access to device trust.
+	DeviceTrust access `json:"deviceTrust"`
+	// Locks defines access to locking resources.
+	Locks access `json:"lock"`
+	// Assist defines access to assist feature.
+	Assist access `json:"assist"`
 }
 
 type authType string
@@ -126,26 +132,6 @@ type UserContext struct {
 	ConsumedAccessRequestID string `json:"accessRequestId,omitempty"`
 }
 
-func getWindowsDesktopLogins(roleSet services.RoleSet) []string {
-	allowed := []string{}
-	denied := []string{}
-	for _, role := range roleSet {
-		denied = append(denied, role.GetWindowsLogins(types.Deny)...)
-		allowed = append(allowed, role.GetWindowsLogins(types.Allow)...)
-	}
-
-	allowed = apiutils.Deduplicate(allowed)
-	denied = apiutils.Deduplicate(denied)
-	desktopLogins := []string{}
-	for _, login := range allowed {
-		if isDenied := slices.Contains(denied, login); !isDenied {
-			desktopLogins = append(desktopLogins, login)
-		}
-	}
-
-	return desktopLogins
-}
-
 func hasAccess(roleSet services.RoleSet, ctx *services.Context, kind string, verbs ...string) bool {
 	for _, verb := range verbs {
 		// Since this check occurs often and does not imply the caller is trying to
@@ -164,6 +150,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
@@ -211,18 +198,30 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
+	var assistAccess access
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
+
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
+	var pluginsAccess access
+	if features.Plugins {
+		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
+	}
+
 	accessStrategy := getAccessStrategy(userRoles)
-	windowsLogins := getWindowsDesktopLogins(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
+	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
+	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
+	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -237,7 +236,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		ActiveSessions:          activeSessionAccess,
 		Roles:                   roleAccess,
 		Events:                  eventAccess,
-		WindowsLogins:           windowsLogins,
 		Users:                   userAccess,
 		Tokens:                  tokenAccess,
 		Nodes:                   nodeAccess,
@@ -248,6 +246,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		DirectorySharing:        directorySharing,
 		Download:                download,
 		License:                 license,
+		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
+		DeviceTrust:             deviceTrust,
+		Locks:                   lockAccess,
+		Assist:                  assistAccess,
 	}
 
 	// local user

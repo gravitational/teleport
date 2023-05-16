@@ -77,7 +77,7 @@ func TestAWSSecretsManager(t *testing.T) {
 			SecretId: aws.String("teleport/key"),
 		})
 		require.NoError(t, err)
-		require.Equal(t, "arn:aws:kms:us-east-1:1234567890:alias/aws/secretsmanager", aws.StringValue(output1.KmsKeyId))
+		require.Equal(t, "arn:aws:kms:us-east-1:123456789012:alias/aws/secretsmanager", aws.StringValue(output1.KmsKeyId))
 
 		// Create secret for the second time with custom KMS. Create returns
 		// IsAlreadyExists but KMSKeyID should be updated.

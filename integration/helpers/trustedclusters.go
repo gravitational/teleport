@@ -15,6 +15,7 @@
 package helpers
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -140,4 +141,70 @@ func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, c
 		time.Second,
 		"Active tunnel connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
+}
+
+// TrustedClusterSetup is a grouping of configuration options describing the current trusted
+// clusters being tested used for passing info about the clusters to be tested to helper functions.
+type TrustedClusterSetup struct {
+	Aux         *TeleInstance
+	Main        *TeleInstance
+	Username    string
+	ClusterAux  string
+	UseJumpHost bool
+}
+
+// CheckTrustedClustersCanConnect check the cluster setup described in tcSetup can connect to each other.
+func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup TrustedClusterSetup) {
+	aux := tcSetup.Aux
+	main := tcSetup.Main
+	username := tcSetup.Username
+	clusterAux := tcSetup.ClusterAux
+	useJumpHost := tcSetup.UseJumpHost
+
+	// ensure cluster that was enabled from disabled still works
+	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
+
+	// Wait for both cluster to see each other via reverse tunnels.
+	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+	require.Eventually(t, WaitForClusters(aux.Tunnel, 1), 10*time.Second, 1*time.Second,
+		"Two clusters do not see each other: tunnels are not working.")
+
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        main.Process,
+		Username:       username,
+		RouteToCluster: clusterAux,
+	})
+	require.NoError(t, err)
+
+	tc, err := main.NewClientWithCreds(ClientConfig{
+		Login:    username,
+		Cluster:  clusterAux,
+		Host:     Loopback,
+		Port:     sshPort,
+		JumpHost: useJumpHost,
+	}, *creds)
+	require.NoError(t, err)
+
+	// tell the client to trust aux cluster CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
+	auxCAS, err := aux.Secrets.GetCAs()
+	require.NoError(t, err)
+	for _, auxCA := range auxCAS {
+		err = tc.AddTrustedCA(ctx, auxCA)
+		require.NoError(t, err)
+	}
+
+	output := &bytes.Buffer{}
+	tc.Stdout = output
+
+	cmd := []string{"echo", "hello world"}
+
+	require.Eventually(t, func() bool {
+		return tc.SSH(ctx, cmd, false) == nil
+	}, 10*time.Second, 1*time.Second, "Two clusters cannot connect to each other")
+
+	require.Equal(t, "hello world\n", output.String())
 }

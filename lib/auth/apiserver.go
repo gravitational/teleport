@@ -31,7 +31,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/plugin"
@@ -43,8 +43,8 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.IAuditLog
-	Authorizer     Authorizer
+	AuditLog       events.AuditLogSessionStreamer
+	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
@@ -63,6 +63,9 @@ func (a *APIConfig) CheckAndSetDefaults() error {
 	}
 	if a.KeepAliveCount == 0 {
 		a.KeepAliveCount = apidefaults.KeepAliveCountMax
+	}
+	if a.Authorizer == nil {
+		return trace.BadParameter("authorizer is missing")
 	}
 	return nil
 }
@@ -183,27 +186,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error)
 
 func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
-	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
-			switch {
-			// propagate connection problem error so we can differentiate
-			// between connection failed and access denied
-			case trace.IsConnectionProblem(err):
-				return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-			case trace.IsAccessDenied(err):
-				// don't print stack trace, just log the warning
-				log.Warn(err)
-			case keys.IsPrivateKeyPolicyError(err):
-				// private key policy errors should be returned to the client
-				// unaltered so that they know to reauthenticate with a valid key.
-				return nil, trace.Unwrap(err)
-			default:
-				log.Warn(trace.DebugReport(err))
-			}
-			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
+			return nil, authz.ConvertAuthorizerError(r.Context(), log, err)
 		}
 		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
@@ -522,6 +509,9 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
+	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -631,6 +621,9 @@ type upsertCertAuthorityRawReq struct {
 	TTL time.Duration   `json:"ttl"`
 }
 
+// upsertCertAuthority creates or updates a cert authority.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/UpsertCertAuthority
+// DELETE IN 14.0.0
 func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -643,10 +636,8 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	if err = services.ValidateCertAuthority(ca); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.UpsertCertAuthority(ca); err != nil {
+
+	if err := auth.UpsertCertAuthority(r.Context(), ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -671,6 +662,9 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	return message("ok"), nil
 }
 
+// getCertAuthorities returns all cert authorities that match the provided type.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthorities
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -691,6 +685,9 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
+// getCertAuthority returns a single matching cert authority.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthority
+// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -707,12 +704,15 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
+// deleteCertAuthority removes the matching cert authority.
+// Deprecated: Replaced by teleport.v1.trust.TrustService/DeleteCertAuthority.
+// DELETE IN 14.0.0
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
 		Type:       types.CertAuthType(p.ByName("type")),
 	}
-	if err := auth.DeleteCertAuthority(id); err != nil {
+	if err := auth.DeleteCertAuthority(r.Context(), id); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
@@ -928,12 +928,8 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
-	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
-	if err != nil {
-		includePrintEvents = false
-	}
 
-	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
+	return auth.GetSessionEvents(namespace, *sid, afterN)
 }
 
 type upsertNamespaceReq struct {
@@ -1191,7 +1187,7 @@ func (s *APIServer) getRemoteCluster(auth ClientI, w http.ResponseWriter, r *htt
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
+	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

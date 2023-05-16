@@ -27,11 +27,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
@@ -50,34 +50,40 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	t.Run("root cluster", func(t *testing.T) {
-		t.Parallel()
-
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testGatewayCertRenewal(t, pack, "", creds, databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
-		t.Parallel()
-
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testGatewayCertRenewal(t, pack, "", creds, databaseURI)
+	})
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
+
+		databaseURI := uri.NewClusterURI(rootClusterName).
+			AppendDB(pack.Root.MysqlService.Name)
+
+		testGatewayCertRenewal(t, pack, albProxy.Addr().String(), creds, databaseURI)
 	})
 }
 
-func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
+func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   pack.Root.User.GetName(),
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
+		ALBAddr: albAddr,
 	}, *creds)
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
-	tc.SaveProfile(tc.KeysDir, false /* makeCurrent */)
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
+	tc.SaveProfile(false /* makeCurrent */)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 
@@ -91,7 +97,6 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 	require.NoError(t, err)
 
 	tshdEventsClient := &mockTSHDEventsClient{
-		t:          t,
 		tc:         tc,
 		pack:       pack,
 		callCounts: make(map[string]int),
@@ -120,7 +125,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 		TargetURI:  databaseURI.String(),
 		TargetUser: "root",
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 
 	// Open a new connection.
 	client, err := mysql.MakeTestClientWithoutTLS(
@@ -145,7 +150,8 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 		TTL:      -time.Hour,
 	})
 	require.NoError(t, err)
-	helpers.SetupUserCreds(tc, pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	err = helpers.SetupUserCreds(tc, pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *expiredCreds)
+	require.NoError(t, err)
 
 	// Open a new connection.
 	// This should trigger the relogin flow. The middleware will notice that the db cert has expired
@@ -172,7 +178,6 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 }
 
 type mockTSHDEventsClient struct {
-	t          *testing.T
 	tc         *libclient.TeleportClient
 	pack       *dbhelpers.DatabasePack
 	callCounts map[string]int
@@ -186,8 +191,13 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 		Process:  c.pack.Root.Cluster.Process,
 		Username: c.pack.Root.User.GetName(),
 	})
-	require.NoError(c.t, err)
-	helpers.SetupUserCreds(c.tc, c.pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = helpers.SetupUserCreds(c.tc, c.pack.Root.Cluster.Config.Proxy.SSHAddr.Addr, *creds)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &api.ReloginResponse{}, nil
 }

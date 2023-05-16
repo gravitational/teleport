@@ -270,10 +270,21 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			},
 		},
 		{
-			name:             "kube service",
+			name:             "kube server",
 			searchNotDefined: true,
 			newResource: func() ResourceWithLabels {
-				kubeServer, err := NewServer("_", KindKubeService, ServerSpecV2{})
+				kubeServer, err := NewKubernetesServerV3(
+					Metadata{
+						Name: "_",
+					}, KubernetesServerSpecV3{
+						HostID:   "_",
+						Hostname: "_",
+						Cluster: &KubernetesClusterV3{
+							Metadata: Metadata{
+								Name: "_",
+							},
+						},
+					})
 				require.NoError(t, err)
 
 				return kubeServer

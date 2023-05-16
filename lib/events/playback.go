@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -96,7 +97,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 		for {
 			event, err := protoReader.Read(ctx)
 			if err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					return nil
 				}
 				return trace.Wrap(err)
@@ -117,7 +118,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 		}
 	case format.Tar:
 		return trace.BadParameter(
-			"to review the events in format of teleport before version 4.4, extract the tarball and look inside")
+			"to review events in format of Teleport before version 4.4, extract the tarball and look inside")
 	default:
 		return trace.BadParameter("unsupported format %v", format)
 	}
@@ -159,7 +160,7 @@ func (w *SSHPlaybackWriter) SessionEvents() ([]EventFields, error) {
 		var f EventFields
 		err := utils.FastUnmarshal(scanner.Bytes(), &f)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return sessionEvents, nil
 			}
 			return nil, trace.Wrap(err)
@@ -250,7 +251,7 @@ func (w *SSHPlaybackWriter) Write(ctx context.Context) error {
 	for {
 		event, err := w.reader.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err)

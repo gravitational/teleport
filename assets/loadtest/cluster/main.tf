@@ -14,6 +14,12 @@ data "google_compute_network" "default" {
 }
 
 
+#trivy:ignore:AVD-GCP-0047
+#trivy:ignore:AVD-GCP-0049
+#trivy:ignore:AVD-GCP-0051
+#trivy:ignore:AVD-GCP-0056
+#trivy:ignore:AVD-GCP-0059
+#trivy:ignore:AVD-GCP-0061
 resource "google_container_cluster" "loadtest" {
   name     = var.cluster_name
   location = var.region
@@ -25,6 +31,13 @@ resource "google_container_cluster" "loadtest" {
   initial_node_count       = 1
 }
 
+#trivy:ignore:AVD-GCP-0048
+#trivy:ignore:AVD-GCP-0049
+#trivy:ignore:AVD-GCP-0050
+#trivy:ignore:AVD-GCP-0054
+#trivy:ignore:AVD-GCP-0057
+#trivy:ignore:AVD-GCP-0058
+#trivy:ignore:AVD-GCP-0063
 resource "google_container_node_pool" "loadtest" {
   name     = var.cluster_name
   cluster  = google_container_cluster.loadtest.name

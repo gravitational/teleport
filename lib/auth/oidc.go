@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -45,7 +46,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Type: events.OIDCConnectorCreatedEvent,
 			Code: events.OIDCConnectorCreatedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
@@ -66,7 +67,7 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 			Type: events.OIDCConnectorDeletedEvent,
 			Code: events.OIDCConnectorDeletedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorName,
 		},

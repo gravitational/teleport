@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 const (
@@ -34,14 +35,7 @@ const releasesHost = "https://releases-prod.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(b buildType) []string {
-	var commands []string
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
-		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
-	}
-
-	commands = append(commands,
+	return []string{
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
 		`git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .`,
@@ -50,23 +44,6 @@ func tagCheckoutCommands(b buildType) []string {
 		`mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
 		`git submodule update --init e`,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init --recursive webassets || true`,
-	)
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): this can be removed after webapps migration
-		// clone webapps for the Teleport Connect Source code
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
-			`git submodule update --init packages/webapps.e`,
-			`cd -`,
-		)
-	}
-
-	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 		// create necessary directories
 		`mkdir -p /go/cache /go/artifacts`,
@@ -77,8 +54,7 @@ if [ "$$VERSION" != "${DRONE_TAG##v}" ]; then
   exit 1
 fi
 echo "$$VERSION" > /go/.version.txt`,
-	)
-	return commands
+	}
 }
 
 // tagBuildCommands generates a list of commands for Drone to build an artifact as part of a tag build
@@ -114,7 +90,6 @@ func tagBuildCommands(b buildType) []string {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
 		}
-
 	}
 
 	if b.os == "windows" {
@@ -175,7 +150,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 
 	if b.hasTeleportConnect() {
 		commands = append(commands,
-			`find /go/src/github.com/gravitational/webapps/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
+			`find /go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release -maxdepth 1 \( -iname "teleport-connect*.tar.gz" -o -iname "teleport-connect*.rpm" -o -iname "teleport-connect*.deb" \) -print -exec cp {} /go/artifacts/ \;`,
 		)
 	}
 
@@ -195,7 +170,7 @@ done && ls -l`)
 func tagPipelines() []pipeline {
 	var ps []pipeline
 	// regular tarball builds
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -214,6 +189,58 @@ func tagPipelines() []pipeline {
 		}
 	}
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-linux-arm64",
+		dependsOn:    []string{tagCleanupPipelineName},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "true"},
+			},
+		},
+	}))
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-oci-distroless-images",
+		dependsOn: []string{
+			tagCleanupPipelineName,
+			"build-linux-amd64-deb",
+			"build-linux-arm64-deb",
+		},
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-oci-distroless.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-kube-agent-updater-oci-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-teleport-kube-agent-updater-oci.yml",
+				srcRefVar:         "DRONE_TAG",
+				ref:               "${DRONE_TAG}",
+				timeout:           150 * time.Minute,
+				shouldTagWorkflow: true,
+			},
+		},
+	}))
+
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
@@ -222,7 +249,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
-	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, darwinTagPipelineGHA())
 	ps = append(ps, windowsTagPipeline())
 
 	ps = append(ps, tagCleanupPipeline())
@@ -272,7 +299,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeAwsConfig, volumeDocker}
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -280,6 +307,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -289,13 +317,15 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: tagEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    tagBuildCommands(b),
 		},
 		{
 			Name:     "Copy artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCopyArtifactCommands(b),
 		},
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
@@ -315,6 +345,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
@@ -463,12 +494,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := []volume{
-		volumeDocker,
-		volumeAwsConfig,
-	}
+	packageDockerVolumes := []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	packageDockerVolumeRefs := []volumeRef{
 		volumeRefDocker,
+		volumeRefDockerConfig,
 		volumeRefAwsConfig,
 	}
 	packageDockerService := dockerService()
@@ -589,5 +618,5 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 }
 
 func tagCleanupPipeline() pipeline {
-	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "auto_destroy -f -v 6")
 }

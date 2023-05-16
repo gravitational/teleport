@@ -20,20 +20,49 @@ import (
 	"net/http"
 
 	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 )
+
+// SetTeleportAPIErrorHeader saves the provided error in X-Teleport-API-Error header of response.
+func SetTeleportAPIErrorHeader(rw http.ResponseWriter, err error) {
+	obj, ok := err.(trace.DebugReporter)
+	if !ok {
+		obj = &trace.TraceErr{Err: err}
+	}
+	rw.Header().Set(TeleportAPIErrorHeader, obj.DebugReport())
+}
 
 const (
 	// XForwardedSSL is a non-standard X-Forwarded-* header that is set to "on" or "off" depending on
 	// whether SSL is enabled.
 	XForwardedSSL = "X-Forwarded-Ssl"
+
+	// TeleportAPIErrorHeader is Teleport-specific error header, optionally holding background error information.
+	TeleportAPIErrorHeader = "X-Teleport-Api-Error"
+
+	// TeleportAPIInfoHeader is Teleport-specific info header, optionally holding background information.
+	TeleportAPIInfoHeader = "X-Teleport-Api-Info"
+
+	// TeleportAWSAssumedRole indicates that the incoming requests are signed
+	// with real AWS credentials of the specified assumed role by the AWS client.
+	TeleportAWSAssumedRole = "X-Teleport-Aws-Assumed-Role"
+
+	// TeleportAWSAssumedRoleAuthorization contains the original authorization
+	// header for requests signed by assumed roles.
+	TeleportAWSAssumedRoleAuthorization = "X-Teleport-Aws-Assumed-Role-Authorization"
 )
 
 // ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = append([]string{teleport.AppJWTHeader,
+var ReservedHeaders = append([]string{
+	teleport.AppJWTHeader,
 	teleport.AppCFHeader,
 	XForwardedSSL,
+	TeleportAPIErrorHeader,
+	TeleportAPIInfoHeader,
+	TeleportAWSAssumedRole,
+	TeleportAWSAssumedRoleAuthorization,
 },
 	forward.XHeaders...,
 )

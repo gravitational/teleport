@@ -1,0 +1,29 @@
+suite: Proxy Certificate
+templates:
+  - proxy/certificate.yaml
+tests:
+  - it: should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml)
+    values:
+      - ../.lint/cert-manager.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - matchSnapshot:
+          path: spec.dnsNames
+      - matchSnapshot:
+          path: spec.issuerRef
+
+  - it: should request a certificate for cluster name when cert-manager is enabled (cert-secret.yaml)
+    values:
+      - ../.lint/cert-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Certificate
+      - matchSnapshot:
+          path: spec.dnsNames
+      - matchSnapshot:
+          path: spec.issuerRef

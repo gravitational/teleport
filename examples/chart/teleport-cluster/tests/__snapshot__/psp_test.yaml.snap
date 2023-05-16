@@ -37,6 +37,7 @@ creates a PodSecurityPolicy when enabled in values and supported:
     kind: Role
     metadata:
       name: RELEASE-NAME-psp
+      namespace: NAMESPACE
     rules:
     - apiGroups:
       - policy
@@ -51,6 +52,7 @@ creates a PodSecurityPolicy when enabled in values and supported:
     kind: RoleBinding
     metadata:
       name: RELEASE-NAME-psp
+      namespace: NAMESPACE
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role

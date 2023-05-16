@@ -22,6 +22,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -50,6 +52,8 @@ type Session struct {
 	Log logrus.FieldLogger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
+	// AuthContext is the identity context of the user.
+	AuthContext *authz.Context
 }
 
 // String returns string representation of the session parameters.
@@ -58,9 +62,12 @@ func (c *Session) String() string {
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }
 
-// MFAParams returns MFA params for the given auth context and auth preference MFA requirement.
-func (c *Session) MFAParams(authPrefMFARequirement types.RequireMFAType) services.AccessMFAParams {
-	params := c.Checker.MFAParams(authPrefMFARequirement)
-	params.Verified = c.Identity.MFAVerified != ""
-	return params
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
+	state.MFAVerified = c.Identity.MFAVerified != ""
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
+	return state
 }

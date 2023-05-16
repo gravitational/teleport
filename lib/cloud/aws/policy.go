@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 // Policy represents an AWS IAM policy.
@@ -74,6 +75,22 @@ type Statement struct {
 	Resources SliceOrString `json:"Resource"`
 }
 
+// ensureResource ensures that the statement contains the specified resource.
+//
+// Returns true if the resource was already a part of the statement.
+func (s *Statement) ensureResource(resource string) bool {
+	if slices.Contains(s.Resources, resource) {
+		return true
+	}
+	s.Resources = append(s.Resources, resource)
+	return false
+}
+func (s *Statement) ensureResources(resources []string) {
+	for _, resource := range resources {
+		s.ensureResource(resource)
+	}
+}
+
 // ParsePolicyDocument returns parsed AWS IAM policy document.
 func ParsePolicyDocument(document string) (*PolicyDocument, error) {
 	// Policy document returned from AWS API can be URL-encoded:
@@ -103,25 +120,10 @@ func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 // Returns true if the resource action was already a part of the policy and
 // false otherwise.
 func (p *PolicyDocument) Ensure(effect, action, resource string) bool {
-	for _, s := range p.Statements {
-		if s.Effect != effect {
-			continue
-		}
-		for _, a := range s.Actions {
-			if a != action {
-				continue
-			}
-			for _, r := range s.Resources {
-				// Resource action is already in the policy.
-				if r == resource {
-					return true
-				}
-			}
-			// Action exists but resource is missing.
-			s.Resources = append(s.Resources, resource)
-			return false
-		}
+	if existingStatement := p.findStatement(effect, action); existingStatement != nil {
+		return existingStatement.ensureResource(resource)
 	}
+
 	// No statement yet for this resource action, add it.
 	p.Statements = append(p.Statements, &Statement{
 		Effect:    effect,
@@ -158,6 +160,38 @@ func (p *PolicyDocument) Delete(effect, action, resource string) {
 	p.Statements = statements
 }
 
+// EnsureStatements ensures that the policy document contains all resource
+// actions from the provided statements.
+//
+// The main benefit of using this function (versus appending to p.Statements
+// directly) is to avoid duplications.
+func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
+	for _, statement := range statements {
+		if statement == nil {
+			continue
+		}
+
+		// Try to find an existing statement by the action, and add the resources there.
+		var newActions []string
+		for _, action := range statement.Actions {
+			if existingStatement := p.findStatement(statement.Effect, action); existingStatement != nil {
+				existingStatement.ensureResources(statement.Resources)
+			} else {
+				newActions = append(newActions, action)
+			}
+		}
+
+		// Add the leftover actions as a new statement.
+		if len(newActions) > 0 {
+			p.Statements = append(p.Statements, &Statement{
+				Effect:    statement.Effect,
+				Actions:   newActions,
+				Resources: statement.Resources,
+			})
+		}
+	}
+}
+
 // Marshal formats the PolicyDocument in a "friendly" format, which can be
 // presented to end users.
 func (p *PolicyDocument) Marshal() (string, error) {
@@ -178,6 +212,19 @@ func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
 			}
 		}
 	}
+}
+
+func (p *PolicyDocument) findStatement(effect, action string) *Statement {
+	for _, s := range p.Statements {
+		if s.Effect != effect {
+			continue
+		}
+		if slices.Contains(s.Actions, action) {
+			return s
+		}
+	}
+	return nil
+
 }
 
 // SliceOrString defines a type that can be either a single string or a slice.

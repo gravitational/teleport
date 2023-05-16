@@ -94,7 +94,7 @@ func convertPostgresError(err *pgconn.PgError) error {
 // convertMySQLError converts MySQL driver errors to trace errors.
 func convertMySQLError(err *mysql.MyError) error {
 	switch err.Code {
-	case mysql.ER_ACCESS_DENIED_ERROR:
+	case mysql.ER_ACCESS_DENIED_ERROR, mysql.ER_DBACCESS_DENIED_ERROR:
 		return trace.AccessDenied(err.Error())
 	}
 	return err // Return unmodified.
@@ -135,6 +135,8 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 
 	if trace.IsAccessDenied(err) {
 		switch sessionCtx.Database.GetType() {
+		case types.DatabaseTypeElastiCache:
+			return createElastiCacheRedisAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeRDS:
 			return createRDSAccessDeniedError(err, sessionCtx)
 		case types.DatabaseTypeRDSProxy:
@@ -145,6 +147,32 @@ func ConvertConnectError(err error, sessionCtx *Session) error {
 	}
 
 	return trace.Wrap(err)
+}
+
+// createElastiCacheRedisAccessDeniedError creates an error with help message
+// to setup IAM auth for ElastiCache Redis.
+func createElastiCacheRedisAccessDeniedError(err error, sessionCtx *Session) error {
+	policy, getPolicyErr := dbiam.GetReadableAWSPolicyDocument(sessionCtx.Database)
+	if getPolicyErr != nil {
+		policy = fmt.Sprintf("failed to generate IAM policy: %v", getPolicyErr)
+	}
+
+	switch sessionCtx.Database.GetProtocol() {
+	case defaults.ProtocolRedis:
+		return trace.AccessDenied(`Could not connect to database:
+
+  %v
+
+Make sure that IAM auth is enabled for ElastiCache user %q and Teleport database
+agent's IAM policy has "elasticache:Connect" permissions (note that IAM changes may
+take a few minutes to propagate):
+
+%v
+`, err, sessionCtx.DatabaseUser, policy)
+
+	default:
+		return trace.Wrap(err)
+	}
 }
 
 // createRDSAccessDeniedError creates an error with help message to setup IAM
@@ -236,13 +264,4 @@ agent's service principal. See: https://goteleport.com/docs/database-access/guid
 	default:
 		return trace.Wrap(err)
 	}
-}
-
-// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from using an engine filter that the
-// AWS region does not recognize.
-func IsUnrecognizedAWSEngineNameError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

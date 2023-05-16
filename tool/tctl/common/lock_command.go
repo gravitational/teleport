@@ -27,12 +27,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // LockCommand implements `tctl lock` group of commands.
 type LockCommand struct {
-	config  *service.Config
+	config  *servicecfg.Config
 	mainCmd *kingpin.CmdClause
 	spec    types.LockSpecV2
 	expires string
@@ -40,7 +40,7 @@ type LockCommand struct {
 }
 
 // Initialize allows LockCommand to plug itself into the CLI parser.
-func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *LockCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	c.mainCmd = app.Command("lock", "Create a new lock.")
@@ -51,6 +51,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
 	c.mainCmd.Flag("windows-desktop", "Name of a Windows desktop to disable.").StringVar(&c.spec.Target.WindowsDesktop)
 	c.mainCmd.Flag("access-request", "UUID of an access request to disable.").StringVar(&c.spec.Target.AccessRequest)
+	c.mainCmd.Flag("device", "UUID of a trusted device to disable.").StringVar(&c.spec.Target.Device)
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)
@@ -74,6 +75,7 @@ func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error
 		return trace.Wrap(err)
 	}
 	c.spec.Expires = lockExpiry
+
 	lock, err := types.NewLock(uuid.New().String(), c.spec)
 	if err != nil {
 		return trace.Wrap(err)

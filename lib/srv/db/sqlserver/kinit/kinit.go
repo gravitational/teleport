@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jcmturner/gokrb5/v8/config"
 	"github.com/jcmturner/gokrb5/v8/credentials"
 	"github.com/sirupsen/logrus"
 
@@ -47,7 +48,7 @@ const (
 
 [realms]
  {{ .RealmName }} = {
-  kdc = {{ .KDCHostName }}
+  kdc = {{ .AdminServerName }}
   admin_server = {{ .AdminServerName }}
   pkinit_eku_checking = kpServerAuth
   pkinit_kdc_hostname = {{ .KDCHostName }}
@@ -59,7 +60,7 @@ const (
 // Provider is a kinit provider capable of producing a credentials cacheData for kerberos
 type Provider interface {
 	// UseOrCreateCredentials uses or updates an existing cacheData or creates a new one
-	UseOrCreateCredentials(ctx context.Context) (cache *credentials.CCache, err error)
+	UseOrCreateCredentials(ctx context.Context) (cache *credentials.CCache, conf *config.Config, err error)
 }
 
 // PKInit is a structure used for initializing a kerberos context
@@ -68,7 +69,7 @@ type PKInit struct {
 }
 
 // UseOrCreateCredentialsCache uses or creates a credentials cacheData.
-func (k *PKInit) UseOrCreateCredentialsCache(ctx context.Context) (*credentials.CCache, error) {
+func (k *PKInit) UseOrCreateCredentialsCache(ctx context.Context) (*credentials.CCache, *config.Config, error) {
 	return k.provider.UseOrCreateCredentials(ctx)
 }
 
@@ -93,6 +94,10 @@ type CommandConfig struct {
 	DataDir string
 	// LDAPCA is the Windows LDAP Certificate for client signing
 	LDAPCA *x509.Certificate
+	// LDAPCAPEM contains the same certificate as LDAPCA but in PEM format. It
+	// can be used to embed the LDAPCA into files without needing to convert
+	// it.
+	LDAPCAPEM string
 	// Command is a command generator that generates an executable command
 	Command CommandGenerator
 	// CertGetter is a Teleport Certificate getter that prepares an x509 certificate
@@ -103,20 +108,21 @@ type CommandConfig struct {
 // NewCommandLineInitializer returns a new command line initializer using a preinstalled `kinit` binary
 func NewCommandLineInitializer(config CommandConfig) *CommandLineInitializer {
 	cmd := &CommandLineInitializer{
-		auth:            config.AuthClient,
-		userName:        config.User,
-		cacheName:       fmt.Sprintf("%s@%s", config.User, config.Realm),
-		RealmName:       config.Realm,
-		KDCHostName:     config.KDCHost,
-		AdminServerName: config.AdminServer,
-		dataDir:         config.DataDir,
-		certPath:        fmt.Sprintf("%s.pem", config.User),
-		keyPath:         fmt.Sprintf("%s-key.pem", config.User),
-		binary:          kinitBinary,
-		command:         config.Command,
-		certGetter:      config.CertGetter,
-		ldapCertificate: config.LDAPCA,
-		log:             logrus.StandardLogger(),
+		auth:               config.AuthClient,
+		userName:           config.User,
+		cacheName:          fmt.Sprintf("%s@%s", config.User, config.Realm),
+		RealmName:          config.Realm,
+		KDCHostName:        config.KDCHost,
+		AdminServerName:    config.AdminServer,
+		dataDir:            config.DataDir,
+		certPath:           fmt.Sprintf("%s.pem", config.User),
+		keyPath:            fmt.Sprintf("%s-key.pem", config.User),
+		binary:             kinitBinary,
+		command:            config.Command,
+		certGetter:         config.CertGetter,
+		ldapCertificate:    config.LDAPCA,
+		ldapCertificatePEM: config.LDAPCAPEM,
+		log:                logrus.StandardLogger(),
 	}
 	if cmd.command == nil {
 		cmd.command = &execCmd{}
@@ -161,8 +167,9 @@ type CommandLineInitializer struct {
 	command    CommandGenerator
 	certGetter CertGetter
 
-	ldapCertificate *x509.Certificate
-	log             logrus.FieldLogger
+	ldapCertificate    *x509.Certificate
+	ldapCertificatePEM string
+	log                logrus.FieldLogger
 }
 
 // CertGetter is an interface for getting a new cert/key pair along with a CA cert
@@ -185,28 +192,6 @@ type DBCertGetter struct {
 	UserName string
 	// LDAPCA is the windows ldap certificate
 	LDAPCA *x509.Certificate
-	// CAFunc returns a TLSKeyPair of certificate bytes
-	CAFunc func(ctx context.Context, clusterName string) ([]byte, error)
-}
-
-func (d *DBCertGetter) caFunc(ctx context.Context, clusterName string) ([]byte, error) {
-
-	dbCA, err := d.Auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var caCert []byte
-	keyPairs := dbCA.GetActiveKeys().TLS
-	for _, keyPair := range keyPairs {
-		if keyPair.KeyType == types.PrivateKeyType_RAW {
-			caCert = keyPair.Cert
-		}
-	}
-	return caCert, nil
 }
 
 // WindowsCAAndKeyPair is a wrapper around PEM bytes for Windows authentication
@@ -223,40 +208,35 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		return nil, trace.Wrap(err)
 	}
 
-	certPEM, keyPEM, err := windows.CertKeyPEM(ctx, d.UserName, d.RealmName, certTTL, clusterName.GetClusterName(), windows.LDAPConfig{
-		Addr:               d.KDCHostName,
-		Domain:             d.RealmName,
-		Username:           d.UserName,
-		InsecureSkipVerify: false,
-		ServerName:         d.AdminServerName,
-		CA:                 d.LDAPCA,
-	}, d.Auth)
+	certPEM, keyPEM, caCerts, err := windows.CertKeyPEM(ctx, &windows.GenerateCredentialsRequest{
+		CAType:      types.DatabaseCA,
+		Username:    d.UserName,
+		Domain:      d.RealmName,
+		TTL:         certTTL,
+		ClusterName: clusterName.GetClusterName(),
+		LDAPConfig: windows.LDAPConfig{
+			Addr:               d.KDCHostName,
+			Domain:             d.RealmName,
+			Username:           d.UserName,
+			InsecureSkipVerify: false,
+			ServerName:         d.AdminServerName,
+			CA:                 d.LDAPCA,
+		},
+		AuthClient: d.Auth,
+	})
 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if d.CAFunc == nil {
-		d.CAFunc = d.caFunc
-	}
-
-	caCert, err := d.CAFunc(ctx, clusterName.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if caCert == nil {
-		return nil, trace.BadParameter("no certificate authority was found in userCA active keys")
-	}
-
-	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: caCert}, nil
+	return &WindowsCAAndKeyPair{certPEM: certPEM, keyPEM: keyPEM, caCert: bytes.Join(caCerts, []byte("\n"))}, nil
 }
 
 // UseOrCreateCredentials uses an existing cacheData or creates a new one
-func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*credentials.CCache, error) {
+func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*credentials.CCache, *config.Config, error) {
 	tmp, err := os.MkdirTemp("", "kinit")
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	defer func() {
@@ -274,59 +254,65 @@ func (k *CommandLineInitializer) UseOrCreateCredentials(ctx context.Context) (*c
 
 	err = os.MkdirAll(cacheDir, os.ModePerm)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	cachePath := filepath.Join(cacheDir, k.cacheName)
 
 	wca, err := k.certGetter.GetCertificateBytes(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// store files in temp dir
 	err = os.WriteFile(certPath, wca.certPEM, 0644)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	err = os.WriteFile(keyPath, wca.keyPEM, 0644)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, wca.caCert, 0644)
+	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(wca.caCert), 0644)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	krbConfPath := filepath.Join(tmp, fmt.Sprintf("krb_%s", k.userName))
 	err = k.WriteKRB5Config(krbConfPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
+	}
+
+	conf, err := config.Load(krbConfPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	cmd := k.command.CommandContext(ctx,
 		k.binary,
-		"-X", fmt.Sprintf("X509_anchors=FILE:%s", certPath),
+		"-X", fmt.Sprintf("X509_anchors=FILE:%s", userCAPath),
 		"-X", fmt.Sprintf("X509_user_identity=FILE:%s,%s", certPath, keyPath), k.userName,
 		"-c", cachePath)
 
 	if cmd.Err != nil {
-		return nil, trace.Wrap(cmd.Err)
+		return nil, nil, trace.Wrap(cmd.Err)
 	}
 
 	cmd.Env = append(cmd.Env, []string{fmt.Sprintf("%s=%s", krb5ConfigEnv, krbConfPath)}...)
-	err = cmd.Run()
+	kinitOutput, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		k.log.Errorf("Failed to authenticate with KDC: %s", kinitOutput)
+		return nil, nil, trace.AccessDenied("authentication failed")
 	}
 	ccache, err := credentials.LoadCCache(cachePath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return ccache, nil
+	return ccache, conf, nil
 }
 
 // krb5ConfigString returns a config suitable for a kdc
@@ -353,4 +339,11 @@ func (k *CommandLineInitializer) WriteKRB5Config(path string) error {
 	}
 
 	return trace.Wrap(os.WriteFile(path, []byte(s), 0644))
+}
+
+// buildAnchorsFileContents generates the contents of the anchors file (pkinit).
+// The file must contain the Teleport DB CA and the KDB/LDAP CA, otherwise the
+// connections will fail.
+func (k *CommandLineInitializer) buildAnchorsFileContents(caBytes []byte) []byte {
+	return append(caBytes, []byte(k.ldapCertificatePEM)...)
 }

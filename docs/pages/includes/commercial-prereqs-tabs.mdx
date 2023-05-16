@@ -2,17 +2,16 @@
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
-- A running Teleport cluster, including the Auth Service and Proxy Service. For
+- A running Teleport Enterprise cluster, including the Auth Service and Proxy Service. For
   details on how to set this up, see our Enterprise [Getting
   Started](/docs/enterprise/getting-started) guide.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
+- The Enterprise `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
+  which you can download by visiting your [Teleport account](https://teleport.sh).
 
   ```code
   $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
+  # Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
   
   $ tsh version
   # Teleport v(=teleport.version=) go(=teleport.golang=)
@@ -27,11 +26,11 @@
   page](https://goteleport.com/signup/) to begin your free trial.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../deploy-a-cluster/teleport-cloud/downloads.mdx) page.
+  To download these tools, visit the [Downloads](../choose-an-edition/teleport-cloud/downloads.mdx) page.
 
   ```code
   $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
+  # Teleport Enterprise v(=cloud.version=) go(=teleport.golang=)
   
   $ tsh version
   # Teleport v(=cloud.version=) go(=teleport.golang=)

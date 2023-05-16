@@ -24,6 +24,47 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// IsAzureEndpoint returns true if the input URI is an Azure endpoint.
+//
+// The code implements approximate solution based on:
+// - https://management.azure.com/metadata/endpoints?api-version=2019-05-01
+// - https://github.com/Azure/azure-cli/blob/dev/src/azure-cli-core/azure/cli/core/cloud.py
+func IsAzureEndpoint(hostname string) bool {
+	suffixes := []string{
+		"management.azure.com",
+		"graph.windows.net",
+		"batch.core.windows.net",
+		"rest.media.azure.net",
+		"datalake.azure.net",
+		"management.core.windows.net",
+		"gallery.azure.com",
+
+		"azuredatalakestore.net",
+		"azurecr.io",
+		"database.windows.net",
+		"azuredatalakeanalytics.net",
+		"vault.azure.net",
+		"core.windows.net",
+		"azurefd.net",
+
+		"login.microsoftonline.com", // required for "az logout"
+		"graph.microsoft.com",       // Azure AD
+	}
+
+	for _, suffix := range suffixes {
+		// exact match
+		if hostname == suffix {
+			return true
+		}
+		// .suffix match
+		if strings.HasSuffix(hostname, "."+suffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // IsDatabaseEndpoint returns true if provided endpoint is a valid database
 // endpoint.
 func IsDatabaseEndpoint(endpoint string) bool {

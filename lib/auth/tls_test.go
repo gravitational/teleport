@@ -21,7 +21,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"encoding/base32"
+	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -48,7 +50,10 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
@@ -154,7 +159,7 @@ func TestAcceptedUsage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"})
+	user, _, err := CreateUserAndRole(server.AuthServer, "user", []string{"role"}, nil)
 	require.NoError(t, err)
 
 	tlsServer, err := server.NewTestTLSServer()
@@ -187,7 +192,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	require.Error(t, err)
 
 	// restricted clients can will be rejected, for now if there is any mismatch,
 	// including extra usage.
@@ -197,7 +202,7 @@ func TestAcceptedUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.GetNodes(ctx, apidefaults.Namespace)
-	require.True(t, trace.IsAccessDenied(err))
+	require.Error(t, err)
 }
 
 // TestRemoteRotation tests remote builtin role
@@ -268,7 +273,7 @@ func TestRemoteRotation(t *testing.T) {
 
 	// remote proxy can't upsert the certificate authority,
 	// only to rotate it (in remote rotation only certain fields are updated)
-	err = remoteProxy.UpsertCertAuthority(remoteCA)
+	err = remoteProxy.UpsertCertAuthority(ctx, remoteCA)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// remote proxy can't read local cert authority with secrets
@@ -336,7 +341,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// local proxy can't update local cert authorities
-	err = proxy.UpsertCertAuthority(ca)
+	err = proxy.UpsertCertAuthority(ctx, ca)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// local proxy is allowed to update host CA of remote cert authorities
@@ -346,7 +351,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	err = proxy.UpsertCertAuthority(remoteCA)
+	err = proxy.UpsertCertAuthority(ctx, remoteCA)
 	require.NoError(t, err)
 }
 
@@ -865,6 +870,152 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestOIDCIdPTokenRotation checks that OIDC IdP JWT tokens can be rotated and tokens can
+// be validated at the appropriate phase.
+func TestOIDCIdPTokenRotation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
+		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
+	})
+	require.NoError(t, err)
+
+	client, err := tt.server.NewClient(TestUser(user1.GetName()))
+	require.NoError(t, err)
+
+	// Create a JWT using the current CA, this will become the "old" CA during
+	// rotation.
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// Check that the "old" CA can be used to verify tokens.
+	oldCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err, tt.clock.Now())
+
+	// Start rotation and move to initial phase. A new CA will be added (for
+	// verification), but requests will continue to be signed by the old CA.
+	gracePeriod := time.Hour
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point in rotation, two JWT key pairs should exist.
+	oldCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+
+	// Move rotation into the update client phase. In this phase, requests will
+	// be signed by the new CA, but the old CA will be around to verify requests.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// New tokens should now fail to validate with the old key.
+	newJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// New tokens will validate with the new key.
+	newCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should now validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Move rotation into update servers phase.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point only the phase on the CA should have changed.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should continue to validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Complete rotation. The old CA will be removed.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseStandby,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// The new CA should now only have a single key.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Old token should no longer validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.Error(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+}
+
 // TestRemoteUser tests scenario when remote user connects to the local
 // auth server and some edge cases.
 func TestRemoteUser(t *testing.T) {
@@ -880,7 +1031,7 @@ func TestRemoteUser(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"})
+	remoteUser, remoteRole, err := CreateUserAndRole(remoteServer.AuthServer, "remote-user", []string{"remote-role"}, nil)
 	require.NoError(t, err)
 
 	certPool, err := tt.server.CertPool()
@@ -908,7 +1059,7 @@ func TestRemoteUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Establish trust and map remote role to local admin role
-	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"})
+	_, localRole, err := CreateUserAndRole(tt.server.Auth(), "local-user", []string{"local-role"}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.AuthServer.Trust(ctx, remoteServer, types.RoleMap{{Remote: remoteRole.GetName(), Local: []string{localRole.GetName()}}})
@@ -965,7 +1116,7 @@ func TestReadOwnRole(t *testing.T) {
 	require.NoError(t, err)
 
 	// user2 can't read user1 role
-	userClient2, err := tt.server.NewClient(TestIdentity{I: LocalUser{Username: user2.GetName()}})
+	userClient2, err := tt.server.NewClient(TestIdentity{I: authz.LocalUser{Username: user2.GetName()}})
 	require.NoError(t, err)
 
 	_, err = userClient2.GetRole(ctx, userRole.GetName())
@@ -978,10 +1129,10 @@ func TestGetCurrentUser(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, _, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	currentUser, err := client1.GetCurrentUser(ctx)
@@ -1008,10 +1159,10 @@ func TestGetCurrentUserRoles(t *testing.T) {
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
-	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"})
+	user1, user1Role, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user-role"}, nil)
 	require.NoError(t, err)
 
-	client1, err := srv.NewClient(TestIdentity{I: LocalUser{Username: user1.GetName()}})
+	client1, err := srv.NewClient(TestIdentity{I: authz.LocalUser{Username: user1.GetName()}})
 	require.NoError(t, err)
 
 	roles, err := client1.GetCurrentUserRoles(ctx)
@@ -1182,20 +1333,6 @@ func TestPasswordCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTokens(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	tt := setupAuthContext(ctx, t)
-
-	clt, err := tt.server.NewClient(TestAdmin())
-	require.NoError(t, err)
-
-	out, err := clt.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleNode}})
-	require.NoError(t, err)
-	require.NotEqual(t, out, 0)
-}
-
 func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -1259,7 +1396,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -1371,7 +1508,14 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 	roleReq, err := services.NewAccessRequest(username, requestableRoleName)
 	require.NoError(t, err)
 	roleReq.SetState(types.RequestState_APPROVED)
+	roleReq.SetAccessExpiry(tt.clock.Now().Add(8 * time.Hour))
 	err = clt.CreateAccessRequest(ctx, roleReq)
+	require.NoError(t, err)
+
+	// Create remote cluster so create access request doesn't err due to non existent cluster
+	rc, err := types.NewRemoteCluster("foobar")
+	require.NoError(t, err)
+	err = tt.server.AuthServer.AuthServer.CreateRemoteCluster(rc)
 	require.NoError(t, err)
 
 	// Create approved resource request
@@ -1581,8 +1725,8 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
 	require.NoError(t, err)
-	require.Equal(t, sess1.Expiry(), tt.clock.Now().Add(time.Minute*10))
-	require.Equal(t, sess1.GetLoginTime(), initialSession.GetLoginTime())
+	require.WithinDuration(t, tt.clock.Now().Add(time.Minute*10), sess1.Expiry(), time.Second)
+	require.WithinDuration(t, sess1.GetLoginTime(), initialSession.GetLoginTime(), time.Second)
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
@@ -1648,7 +1792,7 @@ func TestExtendWebSessionWithReloadUser(t *testing.T) {
 	user := "user2"
 	pass := []byte("abc123")
 
-	newUser, _, err := CreateUserAndRole(clt, user, nil)
+	newUser, _, err := CreateUserAndRole(clt, user, nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, newUser.GetTraits())
 
@@ -1699,18 +1843,19 @@ func TestGetCertAuthority(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// generate server keys for node
-	nodeClt, err := tt.server.NewClient(TestIdentity{I: BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
+	nodeClt, err := tt.server.NewClient(TestIdentity{I: authz.BuiltinRole{Username: "00000000-0000-0000-0000-000000000000", Role: types.RoleNode}})
 	require.NoError(t, err)
-	defer nodeClt.Close()
+	t.Cleanup(func() { require.NoError(t, nodeClt.Close()) })
 
-	// node is authorized to fetch CA without secrets
-	ca, err := nodeClt.GetCertAuthority(ctx, types.CertAuthID{
+	hostCAID := types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.HostCA,
-	}, false)
+	}
+
+	// node is authorized to fetch CA without secrets
+	ca, err := nodeClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 	for _, keyPair := range ca.GetActiveKeys().TLS {
-		fmt.Printf("--> keyPair.Key: %v.\n", keyPair)
 		require.Nil(t, keyPair.Key)
 	}
 	for _, keyPair := range ca.GetActiveKeys().SSH {
@@ -1718,9 +1863,40 @@ func TestGetCertAuthority(t *testing.T) {
 	}
 
 	// node is not authorized to fetch CA with secrets
-	_, err = nodeClt.GetCertAuthority(ctx, types.CertAuthID{
+	_, err = nodeClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// generate server keys for proxy
+	proxyClt, err := tt.server.NewClient(TestIdentity{
+		I: authz.BuiltinRole{
+			Username: "00000000-0000-0000-0000-000000000001",
+			Role:     types.RoleProxy,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, proxyClt.Close()) })
+
+	// proxy can't fetch the host CA with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// proxy can't fetch SAML IdP CA with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
+		Type:       types.SAMLIDPCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// proxy can't fetch anything else with secrets
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.DatabaseCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -1742,17 +1918,20 @@ func TestGetCertAuthority(t *testing.T) {
 	defer userClt.Close()
 
 	// user is authorized to fetch CA without secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, false)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.NoError(t, err)
 
 	// user is not authorized to fetch CA with secrets
-	_, err = userClt.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: tt.server.ClusterName(),
-		Type:       types.HostCA,
-	}, true)
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// user gets a not found message if a CA doesn't exist
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(ctx, hostCAID))
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
+	require.True(t, trace.IsNotFound(err))
+
+	// user is not authorized to fetch CA with secrets, even if CA doesn't exist
+	_, err = userClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -1786,7 +1965,7 @@ func TestPluginData(t *testing.T) {
 	require.NoError(t, err)
 
 	plugin := "my-plugin"
-	_, err = CreateAccessPluginUser(context.TODO(), tt.server.Auth(), plugin)
+	_, err = CreateAccessPluginUser(ctx, tt.server.Auth(), plugin)
 	require.NoError(t, err)
 
 	pluginUser := TestUser(plugin)
@@ -1797,9 +1976,9 @@ func TestPluginData(t *testing.T) {
 	req, err := services.NewAccessRequest(user, role)
 	require.NoError(t, err)
 
-	require.NoError(t, userClient.CreateAccessRequest(context.TODO(), req))
+	require.NoError(t, userClient.CreateAccessRequest(ctx, req))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1809,7 +1988,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err := pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err := pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1820,7 +1999,7 @@ func TestPluginData(t *testing.T) {
 	require.Equal(t, ok, true)
 	require.Empty(t, cmp.Diff(entry.Data, map[string]string{"foo": "bar"}))
 
-	err = pluginClient.UpdatePluginData(context.TODO(), types.PluginDataUpdateParams{
+	err = pluginClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 		Plugin:   plugin,
@@ -1834,7 +2013,7 @@ func TestPluginData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	data, err = pluginClient.GetPluginData(context.TODO(), types.PluginDataFilter{
+	data, err = pluginClient.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: req.GetName(),
 	})
@@ -1857,6 +2036,8 @@ func TestGenerateCerts(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	clock := srv.Auth().GetClock()
+
 	// make sure we can parse the private and public key
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -1869,7 +2050,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// generate server keys for node
 	hostID := "00000000-0000-0000-0000-000000000000"
-	hostClient, err := srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err := srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err := hostClient.GenerateHostCerts(context.Background(),
@@ -1889,7 +2070,7 @@ func TestGenerateCerts(t *testing.T) {
 
 	// sign server public keys for node
 	hostID = "00000000-0000-0000-0000-000000000000"
-	hostClient, err = srv.NewClient(TestIdentity{I: BuiltinRole{Username: hostID, Role: types.RoleNode}})
+	hostClient, err = srv.NewClient(TestIdentity{I: authz.BuiltinRole{Username: hostID, Role: types.RoleNode}})
 	require.NoError(t, err)
 
 	certs, err = hostClient.GenerateHostCerts(context.Background(),
@@ -1931,10 +2112,10 @@ func TestGenerateCerts(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
-	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"})
+	user1, userRole, err := CreateUserAndRole(srv.Auth(), "user1", []string{"user1"}, nil)
 	require.NoError(t, err)
 
-	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"})
+	user2, userRole2, err := CreateUserAndRole(srv.Auth(), "user2", []string{"user2"}, nil)
 	require.NoError(t, err)
 
 	t.Run("Nop", func(t *testing.T) {
@@ -1945,7 +2126,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -1962,7 +2143,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -1973,14 +2154,13 @@ func TestGenerateCerts(t *testing.T) {
 		parsedCert, err := sshutils.ParseCertificate(sshCert)
 		require.NoError(t, err)
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-		return parsedCert, time.Until(validBefore)
+		return parsedCert, validBefore.Sub(clock.Now())
 	}
 
-	clock := srv.Auth().GetClock()
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
-		superImpersonatorRole, err := types.NewRoleV3("superimpersonator", types.RoleSpecV5{
+		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
 			},
@@ -1998,7 +2178,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Impersonator can generate certificates for super impersonator
-		role, err := types.NewRoleV3("impersonate", types.RoleSpecV5{
+		role, err := types.NewRole("impersonate", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{superImpersonator.GetName()},
 				Impersonate: &types.ImpersonateConditions{
@@ -2027,7 +2207,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(iUser.TTL))
+		require.LessOrEqual(t, diff, maxSessionTTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
@@ -2035,8 +2215,8 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Because the original request has maxed out the possible max
-		// session TTL, it will be adjusted to exactly the value
-		require.Equal(t, identity.Expires.Sub(clock.Now()), maxSessionTTL)
+		// session TTL, it will be adjusted to exactly the value (within rounding errors)
+		require.WithinDuration(t, clock.Now().Add(maxSessionTTL), identity.Expires, time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 
@@ -2062,7 +2242,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2088,7 +2268,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
+		require.WithinDuration(t, identity.Expires, clock.Now().Add(time.Hour), time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 	})
@@ -2110,20 +2290,20 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc1.GetName(),
 		})
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(testUser2.TTL))
+		require.LessOrEqual(t, diff, testUser2.TTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
+		require.WithinDuration(t, clock.Now().Add(testUser2.TTL), identity.Expires, time.Second)
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
 
@@ -2135,13 +2315,13 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(40 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(40 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
 		parsedCert, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(apidefaults.MaxCertDuration), int64(diff))
+		require.Less(t, apidefaults.MaxCertDuration, diff)
 
 		// user should have agent forwarding (default setting)
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
@@ -2160,7 +2340,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(1 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(1 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2176,7 +2356,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2190,7 +2370,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: "unknown_cluster",
 		})
@@ -2209,7 +2389,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -2223,7 +2403,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -2329,7 +2509,7 @@ func TestCertificateFormat(t *testing.T) {
 	require.NoError(t, err)
 
 	// use admin client to create user and role
-	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"})
+	user, userRole, err := CreateUserAndRole(tt.server.Auth(), "user", []string{"user"}, nil)
 	require.NoError(t, err)
 
 	pass := []byte("very secure password")
@@ -2372,10 +2552,10 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &PassCreds{
 					Password: pass,
 				},
+				PublicKey: pub,
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
-			PublicKey:         pub,
 		})
 		require.NoError(t, err)
 
@@ -2401,12 +2581,14 @@ func TestClusterConfigContext(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	// try and generate a host cert, this should fail because we are recording
-	// at the nodes not at the proxy
+	// try and generate a host cert, this should succeed because although
+	// we are recording at the nodes not at the proxy, the proxy may
+	// need to generate host certs if a client wants to connect to an
+	// agentless node
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
-	require.True(t, trace.IsAccessDenied(err))
+	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2416,8 +2598,7 @@ func TestClusterConfigContext(t *testing.T) {
 	err = tt.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
-	// try and generate a host cert, now the proxy should be able to generate a
-	// host cert because it's in recording mode.
+	// try and generate a host cert
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
@@ -2439,7 +2620,7 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	err = tt.server.Auth().UpsertPassword(user, pass)
@@ -2522,7 +2703,7 @@ func TestLoginAttempts(t *testing.T) {
 	user := "user1"
 	pass := []byte("abc123")
 
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 
 	proxy, err := tt.server.NewClient(TestBuiltin(types.RoleProxy))
@@ -2585,7 +2766,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
 
-	_, _, err = CreateUserAndRole(clt, username, []string{"role1"})
+	_, _, err = CreateUserAndRole(clt, username, []string{"role1"}, nil)
 	require.NoError(t, err)
 
 	token, err := tt.server.Auth().CreateResetPasswordToken(ctx, CreateUserTokenRequest{
@@ -2627,7 +2808,7 @@ func TestLoginNoLocalAuth(t *testing.T) {
 	// Create a local user.
 	clt, err := tt.server.NewClient(TestAdmin())
 	require.NoError(t, err)
-	_, _, err = CreateUserAndRole(clt, user, []string{user})
+	_, _, err = CreateUserAndRole(clt, user, []string{user}, nil)
 	require.NoError(t, err)
 	err = tt.server.Auth().UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -2658,8 +2839,8 @@ func TestLoginNoLocalAuth(t *testing.T) {
 			Pass: &PassCreds{
 				Password: pass,
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
 	})
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -2753,13 +2934,13 @@ func TestRegisterCAPin(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleProxy},
+		time.Time{},
+		tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -2855,7 +3036,7 @@ func TestRegisterCAPin(t *testing.T) {
 	activeKeys := hostCA.GetActiveKeys()
 	activeKeys.TLS = append(activeKeys.TLS, activeKeys.TLS...)
 	hostCA.SetActiveKeys(activeKeys)
-	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
+	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(ctx, hostCA)
 	require.NoError(t, err)
 
 	// Calculate what CA pins should be.
@@ -2892,13 +3073,13 @@ func TestRegisterCAPath(t *testing.T) {
 	tt := setupAuthContext(ctx, t)
 
 	// Generate a token to use.
-	token, err := tt.server.AuthServer.AuthServer.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{
-			types.RoleProxy,
-		},
-		TTL: proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
+	token := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleProxy},
+		time.Time{},
+		tt.server.Auth(),
+	)
 
 	// Generate public and private keys for node.
 	priv, pub, err := testauthority.New().GenerateKeyPair()
@@ -2953,6 +3134,108 @@ func TestRegisterCAPath(t *testing.T) {
 		Clock:                tt.clock,
 	})
 	require.NoError(t, err)
+}
+
+func TestClusterAlertAck(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 1)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "alert-1",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
+}
+
+func TestClusterAlertClearAckWildcard(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tt := setupAuthContext(ctx, t)
+
+	alert1, err := types.NewClusterAlert("alert-1", "some msg")
+	require.NoError(t, err)
+
+	alert2, err := types.NewClusterAlert("alert-2", "some msg")
+	require.NoError(t, err)
+
+	adminClt, err := tt.server.NewClient(TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+	defer adminClt.Close()
+
+	err = adminClt.UpsertClusterAlert(ctx, alert1)
+	require.NoError(t, err)
+
+	err = adminClt.UpsertClusterAlert(ctx, alert2)
+	require.NoError(t, err)
+
+	expiry := time.Now().Add(time.Hour)
+
+	ack := types.AlertAcknowledgement{AlertID: "alert-1", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	ack = types.AlertAcknowledgement{AlertID: "alert-2", Reason: "testing", Expires: expiry}
+
+	err = adminClt.CreateAlertAck(ctx, ack)
+	require.NoError(t, err)
+
+	acks, err := adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 2)
+
+	require.Equal(t, acks[0].AlertID, "alert-1")
+	require.Equal(t, acks[1].AlertID, "alert-2")
+
+	clear := proto.ClearAlertAcksRequest{
+		AlertID: "*",
+	}
+
+	err = adminClt.ClearAlertAcks(ctx, clear)
+	require.NoError(t, err)
+
+	acks, err = adminClt.GetAlertAcks(ctx)
+	require.NoError(t, err)
+
+	require.Len(t, acks, 0)
 }
 
 // TestClusterAlertAccessControls verifies expected behaviors of cluster alert
@@ -3078,7 +3361,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 	node.SetExpiry(time.Now().Add(2 * time.Second))
 	clt, err := tt.server.NewClient(TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, tt.server.ClusterName()),
 		},
@@ -3251,6 +3534,93 @@ func TestEventsPermissions(t *testing.T) {
 	}
 }
 
+// TestEventsPermissionsPartialSuccess verifies that in partial success mode NewWatcher can still succeed
+// if caller lacks permission to watch only some of the requested resource kinds.
+func TestEventsPermissionsPartialSuccess(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                   string
+		watch                  types.Watch
+		expectedConfirmedKinds []types.WatchKind
+	}{
+		{
+			name: "no permission for any of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+				},
+				AllowPartialSuccess: true,
+			},
+		},
+		{
+			name: "has permission only for some of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindStaticTokens},
+				},
+				AllowPartialSuccess: true,
+			},
+			expectedConfirmedKinds: []types.WatchKind{
+				{Kind: types.KindStaticTokens},
+			},
+		},
+		{
+			name: "has permission only for some kinds but partial success is not enabled",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindStaticTokens},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+	testUser, testRole, err := CreateUserAndRole(tt.server.Auth(), "test", nil, []types.Rule{
+		types.NewRule(types.KindStaticTokens, services.RO()),
+	})
+	require.NoError(t, err)
+	require.NoError(t, tt.server.Auth().UpsertRole(ctx, testRole))
+	testIdentity := TestUser(testUser.GetName())
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := tt.server.NewClient(testIdentity)
+			require.NoError(t, err)
+			defer client.Close()
+
+			w, err := client.NewWatcher(ctx, tc.watch)
+			require.NoError(t, err)
+			defer w.Close()
+
+			select {
+			case event := <-w.Events():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					require.Equal(t, event.Type, types.OpInit)
+					watchStatus, ok := event.Resource.(types.WatchStatus)
+					require.True(t, ok)
+					require.Equal(t, tc.expectedConfirmedKinds, watchStatus.GetKinds())
+				} else {
+					t.Fatal("unexpected event from watcher that is supposed to fail")
+				}
+			case <-w.Done():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					t.Fatalf("Watcher exited with error %v", w.Error())
+				}
+				require.Error(t, w.Error())
+			case <-time.After(2 * time.Second):
+				t.Fatal("Timeout waiting for watcher")
+			}
+		})
+	}
+}
+
 // TestEvents tests events suite
 func TestEvents(t *testing.T) {
 	t.Parallel()
@@ -3418,6 +3788,491 @@ func TestNetworkRestrictions(t *testing.T) {
 	suite.NetworkRestrictions(t)
 }
 
+func mustNewToken(
+	t *testing.T,
+	token string,
+	roles types.SystemRoles,
+	expires time.Time,
+) types.ProvisionToken {
+	tok, err := types.NewProvisionToken(token, roles, expires)
+	require.NoError(t, err)
+	return tok
+}
+
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsAccessDenied(err),
+		"err should be access denied, was: %s", err,
+	)
+}
+
+func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsBadParameter(err),
+		"err should be bad parameter, was: %s", err,
+	)
+}
+
+func requireNotFound(t require.TestingT, err error, i ...interface{}) {
+	require.True(
+		t,
+		trace.IsNotFound(err),
+		"err should be not found, was: %s", err,
+	)
+}
+
+func TestGRPCServer_CreateTokenV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-creator", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// create a token to conflict with for already having been created
+	alreadyExistsToken := mustNewToken(
+		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		token    types.ProvisionToken
+
+		requireTokenCreated bool
+		requireError        require.ErrorAssertionFunc
+		requireEventEmitted bool
+	}{
+		{
+			name:     "success",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			requireEventEmitted: true,
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			token: mustNewToken(
+				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:     "already exists",
+			identity: TestUser(privilegedUser.GetName()),
+			token:    alreadyExistsToken,
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(
+					t,
+					trace.IsAlreadyExists(err),
+					"err should be already exists, was: %s", err,
+				)
+			},
+		},
+		{
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			mockEmitter.Reset()
+			err = client.CreateToken(ctx, tt.token)
+			tt.requireError(t, err)
+
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
+			if tt.requireTokenCreated {
+				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			}
+		})
+	}
+}
+
+func TestGRPCServer_UpsertTokenV2(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Inject mockEmitter to capture audit event for trusted cluster
+	// creation.
+	mockEmitter := &eventstest.MockEmitter{}
+	ac.server.Auth().SetEmitter(mockEmitter)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-upserter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// create a token to ensure UpsertToken overwrites an existing token.
+	alreadyExistsToken := mustNewToken(
+		t, "already-exists", types.SystemRoles{types.RoleNode}, time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, alreadyExistsToken))
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+		token    types.ProvisionToken
+
+		requireTokenCreated bool
+		requireEventEmitted bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:     "success",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				"success",
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			requireEventEmitted: true,
+		},
+		{
+			name:     "existing token replaced",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				alreadyExistsToken.GetName(),
+				// These roles differ from the roles on the already existing
+				// token.
+				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireEventEmitted: true,
+			requireTokenCreated: true,
+			requireError:        require.NoError,
+		},
+		{
+			name:     "access denied",
+			identity: TestNop(),
+			token: mustNewToken(
+				t, "access denied", types.SystemRoles{types.RoleNode}, time.Time{},
+			),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "invalid token",
+			identity:     TestUser(privilegedUser.GetName()),
+			token:        &types.ProvisionTokenV2{},
+			requireError: requireBadParameter,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			mockEmitter.Reset()
+			err = client.UpsertToken(ctx, tt.token)
+			tt.requireError(t, err)
+
+			if tt.requireEventEmitted {
+				lastEvent := mockEmitter.LastEvent()
+				require.NotNil(t, lastEvent)
+				require.Equal(
+					t,
+					events.TrustedClusterTokenCreateEvent,
+					lastEvent.GetType(),
+				)
+			}
+			if tt.requireTokenCreated {
+				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(
+					tt.token,
+					token,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			}
+		})
+	}
+}
+
+func TestGRPCServer_GetTokens(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-reader", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbRead, types.VerbList},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	t.Run("no tokens", func(t *testing.T) {
+		client, err := ac.server.NewClient(TestUser(privilegedUser.GetName()))
+		require.NoError(t, err)
+		toks, err := client.GetTokens(ctx)
+		require.NoError(t, err)
+		require.Empty(t, toks)
+	})
+
+	// Create tokens to then assert are returned
+	pt := mustNewToken(
+		t,
+		"example-token",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+	pt2 := mustNewToken(
+		t,
+		"example-token-2",
+		types.SystemRoles{types.RoleNode},
+		time.Time{},
+	)
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt2))
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{
+			{
+				Roles: types.SystemRoles{types.RoleProxy},
+				Token: "example-static-token",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, ac.server.Auth().SetStaticTokens(st))
+	expectTokens := append([]types.ProvisionToken{pt, pt2}, st.GetStaticTokens()...)
+
+	tests := []struct {
+		name     string
+		identity TestIdentity
+
+		requireResponse bool
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:            "success",
+			identity:        TestUser(privilegedUser.GetName()),
+			requireError:    require.NoError,
+			requireResponse: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			requireError: requireAccessDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			tokens, err := client.GetTokens(ctx)
+			tt.requireError(t, err)
+
+			if tt.requireResponse {
+				require.Empty(t, cmp.Diff(
+					expectTokens,
+					tokens,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			} else {
+				require.Empty(t, tokens)
+			}
+		})
+	}
+}
+
+func TestGRPCServer_GetToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-reader", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbRead},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireResponse bool
+		requireError    require.ErrorAssertionFunc
+	}{
+		{
+			name:            "success",
+			tokenName:       pt.GetName(),
+			identity:        TestUser(privilegedUser.GetName()),
+			requireError:    require.NoError,
+			requireResponse: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			token, err := client.GetToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireResponse {
+				require.Empty(t, cmp.Diff(
+					token,
+					pt,
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+				))
+			} else {
+				require.Nil(t, token)
+			}
+		})
+	}
+}
+
+func TestGRPCServer_DeleteToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ac := setupAuthContext(ctx, t)
+
+	// Create a user with the least privilege access to call this RPC.
+	privilegedUser, _, err := CreateUserAndRole(
+		ac.server.Auth(), "token-deleter", nil, []types.Rule{
+			{
+				Resources: []string{types.KindToken},
+				Verbs:     []string{types.VerbDelete},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	// Create Provision token
+	pt := mustNewToken(t, "example-token", types.SystemRoles{types.RoleNode}, time.Time{})
+	require.NoError(t, ac.server.Auth().CreateToken(ctx, pt))
+
+	tests := []struct {
+		name      string
+		tokenName string
+		identity  TestIdentity
+
+		requireTokenDeleted bool
+		requireError        require.ErrorAssertionFunc
+	}{
+		{
+			name:                "success",
+			tokenName:           pt.GetName(),
+			identity:            TestUser(privilegedUser.GetName()),
+			requireError:        require.NoError,
+			requireTokenDeleted: true,
+		},
+		{
+			name:         "access denied",
+			identity:     TestNop(),
+			tokenName:    pt.GetName(),
+			requireError: requireAccessDenied,
+		},
+		{
+			name:         "not found",
+			tokenName:    "does-not-exist",
+			identity:     TestUser(privilegedUser.GetName()),
+			requireError: requireNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := ac.server.NewClient(tt.identity)
+			require.NoError(t, err)
+
+			err = client.DeleteToken(ctx, tt.tokenName)
+			tt.requireError(t, err)
+
+			if tt.requireTokenDeleted {
+				_, err := ac.server.Auth().GetToken(ctx, tt.tokenName)
+				require.True(
+					t,
+					trace.IsNotFound(err),
+					"expected token to be deleted",
+				)
+			}
+		})
+	}
+}
+
 // verifyJWT verifies that the token was signed by one the passed in key pair.
 func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
@@ -3452,16 +4307,55 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 	return nil, trace.NewAggregate(errs...)
 }
 
-func newTestTLSServer(t *testing.T) *TestTLSServer {
+// verifyJWTAWSOIDC verifies that the token was signed by one the passed in key pair.
+func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+	errs := []error{}
+	for _, pair := range pairs {
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		key, err := jwt.New(&jwt.Config{
+			Clock:       clock,
+			PublicKey:   publicKey,
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: clusterName,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: token,
+			Issuer:   "http://localhost:8080",
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		return claims, nil
+	}
+	return nil, trace.NewAggregate(errs...)
+}
+
+func newTestTLSServer(t testing.TB) *TestTLSServer {
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 
 	srv, err := as.NewTestTLSServer()
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+	t.Cleanup(func() {
+		err := srv.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
 	return srv
 }

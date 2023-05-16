@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": [
+    "web/packages/build/vite/*.ts",
+    "web/packages/teleport/vite.config.ts"
+  ]
+}

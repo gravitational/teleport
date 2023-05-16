@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -51,8 +52,8 @@ const (
 // slice, which should be passed as exported file descriptors to NewTeleport;
 // this is to ensure that we keep the listening socket open, to prevent other
 // processes from using the same port before we're done with it.
-func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) {
-	var fds []service.FileDescriptor
+func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescriptor) {
+	var fds []servicecfg.FileDescriptor
 
 	fc := &config.FileConfig{
 		Global: config.Global{
@@ -90,7 +91,7 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []service.FileDescriptor) 
 // struct literal.
 // TODO(espadolini): move this to a more generic place so we can use the same
 // approach in other tests that spin up a TeleportProcess
-func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string {
+func newListener(t *testing.T, ty string, fds *[]servicecfg.FileDescriptor) string {
 	t.Helper()
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
@@ -109,7 +110,7 @@ func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string 
 	// anyway, in principle).
 	t.Cleanup(func() { lf.Close() })
 
-	*fds = append(*fds, service.FileDescriptor{
+	*fds = append(*fds, servicecfg.FileDescriptor{
 		Type:    ty,
 		Address: addr,
 		File:    lf,
@@ -119,11 +120,11 @@ func newListener(t *testing.T, ty string, fds *[]service.FileDescriptor) string 
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
-func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []service.FileDescriptor) (auth *service.TeleportProcess) {
+func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileConfig, fds []servicecfg.FileDescriptor) (auth *service.TeleportProcess) {
 	t.Helper()
 
 	var err error
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
 	cfg.Log = log
@@ -151,7 +152,7 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Identity) auth.ClientI {
 	t.Helper()
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	err := config.ApplyFileConfig(fc, cfg)
 	require.NoError(t, err)
 
@@ -174,7 +175,7 @@ func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Iden
 func MakeDefaultAuthClient(t *testing.T, log utils.Logger, fc *config.FileConfig) auth.ClientI {
 	t.Helper()
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	err := config.ApplyFileConfig(fc, cfg)
 	require.NoError(t, err)
 
@@ -234,7 +235,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse) *botconfig.BotConfig {
 	t.Helper()
 
-	authCfg := service.MakeDefaultConfig()
+	authCfg := servicecfg.MakeDefaultConfig()
 	err := config.ApplyFileConfig(fc, authCfg)
 	require.NoError(t, err)
 

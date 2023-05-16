@@ -184,7 +184,10 @@ func TestOptions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
 			options, err := parseOptions(tt.inOptions)
 			tt.assertError(t, err)
 			if tt.assertOptions != nil {

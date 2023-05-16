@@ -46,7 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 )
 
-func init() {
+func registerTestSnowflakeEngine() {
 	// Override Snowflake engine that is used normally with the test one
 	// with custom HTTP client.
 	common.RegisterEngine(newTestSnowflakeEngine, defaults.ProtocolSnowflake)

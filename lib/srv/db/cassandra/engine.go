@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -37,12 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolCassandra)
-}
-
-// newEngine create new Cassandra engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Cassandra engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -254,20 +249,20 @@ func (e *Engine) processPacket(packet *protocol.Packet) error {
 // authorizeConnection does authorization check for Cassandra connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {
@@ -296,14 +291,15 @@ func (e *Engine) handshake(sessionCtx *common.Session, clientConn, serverConn *p
 		return trace.Wrap(err)
 	}
 	e.handshakeTriggered = true
-	return auth.handleHandshake(clientConn, serverConn)
+	return auth.handleHandshake(e.Context, clientConn, serverConn)
 }
 
 func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
 	switch {
 	case sessionCtx.Database.IsAWSHosted():
 		return &authAWSSigV4Auth{
-			ses: sessionCtx,
+			cloudClients: e.CloudClients,
+			ses:          sessionCtx,
 		}, nil
 	default:
 		return &basicHandshake{ses: sessionCtx}, nil

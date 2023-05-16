@@ -84,34 +84,27 @@ func (c *connector) kinitClient(ctx context.Context, session *common.Session, au
 		KDCHostName:     strings.ToUpper(session.Database.GetAD().KDCHostName),
 		RealmName:       session.Database.GetAD().Domain,
 		AdminServerName: session.Database.GetAD().KDCHostName,
-		UserName:        session.Identity.Username,
+		UserName:        session.DatabaseUser,
 		LDAPCA:          cert,
 	}
 
-	if c.caFunc != nil {
-		certGetter.CAFunc = c.caFunc
-	}
-
+	realmName := strings.ToUpper(session.Database.GetAD().Domain)
 	k := kinit.New(kinit.NewCommandLineInitializer(
 		kinit.CommandConfig{
 			AuthClient:  auth,
-			User:        session.Identity.Username,
-			Realm:       strings.ToUpper(session.Database.GetAD().Domain),
-			KDCHost:     session.Database.GetAD().Domain,
+			User:        session.DatabaseUser,
+			Realm:       realmName,
+			KDCHost:     session.Database.GetAD().KDCHostName,
 			AdminServer: session.Database.GetAD().Domain,
 			DataDir:     dataDir,
 			LDAPCA:      cert,
+			LDAPCAPEM:   session.Database.GetAD().LDAPCert,
 			Command:     c.kinitCommandGenerator,
 			CertGetter:  certGetter,
 		}))
 
 	// create the kinit credentials cache using the previously prepared cert/key pair
-	cc, err := k.UseOrCreateCredentialsCache(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Load krb5.conf.
-	conf, err := config.Load(session.Database.GetAD().Krb5File)
+	cc, conf, err := k.UseOrCreateCredentialsCache(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

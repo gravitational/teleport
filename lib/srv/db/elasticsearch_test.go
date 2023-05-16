@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 )
 
-func init() {
+func registerTestElasticsearchEngine() {
 	// Override Elasticsearch engine that is used normally with the test one
 	// with custom HTTP client.
 	common.RegisterEngine(newTestElasticsearchEngine, defaults.ProtocolElasticsearch)

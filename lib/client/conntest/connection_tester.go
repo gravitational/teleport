@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 )
 
 // TestConnectionRequest contains
@@ -32,10 +33,18 @@ import (
 // - additional paramenters which depend on the actual kind of resource to test
 // As an example, for SSH Node it also includes the User/Principal that will be used to login.
 type TestConnectionRequest struct {
+	// MFAResponse is an optional field that holds a response to a MFA device challenge.
+	MFAResponse client.MFAChallengeResponse `json:"mfa_response,omitempty"`
 	// ResourceKind describes the type of resource to test.
 	ResourceKind string `json:"resource_kind"`
 	// ResourceName is the identification of the resource's instance to test.
 	ResourceName string `json:"resource_name"`
+
+	// DialTimeout when trying to connect to the destination host
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+
+	// InsecureSkipTLSVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool `json:"insecure_skip_verify,omitempty"`
 
 	// SSHPrincipal is the Linux username to use in a connection test.
 	// Specific to SSHTester.
@@ -50,8 +59,13 @@ type TestConnectionRequest struct {
 	// Specific to KubernetesTester.
 	KubernetesImpersonation KubernetesImpersonation `json:"kubernetes_impersonation,omitempty"`
 
-	// DialTimeout when trying to connect to the destination host
-	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
+	// DatabaseUser is the database User to be tested
+	// Specific to DatabaseTester.
+	DatabaseUser string `json:"database_user,omitempty"`
+
+	// DatabaseName is the database user of the Database to be tested
+	// Specific to DatabaseTester.
+	DatabaseName string `json:"database_name,omitempty"`
 }
 
 // KubernetesImpersonation allows to configure a subset of `kubernetes_users` and
@@ -84,7 +98,7 @@ func (r *TestConnectionRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.DialTimeout <= 0 {
-		r.DialTimeout = defaults.DefaultDialTimeout
+		r.DialTimeout = defaults.DefaultIOTimeout
 	}
 
 	return nil
@@ -117,6 +131,9 @@ type ConnectionTesterConfig struct {
 	// ProxyHostPort is the proxy to use in the `--proxy` format (host:webPort,sshPort)
 	ProxyHostPort string
 
+	// PublicProxyAddr is public address of the proxy.
+	PublicProxyAddr string
+
 	// KubernetesPublicProxyAddr is the kubernetes proxy.
 	KubernetesPublicProxyAddr string
 
@@ -145,6 +162,15 @@ func ConnectionTesterForKind(cfg ConnectionTesterConfig) (ConnectionTester, erro
 				ProxyHostPort:             cfg.ProxyHostPort,
 				TLSRoutingEnabled:         cfg.TLSRoutingEnabled,
 				KubernetesPublicProxyAddr: cfg.KubernetesPublicProxyAddr,
+			},
+		)
+		return tester, trace.Wrap(err)
+	case types.KindDatabase:
+		tester, err := NewDatabaseConnectionTester(
+			DatabaseConnectionTesterConfig{
+				UserClient:        cfg.UserClient,
+				PublicProxyAddr:   cfg.PublicProxyAddr,
+				TLSRoutingEnabled: cfg.TLSRoutingEnabled,
 			},
 		)
 		return tester, trace.Wrap(err)

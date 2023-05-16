@@ -94,7 +94,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	name := "teleport-operator"
 	return &Product{
 		Name:             name,
-		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
+		DockerfilePath:   path.Join(cloneDirectory, "integrations", "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
 		ImageBuilder: func(repo *ContainerRepo, tag *ImageTag) *Image {
@@ -122,7 +122,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 				compilerName = "arm-linux-gnueabihf-gcc"
 			}
 
-			buildboxName += ":teleport12"
+			buildboxName = fmt.Sprintf("%s:teleport%d", buildboxName, branchMajorVersion)
 
 			return []string{
 				fmt.Sprintf("BUILDBOX=%s", buildboxName),
@@ -478,7 +478,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion, publicEc
 	step := step{
 		Name:        p.GetBuildStepName(arch, version),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker}, // no docker config volume, as this will race
 		Environment: envVars,
 		Commands:    commands,
 		DependsOn:   getStepNames(publicEcrPullRegistry.SetupSteps),

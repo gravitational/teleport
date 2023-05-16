@@ -23,6 +23,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
 
+	"github.com/gravitational/teleport"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )
 
@@ -39,6 +41,8 @@ var (
 	kubeCluster              = "test_cluster"
 	username                 = "test_user"
 	roleName                 = "kube_role"
+	usernameMultiUsers       = "test_user_multi_users"
+	roleNameMultiUsers       = "kube_role_multi_users"
 	roleKubeGroups           = []string{"kube"}
 	roleKubeUsers            = []string{"kube"}
 	podName                  = "teleport"
@@ -54,46 +58,69 @@ func TestExecKubeService(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 		},
 	)
 
 	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
 	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-	user, _ := testCtx.createUserAndRole(
-		testCtx.ctx,
+	userWithSingleKubeUser, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
 		t,
 		username,
-		roleSpec{
-			name:       roleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+		RoleSpec{
+			Name:       roleName,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
 		})
 
 	// generate a kube client with user certs for auth
-	_, config := testCtx.genTestKubeClientTLSCert(
+	_, configWithSingleKubeUser := testCtx.GenTestKubeClientTLSCert(
 		t,
-		user.GetName(),
+		userWithSingleKubeUser.GetName(),
+		kubeCluster,
+	)
+	require.NoError(t, err)
+
+	// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+	userMultiKubeUsers, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameMultiUsers,
+		RoleSpec{
+			Name:       roleNameMultiUsers,
+			KubeUsers:  append(roleKubeUsers, "admin"),
+			KubeGroups: roleKubeGroups,
+		})
+
+	// generate a kube client with user certs for auth
+	_, configMultiKubeUsers := testCtx.GenTestKubeClientTLSCert(
+		t,
+		userMultiKubeUsers.GetName(),
 		kubeCluster,
 	)
 	require.NoError(t, err)
 
 	type args struct {
 		executorBuilder func(*rest.Config, string, *url.URL) (remotecommand.Executor, error)
+		impersonateUser string
+		config          *rest.Config
 	}
 	tests := []struct {
-		name string
-		args args
+		name    string
+		args    args
+		wantErr bool
 	}{
 		{
 			name: "SPDY protocol",
 			args: args{
 				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          configWithSingleKubeUser,
 			},
 		},
 		{
@@ -105,7 +132,37 @@ func TestExecKubeService(t *testing.T) {
 				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
 					return newWebSocketClient(c, s, u)
 				},
+				config: configWithSingleKubeUser,
 			},
+		},
+		{
+			name: "SPDY protocol for user with multiple kubernetes users",
+			args: args{
+				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
+			name: "Websocket protocol for user with multiple kubernetes users",
+			args: args{
+				// We can delete the dummy client once https://github.com/kubernetes/kubernetes/pull/110142
+				// is merged into k8s go-client.
+				// For now go-client does not support connections over websockets.
+				executorBuilder: func(c *rest.Config, s string, u *url.URL) (remotecommand.Executor, error) {
+					return newWebSocketClient(c, s, u)
+				},
+				config:          configMultiKubeUsers,
+				impersonateUser: "admin",
+			},
+		},
+		{
+			name: "SPDY protocol for user with multiple kubernetes users without specifying impersonate user",
+			args: args{
+				executorBuilder: remotecommand.NewSPDYExecutor,
+				config:          configMultiKubeUsers,
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -127,33 +184,59 @@ func TestExecKubeService(t *testing.T) {
 			}
 
 			req, err := generateExecRequest(
-				testCtx.KubeServiceAddress(),
-				podName,
-				podNamespace,
-				podContainerName,
-				containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-				streamOpts,
+				generateExecRequestConfig{
+					addr:          testCtx.KubeServiceAddress(),
+					podName:       podName,
+					podNamespace:  podNamespace,
+					containerName: podContainerName,
+					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+					options:       streamOpts,
+				},
 			)
 			require.NoError(t, err)
-
-			exec, err := tt.args.executorBuilder(config, http.MethodPost, req.URL())
+			// configure the client to impersonate the user.
+			// If empty, the client ignores it.
+			tt.args.config.Impersonate.UserName = tt.args.impersonateUser
+			exec, err := tt.args.executorBuilder(tt.args.config, http.MethodPost, req.URL())
 			require.NoError(t, err)
 
-			err = exec.Stream(streamOpts)
+			err = exec.StreamWithContext(testCtx.Context, streamOpts)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
 			require.NoError(t, err)
-
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stdout.String())
 			require.Equal(t, fmt.Sprintf("%s\n%s", podContainerName, string(stdinContent)), stderr.String())
 		})
 	}
 }
 
+type generateExecRequestConfig struct {
+	// addr is the address of the Kube API server.
+	addr string
+	// podName is the name of the pod to execute the command in.
+	podName string
+	// podNamespace is the namespace of the pod to execute the command in.
+	podNamespace string
+	// containerName is the name of the container to execute the command in.
+	containerName string
+	// cmd is the command to execute in the container.
+	cmd []string
+	// options are the options for the command execution.
+	options remotecommand.StreamOptions
+	// reason is the reason for the command execution.
+	reason string
+	// invite is the list of users to invite.
+	invite []string
+}
+
 // generateExecRequest generates a Kube API url for executing commands in pods.
 // The url format is the following:
-// "/api/v1/namespaces/{podNamespace}/pods/{podName}/exec?stderr={stdout}&stdout={stdout}&tty={tty}.
-func generateExecRequest(addr, podName, podNamespace, containerName string, cmd []string, options remotecommand.StreamOptions) (*rest.Request, error) {
+// "/api/v1/namespaces/{podNamespace}/pods/{podName}/exec?stderr={stdout}&stdout={stdout}&tty={tty}&reason={reason}&container={containerName}&command={command}"
+func generateExecRequest(cfg generateExecRequestConfig) (*rest.Request, error) {
 	restClient, err := rest.RESTClientFor(&rest.Config{
-		Host:    addr,
+		Host:    cfg.addr,
 		APIPath: "/api",
 		ContentConfig: rest.ContentConfig{
 			GroupVersion:         &corev1.SchemeGroupVersion,
@@ -171,13 +254,15 @@ func generateExecRequest(addr, podName, podNamespace, containerName string, cmd 
 		Namespace(podNamespace).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
-			Container: containerName,
-			Command:   cmd,
-			Stdin:     options.Stdin != nil,
-			Stdout:    options.Stdout != nil,
-			Stderr:    options.Stderr != nil,
-			TTY:       options.Tty,
-		}, scheme.ParameterCodec)
+			Container: cfg.containerName,
+			Command:   cfg.cmd,
+			Stdin:     cfg.options.Stdin != nil,
+			Stdout:    cfg.options.Stdout != nil,
+			Stderr:    cfg.options.Stderr != nil,
+			TTY:       cfg.options.Tty,
+		}, scheme.ParameterCodec).
+		Param(teleport.KubeSessionInvitedQueryParam, strings.Join(cfg.invite, ",")).
+		Param(teleport.KubeSessionReasonQueryParam, cfg.reason)
 
 	return req, nil
 }

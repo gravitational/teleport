@@ -103,7 +103,12 @@ databaseResources: []
 # Values that you may need to change.
 ################################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
+# DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+# This chart is designed to run a specific teleport version (see Chart.yaml).
+# You will face compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
 # Optional CA pins of the auth server. This enables a more secure way of
@@ -118,6 +123,14 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Set enterprise to true to use enterprise image.
+enterprise: false
+
+# teleportConfig contains additional teleport configuration
+# The configuration will be merged with the chart-generated configuration
+# and will take precedence in case of conflict
+teleportConfig: {}
+
 # Settings for mounting your own TLS material in the agent pod.
 # The agent does not expose a TLS server, so this is only used to trust CAs.
 tls:
@@ -128,6 +141,19 @@ tls:
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
 
+updater:
+  enabled: false
+  # `updater.versionServer` is the URL of the version server the agent fetches
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
+  versionServer: "https://update.gravitational.io/v1/"
+  # Release channel the agent subscribes to.
+  releaseChannel: "stable/cloud"
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+  serviceAccount:
+    # service account name defaults to "<kube agent sa name>-updater"
+    name: ""
+
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
 # If anything is set under the "storage" key, this will be ignored.
@@ -135,7 +161,8 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
+# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
+# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 
@@ -160,8 +187,8 @@ highAvailability:
 ################################################################
 # Values that must be provided if using persistent storage for Teleport.
 #
-# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`. 
-# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV 
+# Assigning a persistent volume to Teleport agent allows the agent to keep session recordings when the pod is restarted if `session_recording` is set to `node` or `proxy`.
+# The security association between the agent and the Teleport is no longer stored in PV, instead it is stored in a Kubernetes Secret so that the agent does not require PV
 # to survive restarts and rotations while using short-lived joining tokens.
 #
 # Fields:
@@ -178,9 +205,18 @@ storage:
 # Values that you shouldn't need to change.
 ################################################################
 
-# Container image for the agent. Since this runs without the auth_service, we
-# don't need the enterprise version.
-image: public.ecr.aws/gravitational/teleport
+# Container image for the cluster.
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport`. Those images will be
+# removed with teleport 14.
+image: public.ecr.aws/gravitational/teleport-distroless
+# Enterprise version of the image
+# Since version 13, hardened distroless images are used by default.
+# You can use the deprecated debian-based images by setting the value to
+# `public.ecr.aws/gravitational/teleport-ent`. Those images will be
+# removed with teleport 14.
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-distroless
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -201,14 +237,31 @@ serviceAccountName: ""
 # (optional) Kubernetes service account to create/use.
 serviceAccount:
   # Specifies whether a ServiceAccount should be created
-  create: true 
+  create: true
   # The name of the ServiceAccount to use.
   # If not set and serviceAccount.create is true, the name is generated using the release name.
   # If create is false, the name will be used to reference an existing service account.
   name: ""
 
+# Set to true (default) to create Kubernetes ClusterRole and ClusterRoleBinding.
+rbac:
+  # Specifies whether a ClusterRole and ClusterRoleBinding should be created.
+  # Set to false if your cluster level resources are managed separately.
+  create: true
+
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:
@@ -235,6 +288,23 @@ log:
 # Affinity for pod assignment
 # https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
 affinity: {}
+
+# Pod's DNS Configuration
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config
+# This value is useful if you need to reduce the DNS load: set "ndots" to 0 and only use FQDNs.
+dnsConfig: {}
+#  nameservers:
+#    - 1.2.3.4
+#  searches:
+#    - ns1.svc.cluster-domain.example
+#    - my.dns.search.suffix
+#  options:
+#    - name: ndots
+#      value: "2"
+
+# Pod's DNS Policy
+# https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
+dnsPolicy: ""
 
 # nodeSelector to apply for pod assignment
 # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
@@ -312,6 +382,26 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Security context to add to the initContainer
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+
+# Security context to add to other containers
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
 
 # Priority class name to add to the deployment
 priorityClassName: ""

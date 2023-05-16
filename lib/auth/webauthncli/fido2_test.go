@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/keys-pub/go-libfido2"
 	"github.com/stretchr/testify/assert"
@@ -42,8 +42,10 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-var makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
-var assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig []byte
+var (
+	makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
+	assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig                []byte
+)
 
 func init() {
 	// Initialize arrays with random data, but use realistic sizes.
@@ -120,7 +122,9 @@ func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptTouch() error { return nil }
+func (p noopPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+	return func() error { return nil }, nil
+}
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -135,9 +139,9 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() error {
+func (p pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	// 2nd touch never happens
-	return nil
+	return func() error { return nil }, nil
 }
 
 func TestIsFIDO2Available(t *testing.T) {
@@ -189,8 +193,8 @@ func TestFIDO2Login(t *testing.T) {
 	// User IDs and names for resident credentials / passwordless.
 	const llamaName = "llama"
 	const alpacaName = "alpaca"
-	var llamaID = make([]byte, 16)
-	var alpacaID = make([]byte, 16)
+	llamaID := make([]byte, 16)
+	alpacaID := make([]byte, 16)
 	for _, b := range [][]byte{llamaID, alpacaID} {
 		_, err := rand.Read(b)
 		require.NoError(t, err, "Read failed")
@@ -809,12 +813,16 @@ func TestFIDO2Login_singleResidentCredential(t *testing.T) {
 
 type countingPrompt struct {
 	wancli.LoginPrompt
-	count int
+	count, ackCount int
 }
 
-func (cp *countingPrompt) PromptTouch() error {
+func (cp *countingPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	cp.count++
-	return cp.LoginPrompt.PromptTouch()
+	ack, err := cp.LoginPrompt.PromptTouch()
+	return func() error {
+		cp.ackCount++
+		return ack()
+	}, err
 }
 
 func TestFIDO2Login_PromptTouch(t *testing.T) {
@@ -941,6 +949,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 			_, _, err := wancli.FIDO2Login(ctx, origin, test.assertion, prompt, test.opts)
 			require.NoError(t, err, "FIDO2Login errored")
 			assert.Equal(t, test.wantTouches, prompt.count, "FIDO2Login did an unexpected number of touch prompts")
+			assert.Equal(t, test.wantTouches, prompt.ackCount, "FIDO2Login did an unexpected number of touch acknowledgements")
 		})
 	}
 }
@@ -1236,7 +1245,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 				},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
-				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
 				UserVerification:   protocol.VerificationDiscouraged,
 			},
@@ -1285,7 +1294,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 			name:            "no registered credential",
 			createAssertion: func() *wanlib.CredentialAssertion { return mfaAssertion },
 			prompt:          notRegistered,
-			wantErr:         "lacks registered credential",
+			wantErr:         wancli.ErrUsingNonRegisteredDevice.Error(),
 		},
 		{
 			// Theoretically could happen, but not something we do today.
@@ -2050,9 +2059,9 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptTouch() error {
+func (f *fakeFIDO2Device) PromptTouch() (wancli.TouchAcknowledger, error) {
 	f.setUP()
-	return nil
+	return func() error { return nil }, nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {

@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -32,11 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolSQLServer)
-}
-
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new SQL Server engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		Connector: &connector{
@@ -195,16 +191,15 @@ func (e *Engine) handleLogin7(sessionCtx *common.Session) (*protocol.Login7Packe
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	mfaParams := sessionCtx.MFAParams(ap.GetRequireMFAType())
-	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, mfaParams,
-		&services.DatabaseUserMatcher{
-			User: sessionCtx.DatabaseUser,
-		})
+	state := sessionCtx.GetAccessState(authPref)
+	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

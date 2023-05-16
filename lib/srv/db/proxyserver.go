@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -30,28 +29,26 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -70,6 +67,12 @@ type ProxyServer struct {
 	log logrus.FieldLogger
 }
 
+// ConnMonitor monitors authorized connnections and terminates them when
+// session controls dictate so.
+type ConnMonitor interface {
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+}
+
 // ProxyServerConfig is the proxy configuration.
 type ProxyServerConfig struct {
 	// AuthClient is the authenticated client to the auth server.
@@ -77,21 +80,20 @@ type ProxyServerConfig struct {
 	// AccessPoint is the caching client connected to the auth server.
 	AccessPoint auth.ReadDatabaseAccessPoint
 	// Authorizer is responsible for authorizing user identities.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
 	Tunnel reversetunnel.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
 	// Limiter is the connection/rate limiter.
 	Limiter *limiter.Limiter
-	// Emitter is used to emit audit events.
-	Emitter events.Emitter
-	// Clock to override clock in tests.
-	Clock clockwork.Clock
-	// ServerID is the ID of the audit log server.
-	ServerID string
-	// LockWatcher is a lock watcher.
-	LockWatcher *services.LockWatcher
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
+	// ConnectionMonitor monitors and closes connections if session controls
+	// prevent the connections.
+	ConnectionMonitor ConnMonitor
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -152,14 +154,8 @@ func (c *ProxyServerConfig) CheckAndSetDefaults() error {
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing TLSConfig")
 	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-	if c.ServerID == "" {
-		return trace.BadParameter("missing ServerID")
-	}
-	if c.LockWatcher == nil {
-		return trace.BadParameter("missing LockWatcher")
+	if c.ConnectionMonitor == nil {
+		return trace.BadParameter("missing ConnectionMonitor")
 	}
 	if c.Limiter == nil {
 		// Empty config means no connection limit.
@@ -178,10 +174,16 @@ func NewProxyServer(ctx context.Context, config ProxyServerConfig) (*ProxyServer
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server := &ProxyServer{
 		cfg: config,
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 		closeCtx: ctx,
@@ -302,6 +304,11 @@ func (s *ProxyServer) ServeTLS(listener net.Listener) error {
 }
 
 func (s *ProxyServer) handleConnection(conn net.Conn) error {
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAccepted(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.ConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+
 	s.log.Debugf("Accepted TLS database connection from %v.", conn.RemoteAddr())
 	tlsConn, ok := conn.(utils.TLSConn)
 	if !ok {
@@ -323,6 +330,15 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if s.cfg.IngressReporter != nil {
+		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
+		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
+	}
+	if enterprise.ProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
 		return s.PostgresProxyNoTLS().HandleConnection(s.closeCtx, tlsConn)
@@ -334,7 +350,8 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
-	serviceConn, err := s.Connect(s.closeCtx, proxyCtx)
+
+	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -358,11 +375,12 @@ func getMySQLVersionFromServer(servers []types.DatabaseServer) string {
 // PostgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) PostgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
-		Middleware: s.middleware,
-		Service:    s,
-		Limiter:    s.cfg.Limiter,
-		Log:        s.log,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
 	}
 }
 
@@ -379,11 +397,13 @@ func (s *ProxyServer) PostgresProxyNoTLS() *postgres.Proxy {
 // MySQLProxy returns a new instance of the MySQL protocol aware proxy.
 func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 	return &mysql.Proxy{
-		TLSConfig:  s.cfg.TLSConfig,
-		Middleware: s.middleware,
-		Service:    s,
-		Limiter:    s.cfg.Limiter,
-		Log:        s.log,
+		TLSConfig:       s.cfg.TLSConfig,
+		Middleware:      s.middleware,
+		Service:         s,
+		Limiter:         s.cfg.Limiter,
+		Log:             s.log,
+		IngressReporter: s.cfg.IngressReporter,
+		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 
@@ -414,7 +434,7 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext) (net.Conn, error) {
+func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
@@ -424,12 +444,14 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
-			ConnType: types.DatabaseTunnel,
-			ProxyIDs: server.GetProxyIDs(),
+			From:                  clientSrcAddr,
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			OriginalClientDstAddr: clientDstAddr,
+			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
+			ConnType:              types.DatabaseTunnel,
+			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -460,118 +482,16 @@ func isReverseTunnelDownError(err error) bool {
 //
 // Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
-	// Wrap a client connection into monitor that auto-terminates
+	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	tc, err := monitorConn(ctx, monitorConnConfig{
-		conn:         clientConn,
-		lockWatcher:  s.cfg.LockWatcher,
-		lockTargets:  proxyCtx.AuthContext.LockTargets(),
-		identity:     proxyCtx.AuthContext.Identity.GetIdentity(),
-		checker:      proxyCtx.AuthContext.Checker,
-		clock:        s.cfg.Clock,
-		serverID:     s.cfg.ServerID,
-		authClient:   s.cfg.AuthClient,
-		teleportUser: proxyCtx.AuthContext.Identity.GetIdentity().Username,
-		emitter:      s.cfg.Emitter,
-		log:          s.log,
-		ctx:          s.closeCtx,
-	})
+	ctx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()
 		return trace.Wrap(err)
 	}
-	errCh := make(chan error, 2)
-	go func() {
-		defer s.log.Debug("Stop proxying from client to service.")
-		defer serviceConn.Close()
-		defer tc.Close()
-		_, err := io.Copy(serviceConn, tc)
-		errCh <- err
-	}()
-	go func() {
-		defer s.log.Debug("Stop proxying from service to client.")
-		defer serviceConn.Close()
-		defer tc.Close()
-		_, err := io.Copy(tc, serviceConn)
-		errCh <- err
-	}()
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				s.log.WithError(err).Warn("Connection problem.")
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.ConnectionProblem(nil, "context is closing")
-		}
-	}
-	return trace.NewAggregate(errs...)
-}
 
-// monitorConnConfig is a monitorConn configuration.
-type monitorConnConfig struct {
-	conn         net.Conn
-	lockWatcher  *services.LockWatcher
-	lockTargets  []types.LockTarget
-	checker      services.AccessChecker
-	identity     tlsca.Identity
-	clock        clockwork.Clock
-	serverID     string
-	authClient   *auth.Client
-	teleportUser string
-	emitter      events.Emitter
-	log          logrus.FieldLogger
-	ctx          context.Context
-}
-
-// monitorConn wraps a client connection with TrackingReadConn, starts a connection monitor and
-// returns a tracking connection that will be auto-terminated in case disconnect_expired_cert or idle timeout is
-// configured, and unmodified client connection otherwise.
-func monitorConn(ctx context.Context, cfg monitorConnConfig) (net.Conn, error) {
-	authPref, err := cfg.authClient.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	netConfig, err := cfg.authClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	idleTimeout := cfg.checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-	ctx, cancel := context.WithCancel(ctx)
-	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
-		Conn:    cfg.conn,
-		Clock:   cfg.clock,
-		Context: ctx,
-		Cancel:  cancel,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
-	err = srv.StartMonitor(srv.MonitorConfig{
-		LockWatcher:           cfg.lockWatcher,
-		LockTargets:           cfg.lockTargets,
-		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(cfg.checker, authPref, &cfg.identity),
-		ClientIdleTimeout:     idleTimeout,
-		Conn:                  cfg.conn,
-		Tracker:               tc,
-		Context:               cfg.ctx,
-		Clock:                 cfg.clock,
-		ServerID:              cfg.serverID,
-		TeleportUser:          cfg.teleportUser,
-		Emitter:               cfg.emitter,
-		Entry:                 cfg.log,
-	})
-	if err != nil {
-		tc.Close()
-		return nil, trace.Wrap(err)
-	}
-	return tc, nil
+	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
 }
 
 // Authorize authorizes the provided client TLS connection.
@@ -585,6 +505,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}
@@ -592,7 +513,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		identity.RouteToDatabase.Database = params.Database
 	}
 	if params.ClientIP != "" {
-		identity.ClientIP = params.ClientIP
+		identity.LoginIP = params.ClientIP
 	}
 	cluster, servers, err := s.getDatabaseServers(ctx, identity)
 	if err != nil {
@@ -654,18 +575,9 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
-	}
-
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

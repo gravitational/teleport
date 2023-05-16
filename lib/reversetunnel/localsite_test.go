@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"sort"
 	"sync/atomic"
 	"testing"
@@ -33,12 +34,22 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
+
+	os.Exit(m.Run())
+}
+
 func TestRemoteConnCleanup(t *testing.T) {
 	t.Parallel()
+
+	const clockBlockers = 3 //periodic ticker + heart beat timer + resync ticker
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -57,7 +68,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, watcher.WaitInitialization())
 
-	// setup the site
+	// set up the site
 	srv := &server{
 		ctx:              ctx,
 		Config:           Config{Clock: clock},
@@ -67,7 +78,11 @@ func TestRemoteConnCleanup(t *testing.T) {
 		proxyWatcher:     watcher,
 	}
 
-	site, err := newlocalSite(srv, "clustername", nil, withPeriodicFunctionInterval(time.Hour), withProxySyncInterval(time.Hour))
+	site, err := newLocalSite(srv, "clustername", nil,
+		withPeriodicFunctionInterval(time.Hour),
+		withProxySyncInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
+	)
 	require.NoError(t, err)
 
 	// add a connection
@@ -76,7 +91,11 @@ func TestRemoteConnCleanup(t *testing.T) {
 	conn1, err := site.addConn(uuid.NewString(), types.NodeTunnel, rconn, sconn)
 	require.NoError(t, err)
 
+	// create a fake session
+	fakeSession := newSessionTrackingConn(conn1, &mockRemoteConnConn{})
+
 	reqs := make(chan *ssh.Request)
+	defer close(reqs)
 
 	// terminated by too many missed heartbeats
 	go func() {
@@ -84,49 +103,42 @@ func TestRemoteConnCleanup(t *testing.T) {
 		cancel()
 	}()
 
-	// send an initial heartbeat
-	reqs <- &ssh.Request{Type: "heartbeat"}
+	// set the heartbeat to a time in the past that is long enough
+	// to consider the connection offline
+	conn1.markValid()
+	conn1.setLastHeartbeat(clock.Now().UTC().Add(site.offlineThreshold * missedHeartBeatThreshold * -2))
 
-	// create a fake session
-	fakeSession := newSessionTrackingConn(conn1, &mockRemoteConnConn{})
+	// advance the clock to trigger a missed heartbeat
+	clock.BlockUntil(clockBlockers)
+	clock.Advance(srv.offlineThreshold)
+	// wait until the missed heartbeat was processed to continue
+	clock.BlockUntil(clockBlockers)
 
-	// advance the clock to trigger missing a heartbeat, the last advance
-	// should not force the connection to close since there is still an active session
-	for i := 0; i <= missedHeartBeatThreshold+1; i++ {
-		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
-		clock.Advance(srv.offlineThreshold)
-	}
-
-	// the fake session should have prevented anything from closing
+	// validate that the fake session prevented anything from closing
+	// but that the connection was marked invalid
 	require.False(t, conn1.closed.Load())
 	require.False(t, sconn.closed.Load())
+	require.True(t, conn1.isInvalid())
 
-	// send another heartbeat to reset exceeding the threshold
-	reqs <- &ssh.Request{Type: "heartbeat"}
+	// set the heartbeat to a time in the past that is long enough
+	// to consider the connection offline
+	conn1.markValid()
+	conn1.setLastHeartbeat(clock.Now().UTC().Add(site.offlineThreshold * missedHeartBeatThreshold * -2))
 
 	// close the fake session
-	clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
 	require.NoError(t, fakeSession.Close())
 
-	// advance the clock to trigger missing a heartbeat, the last advance
-	// should force the connection to close since there are no active sessions
-	for i := 0; i <= missedHeartBeatThreshold; i++ {
-		// wait until the heartbeat loop has created the timer
-		clock.BlockUntil(3) // periodic ticker + heart beat timer + resync ticker = 3
-		clock.Advance(srv.offlineThreshold)
-	}
+	// advance the clock to trigger a missed heartbeat
+	clock.Advance(srv.offlineThreshold)
 
-	// wait for handleHeartbeat to finish
+	// validate the missed heartbeat terminated the loop and closes the connection
 	select {
 	case <-ctx.Done():
-	case <-time.After(30 * time.Second): // artificially high to prevent flakiness
-		t.Fatal("LocalSite heart beat handler never terminated")
+		require.True(t, conn1.closed.Load())
+		require.True(t, sconn.closed.Load())
+	case <-time.After(15 * time.Second):
+		t.Fatal("localSite heartbeat handler never terminated")
 	}
-
-	// assert the connections were closed
-	require.True(t, conn1.closed.Load())
-	require.True(t, sconn.closed.Load())
 }
 
 func TestLocalSiteOverlap(t *testing.T) {
@@ -138,7 +150,10 @@ func TestLocalSiteOverlap(t *testing.T) {
 		localAuthClient: &mockLocalSiteClient{},
 	}
 
-	site, err := newlocalSite(srv, "clustername", nil, withPeriodicFunctionInterval(time.Hour))
+	site, err := newLocalSite(srv, "clustername", nil,
+		withPeriodicFunctionInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
+	)
 	require.NoError(t, err)
 
 	nodeID := uuid.NewString()
@@ -258,7 +273,11 @@ func TestProxyResync(t *testing.T) {
 		offlineThreshold: 24 * time.Hour,
 		proxyWatcher:     watcher,
 	}
-	site, err := newlocalSite(srv, "clustername", nil, withProxySyncInterval(time.Second), withPeriodicFunctionInterval(24*time.Hour))
+	site, err := newLocalSite(srv, "clustername", nil,
+		withProxySyncInterval(time.Second),
+		withPeriodicFunctionInterval(24*time.Hour),
+		withCertificateCache(&certificateCache{}),
+	)
 	require.NoError(t, err)
 
 	// create the ssh machinery to mock an agent

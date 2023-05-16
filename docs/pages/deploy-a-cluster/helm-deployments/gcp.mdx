@@ -6,11 +6,10 @@ description: Install and configure an HA Teleport cluster using a Google Cloud G
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-<ScopedBlock scope="cloud">
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
-
-</ScopedBlock>
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -180,16 +179,20 @@ Go back to the "Service Accounts" view in Google Cloud IAM & Admin.
   ![Private key saved](../../../img/helm/gcp/12-privatekey@1.5x.png)
 </Figure>
 
-
 #### Create the Kubernetes secret containing the JSON private key for the service account
 
 Find the path where the JSON private key was just saved (likely your browser's default "Downloads" directory).
 
-Use `kubectl` to create the secret, using the path to the JSON private key:
+Use `kubectl` to create the `teleport` namespace, set its security policy, and
+create the secret using the path to the JSON private key:
 
 ```code
-$ kubectl create namespace teleport && \
+$ kubectl create namespace teleport
+namespace/teleport created
+$ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
+namespace/teleport labeled
 $ kubectl --namespace teleport create secret generic teleport-gcp-credentials --from-file=gcp-credentials.json=/path/to/downloads/bens-demos-24150b1a0a7f.json
+secret/teleport-gcp-credentials created
 ```
 
 <Admonition type="tip">
@@ -279,9 +282,7 @@ $ kubectl --namespace teleport create -f gcp-issuer.yaml
 Before you can install Teleport Enterprise in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
-Download your Teleport Enterprise license from the
-[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
-a file called `license.pem`.
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
@@ -320,6 +321,10 @@ highAvailability:
   certManager:
     enabled: true                                 # Enable cert-manager support to get TLS certificates
     issuerName: letsencrypt-production            # Name of the cert-manager Issuer to use (as configured above)
+    
+# If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
+podSecurityPolicy:
+  enabled: false
 ```
 
 </ScopedBlock>
@@ -361,18 +366,26 @@ Once the chart is installed, you can use `kubectl` commands to view the deployme
 
 ```code
 $ kubectl --namespace teleport get all
-# NAME                           READY   STATUS    RESTARTS   AGE
-# pod/teleport-b64dd8849-fklvk   1/1     Running   0          7m4s
-# pod/teleport-b64dd8849-jqvns   1/1     Running   0          7m15s
 
-# NAME               TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)                                                      AGE
-# service/teleport   LoadBalancer   10.40.14.191   35.203.56.38   443:31758/TCP,3023:30409/TCP,3026:30939/TCP,3024:31403/TCP   7m16s
+NAME                                 READY   STATUS    RESTARTS   AGE
+pod/teleport-auth-57989d4cbd-4q2ds   1/1     Running   0          22h
+pod/teleport-auth-57989d4cbd-rtrzn   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-w96d2   1/1     Running   0          22h
+pod/teleport-proxy-c6bf55cfc-z256w   1/1     Running   0          22h
 
-# NAME                       READY   UP-TO-DATE   AVAILABLE   AGE
-# deployment.apps/teleport   2/2     2            2           7m16s
+NAME                        TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)                                                                     AGE
+service/teleport            LoadBalancer   10.40.11.180   34.138.177.11   443:30258/TCP,3023:31802/TCP,3026:32182/TCP,3024:30101/TCP,3036:30302/TCP   22h
+service/teleport-auth       ClusterIP      10.40.8.251    <none>          3025/TCP,3026/TCP                                                           22h
+service/teleport-auth-v11   ClusterIP      None           <none>          <none>                                                                      22h
+service/teleport-auth-v12   ClusterIP      None           <none>          <none>                                                                      22h
 
-# NAME                                  DESIRED   CURRENT   READY   AGE
-# replicaset.apps/teleport-b64dd8849    2         2         2       7m16s
+NAME                             READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/teleport-auth    2/2     2            2           22h
+deployment.apps/teleport-proxy   2/2     2            2           22h
+
+NAME                                       DESIRED   CURRENT   READY   AGE
+replicaset.apps/teleport-auth-57989d4cbd   2         2         2       22h
+replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
 ## Step 6/7. Set up DNS
@@ -407,11 +420,12 @@ Create a user to be able to log into Teleport. This needs to be done on the Tele
 so we can run the command using `kubectl`:
 
 ```code
-$ kubectl --namespace teleport exec deploy/teleport -- tctl users add test --roles=access,editor
-# User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
-# https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
 
-# NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy which users can access.
 ```
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
@@ -479,8 +493,8 @@ $ helm --namespace cert-manager uninstall cert-manager
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../management/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
-Teleport cluster.
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/introduction.mdx) section to get started enrolling
+users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
-

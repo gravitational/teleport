@@ -68,7 +68,7 @@ type Certs struct {
 
 // CACerts contains PEM encoded CA certificates.
 type CACerts struct {
-	// SSH are CA certs used for SSH.
+	// SSH are CA certs used for SSH in known_hosts format.
 	SSH [][]byte
 	// TLS are CA certs used for TLS.
 	TLS [][]byte
@@ -262,9 +262,9 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	for scanln() {
 		switch {
 		case isSSHCert(line):
-			ident.Certs.SSH = cloneln()
+			ident.Certs.SSH = append(cloneln(), '\n')
 		case hasPrefix("@cert-authority"):
-			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
+			ident.CACerts.SSH = append(ident.CACerts.SSH, append(cloneln(), '\n'))
 		case hasPrefix("-----BEGIN"):
 			// Current line marks the beginning of a PEM block.  Consume all
 			// lines until a corresponding END is found.

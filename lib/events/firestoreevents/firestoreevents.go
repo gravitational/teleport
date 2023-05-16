@@ -25,12 +25,12 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/genproto/googleapis/firestore/admin/v1"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -340,46 +339,6 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return nil
 }
 
-// GetSessionChunk returns a reader which can be used to read a byte stream
-// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-// beginning) up to maxBytes bytes.
-//
-// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("GetSessionChunk not implemented for firestore backend")
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
-	var values []events.EventFields
-	start := time.Now()
-	docSnaps, err := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
-		Documents(l.svcContext).GetAll()
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err != nil {
-		return nil, firestorebk.ConvertGRPCError(err)
-	}
-	for _, docSnap := range docSnaps {
-		var e event
-		err := docSnap.DataTo(&e)
-		if err != nil {
-			return nil, firestorebk.ConvertGRPCError(err)
-		}
-		var fields events.EventFields
-		data := []byte(e.Fields)
-		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, trace.Errorf("failed to unmarshal event for session %q: %v", string(sid), err)
-		}
-		values = append(values, fields)
-	}
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
-}
-
 // SearchEvents is a flexible way to find events.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
@@ -537,27 +496,27 @@ func (l *Log) getIndexParent() string {
 func (l *Log) ensureIndexes(adminSvc *apiv1.FirestoreAdminClient) error {
 	tuples := firestorebk.IndexList{}
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_DESCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_DESCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	tuples.Index(
-		firestorebk.Field(eventNamespaceDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(eventTypeDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(sessionIDDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(createdAtDocProperty, admin.Index_IndexField_ASCENDING),
-		firestorebk.Field(firestore.DocumentID, admin.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventNamespaceDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(eventTypeDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(sessionIDDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(createdAtDocProperty, adminpb.Index_IndexField_ASCENDING),
+		firestorebk.Field(firestore.DocumentID, adminpb.Index_IndexField_ASCENDING),
 	)
 	err := firestorebk.EnsureIndexes(l.svcContext, adminSvc, tuples, l.getIndexParent())
 	return trace.Wrap(err)
@@ -589,30 +548,33 @@ func (l *Log) purgeExpiredEvents() error {
 			if err != nil {
 				return firestorebk.ConvertGRPCError(err)
 			}
-			numDeleted := 0
-			batch := l.svc.Batch()
+			batch := l.svc.BulkWriter(l.svcContext)
+			jobs := make([]*firestore.BulkWriterJob, 0, len(docSnaps))
 			for _, docSnap := range docSnaps {
-				batch.Delete(docSnap.Ref)
-				numDeleted++
-			}
-			if numDeleted > 0 {
-				start = time.Now()
-				_, err := batch.Commit(l.svcContext)
-				batchWriteLatencies.Observe(time.Since(start).Seconds())
-				batchWriteRequests.Inc()
+				job, err := batch.Delete(docSnap.Ref)
 				if err != nil {
 					return firestorebk.ConvertGRPCError(err)
 				}
+
+				jobs = append(jobs, job)
 			}
+
+			if len(jobs) == 0 {
+				continue
+			}
+
+			start = time.Now()
+			var errs []error
+			batch.End()
+			for _, job := range jobs {
+				if _, err := job.Results(); err != nil {
+					errs = append(errs, firestorebk.ConvertGRPCError(err))
+				}
+			}
+
+			batchWriteLatencies.Observe(time.Since(start).Seconds())
+			batchWriteRequests.Inc()
+			return trace.NewAggregate(errs...)
 		}
 	}
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
 }

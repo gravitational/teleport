@@ -66,8 +66,8 @@ type ExportAuthoritiesRequest struct {
 //
 // Exporting using "host" AuthType:
 // Returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
+// that can be placed in ~/.ssh/known_hosts. The format adheres to the man sshd (8)
+// known_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 // > @cert-authority *.cluster-a ssh-rsa AAA... type=host
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
@@ -110,9 +110,23 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "db-der":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.DatabaseCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	case "tls-user-der", "windows":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.UserCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
+	case "saml-idp":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.SAMLIDPCA,
 			UnpackPEM:         true,
 			ExportPrivateKeys: exportSecrets,
 		}
@@ -193,15 +207,14 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 				}
 
 				ret.WriteString(castr)
-				ret.WriteString("\n")
 				continue
 			}
 
 			// export certificate authority in user or host ca format
 			var castr string
 			switch ca.GetType() {
-			case types.UserCA:
-				castr, err = userCAFormat(ca, key.PublicKey)
+			case types.UserCA, types.OpenSSHCA:
+				castr, err = userOrOpenSSHCAFormat(ca, key.PublicKey)
 			case types.HostCA:
 				castr, err = hostCAFormat(ca, key.PublicKey, client)
 			default:
@@ -213,7 +226,6 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 
 			// write the export friendly string
 			ret.WriteString(castr)
-			ret.WriteString("\n")
 		}
 	}
 
@@ -272,13 +284,13 @@ func exportTLSAuthority(ctx context.Context, client auth.ClientI, req exportTLSA
 //	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
-func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
+func userOrOpenSSHCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 	return sshutils.MarshalAuthorizedKeysFormat(ca.GetClusterName(), keyBytes)
 }
 
 // hostCAFormat returns the certificate authority public key exported as a single line
-// that can be placed in ~/.ssh/authorized_hosts. The format adheres to the man sshd (8)
-// authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
+// that can be placed in ~/.ssh/known_hosts. The format adheres to the man sshd (8)
+// known_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
 //	@cert-authority *.cluster-a ssh-rsa AAA... type=host
@@ -290,5 +302,11 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 		return "", trace.Wrap(err)
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(apidefaults.MinCertDuration + time.Second)
-	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
+	return sshutils.MarshalKnownHost(sshutils.KnownHost{
+		Hostname:      ca.GetClusterName(),
+		AuthorizedKey: keyBytes,
+		Comment: map[string][]string{
+			"logins": allowedLogins,
+		},
+	})
 }

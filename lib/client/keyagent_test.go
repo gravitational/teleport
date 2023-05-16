@@ -121,7 +121,7 @@ func TestAddKey(t *testing.T) {
 	// get all agent keys from teleport agent and system agent
 	teleportAgentKeys, err := lka.ExtendedAgent.List()
 	require.NoError(t, err)
-	systemAgentKeys, err := lka.sshAgent.List()
+	systemAgentKeys, err := lka.systemAgent.List()
 	require.NoError(t, err)
 
 	// check that we've loaded a cert as well as a private key into the teleport agent
@@ -161,11 +161,13 @@ func TestAddKey(t *testing.T) {
 func TestLoadKey(t *testing.T) {
 	s := makeSuite(t)
 	keyAgent := s.newKeyAgent(t)
+	err := keyAgent.UnloadKeys()
+	require.NoError(t, err)
 
 	// get all the keys in the teleport and system agent
 	teleportAgentKeys, err := keyAgent.ExtendedAgent.List()
 	require.NoError(t, err)
-	systemAgentKeys, err := keyAgent.sshAgent.List()
+	systemAgentKeys, err := keyAgent.systemAgent.List()
 	require.NoError(t, err)
 
 	// Create 3 separate keys, with overlapping user and cluster names
@@ -205,7 +207,7 @@ func TestLoadKey(t *testing.T) {
 			teleportAgentKeys, err = keyAgent.ExtendedAgent.List()
 			require.NoError(t, err)
 			require.Len(t, teleportAgentKeys, expectTeleportAgentKeyCount)
-			systemAgentKeys, err = keyAgent.sshAgent.List()
+			systemAgentKeys, err = keyAgent.systemAgent.List()
 			require.NoError(t, err)
 			require.Len(t, systemAgentKeys, expectSystemAgentKeyCount)
 
@@ -232,7 +234,7 @@ func TestLoadKey(t *testing.T) {
 				userdata := []byte("hello, world")
 				teleportAgentSignature, err := keyAgent.ExtendedAgent.Sign(agentKey, userdata)
 				require.NoError(t, err)
-				systemAgentSignature, err := keyAgent.sshAgent.Sign(agentKey, userdata)
+				systemAgentSignature, err := keyAgent.systemAgent.Sign(agentKey, userdata)
 				require.NoError(t, err)
 
 				// verify data signed by both the teleport agent and system agent was signed correctly
@@ -249,13 +251,12 @@ func TestHostCertVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// Make a new local agent.
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(LocalAgentConfig{
-		Keystore:   keystore,
-		ProxyHost:  s.hostname,
-		Username:   s.username,
-		KeysOption: AddKeysToAgentAuto,
+		ClientStore: clientStore,
+		ProxyHost:   s.hostname,
+		Username:    s.username,
+		KeysOption:  AddKeysToAgentAuto,
 	})
 	require.NoError(t, err)
 
@@ -305,9 +306,11 @@ func TestHostCertVerification(t *testing.T) {
 
 			caSigner, err := ssh.ParsePrivateKey(caPriv)
 			require.NoError(t, err)
-			caPublicKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
+
+			hostKey, _, _, _, err := ssh.ParseAuthorizedKey(caPub)
 			require.NoError(t, err)
-			err = lka.keyStore.AddKnownHostKeys(hostname, s.hostname, []ssh.PublicKey{caPublicKey})
+
+			err = lka.clientStore.AddTrustedHostKeys(s.hostname, hostname, hostKey)
 			require.NoError(t, err)
 
 			_, trustedCerts, err := newSelfSignedCA(caPriv, hostname)
@@ -323,7 +326,7 @@ func TestHostCertVerification(t *testing.T) {
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.keyStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{root.trustedCerts, leaf.trustedCerts})
+	err = lka.clientStore.SaveTrustedCerts(s.hostname, []auth.TrustedCerts{root.trustedCerts, leaf.trustedCerts})
 	require.NoError(t, err)
 
 	// Generate a host certificate for node with role "node".
@@ -421,7 +424,7 @@ func TestHostCertVerification(t *testing.T) {
 				lka.siteName = "example.com"
 				lka.loadAllCAs = false
 			}
-			err = lka.CheckHostSignature(tt.inAddr, nil, tt.hostPublicKey)
+			err = lka.HostKeyCallback(tt.inAddr, nil, tt.hostPublicKey)
 			tt.assert(t, err)
 		})
 	}
@@ -431,14 +434,13 @@ func TestHostKeyVerification(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
+	keystore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(LocalAgentConfig{
-		Keystore:   keystore,
-		ProxyHost:  s.hostname,
-		Username:   s.username,
-		KeysOption: AddKeysToAgentAuto,
-		Insecure:   true,
+		ClientStore: keystore,
+		ProxyHost:   s.hostname,
+		Username:    s.username,
+		KeysOption:  AddKeysToAgentAuto,
+		Insecure:    true,
 	})
 	require.NoError(t, err)
 
@@ -452,7 +454,7 @@ func TestHostKeyVerification(t *testing.T) {
 
 	// Call SaveTrustedCerts to create cas profile dir - this step is needed to support migration from profile combined
 	// CA file certs.pem to per cluster CA files in cas profile directory.
-	err = lka.keyStore.SaveTrustedCerts(s.hostname, nil)
+	err = lka.clientStore.SaveTrustedCerts(s.hostname, nil)
 	require.NoError(t, err)
 
 	// by default user has not refused any hosts:
@@ -473,7 +475,7 @@ func TestHostKeyVerification(t *testing.T) {
 		return fakeErr
 	}
 	var a net.TCPAddr
-	err = lka.CheckHostSignature("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.Error(t, err)
 	require.Equal(t, "luna cannot be trusted", err.Error())
 	require.True(t, lka.UserRefusedHosts())
@@ -490,7 +492,7 @@ func TestHostKeyVerification(t *testing.T) {
 		return nil
 	}
 	require.False(t, lka.UserRefusedHosts())
-	err = lka.CheckHostSignature("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.NoError(t, err)
 	require.True(t, userWasAsked)
 
@@ -498,7 +500,7 @@ func TestHostKeyVerification(t *testing.T) {
 	// just said "yes")
 	userWasAsked = false
 	require.False(t, lka.UserRefusedHosts())
-	err = lka.CheckHostSignature("luna", &a, pk)
+	err = lka.HostKeyCallback("luna", &a, pk)
 	require.NoError(t, err)
 	require.False(t, userWasAsked)
 }
@@ -508,13 +510,12 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 
 	keygen := testauthority.New()
 
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	a, err := NewLocalAgent(LocalAgentConfig{
-		Keystore:   keystore,
-		ProxyHost:  s.hostname,
-		Username:   s.username,
-		KeysOption: AddKeysToAgentAuto,
+		ClientStore: clientStore,
+		ProxyHost:   s.hostname,
+		Username:    s.username,
+		KeysOption:  AddKeysToAgentAuto,
 	})
 	require.NoError(t, err)
 
@@ -557,14 +558,13 @@ func TestLocalKeyAgent_AddDatabaseKey(t *testing.T) {
 	s := makeSuite(t)
 
 	// make a new local agent
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	lka, err := NewLocalAgent(
 		LocalAgentConfig{
-			Keystore:   keystore,
-			ProxyHost:  s.hostname,
-			Username:   s.username,
-			KeysOption: AddKeysToAgentAuto,
+			ClientStore: clientStore,
+			ProxyHost:   s.hostname,
+			Username:    s.username,
+			KeysOption:  AddKeysToAgentAuto,
 		})
 	require.NoError(t, err)
 
@@ -706,14 +706,13 @@ func startDebugAgent(t *testing.T) error {
 
 func (s *KeyAgentTestSuite) newKeyAgent(t *testing.T) *LocalKeyAgent {
 	// make a new local agent
-	keystore, err := NewFSLocalKeyStore(s.keyDir)
-	require.NoError(t, err)
+	clientStore := NewFSClientStore(s.keyDir)
 	keyAgent, err := NewLocalAgent(LocalAgentConfig{
-		Keystore:   keystore,
-		ProxyHost:  s.hostname,
-		Site:       s.clusterName,
-		Username:   s.username,
-		KeysOption: AddKeysToAgentAuto,
+		ClientStore: clientStore,
+		ProxyHost:   s.hostname,
+		Site:        s.clusterName,
+		Username:    s.username,
+		KeysOption:  AddKeysToAgentAuto,
 	})
 	require.NoError(t, err)
 	return keyAgent

@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -247,7 +247,7 @@ func TestRequireResidentKey(t *testing.T) {
 			name: "required and rrk=false",
 			in: protocol.AuthenticatorSelection{
 				ResidentKey:        protocol.ResidentKeyRequirementRequired,
-				RequireResidentKey: protocol.ResidentKeyUnrequired(),
+				RequireResidentKey: protocol.ResidentKeyNotRequired(),
 			},
 			wantErr: "invalid combination of ResidentKey",
 		},

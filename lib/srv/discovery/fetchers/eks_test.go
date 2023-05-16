@@ -196,6 +196,7 @@ func eksClustersToResources(t *testing.T, clusters ...*eks.Cluster) types.Resour
 	for _, cluster := range clusters {
 		kubeCluster, err := services.NewKubeClusterFromAWSEKS(cluster)
 		require.NoError(t, err)
+		require.True(t, kubeCluster.IsAWS())
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources()

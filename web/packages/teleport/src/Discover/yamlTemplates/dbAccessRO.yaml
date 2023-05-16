@@ -1,0 +1,11 @@
+kind: role
+spec:
+  allow:
+    # List of databases on the database server users can access
+    db_names:
+    - dbName1
+    - '*'
+    # List of database users allowed to open database connections with
+    db_users:
+    - dbUser1
+    - '*'

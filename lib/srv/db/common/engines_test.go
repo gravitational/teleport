@@ -33,7 +33,12 @@ import (
 func TestRegisterEngine(t *testing.T) {
 	// Cleanup "test" engine in case this test is run in a loop.
 	RegisterEngine(nil, "test")
+	t.Cleanup(func() {
+		RegisterEngine(nil, "test")
+	})
 
+	cloudClients, err := cloud.NewClients()
+	require.NoError(t, err)
 	ec := EngineConfig{
 		Context:      context.Background(),
 		Clock:        clockwork.NewFakeClock(),
@@ -41,13 +46,14 @@ func TestRegisterEngine(t *testing.T) {
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
 		AuthClient:   &auth.Client{},
-		CloudClients: cloud.NewClients(),
+		CloudClients: cloudClients,
 	}
 
 	// No engine is registered initially.
 	engine, err := GetEngine("test", ec)
 	require.Nil(t, engine)
 	require.IsType(t, trace.NotFound(""), err)
+	require.IsType(t, trace.NotFound(""), CheckEngines("test"))
 
 	// Register a "test" engine.
 	RegisterEngine(func(ec EngineConfig) Engine {

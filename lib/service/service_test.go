@@ -17,6 +17,8 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -36,6 +38,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -45,8 +50,15 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -55,27 +67,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestServiceDebugModeEnv(t *testing.T) {
-	require.False(t, isDebugMode())
-
-	for _, test := range []struct {
-		debugVal string
-		isDebug  bool
-	}{
-		{"no", false},
-		{"0", false},
-		{"1", true},
-		{"true", true},
-	} {
-		t.Run(fmt.Sprintf("%v=%v", teleport.DebugEnvVar, test.debugVal), func(t *testing.T) {
-			t.Setenv(teleport.DebugEnvVar, test.debugVal)
-			require.Equal(t, test.isDebug, isDebugMode())
-		})
-	}
-}
-
 func TestServiceSelfSignedHTTPS(t *testing.T) {
-	cfg := &Config{
+	cfg := &servicecfg.Config{
 		DataDir:  t.TempDir(),
 		Hostname: "example.com",
 		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
@@ -86,11 +79,104 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
 }
 
+func TestAdditionalExpectedRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           func() *servicecfg.Config
+		expectedRoles map[types.SystemRole]string
+	}{
+		{
+			name: "everything enabled",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+			},
+		},
+		{
+			name: "everything enabled with additional roles",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+
+				cfg.AdditionalExpectedRoles = []servicecfg.RoleAndIdentityEvent{
+					{
+						Role:          types.RoleOkta,
+						IdentityEvent: "some-identity-event",
+					},
+					{
+						Role:          types.RoleBot,
+						IdentityEvent: "some-other-identity-event",
+					},
+				}
+
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+				types.RoleOkta:           "some-identity-event",
+				types.RoleBot:            "some-other-identity-event",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process, err := NewTeleport(test.cfg())
+			require.NoError(t, err)
+			require.Equal(t, test.expectedRoles, process.instanceRoles)
+		})
+	}
+}
+
 func TestMonitor(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
@@ -290,7 +376,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -306,31 +392,72 @@ func TestServiceInitExternalLog(t *testing.T) {
 	}
 }
 
+func TestAthenaAuditLogSetup(t *testing.T) {
+	sampleValidConfig := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	tests := []struct {
+		name   string
+		uri    string
+		wantFn func(*testing.T, events.AuditLogger, error)
+	}{
+		{
+			name: "valid athena config",
+			uri:  sampleValidConfig,
+			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
+				require.NoError(t, err)
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name: "config with rate limit - should use events.SearchEventsLimiter",
+			uri:  sampleValidConfig + "&limiterRefillAmount=3&limiterBurst=2",
+			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
+				require.NoError(t, err)
+				_, ok := alog.(*events.SearchEventsLimiter)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
+	}
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+				AuditEventsURI:   []string{tt.uri},
+				AuditSessionsURI: "s3://testbucket/sessions-rec",
+			})
+			require.NoError(t, err)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			tt.wantFn(t, log, err)
+		})
+	}
+}
+
 func TestGetAdditionalPrincipals(t *testing.T) {
 	p := &TeleportProcess{
-		Config: &Config{
+		Config: &servicecfg.Config{
 			Hostname:    "global-hostname",
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
-			Proxy: ProxyConfig{
+			Proxy: servicecfg.ProxyConfig{
 				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
 				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
 				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
 				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
 				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
-				Kube: KubeProxyConfig{
+				Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
 				},
 				WebAddr: *utils.MustParseAddr(":443"),
 			},
-			Auth: AuthConfig{
+			Auth: servicecfg.AuthConfig{
 				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
 			},
-			SSH: SSHConfig{
+			SSH: servicecfg.SSHConfig{
 				PublicAddrs: utils.MustParseAddrList("node-public-1", "node-public-2"),
 			},
-			Kube: KubeConfig{
+			Kube: servicecfg.KubeConfig{
 				PublicAddrs: utils.MustParseAddrList("kube-public-1", "kube-public-2"),
 			},
 		},
@@ -434,6 +561,17 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			},
 		},
 		{
+			role: types.RoleOkta,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+			},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
+		},
+		{
 			role: types.SystemRole("unknown"),
 			wantPrincipals: []string{
 				"global-hostname",
@@ -458,7 +596,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	t.Parallel()
 
 	// Create and configure a default Teleport configuration.
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
@@ -495,40 +633,54 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"http/1.1",
 				"h2",
 				"acme-tls/1",
+				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
+				"teleport-oracle-ping",
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
+				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
+				"teleport-oracle",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-opensearch",
+				"teleport-dynamodb",
 			},
 		},
 		{
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
+				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
+				"teleport-oracle-ping",
 				"teleport-redis-ping",
 				"teleport-sqlserver-ping",
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
+				"teleport-dynamodb-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -536,27 +688,35 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-reversetunnel",
 				"teleport-auth@",
 				"teleport-tcp",
+				"teleport-proxy-ssh-grpc",
+				"teleport-proxy-grpc",
+				"teleport-proxy-grpc-mtls",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",
+				"teleport-oracle",
 				"teleport-redis",
 				"teleport-sqlserver",
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-opensearch",
+				"teleport-dynamodb",
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := MakeDefaultConfig()
+			cfg := servicecfg.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
 			cfg.Proxy.PublicAddrs = utils.MustParseAddrList("localhost")
 			process := TeleportProcess{
 				Config: cfg,
+				// Setting Supervisor so that `ExitContext` can be called.
+				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
 			conn := &Connector{
 				ServerIdentity: &auth.Identity{
@@ -581,18 +741,20 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 
 func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	t.Parallel()
-	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Clock = clock
+	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.ClientTimeout = time.Millisecond
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -605,6 +767,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 		require.Nil(t, c)
 	}()
 
+	timeout := time.After(10 * time.Second)
 	step := cfg.MaxRetryPeriod / 5.0
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
@@ -615,14 +778,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
-
-			// wait for connection to get to retry.After
-			clock.BlockUntil(1)
-
-			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(cfg.MaxRetryPeriod)
-		case <-time.After(time.Minute):
-			t.Fatalf("timeout waiting for failure")
+		case <-timeout:
+			t.Fatalf("timeout waiting for failure %d", i)
 		}
 	}
 
@@ -644,7 +801,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	token := "join-token"
 
 	// Create Node process.
-	nodeCfg := MakeDefaultConfig()
+	nodeCfg := servicecfg.MakeDefaultConfig()
 	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
@@ -672,7 +829,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authCfg := MakeDefaultConfig()
+	authCfg := servicecfg.MakeDefaultConfig()
 	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
@@ -701,7 +858,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 }
 
-func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
+func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck bool) {
 	nodeCfg.SkipVersionCheck = skipVersionCheck
 
 	nodeProc, err := NewTeleport(nodeCfg)
@@ -860,7 +1017,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			cfg := &Config{
+			cfg := &servicecfg.Config{
 				DataDir:    dataDir,
 				Log:        logrus.New(),
 				JoinMethod: types.JoinMethodToken,
@@ -900,4 +1057,356 @@ func (f *fakeKubeBackend) Put(ctx context.Context, i backend.Item) (*backend.Lea
 // Get returns a single item or not found error
 func (f *fakeKubeBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	return f.getData, f.getErr
+}
+
+func TestProxyGRPCServers(t *testing.T) {
+	hostID := uuid.NewString()
+	// Create a test auth server to extract the server identity (SSH and TLS
+	// certificates).
+	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClockAt(time.Now()),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, testAuthServer.Close())
+	})
+
+	tlsServer, err := testAuthServer.NewTestTLSServer()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, tlsServer.Close())
+	})
+	// Create a new client using the server identity.
+	client, err := tlsServer.NewClient(auth.TestServerID(types.RoleProxy, hostID))
+	require.NoError(t, err)
+	// TLS config for proxy service.
+	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
+	require.NoError(t, err)
+
+	testConnector := &Connector{
+		ServerIdentity: serverIdentity,
+		Client:         client,
+	}
+
+	// Create a listener for the insecure gRPC server.
+	insecureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := insecureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a listener for the secure gRPC server.
+	secureListener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		err := secureListener.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		require.NoError(t, err)
+	})
+
+	// Create a new Teleport process to initialize the gRPC servers with KubeProxy
+	// enabled.
+	log := logrus.New()
+	process := &TeleportProcess{
+		Supervisor: NewSupervisor(hostID, log),
+		Config: &servicecfg.Config{
+			Proxy: servicecfg.ProxyConfig{
+				Kube: servicecfg.KubeProxyConfig{
+					Enabled: true,
+				},
+			},
+		},
+		log: log,
+	}
+
+	// Create a limiter with no limits.
+	limiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
+	// Create a error channel to collect the errors from the gRPC servers.
+	errC := make(chan error, 2)
+	t.Cleanup(func() {
+		for i := 0; i < 2; i++ {
+			err := <-errC
+			if errors.Is(err, net.ErrClosed) {
+				continue
+			}
+			require.NoError(t, err)
+		}
+	})
+
+	// Insecure gRPC server.
+	insecureGPRC := process.initPublicGRPCServer(limiter, testConnector, insecureListener)
+	t.Cleanup(insecureGPRC.GracefulStop)
+
+	proxyLockWatcher, err := services.NewLockWatcher(context.Background(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Client:    testConnector.Client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		proxyLockWatcher.Close()
+	})
+	// Secure gRPC server.
+	secureGRPC, err := process.initSecureGRPCServer(initSecureGRPCServerCfg{
+		limiter:     limiter,
+		conn:        testConnector,
+		listener:    secureListener,
+		accessPoint: testConnector.Client,
+		lockWatcher: proxyLockWatcher,
+		emitter:     testConnector.Client,
+	})
+	require.NoError(t, err)
+	t.Cleanup(secureGRPC.GracefulStop)
+
+	// Start the gRPC servers.
+	go func() {
+		errC <- trace.Wrap(insecureGPRC.Serve(insecureListener))
+	}()
+	go func() {
+		errC <- secureGRPC.Serve(secureListener)
+	}()
+
+	tests := []struct {
+		name         string
+		credentials  credentials.TransportCredentials
+		listenerAddr string
+		assertErr    require.ErrorAssertionFunc
+	}{
+		{
+			name:         "insecure client to insecure server",
+			credentials:  insecure.NewCredentials(),
+			listenerAddr: insecureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+		{
+			name:         "insecure client to secure server with insecure skip verify",
+			credentials:  credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name:         "insecure client to secure server",
+			credentials:  credentials.NewTLS(&tls.Config{}),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.Error,
+		},
+		{
+			name: "secure client to secure server",
+			credentials: func() credentials.TransportCredentials {
+				// Create a new client using the server identity.
+				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
+				require.NoError(t, err)
+				return credentials.NewTLS(creds)
+			}(),
+			listenerAddr: secureListener.Addr().String(),
+			assertErr:    require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			t.Cleanup(cancel)
+			_, err := grpc.DialContext(
+				ctx,
+				tt.listenerAddr,
+				grpc.WithTransportCredentials(tt.credentials),
+				// This setting is required to return the connection error instead of
+				// wrapping it in a "context deadline exceeded" error.
+				// It also enforces the grpc.WithBlock() option.
+				grpc.WithReturnConnectionError(),
+				grpc.WithDisableRetry(),
+				grpc.FailOnNonTempDialError(true),
+			)
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+func TestEnterpriseServicesEnabled(t *testing.T) {
+	tests := []struct {
+		name       string
+		enterprise bool
+		config     *servicecfg.Config
+		expected   bool
+	}{
+		{
+			name:       "enterprise enabled, okta enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name:       "enterprise disabled, okta enabled",
+			enterprise: false,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name:       "enterprise enabled, okta disabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: false,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
+			if tt.enterprise {
+				buildType = modules.BuildEnterprise
+			}
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: buildType,
+			})
+
+			process := &TeleportProcess{
+				Config: tt.config,
+			}
+
+			require.Equal(t, tt.expected, process.enterpriseServicesEnabled())
+		})
+	}
+}
+
+func TestSingleProcessModeResolver(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		mode      types.ProxyListenerMode
+		config    servicecfg.Config
+		wantError bool
+		wantAddr  string
+	}{
+		{
+			name: "not single process mode",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: false,
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "reverse tunnel disabled",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled:              true,
+					DisableReverseTunnel: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "separate port localhost",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://localhost:3024",
+		},
+		{
+			name: "separate port tunnel addr",
+			mode: types.ProxyListenerMode_Separate,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					TunnelPublicAddrs: []utils.NetAddr{
+						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
+					},
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+		{
+			name: "multiplex public addr",
+			mode: types.ProxyListenerMode_Multiplex,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					PublicAddrs: []utils.NetAddr{
+						*utils.MustParseAddr("example.com:12345"),
+						*utils.MustParseAddr("example.org:12345"),
+					},
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+		{
+			name: "multiplex web addr with https scheme",
+			mode: types.ProxyListenerMode_Multiplex,
+			config: servicecfg.Config{
+				Proxy: servicecfg.ProxyConfig{
+					Enabled: true,
+					WebAddr: *utils.MustParseAddr("https://example.com:12345"),
+				},
+				Auth: servicecfg.AuthConfig{
+					Enabled: true,
+				},
+			},
+			wantAddr: "tcp://example.com:12345",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process := TeleportProcess{Config: &test.config}
+			resolver := process.SingleProcessModeResolver(test.mode)
+			require.NotNil(t, resolver)
+			addr, mode, err := resolver(context.Background())
+			if test.wantError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, mode, test.mode)
+			require.Equal(t, addr.FullAddress(), test.wantAddr)
+		})
+	}
 }

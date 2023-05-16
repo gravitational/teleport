@@ -21,6 +21,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 )
 
 func FuzzMSSQLLogin(f *testing.F) {
@@ -45,5 +47,18 @@ func FuzzMSSQLLogin(f *testing.F) {
 		require.NotPanics(t, func() {
 			_, _ = ReadLogin7Packet(reader)
 		})
+	})
+}
+
+func FuzzRPCClientPartialLength(f *testing.F) {
+	f.Fuzz(func(t *testing.T, length uint64, chunks uint64) {
+		packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientPartiallyLength(length, chunks)))
+		require.NoError(t, err)
+		require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+
+		// Given that `ToSQLPacket` recovers from panics when reading the packet,
+		// we just need to ensure the function doesn't return error.
+		_, err = ToSQLPacket(packet)
+		require.NoError(t, err)
 	})
 }

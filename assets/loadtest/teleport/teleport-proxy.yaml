@@ -26,3 +26,5 @@ proxy_service:
   https_key_file: /etc/teleport-tls/tls.key
   public_addr: "${PROXY_HOST}:3080"
   tunnel_public_addr: "${PROXY_HOST}:3024"
+  tunnel_listen_addr: 0.0.0.0:3024
+  listen_addr: 0.0.0.0:3023

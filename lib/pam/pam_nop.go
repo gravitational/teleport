@@ -19,6 +19,8 @@ limitations under the License.
 
 package pam
 
+import "github.com/gravitational/teleport/lib/service/servicecfg"
+
 var buildHasPAM, systemHasPAM bool
 
 // PAM is used to create a PAM context and initiate PAM transactions to checks
@@ -28,7 +30,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *Config) (*PAM, error) {
+func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	return &PAM{}, nil
 }
 

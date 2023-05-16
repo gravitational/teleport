@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
@@ -81,6 +82,9 @@ type Suite struct {
 	testhttp              *httptest.Server
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
+
+	appFoo *types.AppV3
+	appAWS *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -116,14 +120,21 @@ type suiteConfig struct {
 	ServerStreamer events.Streamer
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
-	// UseWebsockets will make the application server use a websocket for connection.
-	UseWebsockets bool
+	// EnableHTTP2 defines if the test server will support HTTP2.
+	EnableHTTP2 bool
 	// CloudImporter will use the given cloud importer for the app server.
 	CloudImporter labels.Importer
 	// AppLabels are the labels assigned to the application.
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+}
+
+type fakeConnMonitor struct {
+}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -180,14 +191,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV5{
+	s.role = &types.RoleV6{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
-		Spec: types.RoleSpecV5{
+		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
-				AWSRoleARNs: []string{"readonly"},
+				AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/readonly"},
 			},
 		},
 	}
@@ -202,7 +213,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.message = uuid.New().String()
 
 	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if config.UseWebsockets {
+		if strings.ToLower(r.Header.Get("upgrade")) == "websocket" {
 			upgrader := websocket.Upgrader{
 				ReadBufferSize:  1024,
 				WriteBufferSize: 1024,
@@ -220,11 +231,16 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			config.ValidateRequest(s, r)
 		}
 	}))
+	// Add NextProtos to support both protocols: h2, http/1.1
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
-	if config.UseWebsockets {
+	if config.EnableHTTP2 {
 		s.testhttp.EnableHTTP2 = true
+		// Add NextProtos to support both protocols: h2, http/1.1
+		s.testhttp.Config.TLSConfig.NextProtos = []string{"h2", "http/1.1"}
+		s.testhttp.StartTLS()
+	} else {
+		s.testhttp.Start()
 	}
-	s.testhttp.Start()
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
@@ -239,16 +255,17 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
-		URI:           s.testhttp.URL,
-		PublicAddr:    "foo.example.com",
-		DynamicLabels: types.LabelsToV2(dynamicLabels),
+		URI:                s.testhttp.URL,
+		PublicAddr:         "foo.example.com",
+		InsecureSkipVerify: true,
+		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -275,7 +292,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -284,14 +301,18 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: "cluster-name",
+		AccessPoint: s.authClient,
+		LockWatcher: lockWatcher,
+	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -299,24 +320,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           discard,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -367,30 +388,18 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        s.testhttp.URL,
-		PublicAddr: "foo.example.com",
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
-	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
@@ -427,6 +436,66 @@ func TestWaitStop(t *testing.T) {
 	require.NoError(t, err)
 	err = s.appServer.Wait()
 	require.Equal(t, err, context.Canceled)
+}
+
+func TestShutdown(t *testing.T) {
+	tests := []struct {
+		name                        string
+		hasForkedChild              bool
+		wantAppServersAfterShutdown bool
+	}{
+		{
+			name:                        "regular shutdown",
+			hasForkedChild:              false,
+			wantAppServersAfterShutdown: false,
+		},
+		{
+			name:                        "has forked child",
+			hasForkedChild:              true,
+			wantAppServersAfterShutdown: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Make a static configuration app.
+			app0, err := makeStaticApp("app0", nil)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps: types.Apps{app0},
+			})
+
+			// Validate heartbeat is present after start.
+			s.appServer.ForceHeartbeat()
+			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, appServers, 1)
+			require.Equal(t, appServers[0].GetApp(), app0)
+
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			}
+
+			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+
+			// Validate app servers based on the test.
+			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			if test.wantAppServersAfterShutdown {
+				require.Equal(t, appServers, appServersAfterShutdown)
+			} else {
+				require.Empty(t, appServersAfterShutdown)
+			}
+		})
+	}
 }
 
 func TestAppWithUpdatedLabels(t *testing.T) {
@@ -600,9 +669,44 @@ func TestHandleConnectionWS(t *testing.T) {
 			// websocket transport header rewriter delegate.
 			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
 		},
-		UseWebsockets: true,
 	})
 
+	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
+		require.Equal(t, websocket.TextMessage, messageType)
+		require.Equal(t, s.message, message)
+	})
+}
+
+// TestHandleConnectionHTTP2WS given a server that supports HTTP2, make a
+// request and then connect to WebSocket, ensuring that both succeed.
+//
+// This test guarantees the server is capable of handing requests and websockets
+// in different HTTP versions.
+func TestHandleConnectionHTTP2WS(t *testing.T) {
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		EnableHTTP2: true,
+		ValidateRequest: func(s *Suite, r *http.Request) {
+			// Differentiate WebSocket requests.
+			if strings.ToLower(r.Header.Get("upgrade")) == "websocket" {
+				// Expect WS requests to be using http 1.
+				require.Equal(t, 1, r.ProtoMajor)
+				return
+			}
+
+			// Expect http requests to be using h2.
+			require.Equal(t, 2, r.ProtoMajor)
+		},
+	})
+
+	// First, make the request. This will be using HTTP2.
+	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
+		require.Equal(t, resp.StatusCode, http.StatusOK)
+		buf, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
+	})
+
+	// Second, make the WebSocket connection. This will be using HTTP/1.1
 	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
 		require.Equal(t, websocket.TextMessage, messageType)
 		require.Equal(t, s.message, message)
@@ -904,8 +1008,9 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	checkResp(resp)
 	require.NoError(t, resp.Body.Close())
 
-	// Close should not trigger an error.
-	require.NoError(t, s.appServer.Close())
+	// Close should not trigger an error. Closing the connection is enough to
+	// get out of the HandleConnection routine.
+	require.NoError(t, pw.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners
@@ -960,8 +1065,9 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	// This should not trigger an error.
 	require.NoError(t, ws.Close())
 
-	// Close should not trigger an error.
-	require.NoError(t, s.appServer.Close())
+	// Close should not trigger an error. Closing the connection is enough to
+	// get out of the HandleConnection routine.
+	require.NoError(t, pw.Close())
 
 	// Wait for the application server to actually stop serving before
 	// closing the test. This will make sure the server removes the listeners

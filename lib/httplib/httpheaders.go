@@ -19,8 +19,10 @@ limitations under the License.
 package httplib
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // SetNoCacheHeaders tells proxies and browsers do not cache the content
@@ -28,6 +30,11 @@ func SetNoCacheHeaders(h http.Header) {
 	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	h.Set("Pragma", "no-cache")
 	h.Set("Expires", "0")
+}
+
+// SetCacheHeaders tells proxies and browsers to cache the content
+func SetCacheHeaders(h http.Header, maxAge time.Duration) {
+	h.Set("Cache-Control", fmt.Sprintf("max-age=%.f, immutable", maxAge.Seconds()))
 }
 
 // SetDefaultSecurityHeaders adds headers that should generally be considered safe defaults.  It is expected that all
@@ -68,6 +75,20 @@ func SetIndexContentSecurityPolicy(h http.Header) {
 	h.Set("Content-Security-Policy", cspValue)
 }
 
+// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
+func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+	var cspValue = strings.Join([]string{
+		GetDefaultContentSecurityPolicy(),
+		// 'unsafe-inline' is required by CSS-in-JS to work
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob:",
+		"font-src 'self' data:",
+		fmt.Sprintf("connect-src 'self' %s", applicationURL),
+	}, ";")
+
+	h.Set("Content-Security-Policy", cspValue)
+}
+
 // GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
 func GetDefaultContentSecurityPolicy() string {
 	return strings.Join([]string{
@@ -78,7 +99,15 @@ func GetDefaultContentSecurityPolicy() string {
 		"frame-ancestors 'none'",
 		// additional default restrictions
 		"object-src 'none'",
+		// auto-pay plans in Cloud use stripe.com to manage billing information
+		"script-src 'self' https://js.stripe.com",
+		"frame-src https://js.stripe.com",
 	}, ";")
+}
+
+// SetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
+func SetDefaultContentSecurityPolicy(h http.Header) {
+	h.Set("Content-Security-Policy", GetDefaultContentSecurityPolicy())
 }
 
 // SetWebConfigHeaders sets headers for webConfig.js

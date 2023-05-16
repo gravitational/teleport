@@ -40,9 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -54,8 +56,8 @@ func newSilentLogger() utils.Logger {
 	return logger
 }
 
-func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
-	config := service.MakeDefaultConfig()
+func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+	config := servicecfg.MakeDefaultConfig()
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
 	config.SSH.Enabled = true
@@ -66,11 +68,12 @@ func newNodeConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinM
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
-func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *service.Config {
-	config := service.MakeDefaultConfig()
+func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
+	config := servicecfg.MakeDefaultConfig()
 	config.Version = defaults.TeleportConfigVersionV2
 	config.SetToken(tokenName)
 	config.JoinMethod = joinMethod
@@ -87,10 +90,11 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 	config.SetAuthServerAddress(authAddr)
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
-func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
+func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	var err error
 	storageConfig := backend.Config{
 		Type: lite.GetName(),
@@ -100,7 +104,7 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 		},
 	}
 
-	config := service.MakeDefaultConfig()
+	config := servicecfg.MakeDefaultConfig()
 	config.DataDir = t.TempDir()
 	config.Auth.ListenAddr.Addr = helpers.NewListener(t, service.ListenerAuth, &config.FileDescriptors)
 	config.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
@@ -119,14 +123,15 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *service.Config {
 	config.Clock = clock
 	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	config.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	return config
 }
 
-func getIID(t *testing.T) imds.InstanceIdentityDocument {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+func getIID(ctx context.Context, t *testing.T) imds.InstanceIdentityDocument {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	require.NoError(t, err)
 	imdsClient := imds.NewFromConfig(cfg)
-	output, err := imdsClient.GetInstanceIdentityDocument(context.TODO(), nil)
+	output, err := imdsClient.GetInstanceIdentityDocument(ctx, nil)
 	require.NoError(t, err)
 	return output.InstanceIdentityDocument
 }
@@ -150,9 +155,10 @@ func TestEC2NodeJoin(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_EC2") == "" {
 		t.Skipf("Skipping TestEC2NodeJoin because TELEPORT_TEST_EC2 is not set")
 	}
+	ctx := context.Background()
 
 	// fetch the IID to create a token which will match this instance
-	iid := getIID(t)
+	iid := getIID(ctx, t)
 
 	tokenName := "test_token"
 	token, err := types.NewProvisionTokenFromSpec(
@@ -182,11 +188,11 @@ func TestEC2NodeJoin(t *testing.T) {
 	authServer := authSvc.GetAuthServer()
 	authServer.SetClock(clock)
 
-	err = authServer.UpsertToken(context.Background(), token)
+	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
 
 	// sanity check there are no nodes to start with
-	nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, nodes)
 
@@ -202,7 +208,7 @@ func TestEC2NodeJoin(t *testing.T) {
 
 	// the node should eventually join the cluster and heartbeat
 	require.Eventually(t, func() bool {
-		nodes, err := authServer.GetNodes(context.Background(), apidefaults.Namespace)
+		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(t, err)
 		return len(nodes) > 0
 	}, time.Minute, time.Second, "waiting for node to join cluster")
@@ -331,7 +337,7 @@ func TestEC2Labels(t *testing.T) {
 			"poll_stream_period": 50 * time.Millisecond,
 		},
 	}
-	tconf := service.MakeDefaultConfig()
+	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
@@ -347,31 +353,31 @@ func TestEC2Labels(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
-	appConf := service.App{
+	appConf := servicecfg.App{
 		Name: "test-app",
 		URI:  "app.example.com",
 	}
 
 	tconf.Apps.Enabled = true
-	tconf.Apps.Apps = []service.App{appConf}
+	tconf.Apps.Apps = []servicecfg.App{appConf}
 
-	dbConfig := service.Database{
+	dbConfig := servicecfg.Database{
 		Name:     "test-db",
 		Protocol: "postgres",
 		URI:      "postgres://somewhere.example.com",
 	}
 	tconf.Databases.Enabled = true
-	tconf.Databases.Databases = []service.Database{dbConfig}
+	tconf.Databases.Databases = []servicecfg.Database{dbConfig}
 
 	helpers.EnableKubernetesService(t, tconf)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			"Name": "my-instance",
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })
@@ -451,7 +457,7 @@ func TestEC2Hostname(t *testing.T) {
 			"poll_stream_period": 50 * time.Millisecond,
 		},
 	}
-	tconf := service.MakeDefaultConfig()
+	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
@@ -466,13 +472,13 @@ func TestEC2Hostname(t *testing.T) {
 	tconf.SSH.Enabled = true
 	tconf.SSH.Addr.Addr = helpers.NewListener(t, service.ListenerNodeSSH, &tconf.FileDescriptors)
 
-	imClient := &mockIMDSClient{
+	tconf.InstanceMetadataClient = &mockIMDSClient{
 		tags: map[string]string{
 			types.CloudHostnameTag: teleportHostname,
 		},
 	}
 
-	proc, err := service.NewTeleport(tconf, service.WithIMDSClient(imClient))
+	proc, err := service.NewTeleport(tconf)
 	require.NoError(t, err)
 	require.NoError(t, proc.Start())
 	t.Cleanup(func() { require.NoError(t, proc.Close()) })

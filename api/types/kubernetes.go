@@ -18,11 +18,12 @@ package types
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/utils"
 )
@@ -194,6 +195,17 @@ func (k *KubernetesClusterV3) SetName(name string) {
 	k.Metadata.Name = name
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesClusterV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := k.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetStaticLabels returns the static labels.
 func (k *KubernetesClusterV3) GetStaticLabels() map[string]string {
 	return k.Metadata.Labels
@@ -274,23 +286,17 @@ func (k *KubernetesClusterV3) SetGCPConfig(cfg KubeGCP) {
 
 // IsAzure indentifies if the KubeCluster contains Azure details.
 func (k *KubernetesClusterV3) IsAzure() bool {
-	// on protobuf default values are not encoded.
-	// the empty structure returns no storage.
-	return k.Spec.Azure.Size() != 0
+	return !protoKnownFieldsEqual(&k.Spec.Azure, &KubeAzure{})
 }
 
 // IsAWS indentifies if the KubeCluster contains AWS details.
 func (k *KubernetesClusterV3) IsAWS() bool {
-	// on protobuf default values are not encoded.
-	// the empty structure returns no storage.
-	return k.Spec.AWS.Size() != 0
+	return !protoKnownFieldsEqual(&k.Spec.AWS, &KubeAWS{})
 }
 
 // IsGCP indentifies if the KubeCluster contains GCP details.
 func (k *KubernetesClusterV3) IsGCP() bool {
-	// on protobuf default values are not encoded.
-	// the empty structure returns no storage.
-	return k.Spec.GCP.Size() != 0
+	return !protoKnownFieldsEqual(&k.Spec.GCP, &KubeGCP{})
 }
 
 // IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
@@ -306,7 +312,7 @@ func (k *KubernetesClusterV3) String() string {
 
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
-	return proto.Clone(k).(*KubernetesClusterV3)
+	return utils.CloneProtoMsg(k)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -322,6 +328,12 @@ func (k *KubernetesClusterV3) setStaticFields() {
 	k.Version = V3
 }
 
+// validKubeClusterName filters the allowed characters in kubernetes cluster
+// names. We need this because cluster names are used for cert filenames on the
+// client side, in the ~/.tsh directory. Restricting characters helps with
+// sneaky cluster names being used for client directory traversal and exploits.
+var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	k.setStaticFields()
@@ -334,11 +346,19 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if !validKubeClusterName.MatchString(k.Metadata.Name) {
+		return trace.BadParameter("invalid kubernetes cluster name: %q", k.Metadata.Name)
+	}
+
 	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
 		return trace.Wrap(err)
 	}
 
 	if err := k.Spec.AWS.CheckAndSetDefaults(); err != nil && k.IsAWS() {
+		return trace.Wrap(err)
+	}
+
+	if err := k.Spec.GCP.CheckAndSetDefaults(); err != nil && k.IsGCP() {
 		return trace.Wrap(err)
 	}
 
@@ -372,6 +392,22 @@ func (k KubeAWS) CheckAndSetDefaults() error {
 
 	if len(k.AccountID) == 0 {
 		return trace.BadParameter("invalid AWS AccountID")
+	}
+
+	return nil
+}
+
+func (k KubeGCP) CheckAndSetDefaults() error {
+	if len(k.Location) == 0 {
+		return trace.BadParameter("invalid GCP Location")
+	}
+
+	if len(k.ProjectID) == 0 {
+		return trace.BadParameter("invalid GCP ProjectID")
+	}
+
+	if len(k.Name) == 0 {
+		return trace.BadParameter("invalid GCP Name")
 	}
 
 	return nil
@@ -467,4 +503,212 @@ func DeduplicateKubeClusters(kubeclusters []KubeCluster) []KubeCluster {
 	}
 
 	return result
+}
+
+var _ ResourceWithLabels = (*KubernetesResourceV1)(nil)
+
+// NewKubernetesPodV1 creates a new kubernetes resource with kind "pod".
+func NewKubernetesPodV1(meta Metadata, spec KubernetesResourceSpecV1) (*KubernetesResourceV1, error) {
+	pod := &KubernetesResourceV1{
+		Kind:     KindKubePod,
+		Metadata: meta,
+		Spec:     spec,
+	}
+
+	if err := pod.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pod, nil
+}
+
+// NewKubernetesResourceV1 creates a new kubernetes resource .
+func NewKubernetesResourceV1(kind string, meta Metadata, spec KubernetesResourceSpecV1) (*KubernetesResourceV1, error) {
+	resource := &KubernetesResourceV1{
+		Kind:     kind,
+		Metadata: meta,
+		Spec:     spec,
+	}
+	if err := resource.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resource, nil
+}
+
+// GetKind returns resource kind.
+func (k *KubernetesResourceV1) GetKind() string {
+	return k.Kind
+}
+
+// GetSubKind returns resource subkind.
+func (k *KubernetesResourceV1) GetSubKind() string {
+	return k.SubKind
+}
+
+// GetVersion returns resource version.
+func (k *KubernetesResourceV1) GetVersion() string {
+	return k.Version
+}
+
+// GetMetadata returns object metadata.
+func (k *KubernetesResourceV1) GetMetadata() Metadata {
+	return k.Metadata
+}
+
+// SetSubKind sets resource subkind.
+func (k *KubernetesResourceV1) SetSubKind(subKind string) {
+	k.SubKind = subKind
+}
+
+// GetName returns the name of the resource.
+func (k *KubernetesResourceV1) GetName() string {
+	return k.Metadata.GetName()
+}
+
+// SetName sets the name of the resource.
+func (k *KubernetesResourceV1) SetName(name string) {
+	k.Metadata.SetName(name)
+}
+
+// Expiry returns object expiry setting.
+func (k *KubernetesResourceV1) Expiry() time.Time {
+	return k.Metadata.Expiry()
+}
+
+// SetExpiry sets object expiry.
+func (k *KubernetesResourceV1) SetExpiry(expire time.Time) {
+	k.Metadata.SetExpiry(expire)
+}
+
+// GetResourceID returns resource ID.
+func (k *KubernetesResourceV1) GetResourceID() int64 {
+	return k.Metadata.ID
+}
+
+// SetResourceID sets resource ID.
+func (k *KubernetesResourceV1) SetResourceID(id int64) {
+	k.Metadata.ID = id
+}
+
+// CheckAndSetDefaults validates the Resource and sets any empty fields to
+// default values.
+func (k *KubernetesResourceV1) CheckAndSetDefaults() error {
+	k.setStaticFields()
+	if !slices.Contains(KubernetesResourcesKinds, k.Kind) {
+		return trace.BadParameter("invalid kind %q defined; allowed values: %v", k.Kind, KubernetesResourcesKinds)
+	}
+	if err := k.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(k.Spec.Namespace) == 0 {
+		return trace.BadParameter("missing kubernetes namespace")
+	}
+
+	return nil
+}
+
+// setStaticFields sets static resource header and metadata fields.
+func (k *KubernetesResourceV1) setStaticFields() {
+	k.Version = V1
+}
+
+// Origin returns the origin value of the resource.
+func (k *KubernetesResourceV1) Origin() string {
+	return k.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (k *KubernetesResourceV1) SetOrigin(origin string) {
+	k.Metadata.SetOrigin(origin)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesResourceV1) GetLabel(key string) (value string, ok bool) {
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns all resource's labels.
+func (k *KubernetesResourceV1) GetAllLabels() map[string]string {
+	return k.Metadata.Labels
+}
+
+// GetStaticLabels returns the resource's static labels.
+func (k *KubernetesResourceV1) GetStaticLabels() map[string]string {
+	return k.Metadata.Labels
+}
+
+// SetStaticLabels sets the resource's static labels.
+func (k *KubernetesResourceV1) SetStaticLabels(sl map[string]string) {
+	k.Metadata.Labels = sl
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (k *KubernetesResourceV1) MatchSearch(searchValues []string) bool {
+	fieldVals := append(utils.MapToStrings(k.GetAllLabels()), k.GetName(), k.Spec.Namespace)
+	return MatchSearch(fieldVals, searchValues, nil)
+}
+
+// KubeResources represents a list of Kubernetes resources.
+type KubeResources []*KubernetesResourceV1
+
+// Find returns Kubernetes resource with the specified name or nil if the resource
+// was not found.
+func (k KubeResources) Find(name string) *KubernetesResourceV1 {
+	for _, cluster := range k {
+		if cluster.GetName() == name {
+			return cluster
+		}
+	}
+	return nil
+}
+
+// ToMap returns these kubernetes resources as a map keyed by resource name.
+func (k KubeResources) ToMap() map[string]*KubernetesResourceV1 {
+	m := make(map[string]*KubernetesResourceV1)
+	for _, kubeCluster := range k {
+		m[kubeCluster.GetName()] = kubeCluster
+	}
+	return m
+}
+
+// Len returns the slice length.
+func (k KubeResources) Len() int { return len(k) }
+
+// Less compares Kubernetes resources by name.
+func (k KubeResources) Less(i, j int) bool {
+	return k[i].GetName() < k[j].GetName()
+}
+
+// Swap swaps two Kubernetes resources.
+func (k KubeResources) Swap(i, j int) { k[i], k[j] = k[j], k[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (k KubeResources) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(k, func(i, j int) bool {
+			return stringCompare(k[i].GetName(), k[j].GetName(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for kubernetes resources is not supported", sortBy.Field)
+	}
+
+	return nil
+}
+
+// AsResources returns as type resources with labels.
+func (k KubeResources) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(k))
+	for _, resource := range k {
+		resources = append(resources, ResourceWithLabels(resource))
+	}
+	return resources
 }

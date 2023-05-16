@@ -123,6 +123,22 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 	return sig, err
 }
 
+func getDeviceCredential() (*devicepb.DeviceCredential, error) {
+	var pubKeyC C.PublicKey
+	defer func() {
+		C.free(unsafe.Pointer(pubKeyC.id))
+		C.free(unsafe.Pointer(pubKeyC.pub_key))
+	}()
+
+	if res := C.DeviceKeyGet(&pubKeyC); res != 0 {
+		return nil, trace.Wrap(statusErrorFromC(res))
+	}
+
+	id := C.GoString(pubKeyC.id)
+	pubKeyRaw := C.GoBytes(unsafe.Pointer(pubKeyC.pub_key), C.int(pubKeyC.pub_key_len))
+	return pubKeyToCredential(id, pubKeyRaw)
+}
+
 func statusErrorFromC(res C.int32_t) error {
 	return &statusError{status: int32(res)}
 }

@@ -96,7 +96,7 @@ func Test_gcpGKEClient_ListClusters(t *testing.T) {
 			errValidation: require.NoError,
 		},
 		{
-			name: "list specifc region",
+			name: "list specific region",
 			fields: fields{
 				client: &fakeGKEClient{
 					clusters: clusters,

@@ -22,8 +22,10 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -41,26 +43,62 @@ var databaseAgentConfigurationTemplate = template.Must(template.New("").Funcs(da
 #
 version: v3
 teleport:
-  nodename: {{ .NodeName }}
-  data_dir: {{ .DataDir }}
-  proxy_server: {{ .ProxyServer }}
-  auth_token: {{ .AuthToken }}
+  nodename: "{{ .NodeName }}"
+  data_dir: "{{ .DataDir }}"
+  proxy_server: "{{ .ProxyServer }}"
+  auth_token: "{{ .AuthToken }}"
   {{- if .CAPins }}
   ca_pin:
   {{- range .CAPins }}
-  - {{ . }}
+  - "{{ . }}"
   {{- end }}
   {{- end }}
+
 db_service:
-  enabled: "yes"
-  # Matchers for database resources created with "tctl create" command.
-  # For more information: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  enabled: true
+
+  # Matchers for database resources created with "tctl create" command or by the discovery service.
+  # For more information about dynamic registration: https://goteleport.com/docs/database-access/guides/dynamic-registration/
+  {{- if .DynamicResourcesLabels }}
   resources:
+  {{- range $index, $resourceLabel := .DynamicResourcesLabels }}
   - labels:
-      "*": "*"
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .ElastiCacheDiscoveryRegions}}
+	{{- range $name, $value := $resourceLabel }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- else }}
+  #
+  # resources:
+  # - labels:
+  #     "env": "dev"
+  {{- end }}
+
   # Matchers for registering AWS-hosted databases.
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
   aws:
+  {{- else }}
+  # For more information about AWS auto-discovery:
+  # RDS/Aurora: https://goteleport.com/docs/database-access/guides/rds/
+  # RDS Proxy: https://goteleport.com/docs/database-access/guides/rdsproxy/
+  # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
+  # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
+  # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
+  #
+  # aws:
+  #   # Database types. Valid options are:
+  #   # 'rds' - discovers and registers AWS RDS and Aurora databases
+  #   # 'rdsproxy' - discovers and registers AWS RDS Proxy databases.
+  #   # 'redshift' - discovers and registers AWS Redshift databases.
+  #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
+  #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
+  #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
+  # - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+  #   # AWS regions to register databases from.
+  #   regions: ["us-west-1", "us-east-2"]
+  #   # AWS resource tags to match when registering databases.
+  #   tags:
+  #     "*": "*"
   {{- end }}
   {{- if .RDSDiscoveryRegions }}
   # RDS/Aurora databases auto-discovery.
@@ -69,11 +107,13 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RDSDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .RDSProxyDiscoveryRegions }}
   # RDS Proxies auto-discovery.
@@ -82,11 +122,13 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RDSProxyDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .RedshiftDiscoveryRegions }}
   # Redshift databases auto-discovery.
@@ -95,11 +137,28 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .RedshiftDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- if .RedshiftServerlessDiscoveryRegions }}
+  # Redshift Serverless databases auto-discovery.
+  # For more information about Redshift Serverless auto-discovery: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
+  - types: ["redshift-serverless"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .RedshiftServerlessDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .ElastiCacheDiscoveryRegions }}
   # ElastiCache databases auto-discovery.
@@ -108,11 +167,13 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .ElastiCacheDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if .MemoryDBDiscoveryRegions }}
   # MemoryDB databases auto-discovery.
@@ -121,15 +182,43 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .MemoryDBDiscoveryRegions }}
-    - {{ . }}
+    - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
-  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions}}
+
   # Matchers for registering Azure-hosted databases.
+  {{- if or .AzureMySQLDiscoveryRegions .AzurePostgresDiscoveryRegions .AzureRedisDiscoveryRegions .AzureSQLServerDiscoveryRegions }}
   azure:
+  {{- else }}
+  # For more information about Azure auto-discovery:
+  # MySQL/PostgreSQL: https://goteleport.com/docs/database-access/guides/azure-postgres-mysql/
+  # Redis: https://goteleport.com/docs/database-access/guides/azure-redis/
+  # SQL Server: https://goteleport.com/docs/database-access/guides/azure-sql-server-ad/
+  #
+  # azure:
+  #   # Database types. Valid options are:
+  #   # 'mysql' - discovers and registers Azure MySQL databases.
+  #   # 'postgres' - discovers and registers Azure PostgreSQL databases.
+  #   # 'redis' - discovers and registers Azure Cache for Redis databases.
+  #   # 'sqlserver' - discovers and registers Azure SQL Server databases.
+  # - types: ["mysql", "postgres", "redis", "sqlserver"]
+  #   # Azure regions to register databases from. Valid options are:
+  #   # '*' - discovers databases in all regions (default).
+  #   regions: ["eastus", "westus"]
+  #   # Azure subscription IDs to register databases from. Valid options are:
+  #   # '*' - discovers databases in all subscriptions (default).
+  #   subscriptions: ["11111111-2222-3333-4444-555555555555"]
+  #   # Azure resource groups to register databases from. Valid options are:
+  #   # '*' - discovers databases in all resource groups within configured subscription(s) (default).
+  #   resource_groups: ["group1", "group2"]
+  #   # Azure resource tags to match when registering databases.
+  #   tags:
+  #     "*": "*"
   {{- end }}
   {{- if or .AzureMySQLDiscoveryRegions }}
   # Azure MySQL databases auto-discovery.
@@ -137,12 +226,12 @@ db_service:
   - types: ["mysql"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -152,7 +241,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzurePostgresDiscoveryRegions }}
   # Azure Postgres databases auto-discovery.
@@ -160,12 +251,12 @@ db_service:
   - types: ["postgres"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -175,7 +266,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzureRedisDiscoveryRegions }}
   # Azure Cache For Redis databases auto-discovery.
@@ -183,12 +276,12 @@ db_service:
   - types: ["redis"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -198,7 +291,9 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
   {{- if or .AzureSQLServerDiscoveryRegions }}
   # Azure SQL server and Managed instances auto-discovery.
@@ -206,12 +301,12 @@ db_service:
   - types: ["sqlserver"]
     # Azure subscription IDs to match.
     subscriptions:
-    {{- range .DatabaseAzureSubscriptions }}
+    {{- range .AzureSubscriptions }}
     - "{{ . }}"
     {{- end }}
     # Azure resource groups to match.
     resource_groups:
-    {{- range .DatabaseAzureResourceGroups }}
+    {{- range .AzureResourceGroups }}
     - "{{ . }}"
     {{- end }}
     # Azure regions to register databases from.
@@ -221,47 +316,80 @@ db_service:
     {{- end }}
     # Azure resource tags to match when registering databases.
     tags:
-      "*": "*"
+    {{- range $name, $value := .AzureTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
   {{- end }}
+
   # Lists statically registered databases proxied by this agent.
-  {{- if .StaticDatabaseName }}
+  {{- if or .StaticDatabaseName .StaticDatabaseProtocol .StaticDatabaseStaticLabels .StaticDatabaseDynamicLabels }}
   databases:
-  - name: {{ .StaticDatabaseName }}
-    protocol: {{ .StaticDatabaseProtocol }}
-    uri: {{ .StaticDatabaseURI }}
+  - name: "{{ .StaticDatabaseName }}"
+    protocol: "{{ .StaticDatabaseProtocol }}"
+    {{- if .StaticDatabaseURI }}
+    uri: "{{ .StaticDatabaseURI }}"
+    {{- end}}
     {{- if .DatabaseCACertFile }}
     tls:
-      ca_cert_file: {{ .DatabaseCACertFile }}
+      ca_cert_file: "{{ .DatabaseCACertFile }}"
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSRedshiftClusterID }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
       {{- if .DatabaseAWSRegion }}
-      region: {{ .DatabaseAWSRegion }}
+      region: "{{ .DatabaseAWSRegion }}"
+      {{- end }}
+      {{- if .DatabaseAWSAccountID }}
+      account_id: "{{ .DatabaseAWSAccountID }}"
+      {{- end }}
+      {{- if .DatabaseAWSAssumeRoleARN }}
+      assume_role_arn: "{{ .DatabaseAWSAssumeRoleARN }}"
+      {{- end }}
+      {{- if .DatabaseAWSExternalID }}
+      external_id: "{{ .DatabaseAWSExternalID }}"
       {{- end }}
       {{- if .DatabaseAWSRedshiftClusterID }}
       redshift:
-        cluster_id: {{ .DatabaseAWSRedshiftClusterID }}
+        cluster_id: "{{ .DatabaseAWSRedshiftClusterID }}"
+      {{- end }}
+      {{- if or .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID }}
+      rds:
+        {{- if .DatabaseAWSRDSInstanceID }}
+        instance_id: "{{ .DatabaseAWSRDSInstanceID }}"
+        {{- end }}
+        {{- if .DatabaseAWSRDSClusterID }}
+        cluster_id: "{{ .DatabaseAWSRDSClusterID }}"
+        {{- end }}
+      {{- end }}
+      {{- if .DatabaseAWSElastiCacheGroupID }}
+      elasticache:
+        replication_group_id: "{{ .DatabaseAWSElastiCacheGroupID }}"
+      {{- end }}
+      {{- if .DatabaseAWSMemoryDBClusterName }}
+      memorydb:
+        cluster_name: "{{ .DatabaseAWSMemoryDBClusterName }}"
       {{- end }}
     {{- end }}
     {{- if or .DatabaseADDomain .DatabaseADSPN .DatabaseADKeytabFile }}
     ad:
       {{- if .DatabaseADKeytabFile }}
-      keytab_file: {{ .DatabaseADKeytabFile }}
+      keytab_file: "{{ .DatabaseADKeytabFile }}"
       {{- end }}
       {{- if .DatabaseADDomain }}
-      domain: {{ .DatabaseADDomain }}
+      domain: "{{ .DatabaseADDomain }}"
       {{- end }}
       {{- if .DatabaseADSPN }}
-      spn: {{ .DatabaseADSPN }}
+      spn: "{{ .DatabaseADSPN }}"
       {{- end }}
+      # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
+      krb5_file: "/etc/krb5.conf"
     {{- end }}
     {{- if or .DatabaseGCPProjectID .DatabaseGCPInstanceID }}
     gcp:
       {{- if .DatabaseGCPProjectID }}
-      project_id: {{ .DatabaseGCPProjectID }}
+      project_id: "{{ .DatabaseGCPProjectID }}"
       {{- end }}
       {{- if .DatabaseGCPInstanceID }}
-      instance_id: {{ .DatabaseGCPInstanceID }}
+      instance_id: "{{ .DatabaseGCPInstanceID }}"
       {{- end }}
     {{- end }}
     {{- if .StaticDatabaseStaticLabels }}
@@ -269,10 +397,11 @@ db_service:
     {{- range $name, $value := .StaticDatabaseStaticLabels }}
       "{{ $name }}": "{{ $value }}"
     {{- end }}
-    {{- if .StaticDatabaseStaticLabels }}
+    {{- end }}
+    {{- if .StaticDatabaseDynamicLabels }}
     dynamic_labels:
     {{- range $name, $label := .StaticDatabaseDynamicLabels }}
-    - name: {{ $name }}
+    - name: "{{ $name }}"
       period: "{{ $label.Period.Duration }}"
       command:
       {{- range $command := $label.Command }}
@@ -280,8 +409,8 @@ db_service:
       {{- end }}
     {{- end }}
     {{- end }}
-    {{- end }}
   {{- else }}
+  #
   # databases:
   # # RDS database static configuration.
   # # RDS/Aurora databases Auto-discovery reference: https://goteleport.com/docs/database-access/guides/rds/
@@ -367,6 +496,7 @@ db_service:
   #   # Database connection endpoint. Must be reachable from Database service.
   #   uri: database.example.com:5432
   {{- end }}
+
 auth_service:
   enabled: "no"
 ssh_service:
@@ -376,6 +506,10 @@ proxy_service:
 
 // DatabaseSampleFlags specifies configuration parameters for a database agent.
 type DatabaseSampleFlags struct {
+	// DynamicResourcesRawLabels is the "raw" list of labels for dynamic "resources".
+	DynamicResourcesRawLabels []string
+	// DynamicResourcesLabels is the list of labels for dynamic "resources".
+	DynamicResourcesLabels []map[string]string
 	// StaticDatabaseName static database name provided by the user.
 	StaticDatabaseName string
 	// StaticDatabaseProtocol static databse protocol provided by the user.
@@ -413,6 +547,14 @@ type DatabaseSampleFlags struct {
 	// AzureSQLServerDiscoveryRegions is a list of regions Azure auto-discovery is
 	// configured to discover Azure SQL servers and managed instances.
 	AzureSQLServerDiscoveryRegions []string
+	// AzureSubscriptions is a list of Azure subscriptions.
+	AzureSubscriptions []string
+	// AzureResourceGroups is a list of Azure resource groups.
+	AzureResourceGroups []string
+	// AzureTags is the list of the Azure resource tags used for Azure discoveries.
+	AzureTags map[string]string
+	// AzureRawTags is the "raw" list of Azure resource tags used for Azure discoveries.
+	AzureRawTags string
 	// RDSDiscoveryRegions is a list of regions the RDS auto-discovery is
 	// configured.
 	RDSDiscoveryRegions []string
@@ -422,18 +564,39 @@ type DatabaseSampleFlags struct {
 	// RedshiftDiscoveryRegions is a list of regions the Redshift
 	// auto-discovery is configured.
 	RedshiftDiscoveryRegions []string
+	// RedshiftServerlessDiscoveryRegions is a list of regions the Redshift
+	// Serverless auto-discovery is configured.
+	RedshiftServerlessDiscoveryRegions []string
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
+	// AWSTags is the list of the AWS resource tags used for AWS discoveries.
+	AWSTags map[string]string
+	// AWSRawTags is the "raw" list of AWS resource tags used for AWS discoveries.
+	AWSRawTags string
 	// DatabaseProtocols is a list of database protocols supported.
 	DatabaseProtocols []string
 	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
 	DatabaseAWSRegion string
+	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces or DynamoDB.
+	DatabaseAWSAccountID string
+	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
+	DatabaseAWSAssumeRoleARN string
+	// DatabaseAWSExternalID is an optional AWS database external ID, used when assuming roles.
+	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
 	DatabaseAWSRedshiftClusterID string
+	// DatabaseAWSRDSClusterID is the RDS Aurora cluster identifier.
+	DatabaseAWSRDSClusterID string
+	// DatabaseAWSRDSInstanceID is the RDS instance identifier.
+	DatabaseAWSRDSInstanceID string
+	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
+	DatabaseAWSElastiCacheGroupID string
+	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
+	DatabaseAWSMemoryDBClusterName string
 	// DatabaseADDomain is the Active Directory domain for authentication.
 	DatabaseADDomain string
 	// DatabaseADSPN is the database Service Principal Name.
@@ -446,15 +609,11 @@ type DatabaseSampleFlags struct {
 	DatabaseGCPInstanceID string
 	// DatabaseCACertFile is the database CA cert path.
 	DatabaseCACertFile string
-	// DatabaseAzureSubscriptions is a list of Azure subscriptions.
-	DatabaseAzureSubscriptions []string
-	// DatabaseAzureResourceGroups is a list of Azure resource groups.
-	DatabaseAzureResourceGroups []string
 }
 
 // CheckAndSetDefaults checks and sets default values for the flags.
 func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
-	conf := service.MakeDefaultConfig()
+	conf := servicecfg.MakeDefaultConfig()
 	f.DatabaseProtocols = defaults.DatabaseProtocols
 
 	if f.NodeName == "" {
@@ -464,24 +623,35 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 		f.DataDir = conf.DataDir
 	}
 
-	if f.StaticDatabaseName != "" || f.StaticDatabaseProtocol != "" || f.StaticDatabaseURI != "" {
-		if f.StaticDatabaseName == "" {
-			return trace.BadParameter("--name is required when configuring static database")
-		}
-		if f.StaticDatabaseProtocol == "" {
-			return trace.BadParameter("--protocol is required when configuring static database")
-		}
-		if f.StaticDatabaseURI == "" {
-			return trace.BadParameter("--uri is required when configuring static database")
-		}
+	var err error
+	if f.AWSTags, err = client.ParseLabelSpec(f.AWSRawTags); err != nil {
+		return trace.Wrap(err)
+	}
+	if f.AzureTags, err = client.ParseLabelSpec(f.AzureRawTags); err != nil {
+		return trace.Wrap(err)
+	}
 
-		if f.StaticDatabaseRawLabels != "" {
-			var err error
-			f.StaticDatabaseStaticLabels, f.StaticDatabaseDynamicLabels, err = parseLabels(f.StaticDatabaseRawLabels)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+	if len(f.AWSTags) == 0 {
+		f.AWSTags = map[string]string{types.Wildcard: types.Wildcard}
+	}
+	if len(f.AzureTags) == 0 {
+		f.AzureTags = map[string]string{types.Wildcard: types.Wildcard}
+	}
+
+	if f.StaticDatabaseRawLabels != "" {
+		f.StaticDatabaseStaticLabels, f.StaticDatabaseDynamicLabels, err = parseLabels(f.StaticDatabaseRawLabels)
+		if err != nil {
+			return trace.Wrap(err)
 		}
+	}
+
+	// Labels for "resources" section.
+	for i := range f.DynamicResourcesRawLabels {
+		labels, err := client.ParseLabelSpec(f.DynamicResourcesRawLabels[i])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		f.DynamicResourcesLabels = append(f.DynamicResourcesLabels, labels)
 	}
 
 	return nil
@@ -502,6 +672,16 @@ func MakeDatabaseAgentConfigString(flags DatabaseSampleFlags) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
+	// For consistent config checking, we parse the generated config and
+	// run checks on it to ensure that generated config has no errors.
+	fc, err := ReadConfig(bytes.NewBuffer(buf.Bytes()))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	cfg := servicecfg.MakeDefaultConfig()
+	if err = ApplyFileConfig(fc, cfg); err != nil {
+		return "", trace.Wrap(err)
+	}
 	return buf.String(), nil
 }
 

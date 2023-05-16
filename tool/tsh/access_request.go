@@ -18,17 +18,18 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -107,7 +108,7 @@ func onRequestList(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		if err := showRequestTable(reqs); err != nil {
+		if err := showRequestTable(cf, reqs); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON, teleport.YAML:
@@ -115,7 +116,7 @@ func onRequestList(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprint(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -155,7 +156,7 @@ func onRequestShow(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		err = printRequest(req)
+		err = printRequest(cf, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -164,7 +165,7 @@ func onRequestShow(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Println(out)
+		fmt.Fprint(cf.Stdout(), out)
 	default:
 		return trace.BadParameter("unsupported format %q", cf.Format)
 	}
@@ -182,7 +183,7 @@ func serializeAccessRequest(req types.AccessRequest, format string) (string, err
 	return string(out), trace.Wrap(err)
 }
 
-func printRequest(req types.AccessRequest) error {
+func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	reason := "[none]"
 	if r := req.GetRequestReason(); r != "" {
 		reason = fmt.Sprintf("%q", r)
@@ -212,7 +213,7 @@ func printRequest(req types.AccessRequest) error {
 	table.AddRow([]string{"Reviewers:", reviewers + " (suggested)"})
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -229,11 +230,11 @@ func printRequest(req types.AccessRequest) error {
 	}
 
 	printReviewBlock := func(title string, revs []types.AccessReview) error {
-		fmt.Println("------------------------------------------------")
-		fmt.Printf("%s:\n", title)
+		fmt.Fprint(cf.Stdout(), "------------------------------------------------")
+		fmt.Fprintf(cf.Stdout(), "%s:\n", title)
 
 		for _, rev := range revs {
-			fmt.Println("  ----------------------------------------------")
+			fmt.Fprint(cf.Stdout(), "  ----------------------------------------------")
 
 			revReason := "[none]"
 			if rev.Reason != "" {
@@ -243,7 +244,7 @@ func printRequest(req types.AccessRequest) error {
 			subTable := asciitable.MakeHeadlessTable(2)
 			subTable.AddRow([]string{"  Reviewer:", rev.Author})
 			subTable.AddRow([]string{"  Reason:", revReason})
-			_, err = subTable.AsBuffer().WriteTo(os.Stdout)
+			_, err = subTable.AsBuffer().WriteTo(cf.Stdout())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -263,7 +264,7 @@ func printRequest(req types.AccessRequest) error {
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "\nhint: %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "\nhint: %v\n", requestLoginHint)
 	return nil
 }
 
@@ -320,14 +321,14 @@ func onRequestReview(cf *CLIConf) error {
 	}
 
 	if s := req.GetState(); s.IsPending() || s == state {
-		fmt.Fprintf(os.Stderr, "Successfully submitted review.  Request state: %s\n", req.GetState())
+		fmt.Fprintf(cf.Stderr(), "Successfully submitted review.  Request state: %s\n", req.GetState())
 	} else {
-		fmt.Fprintf(os.Stderr, "Warning: ineffectual review. Request state: %s\n", req.GetState())
+		fmt.Fprintf(cf.Stderr(), "Warning: ineffectual review. Request state: %s\n", req.GetState())
 	}
 	return nil
 }
 
-func showRequestTable(reqs []types.AccessRequest) error {
+func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	sort.Slice(reqs, func(i, j int) bool {
 		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
 	})
@@ -341,6 +342,8 @@ func showRequestTable(reqs []types.AccessRequest) error {
 	table.AddFootnote("[+]",
 		"Requested resources truncated, use `tsh request show <request-id>` to view the full list")
 	table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+	table.AddColumn(asciitable.Column{Title: "Request TTL"})
+	table.AddColumn(asciitable.Column{Title: "Session TTL"})
 	table.AddColumn(asciitable.Column{Title: "Status"})
 	now := time.Now()
 	for _, req := range reqs {
@@ -357,13 +360,15 @@ func showRequestTable(reqs []types.AccessRequest) error {
 			strings.Join(req.GetRoles(), ","),
 			resourceIDsString,
 			req.GetCreationTime().UTC().Format(time.RFC822),
+			time.Until(req.Expiry()).Round(time.Minute).String(),
+			time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
 			req.GetState().String(),
 		})
 	}
-	_, err := table.AsBuffer().WriteTo(os.Stdout)
+	_, err := table.AsBuffer().WriteTo(cf.Stdout())
 
-	fmt.Fprintf(os.Stdout, "\nhint: use 'tsh request show <request-id>' for additional details\n")
-	fmt.Fprintf(os.Stdout, "      %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "\nhint: use 'tsh request show <request-id>' for additional details\n")
+	fmt.Fprintf(cf.Stdout(), "      %v\n", requestLoginHint)
 	return trace.Wrap(err)
 }
 
@@ -373,64 +378,125 @@ func onRequestSearch(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxyClient, err := tc.ConnectToProxy(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
+	// If KubeCluster not provided try to read it from kubeconfig.
+	if cf.KubernetesCluster == "" {
+		cf.KubernetesCluster = selectedKubeCluster(tc.SiteName)
 	}
-	defer proxyClient.Close()
-
-	authClient := proxyClient.CurrentCluster()
-
-	req := proto.ListResourcesRequest{
-		ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
-		Labels:              tc.Labels,
-		PredicateExpression: cf.PredicateExpression,
-		SearchKeywords:      tc.SearchKeywords,
-		UseSearchAsRoles:    true,
+	if cf.ResourceKind == types.KindKubePod && cf.KubernetesCluster == "" {
+		return trace.BadParameter("when searching for Pods, --kube-cluster cannot be empty")
 	}
-
-	results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
-	if err != nil {
-		return trace.Wrap(err)
+	// if --all-namespaces flag was provided we search in every namespace.
+	// This means sending an empty namespace to the ListResources API.
+	if cf.kubeAllNamespaces {
+		cf.kubeNamespace = ""
 	}
 
 	var resources types.ResourcesWithLabels
-	for _, result := range results {
-		leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+	var tableColumns []string
+	switch {
+	case slices.Contains(types.KubernetesResourcesKinds, cf.ResourceKind):
+		proxyGRPCClient, err := tc.NewKubernetesServiceClient(cf.Context, tc.SiteName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, leafResources...)
+		req := kubeproto.ListKubernetesResourcesRequest{
+			ResourceType:        cf.ResourceKind,
+			Labels:              tc.Labels,
+			PredicateExpression: cf.PredicateExpression,
+			SearchKeywords:      tc.SearchKeywords,
+			UseSearchAsRoles:    true,
+			KubernetesCluster:   cf.KubernetesCluster,
+			KubernetesNamespace: cf.kubeNamespace,
+			TeleportCluster:     tc.SiteName,
+		}
+
+		resources, err = client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tableColumns = []string{"Name", "Namespace", "Labels", "Resource ID"}
+	default:
+		// For all other resources, we need to connect to the auth server.
+		proxyClient, err := tc.ConnectToProxy(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient := proxyClient.CurrentCluster()
+
+		req := proto.ListResourcesRequest{
+			ResourceType:        services.MapResourceKindToListResourcesType(cf.ResourceKind),
+			Labels:              tc.Labels,
+			PredicateExpression: cf.PredicateExpression,
+			SearchKeywords:      tc.SearchKeywords,
+			UseSearchAsRoles:    true,
+		}
+
+		results, err := client.GetResourcesWithFilters(cf.Context, authClient, req)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, result := range results {
+			leafResources, err := services.MapListResourcesResultToLeafResource(result, cf.ResourceKind)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			resources = append(resources, leafResources...)
+		}
+		tableColumns = []string{"Name", "Hostname", "Labels", "Resource ID"}
 	}
 
 	var rows [][]string
 	var resourceIDs []string
 	for _, resource := range resources {
-		resourceID := types.ResourceIDToString(types.ResourceID{
-			ClusterName: proxyClient.ClusterName(),
-			Kind:        resource.GetKind(),
-			Name:        resource.GetName(),
-		})
-		resourceIDs = append(resourceIDs, resourceID)
-		hostName := ""
-		if r, ok := resource.(interface{ GetHostname() string }); ok {
-			hostName = r.GetHostname()
+		var row []string
+		switch r := resource.(type) {
+		case *types.KubernetesResourceV1:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName:     tc.SiteName,
+				Kind:            resource.GetKind(),
+				Name:            cf.KubernetesCluster,
+				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+
+			row = []string{
+				resource.GetName(),
+				r.Spec.Namespace,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
+
+		default:
+			resourceID := types.ResourceIDToString(types.ResourceID{
+				ClusterName: tc.SiteName,
+				Kind:        resource.GetKind(),
+				Name:        resource.GetName(),
+			})
+			resourceIDs = append(resourceIDs, resourceID)
+			hostName := ""
+			if r, ok := resource.(interface{ GetHostname() string }); ok {
+				hostName = r.GetHostname()
+			}
+			row = []string{
+				resource.GetName(),
+				hostName,
+				sortedLabels(resource.GetAllLabels()),
+				resourceID,
+			}
 		}
-		rows = append(rows, []string{
-			resource.GetName(),
-			hostName,
-			sortedLabels(resource.GetAllLabels()),
-			resourceID,
-		})
+		rows = append(rows, row)
 	}
-	table := asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Hostname", "Labels", "Resource ID"}, rows, "Labels")
-	if _, err := table.AsBuffer().WriteTo(os.Stdout); err != nil {
+	table := asciitable.MakeTableWithTruncatedColumn(tableColumns, rows, "Labels")
+	if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	if len(resourceIDs) > 0 {
 		resourcesStr := strings.Join(resourceIDs, " --resource ")
-		fmt.Fprintf(os.Stdout, `
+		fmt.Fprintf(cf.Stdout(), `
 To request access to these resources, run
 > tsh request create --resource %s \
     --reason <request reason>
@@ -448,9 +514,9 @@ func onRequestDrop(cf *CLIConf) error {
 	}
 
 	if len(cf.RequestIDs) == 1 && cf.RequestIDs[0] == "*" {
-		fmt.Fprintf(os.Stdout, "Dropping all active access requests...\n\n")
+		fmt.Fprintf(cf.Stdout(), "Dropping all active access requests...\n\n")
 	} else {
-		fmt.Fprintf(os.Stdout, "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
+		fmt.Fprintf(cf.Stdout(), "Dropping access request(s): %s...\n\n", strings.Join(cf.RequestIDs, ", "))
 	}
 	if err := reissueWithRequests(cf, tc, nil /*newRequests*/, cf.RequestIDs); err != nil {
 		return trace.Wrap(err)

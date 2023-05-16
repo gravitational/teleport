@@ -62,6 +62,7 @@ type TestModules struct {
 func SetTestModules(t *testing.T, testModules *TestModules) {
 	defaultModules := GetModules()
 	t.Cleanup(func() { SetModules(defaultModules) })
+	t.Setenv("TELEPORT_TEST_NOT_SAFE_FOR_PARALLEL", "true")
 	SetModules(testModules)
 }
 

@@ -80,8 +80,8 @@ func (s *WindowsService) startDesktopDiscovery() error {
 
 func (s *WindowsService) ldapSearchFilter() string {
 	var filters []string
-	filters = append(filters, fmt.Sprintf("(objectClass=%s)", windows.ComputerClass))
-	filters = append(filters, fmt.Sprintf("(!(objectClass=%s))", windows.GMSAClass))
+	filters = append(filters, fmt.Sprintf("(%s=%s)", windows.AttrObjectClass, windows.ClassComputer))
+	filters = append(filters, fmt.Sprintf("(!(%s=%s))", windows.AttrObjectClass, windows.ClassGMSA))
 	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
 
 	return windows.CombineLDAPFilters(filters)
@@ -193,7 +193,9 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (ad
 	if err == nil && len(addrs) > 0 {
 		return addrs, nil
 	}
-
+	if s.dnsResolver == nil {
+		return nil, trace.NewAggregate(err, trace.Errorf("DNS lookup for %v failed and there's no LDAP server to fallback to", hostname))
+	}
 	s.cfg.Log.WithError(err).Debugf("DNS lookup for %v failed, falling back to LDAP server", hostname)
 	return s.dnsResolver.LookupHost(ctx, hostname)
 }

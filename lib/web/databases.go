@@ -18,7 +18,10 @@ package web
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 
@@ -32,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/web/scripts"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -86,30 +90,7 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	labels := make(map[string]string)
-	for _, label := range req.Labels {
-		labels[label.Name] = label.Value
-	}
-
-	dbSpec := types.DatabaseSpecV3{
-		Protocol: req.Protocol,
-		URI:      req.URI,
-	}
-
-	if req.AWSRDS != nil {
-		dbSpec.AWS = types.AWS{
-			AccountID: req.AWSRDS.AccountID,
-			RDS: types.RDS{
-				ResourceID: req.AWSRDS.ResourceID,
-			},
-		}
-	}
-
-	database, err := types.NewDatabaseV3(
-		types.Metadata{
-			Name:   req.Name,
-			Labels: labels,
-		}, dbSpec)
+	database, err := getNewDatabaseResource(*req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,24 +101,55 @@ func (h *Handler) handleDatabaseCreate(w http.ResponseWriter, r *http.Request, p
 	}
 
 	if err := clt.CreateDatabase(r.Context(), database); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return nil, trace.AlreadyExists("failed to create database (%q already exists), please use another name", req.Name)
+		}
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeDatabase(database, nil /* dbUsers */, nil /* dbNames */), nil
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.MakeDatabase(database, dbUsers, dbNames), nil
 }
 
 // updateDatabaseRequest contains some updatable fields of a database resource.
 type updateDatabaseRequest struct {
-	CACert string `json:"ca_cert,omitempty"`
+	CACert *string    `json:"caCert,omitempty"`
+	Labels []ui.Label `json:"labels,omitempty"`
+	URI    string     `json:"uri,omitempty"`
+	AWSRDS *awsRDS    `json:"awsRds,omitempty"`
 }
 
 func (r *updateDatabaseRequest) checkAndSetDefaults() error {
-	if r.CACert == "" {
-		return trace.BadParameter("missing CA certificate data")
+	if r.CACert != nil {
+		if *r.CACert == "" {
+			return trace.BadParameter("missing CA certificate data")
+		}
+
+		if _, err := tlsutils.ParseCertificatePEM([]byte(*r.CACert)); err != nil {
+			return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
+		}
 	}
 
-	if _, err := tlsutils.ParseCertificatePEM([]byte(r.CACert)); err != nil {
-		return trace.BadParameter("could not parse provided CA as X.509 PEM certificate")
+	// These fields can't be empty if set.
+	if r.AWSRDS != nil {
+		if r.AWSRDS.ResourceID == "" {
+			return trace.BadParameter("missing aws rds field resource id")
+		}
+		if r.AWSRDS.AccountID == "" {
+			return trace.BadParameter("missing aws rds field account id")
+		}
+	}
+
+	if r.CACert == nil && r.AWSRDS == nil && r.Labels == nil && r.URI == "" {
+		return trace.BadParameter("missing fields to update the database")
 	}
 
 	return nil
@@ -169,7 +181,45 @@ func (h *Handler) handleDatabaseUpdate(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	database.SetCA(req.CACert)
+	savedOrNewCaCert := database.GetCA()
+	if req.CACert != nil {
+		savedOrNewCaCert = *req.CACert
+	}
+
+	savedOrNewAWSRDS := awsRDS{
+		AccountID:  database.GetAWS().AccountID,
+		ResourceID: database.GetAWS().RDS.ResourceID,
+	}
+	if req.AWSRDS != nil {
+		savedOrNewAWSRDS = awsRDS{
+			AccountID:  req.AWSRDS.AccountID,
+			ResourceID: req.AWSRDS.ResourceID,
+		}
+	}
+
+	savedOrNewURI := req.URI
+	if len(savedOrNewURI) == 0 {
+		savedOrNewURI = database.GetURI()
+	}
+
+	savedLabels := database.GetStaticLabels()
+
+	// Make a new database to reset the check and set defaulted fields.
+	database, err = getNewDatabaseResource(createDatabaseRequest{
+		Name:     databaseName,
+		Protocol: database.GetProtocol(),
+		URI:      savedOrNewURI,
+		Labels:   req.Labels,
+		AWSRDS:   &savedOrNewAWSRDS,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database.SetCA(savedOrNewCaCert)
+	if len(req.Labels) == 0 {
+		database.SetStaticLabels(savedLabels)
+	}
 
 	if err := clt.UpdateDatabase(r.Context(), database); err != nil {
 		return nil, trace.Wrap(err)
@@ -234,6 +284,76 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokenStr := p.ByName("token")
+	if tokenStr == "" {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	dbAddress := r.URL.Query().Get("uri")
+	if dbAddress == "" {
+		return "", trace.BadParameter("invalid database address")
+	}
+
+	// verify that the token exists
+	_, err := h.GetProxyClient().GetToken(r.Context(), tokenStr)
+	if err != nil {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	proxyServers, err := h.GetProxyClient().GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if len(proxyServers) == 0 {
+		return "", trace.NotFound("no proxy servers found")
+	}
+
+	clusterName, err := h.GetProxyClient().GetDomainName(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := h.GetProxyClient().GetCertAuthority(
+		r.Context(),
+		types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	caCRL, err := h.GetProxyClient().GenerateCertAuthorityCRL(r.Context(), types.DatabaseCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	err = scripts.DatabaseAccessSQLServerConfigureScript.Execute(w, scripts.DatabaseAccessSQLServerConfigureParams{
+		CACertPEM:       string(keyPair.Cert),
+		CACertSHA1:      fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		CACertBase64:    base64.StdEncoding.EncodeToString(createCertificateBlob(block.Bytes)),
+		CRLPEM:          string(encodeCRLPEM(caCRL)),
+		ProxyPublicAddr: proxyServers[0].GetPublicAddr(),
+		ProvisionToken:  tokenStr,
+		DBAddress:       dbAddress,
+	})
+
+	return nil, trace.Wrap(err)
+}
+
 // fetchDatabaseWithName fetch a database with provided database name.
 func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.Request, databaseName string) (types.Database, error) {
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -257,4 +377,46 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	default:
 		return servers[0].GetDatabase(), nil
 	}
+}
+
+func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error) {
+	labels := make(map[string]string)
+	for _, label := range req.Labels {
+		labels[label.Name] = label.Value
+	}
+
+	dbSpec := types.DatabaseSpecV3{
+		Protocol: req.Protocol,
+		URI:      req.URI,
+	}
+
+	if req.AWSRDS != nil {
+		dbSpec.AWS = types.AWS{
+			AccountID: req.AWSRDS.AccountID,
+			RDS: types.RDS{
+				ResourceID: req.AWSRDS.ResourceID,
+			},
+		}
+	}
+
+	database, err := types.NewDatabaseV3(
+		types.Metadata{
+			Name:   req.Name,
+			Labels: labels,
+		}, dbSpec)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	database.SetOrigin(types.OriginDynamic)
+
+	return database, nil
+}
+
+// encodeCRLPEM takes DER encoded CRL and encodes into PEM.
+func encodeCRLPEM(contents []byte) []byte {
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "X509 CRL",
+		Bytes: contents,
+	})
 }

@@ -150,11 +150,6 @@ func (k *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	return k.GenerateUserCertWithoutValidation(c)
 }
 
-// sourceAddress is a critical option that defines IP addresses (in CIDR notation)
-// from which this certificate is accepted for authentication.
-// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
-const sourceAddress = "source-address"
-
 // GenerateUserCertWithoutValidation generates a user ssh certificate with the
 // passed in parameters without validating them.
 func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([]byte, error) {
@@ -195,8 +190,8 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if !c.PreviousIdentityExpires.IsZero() {
 		cert.Permissions.Extensions[teleport.CertExtensionPreviousIdentityExpires] = c.PreviousIdentityExpires.Format(time.RFC3339)
 	}
-	if c.ClientIP != "" {
-		cert.Permissions.Extensions[teleport.CertExtensionClientIP] = c.ClientIP
+	if c.LoginIP != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionLoginIP] = c.LoginIP
 	}
 	if c.Impersonator != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionImpersonator] = c.Impersonator
@@ -219,8 +214,17 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 	if c.PrivateKeyPolicy != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionPrivateKeyPolicy] = string(c.PrivateKeyPolicy)
 	}
+	if devID := c.DeviceID; devID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceID] = devID
+	}
+	if assetTag := c.DeviceAssetTag; assetTag != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceAssetTag] = assetTag
+	}
+	if credID := c.DeviceCredentialID; credID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionDeviceCredentialID] = credID
+	}
 
-	if c.SourceIP != "" {
+	if c.PinnedIP != "" {
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
 		}
@@ -228,12 +232,12 @@ func (k *Keygen) GenerateUserCertWithoutValidation(c services.UserCertParams) ([
 			cert.CriticalOptions = make(map[string]string)
 		}
 		//IPv4, all bits matter
-		ip := c.SourceIP + "/32"
-		if strings.Contains(c.SourceIP, ":") {
+		ip := c.PinnedIP + "/32"
+		if strings.Contains(c.PinnedIP, ":") {
 			//IPv6
-			ip = c.SourceIP + "/128"
+			ip = c.PinnedIP + "/128"
 		}
-		cert.CriticalOptions[sourceAddress] = ip
+		cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress] = ip
 	}
 
 	for _, extension := range c.CertificateExtensions {

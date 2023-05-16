@@ -22,8 +22,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -34,24 +36,45 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindKubernetesCluster)
+	req, err := convertListResourcesRequest(r, types.KindKubernetesCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
+	page, err := client.GetResourcePage[types.KubeCluster](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	accessChecker, err := sctx.GetUserAccessChecker()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(clusters, accessChecker.Roles()),
+		Items:      ui.MakeKubeClusters(page.Resources, accessChecker.Roles()),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
+	}, nil
+}
+
+// clusterKubePodsGet returns a list of Kubernetes Pods in a form the
+// UI can present.
+func (h *Handler) clusterKubePodsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := sctx.NewKubernetesServiceClient(r.Context(), h.cfg.ProxyWebAddr.Addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := listKubeResources(r.Context(), clt, r.URL.Query(), site.GetName(), types.KindKubePod)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeKubeResources(resp.Resources, r.URL.Query().Get("kubeCluster")),
 		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		TotalCount: int(resp.TotalCount),
 	}, nil
 }
 
@@ -62,26 +85,36 @@ func (h *Handler) clusterDatabasesGet(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindDatabaseServer)
+	req, err := convertListResourcesRequest(r, types.KindDatabaseServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+	page, err := client.GetResourcePage[types.DatabaseServer](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Make a list of all proxied databases.
-	var databases []types.Database
-	for _, server := range servers {
+	databases := make([]types.Database, 0, len(page.Resources))
+	for _, server := range page.Resources {
 		databases = append(databases, server.GetDatabase())
 	}
 
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return listResourcesGetResponse{
-		Items:      ui.MakeDatabases(databases),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      ui.MakeDatabases(databases, dbUsers, dbNames),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -107,22 +140,36 @@ func (h *Handler) clusterDatabaseGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	dbNames, dbUsers, err := accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
+	dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
 	if err != nil {
-		// if NotFound error:
-		// This user cannot request database access, has no assigned database names or users
-		//
-		// Every other error should be reported upstream.
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		// We proceed with an empty list of DBUsers and DBNames
-		dbUsers = []string{}
-		dbNames = []string{}
+		return nil, trace.Wrap(err)
 	}
 
 	return ui.MakeDatabase(database, dbUsers, dbNames), nil
+}
+
+// clusterDatabaseServicesList returns a list of DatabaseServices (database agents) in a form the UI can present.
+func (h *Handler) clusterDatabaseServicesList(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := convertListResourcesRequest(r, types.KindDatabaseService)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, err := client.GetResourcePage[types.DatabaseService](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      ui.MakeDatabaseServices(page.Resources),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
+	}, nil
 }
 
 // clusterDesktopsGet returns a list of desktops in a form the UI can present.
@@ -132,20 +179,30 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktop)
+	req, err := convertListResourcesRequest(r, types.KindWindowsDesktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+	page, err := client.GetResourcePage[types.WindowsDesktop](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktops(windowsDesktops),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      uiDesktops,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -158,20 +215,20 @@ func (h *Handler) clusterDesktopServicesGet(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindWindowsDesktopService)
+	req, err := convertListResourcesRequest(r, types.KindWindowsDesktopService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	desktopServices, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktopServices()
+	page, err := client.GetResourcePage[types.WindowsDesktopService](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeDesktopServices(desktopServices),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		Items:      ui.MakeDesktopServices(page.Resources),
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -190,12 +247,23 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	if len(windowsDesktops) == 0 {
-		return nil, trace.NotFound("expected at least one desktop, got 0")
+		return nil, trace.NotFound("expected at least 1 desktop, got 0")
 	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// windowsDesktops may contain the same desktop multiple times
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
-	return ui.MakeDesktop(windowsDesktops[0]), nil
+	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker.Roles())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return uiDesktop, nil
 }
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
@@ -214,7 +282,6 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 		},
 		DesktopName: desktopName,
 	})
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,6 +311,25 @@ func (h *Handler) desktopIsActive(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return desktopIsActive{false}, nil
+}
+
+func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []string, dbUsers []string, err error) {
+	dbNames, dbUsers, err = accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
+	if err != nil {
+		// if NotFound error:
+		// This user cannot request database access, has no assigned database names or users
+		//
+		// Every other error should be reported upstream.
+		if !trace.IsNotFound(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		// We proceed with an empty list of DBUsers and DBNames
+		dbUsers = []string{}
+		dbNames = []string{}
+	}
+
+	return dbNames, dbUsers, nil
 }
 
 type desktopIsActive struct {

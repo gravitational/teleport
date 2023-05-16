@@ -102,7 +102,9 @@ func New(cfg Config) (*Memory, error) {
 			trace.Component: teleport.ComponentMemory,
 		}),
 		Config: cfg,
-		tree:   btree.New(cfg.BTreeDegree),
+		tree: btree.NewG(cfg.BTreeDegree, func(a, b *btreeItem) bool {
+			return a.Less(b)
+		}),
 		heap:   newMinHeap(),
 		cancel: cancel,
 		ctx:    ctx,
@@ -121,7 +123,7 @@ type Memory struct {
 	*log.Entry
 	Config
 	// tree is a BTree with items
-	tree *btree.BTree
+	tree *btree.BTreeG[*btreeItem]
 	// heap is a min heap with expiry records
 	heap *minHeap
 	// cancel is a function that cancels
@@ -160,7 +162,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	if m.tree.Get(&btreeItem{Item: i}) != nil {
+	if m.tree.Has(&btreeItem{Item: i}) {
 		return nil, trace.AlreadyExists("key %q already exists", string(i.Key))
 	}
 	event := backend.Event{
@@ -182,12 +184,11 @@ func (m *Memory) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	i := m.tree.Get(&btreeItem{Item: backend.Item{Key: key}})
-	if i == nil {
+	i, found := m.tree.Get(&btreeItem{Item: backend.Item{Key: key}})
+	if !found {
 		return nil, trace.NotFound("key %q is not found", string(key))
 	}
-	item := i.(*btreeItem).Item
-	return &item, nil
+	return &i.Item, nil
 }
 
 // Update updates item if it exists, or returns NotFound error
@@ -198,7 +199,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	if m.tree.Get(&btreeItem{Item: i}) == nil {
+	if !m.tree.Has(&btreeItem{Item: i}) {
 		return nil, trace.NotFound("key %q is not found", string(i.Key))
 	}
 	if !m.Mirror {
@@ -274,7 +275,7 @@ func (m *Memory) Delete(ctx context.Context, key []byte) error {
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	if m.tree.Get(&btreeItem{Item: backend.Item{Key: key}}) == nil {
+	if !m.tree.Has(&btreeItem{Item: backend.Item{Key: key}}) {
 		return trace.NotFound("key %q is not found", string(key))
 	}
 	event := backend.Event{
@@ -345,11 +346,11 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	i := m.tree.Get(&btreeItem{Item: backend.Item{Key: lease.Key}})
-	if i == nil {
+	i, found := m.tree.Get(&btreeItem{Item: backend.Item{Key: lease.Key}})
+	if !found {
 		return trace.NotFound("key %q is not found", string(lease.Key))
 	}
-	item := i.(*btreeItem).Item
+	item := i.Item
 	item.Expires = expires
 	if !m.Mirror {
 		// ID is updated on keep alive for consistency with other backends
@@ -380,11 +381,11 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 	m.Lock()
 	defer m.Unlock()
 	m.removeExpired()
-	i := m.tree.Get(&btreeItem{Item: expected})
-	if i == nil {
+	i, found := m.tree.Get(&btreeItem{Item: expected})
+	if !found {
 		return nil, trace.CompareFailed("key %q is not found", string(expected.Key))
 	}
-	existingItem := i.(*btreeItem).Item
+	existingItem := i.Item
 	if !bytes.Equal(existingItem.Value, expected.Value) {
 		return nil, trace.CompareFailed("current value does not match expected for %v", string(expected.Key))
 	}
@@ -413,8 +414,7 @@ func (m *Memory) generateID() int64 {
 
 func (m *Memory) getRange(ctx context.Context, startKey, endKey []byte, limit int) backend.GetResult {
 	var res backend.GetResult
-	m.tree.AscendRange(&btreeItem{Item: backend.Item{Key: startKey}}, &btreeItem{Item: backend.Item{Key: endKey}}, func(i btree.Item) bool {
-		item := i.(*btreeItem)
+	m.tree.AscendRange(&btreeItem{Item: backend.Item{Key: startKey}}, &btreeItem{Item: backend.Item{Key: endKey}}, func(item *btreeItem) bool {
 		res.Items = append(res.Items, item.Item)
 		if limit > 0 && len(res.Items) >= limit {
 			return false
@@ -477,10 +477,10 @@ func (m *Memory) processEvent(event backend.Event) {
 	switch event.Type {
 	case types.OpPut:
 		item := &btreeItem{Item: event.Item, index: -1}
-		treeItem := m.tree.Get(item)
+		treeItem, found := m.tree.Get(item)
 		var existingItem *btreeItem
-		if treeItem != nil {
-			existingItem = treeItem.(*btreeItem)
+		if found {
+			existingItem = treeItem
 		}
 
 		// new item is added, but it has not expired yet
@@ -492,13 +492,14 @@ func (m *Memory) processEvent(event backend.Event) {
 		}
 		m.tree.ReplaceOrInsert(item)
 	case types.OpDelete:
-		treeItem := m.tree.Get(&btreeItem{Item: event.Item})
-		if treeItem != nil {
-			item := treeItem.(*btreeItem)
-			m.tree.Delete(item)
-			if item.index >= 0 {
-				m.heap.RemoveEl(item)
-			}
+		item, found := m.tree.Get(&btreeItem{Item: event.Item})
+		if !found {
+			return
+		}
+
+		m.tree.Delete(item)
+		if item.index >= 0 {
+			m.heap.RemoveEl(item)
 		}
 	default:
 		// skip unsupported record

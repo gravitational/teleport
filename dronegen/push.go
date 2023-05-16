@@ -14,45 +14,24 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
-	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+	return pushCheckoutCommandsWithPath(b, "/go/src/github.com/gravitational/teleport")
+}
+
+func pushCheckoutCommandsWithPath(b buildType, checkoutPath string) []string {
 	var commands []string
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): remove /go/src/github.com/gravitational/webapps after webapps->teleport migration
-		commands = append(commands, `mkdir -p /go/src/github.com/gravitational/webapps`)
-	}
-
-	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
-
+	commands = append(commands, cloneRepoCommands(checkoutPath, "${DRONE_COMMIT_SHA}")...)
 	commands = append(commands,
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init webassets || true`,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
 		`ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts`,
 		`git submodule update --init e`,
-		// do a recursive submodule checkout to get both webassets and webassets/e
-		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-		`git submodule update --init --recursive webassets || true`,
 		`mkdir -pv /go/cache`,
-	)
-
-	if b.hasTeleportConnect() {
-		// TODO(zmb3): this can be removed after webapps migration
-		// clone webapps for the Teleport Connect Source code
-		commands = append(commands,
-			`cd /go/src/github.com/gravitational/webapps`,
-			`git clone https://github.com/gravitational/webapps.git .`,
-			`git checkout "$(/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)"`,
-			`git submodule update --init packages/webapps.e`,
-			`cd -`,
-		)
-	}
-
-	commands = append(commands,
 		`rm -f /root/.ssh/id_rsa`,
 	)
 
@@ -87,7 +66,7 @@ func pushBuildCommands(b buildType) []string {
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -97,10 +76,26 @@ func pushPipelines() []pipeline {
 		}
 	}
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", arch: "arm64"},
+		trigger:      triggerPush,
+		pipelineName: "push-build-linux-arm64",
+		workflows: []ghaWorkflow{
+			{
+				name:              "release-linux-arm64.yml",
+				timeout:           150 * time.Minute,
+				slackOnError:      true,
+				srcRefVar:         "DRONE_COMMIT",
+				ref:               "${DRONE_BRANCH}",
+				shouldTagWorkflow: true,
+				inputs:            map[string]string{"upload-artifacts": "false"},
+			},
+		},
+	}))
+
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
 
-	ps = append(ps, darwinPushPipeline())
 	ps = append(ps, windowsPushPipeline())
 	return ps
 }
@@ -137,7 +132,7 @@ func pushPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeDocker}
+	p.Volumes = []volume{volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -145,6 +140,7 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -154,28 +150,30 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    pushBuildCommands(b),
 		},
-		{
-			Name:  "Send Slack notification",
-			Image: "plugins/slack",
-			Settings: map[string]value{
-				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-			},
-			Template: []string{
-				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
-` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
-*Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
-Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-<{{ build.link }}|Visit Drone build page ↗>
-`,
-			},
-			When: &condition{Status: []string{"failure"}},
-		},
+		sendErrorToSlackStep(),
 	}
 	return p
+}
+
+func sendErrorToSlackStep() step {
+	return step{
+		Name:  "Send Slack notification",
+		Image: "plugins/slack:1.4.1",
+		Settings: map[string]value{
+			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+			"template": {
+				raw: "*✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>\n" +
+					"Author: <https://github.com/{{ build.author }}|{{ build.author }}> " +
+					"Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> " +
+					"Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> " +
+					"Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>",
+			},
+		},
+		When: &condition{Status: []string{"failure"}},
+	}
 }

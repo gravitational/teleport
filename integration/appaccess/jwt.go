@@ -29,7 +29,7 @@ import (
 
 func verifyJWT(t *testing.T, pack *Pack, token, appURI string) {
 	// Get and unmarshal JWKs
-	status, body, err := pack.MakeRequest("", http.MethodGet, "/.well-known/jwks.json")
+	status, body, err := pack.MakeRequest(nil, http.MethodGet, "/.well-known/jwks.json")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	var jwks web.JWKSResponse

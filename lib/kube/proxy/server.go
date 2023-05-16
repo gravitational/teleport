@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -85,6 +87,15 @@ type TLSServerConfig struct {
 	// If StaticLabels and CloudLabels define labels with the same key,
 	// StaticLabels take precedence over CloudLabels.
 	CloudLabels labels.Importer
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
+	// KubernetesServersWatcher is used by the kube proxy to watch for changes in the
+	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
+	// which holds the list of kubernetes_services connected to the proxy for a given
+	// kubernetes cluster name. Proxy uses this map to route requests to the correct
+	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
+	// unmarshal calls followed by filtering and to improve memory usage.
+	KubernetesServersWatcher *services.KubeServerWatcher
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -108,14 +119,41 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
+
+	if err := c.validateLabelKeys(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	switch c.KubeServiceType {
+	case ProxyService, LegacyProxyService:
+		if c.KubernetesServersWatcher == nil {
+			return trace.BadParameter("missing parameter KubernetesServersWatcher")
+		}
+	}
+
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+	return nil
+}
+
+// validateLabelKeys checks that all labels keys are valid.
+// Dynamic labels are validated in labels.NewDynamicLabels.
+func (c *TLSServerConfig) validateLabelKeys() error {
+	for name := range c.StaticLabels {
+		if !types.IsValidLabelKey(name) {
+			return trace.BadParameter("invalid label key: %q", name)
+		}
 	}
 	return nil
 }
@@ -131,8 +169,8 @@ type TLSServer struct {
 	heartbeats   map[string]*srv.Heartbeat
 	closeContext context.Context
 	closeFunc    context.CancelFunc
-	// watcher monitors changes to kube cluster resources.
-	watcher *services.KubeClusterWatcher
+	// kubeClusterWatcher monitors changes to kube cluster resources.
+	kubeClusterWatcher *services.KubeClusterWatcher
 	// reconciler reconciles proxied kube clusters with kube_clusters resources.
 	reconciler *services.Reconciler
 	// monitoredKubeClusters contains all kube clusters the proxied kube_clusters are
@@ -169,12 +207,23 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
+	clustername, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   cfg.AccessPoint,
+		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		// EnableCredentialsForwarding is set to true to allow the proxy to forward
+		// the client identity to the target service using headers instead of TLS
+		// certificates. This is required for the kube service and leaf cluster proxy
+		// to be able to replace the client identity with the header payload when
+		// the request is forwarded from a Teleport Proxy.
+		EnableCredentialsForwarding: true,
 	}
 	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
@@ -187,8 +236,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -199,19 +253,34 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 	server.TLS.GetConfigForClient = server.GetConfigForClient
 	server.closeContext, server.closeFunc = context.WithCancel(cfg.Context)
+	// register into the forwarder the method to get kubernetes servers for a kube cluster.
+	server.fwd.getKubernetesServersForKubeCluster, err = server.getKubernetesServersForKubeClusterFunc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return server, nil
 }
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
 func (t *TLSServer) Serve(listener net.Listener) error {
+	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
-		Context:             t.Context,
-		Listener:            listener,
-		Clock:               t.Clock,
-		EnableProxyProtocol: true,
-		ID:                  t.Component,
+		Context:                     t.Context,
+		Listener:                    listener,
+		Clock:                       t.Clock,
+		EnableExternalProxyProtocol: true,
+		ID:                          t.Component,
+		CertAuthorityGetter:         caGetter,
+		LocalClusterName:            t.ClusterName,
+		// Increases deadline until the agent receives the first byte to 10s.
+		// It's required to accommodate setups with high latency and where the time
+		// between the TCP being accepted and the time for the first byte is longer
+		// than the default value -  1s.
+		ReadDeadline: 10 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -242,8 +311,29 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	// Initialize watcher that will be dynamically (un-)registering
 	// proxied clusters based on the kube_cluster resources.
-	if t.watcher, err = t.startResourceWatcher(t.closeContext); err != nil {
+	// This watcher is only started for the kube_service if a resource watcher
+	// is configured.
+	kubeClusterWatcher, err := t.startKubeClusterResourceWatcher(t.closeContext)
+	if err != nil {
 		return trace.Wrap(err)
+	}
+	t.mu.Lock()
+	t.kubeClusterWatcher = kubeClusterWatcher
+	t.mu.Unlock()
+
+	// kubeServerWatcher is used by the kube proxy to watch for changes in the
+	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
+	// which holds the list of kubernetes_services connected to the proxy for a given
+	// kubernetes cluster name. Proxy uses this map to route requests to the correct
+	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
+	// unmarshal calls followed by filtering to improve memory usage.
+	if t.KubernetesServersWatcher != nil {
+		// Wait for the watcher to initialize before starting the server so that the
+		// proxy can start routing requests to the kubernetes_service instead of
+		// returning an error because the cache is not initialized.
+		if err := t.KubernetesServersWatcher.WaitInitialization(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return t.Server.Serve(tls.NewListener(mux.TLS(), t.TLS))
@@ -251,20 +341,45 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
+	return trace.Wrap(t.close(t.closeContext))
+}
+
+// Shutdown closes the server and cleans up all resources.
+func (t *TLSServer) Shutdown(ctx context.Context) error {
+	// TODO(tigrato): handle connections gracefully and wait for them to finish.
+	// This might be problematic because exec and port forwarding connections
+	// are long lived connections and if we wait for them to finish, we might
+	// end up waiting forever.
+	return trace.Wrap(t.close(ctx))
+}
+
+// close closes the server and cleans up all resources.
+func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
 	t.closeFunc()
 
+	t.mu.Lock()
+	kubeClusterWatcher := t.kubeClusterWatcher
+	t.mu.Unlock()
 	// Stop the kube_cluster resource watcher.
-	if t.watcher != nil {
-		t.watcher.Close()
+	if kubeClusterWatcher != nil {
+		kubeClusterWatcher.Close()
 	}
 
-	return trace.NewAggregate(errs...)
+	// Stop the kube_server resource watcher.
+	if t.KubernetesServersWatcher != nil {
+		t.KubernetesServersWatcher.Close()
+	}
+
+	t.mu.Lock()
+	listClose := t.listener.Close()
+	t.mu.Unlock()
+	return trace.NewAggregate(append(errs, listClose)...)
 }
 
 // GetConfigForClient is getting called on every connection
@@ -294,7 +409,7 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 		addr = t.listener.Addr().String()
 	}
 
-	cluster, err := t.getKubeClusterForHeartbeat(name)
+	cluster, err := t.getKubeClusterWithServiceLabels(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,12 +444,12 @@ func (t *TLSServer) getServerInfo(name string) (types.Resource, error) {
 	return srv, nil
 }
 
-// getKubeClusterForHeartbeat finds the kube cluster by name, strips the credentials,
+// getKubeClusterWithServiceLabels finds the kube cluster by name, strips the credentials,
 // replaces the cluster dynamic labels with their latest value available and updates
 // the cluster with the service dynamic and static labels.
 // We strip the Azure, AWS and Kubeconfig credentials so they are not leaked when
 // heartbeating the cluster.
-func (t *TLSServer) getKubeClusterForHeartbeat(name string) (*types.KubernetesClusterV3, error) {
+func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.KubernetesClusterV3, error) {
 	// it is safe do read from details since the structure is never updated.
 	// we replace the whole structure each time an update happens to a dynamic cluster.
 	details, err := t.fwd.findKubeDetailsByClusterName(name)
@@ -466,5 +581,48 @@ func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {
 		// if cluster and service define the same dynamic label key, service labels have precedence.
 		maps.Copy(dstDynLabels, serviceDynLabels)
 		cluster.SetDynamicLabels(dstDynLabels)
+	}
+}
+
+// getKubernetesServersForKubeClusterFunc returns a function that returns the kubernetes servers
+// for a given kube cluster depending on the type of service.
+func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNameFunc, error) {
+	switch t.KubeServiceType {
+	case KubeService:
+		return func(_ context.Context, name string) ([]types.KubeServer, error) {
+			// If this is a kube_service, we can just return the local kube servers.
+			kube, err := t.getKubeClusterWithServiceLabels(name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []types.KubeServer{srv}, nil
+		}, nil
+	case ProxyService:
+		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			servers, err := t.KubernetesServersWatcher.GetKubeServersByClusterName(ctx, name)
+			return servers, trace.Wrap(err)
+		}, nil
+	case LegacyProxyService:
+		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			// If this is a legacy kube proxy, then we need to return the local kube servers if
+			// the local server is proxying the target cluster, otherwise act like a proxy_service.
+			// and forward the request to the next proxy.
+			kube, err := t.getKubeClusterWithServiceLabels(name)
+			if err != nil {
+				servers, err := t.KubernetesServersWatcher.GetKubeServersByClusterName(ctx, name)
+				return servers, trace.Wrap(err)
+			}
+			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return []types.KubeServer{srv}, nil
+		}, nil
+	default:
+		return nil, trace.BadParameter("unknown kubernetes service type %q", t.KubeServiceType)
 	}
 }

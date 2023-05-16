@@ -7,7 +7,7 @@
 // capabilities of current browser implementations.
 //
 // REST-based Teleport APIs will make an effort to transmit or embed JSON
-// messages matching the github.com/duo-labs/webauthn reference implementation,
+// messages matching the github.com/go-webauthn/webauthn reference implementation,
 // to allow for easy browser integration. gRPC APIs are not meant for REST use
 // and thus make no such promises, although the correspondence should be
 // obvious.
@@ -40,7 +40,7 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // SessionData stored by the Relying Party during authentication ceremonies.
-// Mirrors https://pkg.go.dev/github.com/duo-labs/webauthn/webauthn#SessionData.
+// Mirrors https://pkg.go.dev/github.com/go-webauthn/webauthn/webauthn#SessionData.
 type SessionData struct {
 	// Raw challenge used for the ceremony.
 	Challenge []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`

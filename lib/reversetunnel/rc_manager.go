@@ -30,6 +30,7 @@ import (
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -82,6 +83,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -172,7 +175,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
+	wantTunnels, err := w.cfg.AccessPoint.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,6 +237,7 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		Cluster:         cluster,
 		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
 		IsRemoteCluster: true,
+		PROXYSigner:     cfg.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

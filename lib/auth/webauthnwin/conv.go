@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"unicode/utf16"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 )
 
@@ -172,7 +172,6 @@ func clientDataToCType(challenge, origin, cdType string) (*webauthnClientData, [
 		pbClientDataJSON: &jsonCD[0],
 		pwszHashAlgID:    algID,
 	}, jsonCD, nil
-
 }
 
 func credentialsExToCType(in []protocol.CredentialDescriptor) (*webauthnCredentialList, error) {

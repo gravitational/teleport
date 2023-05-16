@@ -1,9 +1,0 @@
-clusterName: test-custom-cluster
-chartMode: custom
-persistence:
-  enabled: true
-  existingClaimName: teleport-storage
-acme: true
-acmeEmail: test@email.com
-labels:
-  env: custom

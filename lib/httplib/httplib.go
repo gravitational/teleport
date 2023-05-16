@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -93,7 +94,7 @@ func MakeTracingHandler(h http.Handler, component string) http.Handler {
 		h.ServeHTTP(w, r)
 	}
 
-	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracing.HTTPHandlerFormatter))
+	return otelhttp.NewHandler(http.HandlerFunc(handler), component, otelhttp.WithSpanNameFormatter(tracehttp.HandlerFormatter))
 }
 
 // MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
@@ -138,15 +139,18 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 
 // WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
 func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	hanlderFn := MakeHandler(fn)
+	handlerFn := MakeHandler(fn)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		err := csrf.VerifyHTTPHeader(r)
-		if err != nil {
-			log.Warningf("unable to validate CSRF token %v", err)
-			trace.WriteError(w, trace.AccessDenied("access denied"))
-			return
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			errHeader := csrf.VerifyHTTPHeader(r)
+			errForm := csrf.VerifyFormField(r)
+			if errForm != nil && errHeader != nil {
+				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				trace.WriteError(w, trace.AccessDenied("access denied"))
+				return
+			}
 		}
-		hanlderFn(w, r, p)
+		handlerFn(w, r, p)
 	}
 }
 
@@ -245,4 +249,52 @@ func SafeRedirect(w http.ResponseWriter, r *http.Request, redirectURL string) er
 	}
 	http.Redirect(w, r, parsedURL.RequestURI(), http.StatusFound)
 	return nil
+}
+
+// ResponseStatusRecorder is an http.ResponseWriter that records the response status code.
+type ResponseStatusRecorder struct {
+	http.ResponseWriter
+	flusher http.Flusher
+	status  int
+}
+
+// NewResponseStatusRecorder makes and returns a ResponseStatusRecorder.
+func NewResponseStatusRecorder(w http.ResponseWriter) *ResponseStatusRecorder {
+	rec := &ResponseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
+}
+
+// WriteHeader sends an HTTP response header with the provided
+// status code and save the status code in the recorder.
+func (r *ResponseStatusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *ResponseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
+}
+
+// Status returns the recorded status after WriteHeader is called, or StatusOK if WriteHeader hasn't been called
+// explicitly.
+func (r *ResponseStatusRecorder) Status() int {
+	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
+	// explicitly called.
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
 }

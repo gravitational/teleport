@@ -33,6 +33,7 @@ import (
 type DefaultPrompt struct {
 	PINMessage                            string
 	FirstTouchMessage, SecondTouchMessage string
+	AcknowledgeTouchMessage               string
 	PromptCredentialMessage               string
 
 	ctx context.Context
@@ -49,6 +50,7 @@ func NewDefaultPrompt(ctx context.Context, out io.Writer) *DefaultPrompt {
 		PINMessage:              "Enter your security key PIN",
 		FirstTouchMessage:       "Tap your security key",
 		SecondTouchMessage:      "Tap your security key again to complete login",
+		AcknowledgeTouchMessage: "Detected security key tap",
 		PromptCredentialMessage: "Choose the user for login",
 		ctx:                     ctx,
 		out:                     out,
@@ -62,17 +64,22 @@ func (p *DefaultPrompt) PromptPIN() (string, error) {
 
 // PromptTouch prompts the user for a security key touch, using different
 // messages for first and second prompts. Error is always nil.
-func (p *DefaultPrompt) PromptTouch() error {
+func (p *DefaultPrompt) PromptTouch() (TouchAcknowledger, error) {
 	if p.count == 0 {
 		p.count++
 		if p.FirstTouchMessage != "" {
 			fmt.Fprintln(p.out, p.FirstTouchMessage)
 		}
-		return nil
+		return p.ackTouch, nil
 	}
 	if p.SecondTouchMessage != "" {
 		fmt.Fprintln(p.out, p.SecondTouchMessage)
 	}
+	return p.ackTouch, nil
+}
+
+func (p *DefaultPrompt) ackTouch() error {
+	fmt.Fprintln(p.out, p.AcknowledgeTouchMessage)
 	return nil
 }
 

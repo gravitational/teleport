@@ -46,7 +46,7 @@ func TestOnboardViaToken(t *testing.T) {
 
 	// Make and join a new bot instance.
 	const roleName = "dummy-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{})
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
 
@@ -113,7 +113,7 @@ func TestDatabaseRequest(t *testing.T) {
 
 	// Create a role to grant access to the database.
 	const roleName = "db-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			DatabaseLabels: types.Labels{
 				"*": utils.Strings{"*"},
@@ -148,8 +148,8 @@ func TestDatabaseRequest(t *testing.T) {
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
 	b._ident = ident
 
-	impersonatedIdent, err := b.generateImpersonatedIdentity(
-		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
+	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+		context.Background(), dest, []string{roleName},
 	)
 	require.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestAppRequest(t *testing.T) {
 
 	// Create a role to grant access to the app.
 	const roleName = "app-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV5{
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
 				"env": utils.Strings{"dev"},
@@ -225,8 +225,8 @@ func TestAppRequest(t *testing.T) {
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
 	b._ident = ident
 
-	impersonatedIdent, err := b.generateImpersonatedIdentity(
-		ctx, ident.X509Cert.NotAfter, dest, []string{roleName},
+	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
+		ctx, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 

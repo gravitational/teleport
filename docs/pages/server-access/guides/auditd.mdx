@@ -13,8 +13,7 @@ You can configure Teleport's SSH Service to integrate with the Linux Auditing Sy
 - A running Teleport Node. See the [Server Access Getting Started Guide](../getting-started.mdx) for  how to add a Node to your Teleport cluster. On the Node, `teleport` must be running as a systemd service with root permissions.
 - Linux kernel 2.6.6+ compiled with `CONFIG_AUDIT`. Most Linux distributions have this option enabled by default.
 - `auditctl` to check auditd status (optional).
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Check system configuration
 
@@ -36,6 +35,7 @@ backlog_wait_time 60000
 backlog_wait_time_actual 0
 loginuid_immutable 0 unlocked
 ```
+
 The first line `enabled 1` indicates that auditd is enabled, and Teleport will send events.
 
 All events are generated on a Teleport Node.

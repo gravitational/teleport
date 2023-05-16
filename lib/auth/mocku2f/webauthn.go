@@ -23,9 +23,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"

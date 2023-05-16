@@ -1,0 +1,14 @@
+kind: role
+spec:
+  allow:
+    # List of allowed SSH logins
+    logins:
+    - '{{internal.logins}}'
+    - osUser1
+    - osUser2
+    rules:
+    # Rule that allows users to define their own logins
+    - resources:
+      - user
+      verbs:
+      - update

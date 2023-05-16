@@ -17,8 +17,8 @@ limitations under the License.
 package webauthn
 
 import (
-	"github.com/duo-labs/webauthn/protocol"
-	wan "github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"

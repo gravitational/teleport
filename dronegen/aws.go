@@ -38,15 +38,6 @@ type kubernetesRoleSettings struct {
 	append       bool
 }
 
-// macRoleSettings contains the info necessary to assume an AWS role and save the credentials to a path that later steps can use
-type macRoleSettings struct {
-	awsRoleSettings
-	configPath string
-	name       string
-	profile    string
-	append     bool
-}
-
 // kuberentesS3Settings contains all info needed to download from S3 in a kubernetes pipeline
 type kubernetesS3Settings struct {
 	region       string
@@ -93,6 +84,7 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 	return step{
 		Name:  s.name,
 		Image: "amazon/aws-cli",
+		Pull:  "if-not-exists",
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
@@ -103,28 +95,12 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 	}
 }
 
-// macAssumeAwsRoleStep builds a step to assume an AWS role and save it to a host path that later steps can use
-func macAssumeAwsRoleStep(s macRoleSettings) step {
-	if s.name == "" {
-		s.name = "Assume AWS Role"
-	}
-	return step{
-		Name: s.name,
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":           s.awsAccessKeyID,
-			"AWS_SECRET_ACCESS_KEY":       s.awsSecretAccessKey,
-			"AWS_ROLE":                    s.role,
-			"AWS_SHARED_CREDENTIALS_FILE": value{raw: s.configPath},
-		},
-		Commands: assumeRoleCommands(s.profile, s.configPath, s.append),
-	}
-}
-
 // kubernetesUploadToS3Step generates an S3 upload step
 func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
 	return step{
 		Name:  "Upload to S3",
 		Image: "amazon/aws-cli",
+		Pull:  "if-not-exists",
 		Environment: map[string]value{
 			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			"AWS_REGION":    {raw: s.region},

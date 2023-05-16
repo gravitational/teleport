@@ -1,0 +1,20 @@
+replicaCount: 1
+sessionsPerAgent: 500
+
+webSessions: false
+
+tolerations:
+- key: "role"
+  operator: "Equal"
+  value: "agent"
+  effect: "NoSchedule"
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: role
+          operator: In
+          values:
+            - agent

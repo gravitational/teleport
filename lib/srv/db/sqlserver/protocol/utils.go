@@ -19,7 +19,7 @@ package protocol
 import (
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 func readUcs2(r io.Reader, numchars int) (string, error) {

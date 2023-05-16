@@ -90,7 +90,10 @@ func (tdpMFACodec) encode(chal *client.MFAAuthenticateChallenge, envelopeType st
 }
 
 func (tdpMFACodec) decode(buf []byte, envelopeType string) (*authproto.MFAAuthenticateResponse, error) {
-	if len(buf) == 0 || tdp.MessageType(buf[0]) != tdp.TypeMFA {
+	if len(buf) == 0 {
+		return nil, trace.BadParameter("empty MFA message received")
+	}
+	if tdp.MessageType(buf[0]) != tdp.TypeMFA {
 		return nil, trace.BadParameter("expected MFA message type %v, got %v", tdp.TypeMFA, buf[0])
 	}
 	msg, err := tdp.DecodeMFA(bytes.NewReader(buf[1:]))

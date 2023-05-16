@@ -145,6 +145,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindTrustedCluster, nil
 	case types.KindClusterAuthPreference, "cluster_authentication_preferences", "cap":
 		return types.KindClusterAuthPreference, nil
+	case types.KindUIConfig, "ui":
+		return types.KindUIConfig, nil
 	case types.KindClusterNetworkingConfig, "networking_config", "networking", "net_config", "netconfig":
 		return types.KindClusterNetworkingConfig, nil
 	case types.KindSessionRecordingConfig, "recording_config", "session_recording", "rec_config", "recconfig":
@@ -155,8 +157,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubernetesCluster, "kube_clusters":
 		return types.KindKubernetesCluster, nil
-	case types.KindKubeService, "kube_services":
-		return types.KindKubeService, nil
 	case types.KindKubeServer, "kube_servers":
 		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
@@ -169,6 +169,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindDatabase, nil
 	case types.KindApp, "apps":
 		return types.KindApp, nil
+	case types.KindAppServer, "app_servers":
+		return types.KindAppServer, nil
 	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
@@ -177,6 +179,24 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindToken, nil
 	case types.KindInstaller:
 		return types.KindInstaller, nil
+	case types.KindDatabaseService, types.KindDatabaseService + "s":
+		return types.KindDatabaseService, nil
+	case types.KindLoginRule, types.KindLoginRule + "s":
+		return types.KindLoginRule, nil
+	case types.KindSAMLIdPServiceProvider, types.KindSAMLIdPServiceProvider + "s", "saml_sp", "saml_sps":
+		return types.KindSAMLIdPServiceProvider, nil
+	case types.KindUserGroup, types.KindUserGroup + "s", "usergroup", "usergroups":
+		return types.KindUserGroup, nil
+	case types.KindDevice, types.KindDevice + "s":
+		return types.KindDevice, nil
+	case types.KindOktaImportRule, types.KindOktaImportRule + "s", "oktaimportrule", "oktaimportrules":
+		return types.KindOktaImportRule, nil
+	case types.KindOktaAssignment, types.KindOktaAssignment + "s", "oktaassignment", "oktaassignments":
+		return types.KindOktaAssignment, nil
+	case types.KindClusterMaintenanceConfig, "cmc":
+		return types.KindClusterMaintenanceConfig, nil
+	case types.KindIntegration, types.KindIntegration + "s":
+		return types.KindIntegration, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -384,6 +404,10 @@ func GetResourceMarshalerKinds() []string {
 }
 
 // RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+// WARNING!!
+// Registering a resource Marshaler requires lib/services/local.CreateResources
+// supports the resource kind or the standard backup/restore procedure of using
+// `tctl get all` and then BootstrapResources in Teleport will fail.
 func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()

@@ -56,7 +56,7 @@ func TestParseMSSQLEndpoint(t *testing.T) {
 		{"valid", "random.database.windows.net:1604", true, "random"},
 		// invalid
 		{"empty", "", false, ""},
-		{"malformed adddress", "abc", false, ""},
+		{"malformed address", "abc", false, ""},
 		{"only suffix", ".database.windows.net:1604", false, ""},
 		{"without suffix", "example.com:1604", false, ""},
 		{"without port", "random.database.windows.net", false, ""},
@@ -71,6 +71,55 @@ func TestParseMSSQLEndpoint(t *testing.T) {
 				require.Error(t, err)
 			}
 			require.Equal(t, tc.name, name)
+		})
+	}
+}
+
+func TestIsAzureEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostname string
+		want     bool
+	}{
+		{
+			name:     "empty",
+			hostname: "",
+			want:     false,
+		},
+		{
+			name:     "valid endpoint",
+			hostname: "management.azure.com",
+			want:     true,
+		},
+		{
+			name:     "valid endpoint prefix",
+			hostname: "subdomain.core.windows.net",
+			want:     true,
+		},
+		{
+			name:     "invalid endpoint, with valid prefix",
+			hostname: "core.windows.net.example.com",
+			want:     false,
+		},
+		{
+			name:     "invalid endpoint",
+			hostname: "not-azure.example.com",
+			want:     false,
+		},
+		{
+			name:     "invalid endpoint, suffix match without dot",
+			hostname: "my-azurefd.net",
+			want:     false,
+		},
+		{
+			name:     "valid endpoint, suffix matches with dot",
+			hostname: "my.azurefd.net",
+			want:     true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, IsAzureEndpoint(tt.hostname))
 		})
 	}
 }

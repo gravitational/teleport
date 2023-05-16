@@ -171,6 +171,7 @@ func TestAppIsAWSConsole(t *testing.T) {
 	tests := []struct {
 		name               string
 		uri                string
+		cloud              string
 		assertIsAWSConsole require.BoolAssertionFunc
 	}{
 		{
@@ -198,6 +199,11 @@ func TestAppIsAWSConsole(t *testing.T) {
 			uri:                "https://hello.world",
 			assertIsAWSConsole: require.False,
 		},
+		{
+			name:               "CLI-only AWS App",
+			cloud:              CloudAWS,
+			assertIsAWSConsole: require.True,
+		},
 	}
 
 	for _, test := range tests {
@@ -205,7 +211,8 @@ func TestAppIsAWSConsole(t *testing.T) {
 			app, err := NewAppV3(Metadata{
 				Name: "aws",
 			}, AppSpecV3{
-				URI: test.uri,
+				URI:   test.uri,
+				Cloud: test.cloud,
 			})
 			require.NoError(t, err)
 
@@ -245,6 +252,141 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, test.expectedExternalID, app.GetAWSExternalID())
+		})
+	}
+}
+
+func TestAppIsAzureCloud(t *testing.T) {
+	tests := []struct {
+		name     string
+		cloud    string
+		expected bool
+	}{
+		{
+			name:     "Azure Cloud",
+			cloud:    CloudAzure,
+			expected: true,
+		},
+		{
+			name:     "not Azure Cloud",
+			cloud:    CloudAWS,
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{Cloud: test.cloud})
+			require.NoError(t, err)
+			require.Equal(t, test.expected, app.IsAzureCloud())
+		})
+	}
+}
+
+func TestNewAppV3(t *testing.T) {
+	tests := []struct {
+		name    string
+		meta    Metadata
+		spec    AppSpecV3
+		want    *AppV3
+		wantErr require.ErrorAssertionFunc
+	}{
+		{
+			name:    "empty app",
+			meta:    Metadata{},
+			spec:    AppSpecV3{},
+			want:    nil,
+			wantErr: require.Error,
+		},
+		{
+			name: "non-cloud app",
+			meta: Metadata{
+				Name:        "myapp",
+				Description: "my fancy app",
+				ID:          123,
+			},
+			spec: AppSpecV3{URI: "example.com"},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{Name: "myapp",
+					Namespace:   "default",
+					Description: "my fancy app",
+					ID:          123,
+				}, Spec: AppSpecV3{URI: "example.com"},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "non-cloud app #2",
+			meta: Metadata{
+				Name:        "myapp",
+				Description: "my fancy app",
+				ID:          123,
+			},
+			spec: AppSpecV3{URI: "example.com"},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:        "myapp",
+					Namespace:   "default",
+					Description: "my fancy app",
+					ID:          123,
+				},
+				Spec: AppSpecV3{URI: "example.com"},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "azure app",
+			meta: Metadata{Name: "myazure"},
+			spec: AppSpecV3{Cloud: CloudAzure},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myazure", Namespace: "default"},
+				Spec:     AppSpecV3{URI: "cloud://Azure", Cloud: CloudAzure},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "aws app CLI only",
+			meta: Metadata{Name: "myaws"},
+			spec: AppSpecV3{Cloud: CloudAWS},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myaws", Namespace: "default"},
+				Spec:     AppSpecV3{URI: "cloud://AWS", Cloud: CloudAWS},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "aws app console",
+			meta: Metadata{Name: "myaws"},
+			spec: AppSpecV3{Cloud: CloudAWS, URI: constants.AWSConsoleURL},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myaws", Namespace: "default"},
+				Spec:     AppSpecV3{URI: constants.AWSConsoleURL, Cloud: CloudAWS},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name:    "invalid cloud identifier",
+			meta:    Metadata{Name: "dummy"},
+			spec:    AppSpecV3{Cloud: "dummy"},
+			want:    nil,
+			wantErr: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, err := NewAppV3(tt.meta, tt.spec)
+			tt.wantErr(t, err)
+			require.Equal(t, tt.want, actual)
 		})
 	}
 }

@@ -29,23 +29,30 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,6 +71,11 @@ type SessionContext struct {
 	// remoteClientGroup prevents duplicate requests to create remote clients
 	// for a given site
 	remoteClientGroup singleflight.Group
+
+	// mu guards kubeGRPCServiceConn.
+	mu sync.Mutex
+	// kubeGRPCServiceConn is a connection to the kubernetes service.
+	kubeGRPCServiceConn *grpc.ClientConn
 }
 
 type SessionContextConfig struct {
@@ -279,10 +291,60 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnel.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		return remoteCluster.DialAuthServer()
+		dialParams := reversetunnel.DialParams{
+			From:                  src,
+			OriginalClientDstAddr: dst,
+		}
+
+		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		if dialParams.From == nil && clientSrcAddr != nil {
+			dialParams.From = clientSrcAddr
+		}
+		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
+			dialParams.OriginalClientDstAddr = clientSrcAddr
+		}
+
+		return remoteCluster.DialAuthServer(dialParams)
 	})
+}
+
+// NewKubernetesServiceClient returns a new KubernetesServiceClient.
+func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr string) (kubeproto.KubeServiceClient, error) {
+	c.mu.Lock()
+	conn := c.kubeGRPCServiceConn
+	c.mu.Unlock()
+	if conn != nil {
+		return kubeproto.NewKubeServiceClient(conn), nil
+	}
+
+	tlsConfig, err := c.ClientTLSConfig(ctx, c.cfg.RootClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
+	conn, err = grpc.DialContext(
+		ctx,
+		addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithChainUnaryInterceptor(
+			otelgrpc.UnaryClientInterceptor(),
+			metadata.UnaryClientInterceptor,
+		),
+		grpc.WithChainStreamInterceptor(
+			otelgrpc.StreamClientInterceptor(),
+			metadata.StreamClientInterceptor,
+		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.mu.Lock()
+	c.kubeGRPCServiceConn = conn
+	c.mu.Unlock()
+	return kubeproto.NewKubeServiceClient(conn), nil
 }
 
 // ClientTLSConfig returns client TLS authentication associated
@@ -330,9 +392,11 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 		return nil, trace.Wrap(err)
 	}
 
+	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
+
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,
-		Dialer:  clusterDialer(cluster),
+		Dialer:  clusterDialer(cluster, clientSrcAddr, clientDstAddr),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
@@ -469,7 +533,13 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close())
+	var err error
+	c.mu.Lock()
+	if c.kubeGRPCServiceConn != nil {
+		err = c.kubeGRPCServiceConn.Close()
+	}
+	c.mu.Unlock()
+	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close(), err)
 }
 
 // getToken returns the bearer token associated with the underlying
@@ -501,10 +571,17 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		SessionID: c.cfg.Session.GetName(),
 	})
 
-	// If looking up the session in the cache or backend succeeds, then
-	// it by definition must not have expired yet.
-	if err == nil {
+	switch {
+	case err == nil:
+		// If looking up the session in the cache or backend succeeds, then
+		// it by definition must not have expired yet.
 		return false
+	case trace.IsNotFound(err):
+		// If the session doesn't exist in the cache or backend, then it
+		// was removed during user logout, expire the session immediately.
+		return true
+	default:
+		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
 	}
 
 	// If the session has no expiry time, then also by definition it
@@ -514,9 +591,6 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		return false
 	}
 
-	if !trace.IsNotFound(err) {
-		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
-	}
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
 	// If we remove the session immediately, a stale copy might still use the
@@ -540,17 +614,23 @@ type sessionCacheOptions struct {
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
+	// proxySigner is used to sign PROXY header and securely propagate client's real IP
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
-// newSessionCache returns new instance of the session cache
-func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
+// newSessionCache creates a [sessionCache] from the provided [config] and
+// launches a goroutine that runs until [ctx] is completed which
+// periodically purges invalid sessions.
+func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionCache, error) {
 	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if config.clock == nil {
 		config.clock = clockwork.NewRealClock()
 	}
+
 	cache := &sessionCache{
 		clusterName:               clusterName.GetClusterName(),
 		proxyClient:               config.proxyClient,
@@ -563,9 +643,12 @@ func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
 		log:                       newPackageLogger(),
 		clock:                     config.clock,
 		sessionLingeringThreshold: config.sessionLingeringThreshold,
+		proxySigner:               config.proxySigner,
 	}
+
 	// periodically close expired and unused sessions
-	go cache.expireSessions()
+	go cache.expireSessions(ctx)
+
 	return cache, nil
 }
 
@@ -589,6 +672,9 @@ type sessionCache struct {
 	// sessions maps user/sessionID to an active web session value between renewals.
 	// This is the client-facing session handle
 	sessions map[string]*SessionContext
+	// sessionGroup ensures only a single SessionContext will exist for a
+	// user+session.
+	sessionGroup singleflight.Group
 
 	// session cache maintains a list of resources per-user as long
 	// as the user session is active even though individual session values
@@ -597,6 +683,9 @@ type sessionCache struct {
 	// is either explicitly invalidated (e.g. during logout) or the
 	// resources are themselves closing
 	resources map[string]*sessionResources
+
+	// proxySigner is used to sign PROXY header and securely propagate client's real IP
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -605,14 +694,23 @@ func (s *sessionCache) Close() error {
 	return s.closer.Close()
 }
 
-func (s *sessionCache) expireSessions() {
+func (s *sessionCache) ActiveSessions() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.sessions)
+}
+
+func (s *sessionCache) expireSessions(ctx context.Context) {
 	ticker := s.clock.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-ticker.Chan():
-			s.clearExpiredSessions(context.TODO())
+			s.clearExpiredSessions(ctx)
 		case <-s.closer.C:
 			return
 		}
@@ -676,56 +774,13 @@ func (s *sessionCache) AuthenticateWebUser(
 	return s.proxyClient.AuthenticateWebUser(ctx, authReq)
 }
 
-// GetCertificateWithoutOTP returns a new user certificate for the specified request.
-func (s *sessionCache) GetCertificateWithoutOTP(
-	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
-			Username: c.User,
-			Pass: &auth.PassCreds{
-				Password: []byte(c.Password),
-			},
-			ClientMetadata: clientMeta,
-		},
-		PublicKey:            c.PubKey,
-		CompatibilityMode:    c.Compatibility,
-		TTL:                  c.TTL,
-		RouteToCluster:       c.RouteToCluster,
-		KubernetesCluster:    c.KubernetesCluster,
-		AttestationStatement: c.AttestationStatement,
-	})
-}
-
-// GetCertificateWithOTP returns a new user certificate for the specified request.
-// The request is used with the given OTP token.
-func (s *sessionCache) GetCertificateWithOTP(
-	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
-			Username: c.User,
-			OTP: &auth.OTPCreds{
-				Password: []byte(c.Password),
-				Token:    c.OTPToken,
-			},
-			ClientMetadata: clientMeta,
-		},
-		PublicKey:            c.PubKey,
-		CompatibilityMode:    c.Compatibility,
-		TTL:                  c.TTL,
-		RouteToCluster:       c.RouteToCluster,
-		KubernetesCluster:    c.KubernetesCluster,
-		AttestationStatement: c.AttestationStatement,
-	})
-}
-
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
+		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
@@ -741,7 +796,6 @@ func (s *sessionCache) AuthenticateSSHUser(
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
-		PublicKey:               c.PubKey,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
@@ -759,17 +813,32 @@ func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateReque
 	return s.proxyClient.ValidateTrustedCluster(ctx, validateRequest)
 }
 
-// validateSession validates the session given with user and session ID.
-// Returns a new or existing session context.
-func (s *sessionCache) validateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
-	sessionCtx, err := s.getContext(user, sessionID)
-	if err == nil {
-		return sessionCtx, nil
-	}
-	if !trace.IsNotFound(err) {
+// getOrCreateSession gets the SessionContext for the user and session ID. If one does
+// not exist, then a new one is created.
+func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+	key := sessionKey(user, sessionID)
+
+	// Use sessionGroup to prevent multiple requests from racing to create a SessionContext.
+	i, err, _ := s.sessionGroup.Do(key, func() (any, error) {
+		sessionCtx, ok := s.getContext(key)
+		if ok {
+			return sessionCtx, nil
+		}
+
+		return s.newSessionContext(ctx, user, sessionID)
+	})
+
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContext(ctx, user, sessionID)
+
+	sctx, ok := i.(*SessionContext)
+	if !ok {
+		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	return sctx, nil
+
 }
 
 func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionContext) error {
@@ -796,15 +865,11 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	return nil
 }
 
-func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, error) {
+func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ctx, ok := s.sessions[user+sessionID]
-	if ok {
-		return ctx, nil
-	}
-	return nil, trace.NotFound("no context for user %v and session %v",
-		user, sessionID)
+	ctx, ok := s.sessions[key]
+	return ctx, ok
 }
 
 func (s *sessionCache) insertContext(user string, sctx *SessionContext) (exists bool) {
@@ -886,18 +951,20 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 		// This will fail if the session has expired and was removed
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContextFromSession(session)
+	return s.newSessionContextFromSession(ctx, session)
 }
 
-func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*SessionContext, error) {
-	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
+func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
+	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	userClient, err := auth.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -929,8 +996,7 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 	return sctx, nil
 }
 
-func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ctx := context.TODO()
+func (s *sessionCache) tlsConfig(ctx context.Context, cert, privKey []byte) (*tls.Config, error) {
 	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.clusterName,

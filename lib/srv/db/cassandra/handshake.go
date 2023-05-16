@@ -17,12 +17,8 @@ limitations under the License.
 package cassandra
 
 import (
-	"fmt"
-	"strings"
+	"context"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin/sigv4"
 	"github.com/datastax/go-cassandra-native-protocol/frame"
 	"github.com/datastax/go-cassandra-native-protocol/message"
@@ -30,9 +26,10 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/gravitational/trace"
 
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra/protocol"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
@@ -49,7 +46,7 @@ const (
 // Client -> Server: AuthResponse
 // Server <- Client: Ready/ErrorResponse/AuthSuccess
 type handshakeHandler interface {
-	handleHandshake(clientConn, serverConn *protocol.Conn) error
+	handleHandshake(ctx context.Context, clientConn, serverConn *protocol.Conn) error
 }
 
 // basicHandshake is a basic handshake handler that does not perform any
@@ -58,7 +55,7 @@ type basicHandshake struct {
 	ses *common.Session
 }
 
-func (pp *basicHandshake) handleHandshake(clientConn, serverConn *protocol.Conn) error {
+func (pp *basicHandshake) handleHandshake(_ context.Context, clientConn, serverConn *protocol.Conn) error {
 	for {
 		// Read a packet from the cassandra client.
 		req, err := clientConn.ReadPacket()
@@ -191,43 +188,39 @@ func sendAuthenticationErrorMessage(authErr error, clientConn *protocol.Conn, in
 
 // authHandler is a handler that performs the Cassandra authentication flow.
 type authAWSSigV4Auth struct {
-	ses *common.Session
+	ses          *common.Session
+	cloudClients cloud.Clients
 }
 
-func (a *authAWSSigV4Auth) getSigV4Authenticator(username string) (gocql.Authenticator, error) {
-	session, err := awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
+func (a *authAWSSigV4Auth) getSigV4Authenticator(ctx context.Context) (gocql.Authenticator, error) {
+	meta := a.ses.Database.GetAWS()
+	roleARN, err := awsutils.BuildRoleARN(a.ses.DatabaseUser, meta.Region, meta.AccountID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cred, err := stscreds.NewCredentials(session, a.buildRoleARN(username)).Get()
+	baseSession, err := a.cloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var externalID string
+	if meta.AssumeRoleARN == "" {
+		externalID = meta.ExternalID
+	}
+	session, err := a.cloudClients.GetAWSSession(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cred, err := session.Config.Credentials.GetWithContext(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	auth := sigv4.NewAwsAuthenticator()
-	auth.Region = a.ses.Database.GetAWS().Region
+	auth.Region = meta.Region
 	auth.AccessKeyId = cred.AccessKeyID
 	auth.SessionToken = cred.SessionToken
 	auth.SecretAccessKey = cred.SecretAccessKey
 	return auth, nil
-}
-
-func (a *authAWSSigV4Auth) buildRoleARN(username string) string {
-	if arn.IsARN(username) {
-		return username
-	}
-	resource := username
-	if !strings.Contains(resource, "/") {
-		resource = fmt.Sprintf("role/%s", username)
-	}
-
-	return arn.ARN{
-		Partition: awsutils.GetPartitionFromRegion(a.ses.Database.GetAWS().Region),
-		Service:   "iam",
-		AccountID: a.ses.Database.GetAWS().AccountID,
-		Resource:  resource,
-	}.String()
 }
 
 func (a *authAWSSigV4Auth) initPasswordAuth(clientConn *protocol.Conn, req *protocol.Packet) (*protocol.Packet, error) {
@@ -246,7 +239,7 @@ func (a *authAWSSigV4Auth) initPasswordAuth(clientConn *protocol.Conn, req *prot
 	return pkt, nil
 }
 
-func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol.Conn, req *protocol.Packet) error {
+func (a *authAWSSigV4Auth) handleStartupMessage(ctx context.Context, clientConn, serverConn *protocol.Conn, req *protocol.Packet) error {
 	authResp, err := a.initPasswordAuth(clientConn, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -262,7 +255,7 @@ func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.handleAuth(clientConn, serverConn, authFrame.Frame()); err != nil {
+	if err := a.handleAuth(ctx, clientConn, serverConn, authFrame.Frame()); err != nil {
 		// Likely the agent is not authorized to access AWS resources or
 		// the AWS configuration doesn't allow the agent to assume the role.
 		userErr := trace.AccessDenied(
@@ -293,7 +286,7 @@ func (a *authAWSSigV4Auth) handleStartupMessage(clientConn, serverConn *protocol
 // Client    Engine -> AWS: AuthResponse
 // Client    Engine <- AWS: AuthSuccess
 // Client <- Engine    AWS: AuthSuccess
-func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn) error {
+func (a *authAWSSigV4Auth) handleHandshake(ctx context.Context, clientConn, serverConn *protocol.Conn) error {
 	for {
 		req, err := clientConn.ReadPacket()
 		if err != nil {
@@ -301,7 +294,7 @@ func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn
 		}
 		switch req.Header().OpCode {
 		case primitive.OpCodeStartup:
-			if err := a.handleStartupMessage(clientConn, serverConn, req); err != nil {
+			if err := a.handleStartupMessage(ctx, clientConn, serverConn, req); err != nil {
 				return trace.Wrap(err)
 			}
 			return nil
@@ -323,12 +316,12 @@ func (a *authAWSSigV4Auth) handleHandshake(clientConn, serverConn *protocol.Conn
 // handleAuth is a function that handles the authentication flow with AWS Keyspaces.
 // Signature V4 is used to authenticate with AWS Keyspaces where the username is the role ARN.
 // STS AWS is used to get temporary credentials for the role.
-func (a *authAWSSigV4Auth) handleAuth(_, serverConn *protocol.Conn, fr *frame.Frame) error {
+func (a *authAWSSigV4Auth) handleAuth(ctx context.Context, _, serverConn *protocol.Conn, fr *frame.Frame) error {
 	authMsg, ok := fr.Body.Message.(*message.Authenticate)
 	if !ok {
 		return trace.BadParameter("unexpected message type %T", fr.Body.Message)
 	}
-	awsAuth, err := a.getSigV4Authenticator(a.ses.DatabaseUser)
+	awsAuth, err := a.getSigV4Authenticator(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

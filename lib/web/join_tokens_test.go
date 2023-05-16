@@ -20,8 +20,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -29,26 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
 )
-
-func TestCreateNodeJoinToken(t *testing.T) {
-	t.Parallel()
-	m := &mockedNodeAPIGetter{}
-	m.mockGenerateToken = func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-		return "some-token-id", nil
-	}
-
-	token, err := createJoinToken(context.Background(), m, types.SystemRoles{
-		types.RoleNode,
-		types.RoleApp,
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, defaults.NodeJoinTokenTTL, token.Expiry.Sub(time.Now().UTC()).Round(time.Second))
-	require.Equal(t, "some-token-id", token.ID)
-}
 
 func TestGenerateIAMTokenName(t *testing.T) {
 	t.Parallel()
@@ -86,6 +69,40 @@ func TestGenerateIAMTokenName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NotEqual(t, hash1, hash2)
+}
+
+func TestGenerateAzureTokenName(t *testing.T) {
+	t.Parallel()
+	rule1 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "abcd1234",
+	}
+	rule2 := types.ProvisionTokenSpecV2Azure_Rule{
+		Subscription: "efgh5678",
+	}
+
+	t.Run("hash algorithm hasn't changed", func(t *testing.T) {
+		rule1Name := "teleport-ui-azure-2091772181"
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		require.Equal(t, rule1Name, hash1)
+	})
+
+	t.Run("order doesn't matter", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1, &rule2})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2, &rule1})
+		require.NoError(t, err)
+		require.Equal(t, hash1, hash2)
+	})
+
+	t.Run("different hashes for different rules", func(t *testing.T) {
+		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
+		require.NoError(t, err)
+		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2})
+		require.NoError(t, err)
+		require.NotEqual(t, hash1, hash2)
+	})
+
 }
 
 func TestSortRules(t *testing.T) {
@@ -283,6 +300,49 @@ func TestSortRules(t *testing.T) {
 	}
 }
 
+func TestSortAzureRules(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		rules    []*types.ProvisionTokenSpecV2Azure_Rule
+		expected []*types.ProvisionTokenSpecV2Azure_Rule
+	}{
+		{
+			name: "unordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+				{Subscription: "100000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+		{
+			name: "already ordered",
+			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{Subscription: "100000000000"},
+				{Subscription: "200000000000"},
+				{Subscription: "300000000000"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sortAzureRules(tc.rules)
+			require.Equal(t, tc.expected, tc.rules)
+		})
+	}
+}
+
 func toHex(s string) string { return hex.EncodeToString([]byte(s)) }
 
 func TestGetNodeJoinScript(t *testing.T) {
@@ -293,7 +353,7 @@ func TestGetNodeJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -409,7 +469,7 @@ func TestGetAppJoinScript(t *testing.T) {
 		},
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -588,7 +648,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 	m := &mockedNodeAPIGetter{
 		mockGetProxyServers: func() ([]types.Server, error) {
 			var s types.ServerV2
-			s.SetPublicAddr("test-host:12345678")
+			s.SetPublicAddrs([]string{"test-host:12345678"})
 
 			return []types.Server{&s}, nil
 		},
@@ -608,6 +668,7 @@ func TestGetDatabaseJoinScript(t *testing.T) {
 					SuggestedAgentMatcherLabels: types.Labels{
 						"env":     utils.Strings{"prod"},
 						"product": utils.Strings{"*"},
+						"os":      utils.Strings{"mac", "linux"},
 					},
 				},
 			}
@@ -656,6 +717,9 @@ db_service:
   resources:
     - labels:
         env: prod
+        os:
+          - mac
+          - linux
         product: '*'
 `)
 			},
@@ -802,19 +866,227 @@ func TestIsSameRuleSet(t *testing.T) {
 	}
 }
 
+func TestJoinScript(t *testing.T) {
+	validToken := "f18da1c9f6630a51e8daf121e7451daa"
+
+	m := &mockedNodeAPIGetter{
+		mockGetProxyServers: func() ([]types.Server, error) {
+			return []types.Server{
+				&types.ServerV2{
+					Spec: types.ServerSpecV2{PublicAddrs: []string{"test-host:12345678"}},
+				},
+			}, nil
+		},
+		mockGetClusterCACert: func(context.Context) (*proto.GetClusterCACertResponse, error) {
+			fakeBytes := []byte(fixtures.SigningCertPEM)
+			return &proto.GetClusterCACertResponse{TLSCA: fakeBytes}, nil
+		},
+		mockGetToken: func(_ context.Context, token string) (types.ProvisionToken, error) {
+			return &types.ProvisionTokenV2{
+				Metadata: types.Metadata{
+					Name: token,
+				},
+			}, nil
+		},
+	}
+
+	t.Run("direct download links", func(t *testing.T) {
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
+
+		t.Run("oss", func(t *testing.T) {
+			// Using the OSS Version, all the links must contain only teleport as package name.
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
+
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport'")
+		})
+
+		t.Run("ent", func(t *testing.T) {
+			// Using the Enterprise Version, the package name must be teleport-ent
+			modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
+
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+			require.Contains(t, script, "TELEPORT_ARCHIVE_PATH='teleport-ent'")
+		})
+	})
+
+	t.Run("using repo", func(t *testing.T) {
+		t.Run("installUpdater set to true, list of packages must include updater package", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true}, m)
+			require.NoError(t, err)
+
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if [[ \"true\" == \"true\" ]]; then\n"+
+				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"    fi\n",
+			)
+		})
+		t.Run("installUpdater set to false, list of packages must not include updater package", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
+			require.NoError(t, err)
+
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if [[ \"false\" == \"true\" ]]; then\n"+
+				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"    fi\n",
+			)
+		})
+		t.Run("cloud and automatic upgrades", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
+			require.NoError(t, err)
+			// Uses the stable/cloud channel.
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
+		})
+		t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
+			// Using the Enterprise Version, the package name must be teleport-ent
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud:             true,
+					AutomaticUpgrades: false,
+				},
+			})
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
+			require.NoError(t, err)
+			// Setting an empty string, means it will use `stable/v<majorVersion>` later on.
+			require.Contains(t, script, "REPO_CHANNEL=''")
+		})
+	})
+
+}
+
+func TestAutomaticUpgrades(t *testing.T) {
+	t.Run("enterprise and automatic upgrades enabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: true,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.True(t, got)
+	})
+	t.Run("enterprise but automatic upgrades disabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: false,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
+
+	// There's no `teleport-updater` (oss) package yet, so even if automatic upgrades are enabled it must return false.
+	t.Run("automatic upgrades enabled but build is OSS", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: false,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
+}
+
+func TestIsSameAzureRuleSet(t *testing.T) {
+	tests := []struct {
+		name     string
+		r1       []*types.ProvisionTokenSpecV2Azure_Rule
+		r2       []*types.ProvisionTokenSpecV2Azure_Rule
+		expected bool
+	}{
+		{
+			name:     "empty slice",
+			expected: true,
+		},
+		{
+			name: "simple identical rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "different rules",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "same rules in different order",
+			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "456456456456",
+				},
+				{
+					Subscription: "123123123123",
+				},
+			},
+			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "123123123123",
+				},
+				{
+					Subscription: "456456456456",
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, isSameAzureRuleSet(tc.r1, tc.r2))
+		})
+	}
+}
+
 type mockedNodeAPIGetter struct {
-	mockGenerateToken    func(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
 	mockGetProxyServers  func() ([]types.Server, error)
 	mockGetClusterCACert func(ctx context.Context) (*proto.GetClusterCACertResponse, error)
 	mockGetToken         func(ctx context.Context, token string) (types.ProvisionToken, error)
-}
-
-func (m *mockedNodeAPIGetter) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
-	if m.mockGenerateToken != nil {
-		return m.mockGenerateToken(ctx, req)
-	}
-
-	return "", trace.NotImplemented("mockGenerateToken not implemented")
 }
 
 func (m *mockedNodeAPIGetter) GetProxies() ([]types.Server, error) {

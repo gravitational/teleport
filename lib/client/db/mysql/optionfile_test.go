@@ -39,9 +39,9 @@ func TestOptionFile(t *testing.T) {
 		User:       "root",
 		Database:   "mysql",
 		Insecure:   false,
-		CACertPath: "ca.pem",
-		CertPath:   "cert.pem",
-		KeyPath:    "key.pem",
+		CACertPath: "c:\\users\\user\\.tsh\\foo\\ca.pem",
+		CertPath:   "c:\\users\\user\\.tsh\\foo\\cert.pem",
+		KeyPath:    "c:\\users\\user\\.tsh\\foo\\key.pem",
 	}
 
 	err = optionFile.Upsert(profile)
@@ -53,6 +53,28 @@ func TestOptionFile(t *testing.T) {
 		"MYSQL_GROUP_SUFFIX": "_test",
 	}, env)
 
+	// load, compare
+	optionFileRead, err := LoadFromPath(path)
+	require.NoError(t, err)
+	require.Equal(t, optionFile, optionFileRead)
+
+	clientTest, err := optionFileRead.iniFile.GetSection("client_test")
+	require.NoError(t, err)
+
+	require.Equal(t,
+		map[string]string{
+			"host":     "localhost",
+			"port":     "3036",
+			"user":     "root",
+			"database": "mysql",
+			"ssl-mode": "VERIFY_IDENTITY",
+			"ssl-ca":   `c:\\users\\user\\.tsh\\foo\\ca.pem`,
+			"ssl-cert": `c:\\users\\user\\.tsh\\foo\\cert.pem`,
+			"ssl-key":  `c:\\users\\user\\.tsh\\foo\\key.pem`,
+		},
+		clientTest.KeysHash())
+
+	// delete
 	err = optionFile.Delete(profile.Name)
 	require.NoError(t, err)
 

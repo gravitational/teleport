@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 )
 
@@ -37,7 +38,7 @@ func (a *Server) UpsertRole(ctx context.Context, role types.Role) error {
 			Type: events.RoleCreatedEvent,
 			Code: events.RoleCreatedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: role.GetName(),
 		},
@@ -90,7 +91,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 			Type: events.RoleDeletedEvent,
 			Code: events.RoleDeletedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -106,7 +107,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 
-	um := ClientUserMetadata(ctx)
+	um := authz.ClientUserMetadata(ctx)
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
 		Metadata: apievents.Metadata{
 			Type: events.LockCreatedEvent,
@@ -135,7 +136,7 @@ func (a *Server) DeleteLock(ctx context.Context, lockName string) error {
 			Type: events.LockDeletedEvent,
 			Code: events.LockDeletedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: lockName,
 		},

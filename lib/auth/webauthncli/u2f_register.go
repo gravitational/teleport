@@ -27,10 +27,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/flynn/u2f/u2ftoken"
 	"github.com/fxamacker/cbor/v2"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 

@@ -19,12 +19,16 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -53,21 +57,102 @@ metadata:
 	require.Contains(t, err.Error(), "Name")
 }
 
-func TestCheckResourceUpsertableByError(t *testing.T) {
-	err := CheckResourceUpsertableByError(trace.BadParameter(""), "POST", "")
-	require.True(t, trace.IsBadParameter(err))
+func TestCheckResourceUpsert(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		desc                string
+		httpMethod          string
+		httpParams          httprouter.Params
+		payloadResourceName string
+		get                 getResource
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:                "creating non-existing resource succeeds",
+			httpMethod:          "POST",
+			httpParams:          httprouter.Params{},
+			payloadResourceName: "my-resource",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does not exist.
+				return nil, trace.NotFound("")
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc:                "creating existing resource fails",
+			httpMethod:          "POST",
+			httpParams:          httprouter.Params{},
+			payloadResourceName: "my-resource",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does exist.
+				return nil, nil
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsAlreadyExists(err))
+			},
+		},
+		{
+			desc:                "updating resource without name HTTP param fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{},
+			payloadResourceName: "my-resource",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does exist.
+				return nil, nil
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+		{
+			desc:                "updating non-existing resource fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			payloadResourceName: "my-resource",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does not exist.
+				return nil, trace.NotFound("")
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+		{
+			desc:                "updating existing resource succeeds",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			payloadResourceName: "my-resource",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does exist.
+				return nil, nil
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc:                "renaming existing resource fails",
+			httpMethod:          "PUT",
+			httpParams:          httprouter.Params{httprouter.Param{Key: "name", Value: "my-resource"}},
+			payloadResourceName: "my-resource-new-name",
+			get: func(ctx context.Context, name string) (types.Resource, error) {
+				// Resource does exist.
+				return nil, nil
+			},
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
 
-	err = CheckResourceUpsertableByError(nil, "POST", "")
-	require.True(t, trace.IsAlreadyExists(err))
-
-	err = CheckResourceUpsertableByError(trace.NotFound(""), "POST", "")
-	require.Nil(t, err)
-
-	err = CheckResourceUpsertableByError(nil, "PUT", "")
-	require.Nil(t, err)
-
-	err = CheckResourceUpsertableByError(trace.NotFound(""), "PUT", "")
-	require.True(t, trace.IsNotFound(err))
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			err := CheckResourceUpsert(ctx, tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
+			tc.assertErr(t, err)
+		})
+	}
 }
 
 func TestNewResourceItemGithub(t *testing.T) {
@@ -75,6 +160,7 @@ func TestNewResourceItemGithub(t *testing.T) {
 metadata:
   name: githubName
 spec:
+  api_endpoint_url: ""
   client_id: ""
   client_secret: ""
   display: ""
@@ -121,6 +207,10 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
     logins:
     - test
     node_labels:
@@ -128,6 +218,7 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_desktop_user: false
     create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
@@ -135,6 +226,9 @@ spec:
     - command
     - network
     forward_agent: false
+    idp:
+      saml:
+        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     port_forwarding: true
@@ -142,17 +236,26 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v3
+version: v6
 `
-	role, err := types.NewRoleV3("roleName", types.RoleSpecV5{
+	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
-			Logins: []string{"test"},
+			Logins:           []string{"test"},
+			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
 		},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	item, err := ui.NewResourceItem(role)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, &ui.ResourceItem{
 		ID:      "role:roleName",
 		Kind:    types.KindRole,
@@ -189,7 +292,7 @@ func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		role, err := types.NewRoleV3("test", types.RoleSpecV5{
+		role, err := types.NewRole("test", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Logins: []string{"test"},
 			},
@@ -209,10 +312,16 @@ func TestGetRoles(t *testing.T) {
 func TestUpsertRole(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
+	existingRoles := make(map[string]types.Role)
 	m.mockUpsertRole = func(ctx context.Context, role types.Role) error {
+		existingRoles[role.GetName()] = role
 		return nil
 	}
 	m.mockGetRole = func(ctx context.Context, name string) (types.Role, error) {
+		role, ok := existingRoles[name]
+		if ok {
+			return role, nil
+		}
 		return nil, trace.NotFound("")
 	}
 
@@ -220,8 +329,9 @@ func TestUpsertRole(t *testing.T) {
 	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	role, err := upsertRole(context.Background(), m, invalidKind, "")
+	role, err := upsertRole(context.Background(), m, invalidKind, "", httprouter.Params{})
 	require.Nil(t, role)
+	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
 
@@ -234,15 +344,34 @@ spec:
     - testing
 version: v3`
 
-	// Test POST (create) role.
-	role, err = upsertRole(context.Background(), m, goodContent, "POST")
-	require.Nil(t, err)
+	// Updating non-existing role fails.
+	role, err = upsertRole(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, role)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
+	// Creating non-existing role succeeds.
+	role, err = upsertRole(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.NoError(t, err)
 	require.Contains(t, role.Content, "name: test-goodcontent")
 
-	// Test error with PUT (update) with non existing role.
-	role, err = upsertRole(context.Background(), m, goodContent, "PUT")
+	// Creating existing role fails.
+	role, err = upsertRole(context.Background(), m, goodContent, "POST", httprouter.Params{})
 	require.Nil(t, role)
-	require.True(t, trace.IsNotFound(err))
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// Updating existing role succeeds.
+	role, err = upsertRole(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.NoError(t, err)
+	require.Contains(t, role.Content, "name: test-goodcontent")
+
+	// Renaming existing role fails.
+	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
+	role, err = upsertRole(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, role)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestGetGithubConnectors(t *testing.T) {
@@ -273,10 +402,17 @@ func TestGetGithubConnectors(t *testing.T) {
 
 func TestUpsertGithubConnector(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
+
+	existingConnectors := make(map[string]types.GithubConnector)
 	m.mockUpsertGithubConnector = func(ctx context.Context, connector types.GithubConnector) error {
+		existingConnectors[connector.GetName()] = connector
 		return nil
 	}
-	m.mockGetGithubConnector = func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {
+	m.mockGetGithubConnector = func(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
+		connector, ok := existingConnectors[name]
+		if ok {
+			return connector, nil
+		}
 		return nil, trace.NotFound("")
 	}
 
@@ -284,8 +420,9 @@ func TestUpsertGithubConnector(t *testing.T) {
 	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	conn, err := upsertGithubConnector(context.Background(), m, invalidKind, "")
-	require.Nil(t, conn)
+	connector, err := upsertGithubConnector(context.Background(), m, invalidKind, "", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
 
@@ -304,10 +441,34 @@ spec:
     team: admins
 version: v3`
 
-	// Test POST (create) connector.
-	connector, err := upsertGithubConnector(context.Background(), m, goodContent, "POST")
-	require.Nil(t, err)
+	// Updating non-existing connector fails.
+	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
+	// Creating non-existing connector succeeds.
+	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.NoError(t, err)
 	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Creating existing connector fails.
+	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// Updating existing connector succeeds.
+	connector, err = upsertGithubConnector(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.NoError(t, err)
+	require.Contains(t, connector.Content, "name: test-goodcontent")
+
+	// Renaming existing connector fails.
+	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
+	connector, err = upsertGithubConnector(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, connector)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestGetTrustedClusters(t *testing.T) {
@@ -330,10 +491,17 @@ func TestGetTrustedClusters(t *testing.T) {
 
 func TestUpsertTrustedCluster(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
+
+	existingTrustedClusters := make(map[string]types.TrustedCluster)
 	m.mockUpsertTrustedCluster = func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error) {
-		return nil, nil
+		existingTrustedClusters[tc.GetName()] = tc
+		return tc, nil
 	}
 	m.mockGetTrustedCluster = func(ctx context.Context, name string) (types.TrustedCluster, error) {
+		tc, ok := existingTrustedClusters[name]
+		if ok {
+			return tc, nil
+		}
 		return nil, trace.NotFound("")
 	}
 
@@ -341,12 +509,12 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	invalidKind := `kind: invalid-kind
 metadata:
   name: test`
-	conn, err := upsertTrustedCluster(context.Background(), m, invalidKind, "")
-	require.Nil(t, conn)
+	tc, err := upsertTrustedCluster(context.Background(), m, invalidKind, "", httprouter.Params{})
+	require.Nil(t, tc)
+	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.Contains(t, err.Error(), "kind")
 
-	// Test create (POST).
 	goodContent := `kind: trusted_cluster
 metadata:
   name: test-goodcontent
@@ -356,9 +524,35 @@ spec:
     - admin
     remote: admin
 version: v2`
-	tc, err := upsertTrustedCluster(context.Background(), m, goodContent, "POST")
-	require.Nil(t, err)
+
+	// Updating non-existing trusted cluster fails.
+	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, tc)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+
+	// Creating non-existing trusted cluster succeeds.
+	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.NoError(t, err)
 	require.Contains(t, tc.Content, "name: test-goodcontent")
+
+	// Creating existing trusted cluster fails.
+	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "POST", httprouter.Params{})
+	require.Nil(t, tc)
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+
+	// Updating existing trusted cluster succeeds.
+	tc, err = upsertTrustedCluster(context.Background(), m, goodContent, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.NoError(t, err)
+	require.Contains(t, tc.Content, "name: test-goodcontent")
+
+	// Renaming existing trusted cluster fails.
+	goodContentRenamed := strings.ReplaceAll(goodContent, "test-goodcontent", "test-goodcontent-new-name")
+	tc, err = upsertTrustedCluster(context.Background(), m, goodContentRenamed, "PUT", httprouter.Params{httprouter.Param{Key: "name", Value: "test-goodcontent"}})
+	require.Nil(t, tc)
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestListResources(t *testing.T) {
@@ -433,15 +627,7 @@ func TestListResources(t *testing.T) {
 			httpReq, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
 
-			m := &mockedResourceAPIGetter{}
-			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-				if !tc.wantBadParamErr {
-					require.Equal(t, tc.expected, req)
-				}
-				return nil, nil
-			}
-
-			_, err = listResources(m, httpReq, types.KindNode)
+			_, err = convertListResourcesRequest(httpReq, types.KindNode)
 			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
 			} else {
@@ -558,4 +744,81 @@ func (m *mockedResourceAPIGetter) ListResources(ctx context.Context, req proto.L
 	}
 
 	return nil, trace.NotImplemented("mockListResources not implemented")
+}
+
+func Test_newKubeListRequest(t *testing.T) {
+	type args struct {
+		query        string
+		site         string
+		resourceKind string
+	}
+	tests := []struct {
+		name string
+		args args
+		want *kubeproto.ListKubernetesResourcesRequest
+	}{
+		{
+			name: "list resources",
+			args: args{
+				query:        "kind=kind1",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				TeleportCluster: "site1",
+				ResourceType:    "kind1",
+				SortBy:          &types.SortBy{},
+				Limit:           defaults.MaxIterationLimit,
+			},
+		},
+		{
+			name: "list resources with sort and query",
+			args: args{
+				query:        "kind=kind1&query=foo&sort=bar:desc&limit=10",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				TeleportCluster:     "site1",
+				ResourceType:        "kind1",
+				PredicateExpression: "foo",
+				SortBy: &types.SortBy{
+					Field:  "bar",
+					IsDesc: true,
+				},
+				Limit: 10,
+			},
+		},
+		{
+			name: "list resources with search as roles",
+			args: args{
+				query:        "startKey=startK1&query=bar&sort=foo:asc&searchAsRoles=yes&limit=10&kubeCluster=cluster&kubeNamespace=namespace",
+				site:         "site1",
+				resourceKind: "kind1",
+			},
+			want: &kubeproto.ListKubernetesResourcesRequest{
+				StartKey:            "startK1",
+				KubernetesCluster:   "cluster",
+				KubernetesNamespace: "namespace",
+				TeleportCluster:     "site1",
+				ResourceType:        "kind1",
+				PredicateExpression: "bar",
+				SortBy: &types.SortBy{
+					Field:  "foo",
+					IsDesc: false,
+				},
+				UseSearchAsRoles: true,
+				Limit:            10,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			values, err := url.ParseQuery(tt.args.query)
+			require.NoError(t, err)
+			got, err := newKubeListRequest(values, tt.args.site, tt.args.resourceKind)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

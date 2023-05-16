@@ -18,26 +18,33 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
+
+var errNoInstances = errors.New("all fetched nodes already enrolled")
 
 // Config provides configuration for the discovery server.
 type Config struct {
@@ -55,11 +62,25 @@ type Config struct {
 	AccessPoint auth.DiscoveryAccessPoint
 	// Log is the logger.
 	Log logrus.FieldLogger
+	// onDatabaseReconcile is called after each database resource reconciliation.
+	onDatabaseReconcile func()
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
 		return trace.BadParameter("no matchers configured for discovery")
@@ -75,6 +96,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	c.Log = c.Log.WithField(trace.Component, teleport.ComponentDiscovery)
+	c.AzureMatchers = services.SimplifyAzureMatchers(c.AzureMatchers)
 	return nil
 }
 
@@ -95,8 +117,13 @@ type Server struct {
 	ec2Installer *server.SSMInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
+	// azureInstaller is used to start the installation process on discovered Azure
+	// virtual machines.
+	azureInstaller *server.AzureInstaller
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
-	kubeFetchers []fetchers.Fetcher
+	kubeFetchers []common.Fetcher
+	// databaseFetchers holds all database fetchers.
+	databaseFetchers []common.Fetcher
 }
 
 // New initializes a discovery Server
@@ -135,7 +162,9 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 
 // initAWSWatchers starts AWS resource watchers based on types provided.
 func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
-	ec2Matchers, otherMatchers := splitAWSMatchers(matchers)
+	ec2Matchers, otherMatchers := splitAWSMatchers(matchers, func(matcherType string) bool {
+		return matcherType == services.AWSMatcherEC2
+	})
 
 	// start ec2 watchers
 	var err error
@@ -149,12 +178,30 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 		})
 	}
 
+	// Add database fetchers.
+	databaseMatchers, otherMatchers := splitAWSMatchers(otherMatchers, db.IsAWSMatcherType)
+	if len(databaseMatchers) > 0 {
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.Clients, databaseMatchers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.databaseFetchers = append(s.databaseFetchers, databaseFetchers...)
+	}
+
+	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
-				case constants.AWSServiceTypeEKS:
-					client, err := s.Clients.GetAWSEKSClient(region)
+				case services.AWSMatcherEKS:
+					client, err := s.Clients.GetAWSEKSClient(
+						s.ctx,
+						region,
+						cloud.WithAssumeRole(
+							matcher.AssumeRole.RoleARN,
+							matcher.AssumeRole.ExternalID,
+						),
+					)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -180,16 +227,34 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
-	vmMatchers, otherMatchers := splitAzureMatchers(matchers)
+	vmMatchers, otherMatchers := splitAzureMatchers(matchers, func(matcherType string) bool {
+		return matcherType == services.AzureMatcherVM
+	})
 
+	// VM watcher.
 	if len(vmMatchers) > 0 {
 		var err error
 		s.azureWatcher, err = server.NewAzureWatcher(s.ctx, vmMatchers, s.Clients)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.azureInstaller = &server.AzureInstaller{
+			Emitter:     s.Emitter,
+			AccessPoint: s.AccessPoint,
+		}
 	}
 
+	// Add database fetchers.
+	databaseMatchers, otherMatchers := splitAzureMatchers(otherMatchers, db.IsAzureMatcherType)
+	if len(databaseMatchers) > 0 {
+		databaseFetchers, err := db.MakeAzureFetchers(s.Clients, databaseMatchers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.databaseFetchers = append(s.databaseFetchers, databaseFetchers...)
+	}
+
+	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
 		subscriptions, err := s.getAzureSubscriptions(ctx, matcher.Subscriptions)
 		if err != nil {
@@ -198,7 +263,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 		for _, subscription := range subscriptions {
 			for _, t := range matcher.Types {
 				switch t {
-				case constants.AzureServiceTypeKubernetes:
+				case services.AzureMatcherKubernetes:
 					kubeClient, err := s.Clients.GetAzureKubernetesClient(subscription)
 					if err != nil {
 						return trace.Wrap(err)
@@ -237,7 +302,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
-					case constants.GCPServiceTypeKubernetes:
+					case services.GCPMatcherKubernetes:
 						fetcher, err := fetchers.NewGKEFetcher(fetchers.GKEFetcherConfig{
 							Client:       kubeClient,
 							Location:     location,
@@ -258,7 +323,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 }
 
 func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
@@ -311,7 +376,11 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	client, err := s.Clients.GetAWSSSMClient(instances.Region)
+	// TODO(amk): once agentless node inventory management is
+	//            implemented, create nodes after a successful SSM run
+
+	// TODO(gavin): support assume_role_arn for ec2.
+	ec2Client, err := s.Clients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -322,9 +391,10 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
+
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
-		SSM:          client,
+		SSM:          ec2Client,
 		Instances:    instances.Instances,
 		Params:       instances.Parameters,
 		Region:       instances.Region,
@@ -346,8 +416,12 @@ func (s *Server) handleEC2Discovery() {
 			ec2Instances := instances.EC2Instances
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
-				if trace.IsNotFound(err) {
+				var aErr awserr.Error
+				if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+					s.Log.WithError(err).Error("SSM SendCommand failed with ErrCodeInvalidInstanceId. Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.")
+				} else if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
@@ -360,12 +434,65 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
+func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		labels := n.GetAllLabels()
+		_, subscriptionOK := labels[types.SubscriptionIDLabel]
+		_, vmOK := labels[types.VMIDLabel]
+		return subscriptionOK && vmOK
+	})
+	var filtered []*armcompute.VirtualMachine
+outer:
+	for _, inst := range instances.Instances {
+		for _, node := range nodes {
+			var vmID string
+			if inst.Properties != nil {
+				vmID = aws.StringValue(inst.Properties.VMID)
+			}
+			match := types.MatchLabels(node, map[string]string{
+				types.SubscriptionIDLabel: instances.SubscriptionID,
+				types.VMIDLabel:           vmID,
+			})
+			if match {
+				continue outer
+			}
+		}
+		filtered = append(filtered, inst)
+	}
+	instances.Instances = filtered
+}
+
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	s.Log.Error("Automatic Azure node joining not implemented")
-	return nil
+	client, err := s.Clients.GetAzureRunCommandClient(instances.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.filterExistingAzureNodes(instances)
+	if len(instances.Instances) == 0 {
+		return trace.Wrap(errNoInstances)
+	}
+
+	s.Log.Debugf("Running Teleport installation on these virtual machines: SubscriptionID: %s, VMs: %s",
+		instances.SubscriptionID, genAzureInstancesLogStr(instances.Instances),
+	)
+	req := server.AzureRunRequest{
+		Client:          client,
+		Instances:       instances.Instances,
+		Region:          instances.Region,
+		ResourceGroup:   instances.ResourceGroup,
+		Params:          instances.Parameters,
+		ScriptName:      instances.ScriptName,
+		PublicProxyAddr: instances.PublicProxyAddr,
+	}
+	return trace.Wrap(s.azureInstaller.Run(s.ctx, req))
 }
 
 func (s *Server) handleAzureDiscovery() {
+	if err := s.nodeWatcher.WaitInitialization(); err != nil {
+		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		return
+	}
+
 	go s.azureWatcher.Run()
 	for {
 		select {
@@ -375,7 +502,7 @@ func (s *Server) handleAzureDiscovery() {
 				instances.SubscriptionID, genAzureInstancesLogStr(azureInstances.Instances),
 			)
 			if err := s.handleAzureInstances(azureInstances); err != nil {
-				if trace.IsNotFound(err) {
+				if errors.Is(err, errNoInstances) {
 					s.Log.Debug("All discovered Azure VMs are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered Azure VMs.")
@@ -400,6 +527,9 @@ func (s *Server) Start() error {
 		if err := s.startKubeWatchers(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	if err := s.startDatabaseWatchers(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -441,25 +571,38 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			Log:       s.Log,
-			Client:    s.AccessPoint,
+			Component:    teleport.ComponentDiscovery,
+			Log:          s.Log,
+			Client:       s.AccessPoint,
+			MaxStaleness: time.Minute,
 		},
 	})
 
 	return trace.Wrap(err)
 }
 
-// splitAWSMatchers splits the matchers between EC2 matchers and others.
-func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher, other []services.AWSMatcher) {
-	for _, matcher := range matchers {
-		if slices.Contains(matcher.Types, constants.AWSServiceTypeEC2) {
-			ec2 = append(ec2,
-				copyAWSMatcherWithNewTypes(matcher, []string{constants.AWSServiceTypeEC2}),
-			)
+// splitSlice splits a slice into two, by putting all elements that satisfy the
+// provided check function in the first slice, while putting all other elements
+// in the second slice.
+func splitSlice(ss []string, check func(string) bool) (split, other []string) {
+	for _, e := range ss {
+		if check(e) {
+			split = append(split, e)
+		} else {
+			other = append(other, e)
 		}
+	}
+	return
+}
 
-		otherTypes := excludeFromSlice(matcher.Types, constants.AWSServiceTypeEC2)
+// splitAWSMatchers splits the AWS matchers by checking the matcher types.
+func splitAWSMatchers(matchers []services.AWSMatcher, matcherTypeCheck func(string) bool) (split, other []services.AWSMatcher) {
+	for _, matcher := range matchers {
+		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
+
+		if len(splitTypes) > 0 {
+			split = append(split, copyAWSMatcherWithNewTypes(matcher, splitTypes))
+		}
 		if len(otherTypes) > 0 {
 			other = append(other, copyAWSMatcherWithNewTypes(matcher, otherTypes))
 		}
@@ -467,32 +610,19 @@ func splitAWSMatchers(matchers []services.AWSMatcher) (ec2 []services.AWSMatcher
 	return
 }
 
-// splitAzureMatchers splits the matchers between Azure VM matchers and others.
-func splitAzureMatchers(matchers []services.AzureMatcher) (vm []services.AzureMatcher, other []services.AzureMatcher) {
+// splitAzureMatchers splits the Azure matchers by checking the matcher types.
+func splitAzureMatchers(matchers []services.AzureMatcher, matcherTypeCheck func(string) bool) (split, other []services.AzureMatcher) {
 	for _, matcher := range matchers {
-		if slices.Contains(matcher.Types, constants.AzureServiceTypeVM) {
-			vm = append(vm,
-				copyAzureMatcherWithNewTypes(matcher, []string{constants.AzureServiceTypeVM}),
-			)
-		}
+		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
 
-		otherTypes := excludeFromSlice(matcher.Types, constants.AzureServiceTypeVM)
+		if len(splitTypes) > 0 {
+			split = append(split, copyAzureMatcherWithNewTypes(matcher, splitTypes))
+		}
 		if len(otherTypes) > 0 {
 			other = append(other, copyAzureMatcherWithNewTypes(matcher, otherTypes))
 		}
 	}
 	return
-}
-
-// excludeFromSlice excludes entry from the slice.
-func excludeFromSlice[T comparable](slice []T, entry T) []T {
-	newSlice := make([]T, 0, len(slice))
-	for _, val := range slice {
-		if val != entry {
-			newSlice = append(newSlice, val)
-		}
-	}
-	return newSlice
 }
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes

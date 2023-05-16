@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS ElastiCache and AWS MemoryDB for Redis
-description: How to configure Teleport Database Access with AWS ElastiCache and AWS MemoryDB for Redis.
+description: How to configure Teleport database access with AWS ElastiCache and AWS MemoryDB for Redis.
 ---
 
 This guide will help you to:
@@ -18,22 +18,21 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with at least one ElastiCache or MemoryDB for Redis clusters
   **In-transit encryption via (TLS) must be enabled**.
 - Permissions to create and attach IAM policies.
 - `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
+- (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/7. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create a Database Service configuration
+## Step 2/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -74,7 +73,7 @@ Create the Database Service configuration:
   ```code
   $ teleport db configure create \
      -o file \
-     --proxy=mytenant.teleport.sh \
+     --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
      --elasticache-discovery=us-west-1
   ```
@@ -83,7 +82,7 @@ Create the Database Service configuration:
   ```
   $ teleport db configure create \
      -o file \
-     --proxy=mytenant.teleport.sh \
+     --proxy=mytenant.teleport.sh:443 \
      --token=/tmp/token \
      --memorydb-discovery=us-west-1
   ```
@@ -96,7 +95,7 @@ The command will generate a Database Service configuration with ElastiCache or
 MemoryDB database auto-discovery enabled on the `us-west-1` region and place it
 at the `/etc/teleport.yaml` location.
 
-## Step 4/7. Create an IAM policy for Teleport
+## Step 3/6. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
@@ -104,20 +103,21 @@ Teleport needs AWS IAM permissions to be able to:
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
 
+Before you can generate IAM permissions, you must provide the Teleport Database
+Service access to AWS credentials.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/7. Start the Database Service
+## Step 4/6. Start the Database Service
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 The Database Service will discover and register all ElastiCache and MemoryDB
 for Redis clusters according to the configuration.
 
-## Step 6/7. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
+## Step 5/6. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
 
 To provide better security, it is recommended to use [Redis
 ACL](https://redis.io/docs/manual/security/acl/) for authentication with Redis
@@ -141,7 +141,7 @@ The Database Service will automatically discover this user if it is associated
 with a registered database. Keep in mind that it may take the Database Service
 some time (up to 20 minutes) to discover this user once the tag is added.
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:

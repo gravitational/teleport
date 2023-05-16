@@ -69,6 +69,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 	certs, err := s.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        identity.LoginIP,
 		publicKey:      publicKey,
 		checker:        checker,
 		ttl:            ttl,
@@ -77,13 +78,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:   uuid.New().String(),
-		appPublicAddr:  req.PublicAddr,
-		appClusterName: req.ClusterName,
-		awsRoleARN:     req.AWSRoleARN,
+		appSessionID:      uuid.New().String(),
+		appPublicAddr:     req.PublicAddr,
+		appClusterName:    req.ClusterName,
+		awsRoleARN:        req.AWSRoleARN,
+		azureIdentity:     req.AzureIdentity,
+		gcpServiceAccount: req.GCPServiceAccount,
 		// Since we are generating the keys and certs directly on the Auth Server,
 		// we need to skip attestation.
 		skipAttestation: true,
+		// Pass along device extensions from the user.
+		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,12 +99,17 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	bearer, err := utils.CryptoRandomHex(SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
-		User:    req.Username,
-		Priv:    privateKey,
-		Pub:     certs.SSH,
-		TLSCert: certs.TLS,
-		Expires: s.clock.Now().Add(ttl),
+		User:        req.Username,
+		Priv:        privateKey,
+		Pub:         certs.SSH,
+		TLSCert:     certs.TLS,
+		Expires:     s.clock.Now().Add(ttl),
+		BearerToken: bearer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -252,7 +262,7 @@ func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSe
 	return session, nil
 }
 
-func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
@@ -276,6 +286,7 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 		routeToCluster:       routeToCluster,
 		kubernetesCluster:    kubernetesCluster,
 		attestationStatement: attestationReq,
+		loginIP:              loginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -319,6 +330,28 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)
+
+	return session, nil
+}
+
+func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
+	identity tlsca.Identity, checker services.AccessChecker,
+) (types.WebSession, error) {
+	// TODO(mdwn): implement a module.Features() check.
+
+	// Create services.WebSession for this session.
+	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
+		User:        req.Username,
+		Expires:     req.SAMLSession.ExpireTime,
+		SAMLSession: req.SAMLSession,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = s.UpsertSAMLIdPSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
 }

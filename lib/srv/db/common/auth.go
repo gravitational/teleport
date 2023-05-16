@@ -23,6 +23,8 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,8 +32,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
@@ -42,7 +45,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
@@ -54,6 +56,7 @@ import (
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // azureVirtualMachineCacheTTL is the default TTL for Azure virtual machine
@@ -63,11 +66,13 @@ const azureVirtualMachineCacheTTL = 5 * time.Minute
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
 	// GetRDSAuthToken generates RDS/Aurora auth token.
-	GetRDSAuthToken(sessionCtx *Session) (string, error)
+	GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
-	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
+	// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
+	GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
 	GetCloudSQLAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetCloudSQLPassword generates password for a Cloud SQL database user.
@@ -116,7 +121,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -159,15 +168,16 @@ func NewAuth(config AuthConfig) (Auth, error) {
 
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
-func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
+func (a *dbAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating RDS auth token for %s.", sessionCtx)
 	token, err := rdsutils.BuildAuthToken(
 		sessionCtx.Database.GetURI(),
-		sessionCtx.Database.GetAWS().Region,
+		meta.Region,
 		sessionCtx.DatabaseUser,
 		awsSession.Config.Credentials)
 	if err != nil {
@@ -190,14 +200,15 @@ permissions (note that IAM changes may take a few minutes to propagate):
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
-func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
-	awsSession, err := a.cfg.Clients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
+func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
-	resp, err := redshift.New(awsSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
-		ClusterIdentifier: aws.String(sessionCtx.Database.GetAWS().Redshift.ClusterID),
+	resp, err := redshiftClient.GetClusterCredentialsWithContext(ctx, &redshift.GetClusterCredentialsInput{
+		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
 		DbName:            aws.String(sessionCtx.DatabaseName),
 		// TODO(r0mant): Do not auto-create database account if DbUser doesn't
@@ -232,12 +243,23 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	// example, an IAM role "arn:aws:iam::1234567890:role/my-role-name" will be
 	// mapped to a Postgres user "IAMR:my-role-name" inside the database. So we
 	// first need to assume this IAM role before getting auth token.
-	awsMetadata := sessionCtx.Database.GetAWS()
-	roleARN, err := redshiftServerlessUsernameToRoleARN(awsMetadata, sessionCtx.DatabaseUser)
+	meta := sessionCtx.Database.GetAWS()
+	roleARN, err := redshiftServerlessUsernameToRoleARN(meta, sessionCtx.DatabaseUser)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, awsMetadata.Region, roleARN)
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	var externalID string
+	if meta.AssumeRoleARN == "" {
+		externalID = meta.ExternalID
+	}
+	// Assume the configured AWS role before assuming the role we need to get the
+	// auth token. This allows cross-account AWS access.
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
 
@@ -250,7 +272,7 @@ Make sure that IAM role %q has a trust relationship with Teleport database agent
 	// Now make the API call to generate the temporary credentials.
 	a.cfg.Log.Debugf("Generating Redshift Serverless auth token for %s.", sessionCtx)
 	resp, err := client.GetCredentialsWithContext(ctx, &redshiftserverless.GetCredentialsInput{
-		WorkgroupName: aws.String(awsMetadata.RedshiftServerless.WorkgroupName),
+		WorkgroupName: aws.String(meta.RedshiftServerless.WorkgroupName),
 		DbName:        aws.String(sessionCtx.DatabaseName),
 	})
 	if err != nil {
@@ -379,6 +401,27 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 		return "", trace.Wrap(err)
 	}
 	return token.Token, nil
+}
+
+// GetElastiCacheRedisToken generates an ElastiCache Redis auth token.
+func (a *dbAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *Session) (string, error) {
+	meta := sessionCtx.Database.GetAWS()
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	a.cfg.Log.Debugf("Generating ElastiCache Redis auth token for %s.", sessionCtx)
+	tokenReq := &elastiCacheRedisIAMTokenRequest{
+		// For IAM-enabled ElastiCache users, the username and user id properties must be identical.
+		// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits
+		userID:             sessionCtx.DatabaseUser,
+		replicationGroupId: meta.ElastiCache.ReplicationGroupID,
+		region:             meta.Region,
+		credentials:        awsSession.Config.Credentials,
+		clock:              a.cfg.Clock,
+	}
+	token, err := tokenReq.toSignedRequestURI()
+	return token, trace.Wrap(err)
 }
 
 // GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
@@ -599,6 +642,10 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
 		return true
+
+	case types.DatabaseTypeOpenSearch:
+		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
+		return true
 	}
 	return false
 }
@@ -623,7 +670,10 @@ func setupTLSConfigServerName(tlsConfig *tls.Config, sessionCtx *Session) error 
 		// of replica set the driver may dial multiple servers and will set
 		// ServerName itself.
 		return nil
-
+	case defaults.ProtocolDynamoDB:
+		// Don't set the server name for DynamoDB - the engine may dial different endpoints
+		// based on the client request and will set ServerName itself.
+		return nil
 	case defaults.ProtocolRedis:
 		// Azure Redis servers always serve the certificates with the proper
 		// hostnames. However, OSS cluster mode may redirect to an IP address,
@@ -813,32 +863,91 @@ func matchAzureResourceName(resourceID, name string) bool {
 // redshiftServerlessUsernameToRoleARN converts a database username to AWS role
 // ARN for a Redshift Serverless database.
 func redshiftServerlessUsernameToRoleARN(aws types.AWS, username string) (string, error) {
-	switch {
 	// These are in-database usernames created when logged in as IAM
 	// users/roles. We will enforce Teleport users to provide IAM roles
 	// instead.
-	case strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:"):
+	if strings.HasPrefix(username, "IAM:") || strings.HasPrefix(username, "IAMR:") {
 		return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
-
-	case arn.IsARN(username):
-		if parsedARN, err := arn.Parse(username); err != nil {
-			return "", trace.Wrap(err)
-		} else if parsedARN.Service != iam.ServiceName || !strings.HasPrefix(parsedARN.Resource, "role/") {
-			return "", trace.BadParameter("expecting name or ARN of an AWS IAM role but got %v", username)
-		}
-		return username, nil
-
-	default:
-		resource := username
-		if !strings.Contains(resource, "/") {
-			resource = fmt.Sprintf("role/%s", username)
-		}
-
-		return arn.ARN{
-			Partition: awsutils.GetPartitionFromRegion(aws.Region),
-			Service:   iam.ServiceName,
-			AccountID: aws.AccountID,
-			Resource:  resource,
-		}.String(), nil
 	}
+	return awsutils.BuildRoleARN(username, aws.Region, aws.AccountID)
+}
+
+// elastiCacheRedisIAMTokenRequest builds an AWS IAM auth token for ElastiCache
+// Redis.
+// Implemented following the AWS example:
+// https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-Connecting
+type elastiCacheRedisIAMTokenRequest struct {
+	// userID is the ElastiCache user ID.
+	userID string
+	// replicationGroupId is the ElastiCache replication group ID.
+	replicationGroupId string
+	// region is the AWS region.
+	region string
+	// credentials are used to presign with AWS SigV4.
+	credentials *credentials.Credentials
+	// clock is the clock implementation.
+	clock clockwork.Clock
+}
+
+// checkAndSetDefaults validates config and sets defaults.
+func (r *elastiCacheRedisIAMTokenRequest) checkAndSetDefaults() error {
+	if r.userID == "" {
+		return trace.BadParameter("missing user ID")
+	}
+	if r.replicationGroupId == "" {
+		return trace.BadParameter("missing replication group ID")
+	}
+	if r.region == "" {
+		return trace.BadParameter("missing region")
+	}
+	if r.credentials == nil {
+		return trace.BadParameter("missing credentials")
+	}
+	if r.clock == nil {
+		r.clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// toSignedRequestURI creates a new AWS SigV4 pre-signed request URI.
+// This pre-signed request URI can then be used to authenticate as an
+// ElastiCache Redis user.
+func (r *elastiCacheRedisIAMTokenRequest) toSignedRequestURI() (string, error) {
+	if err := r.checkAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	req, err := r.getSignableRequest()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	s := v4.NewSigner(r.credentials)
+	_, err = s.Presign(req, nil, elasticache.ServiceName, r.region, time.Minute*15, r.clock.Now())
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	res := url.URL{
+		Host:     req.URL.Host,
+		Path:     "/",
+		RawQuery: req.URL.RawQuery,
+	}
+	return strings.TrimPrefix(res.String(), "//"), nil
+}
+
+// getSignableRequest creates a new request suitable for pre-signing with SigV4.
+func (r *elastiCacheRedisIAMTokenRequest) getSignableRequest() (*http.Request, error) {
+	query := url.Values{
+		"Action": {"connect"},
+		"User":   {r.userID},
+	}
+	reqURI := url.URL{
+		Scheme:   "http",
+		Host:     r.replicationGroupId,
+		Path:     "/",
+		RawQuery: query.Encode(),
+	}
+	req, err := http.NewRequest(http.MethodGet, reqURI.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
 }

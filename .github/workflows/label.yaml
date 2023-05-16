@@ -30,7 +30,7 @@ permissions:
 jobs:
   auto-label-pr:
     name: Label Pull Request
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch of shared-workflow repository.

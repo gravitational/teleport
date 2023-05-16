@@ -38,7 +38,7 @@ import (
 // TestServerConfig combines parameters for a test Postgres/MySQL server.
 type TestServerConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
-	AuthClient auth.ClientI
+	AuthClient AuthClientCA
 	// Name is the server name for identification purposes.
 	Name string
 	// AuthUser is used in tests simulating IAM token authentication.
@@ -90,6 +90,17 @@ func (cfg *TestServerConfig) Port() (string, error) {
 	}
 
 	return port, nil
+}
+
+// AuthClientCA contains the required methods to Generate mTLS certificate to be used
+// by the postgres TestServer.
+type AuthClientCA interface {
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetCertAuthority returns cert authority by id
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -148,6 +159,8 @@ type TestClientConfig struct {
 	Cluster string
 	// Username is the Teleport user name.
 	Username string
+	// PinnedIP is an IP client's certificate should be pinned to.
+	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
 }
@@ -165,6 +178,7 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,
+		PinnedIP:        config.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -19,18 +19,19 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http/httpproxy"
 
+	"github.com/gravitational/teleport/api/types"
 	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/azure"
+	"github.com/gravitational/teleport/api/utils/gcp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -165,6 +166,19 @@ func MatchAWSRequests(req *http.Request) bool {
 	return awsapiutils.IsAWSEndpoint(req.Host)
 }
 
+// MatchAzureRequests is a MatchFunc that returns true if request is an Azure API
+// request.
+func MatchAzureRequests(req *http.Request) bool {
+	h := req.URL.Hostname()
+	return azure.IsAzureEndpoint(h) || types.TeleportAzureMSIEndpoint == h
+}
+
+// MatchGCPRequests is a MatchFunc that returns true if request is an GCP API request.
+func MatchGCPRequests(req *http.Request) bool {
+	h := req.URL.Hostname()
+	return gcp.IsGCPEndpoint(h)
+}
+
 // ForwardToHostHandler is a CONNECT request handler that forwards requests to
 // designated host.
 type ForwardToHostHandler struct {
@@ -286,7 +300,7 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
-		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q.", systemProxyURL.Host)
+		log.WithError(err).Errorf("Failed to send CONNECT request to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}
@@ -343,38 +357,9 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	log.Debugf("Started forwarding request for %q.", host)
 	defer log.Debugf("Stopped forwarding request for %q.", host)
 
-	closeContext, closeCancel := context.WithCancel(ctx)
-	defer closeCancel()
-
-	// Forcefully close connections when input context is done, to make sure
-	// the stream goroutines exit.
-	go func() {
-		<-closeContext.Done()
-
-		clientConn.Close()
-		serverConn.Close()
-	}()
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	stream := func(reader, writer net.Conn) {
-		_, err := io.Copy(reader, writer)
-		if err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Errorf("Failed to stream from %q to %q.", reader.LocalAddr(), writer.LocalAddr())
-		}
-
-		// Close one side at a time.
-		if readerConn, ok := reader.(*net.TCPConn); ok {
-			readerConn.CloseRead()
-		}
-		if writerConn, ok := writer.(*net.TCPConn); ok {
-			writerConn.CloseWrite()
-		}
-		wg.Done()
+	if err := utils.ProxyConn(ctx, clientConn, serverConn); err != nil {
+		log.WithError(err).Errorf("Failed to proxy between %q and %q.", clientConn.LocalAddr(), serverConn.LocalAddr())
 	}
-	go stream(clientConn, serverConn)
-	go stream(serverConn, clientConn)
-	wg.Wait()
 }
 
 // hijackClientConnection hijacks client connection.

@@ -103,7 +103,12 @@ type Template interface {
 	Describe(destination bot.Destination) []FileDescription
 
 	// Render writes the config template to the destination.
-	Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error
+	Render(
+		ctx context.Context,
+		bot Bot,
+		routedIdentity, unroutedIdentity *identity.Identity,
+		destination *DestinationConfig,
+	) error
 }
 
 // TemplateConfig contains all possible config template variants. Exactly one
@@ -268,10 +273,10 @@ func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 		KeyIndex: client.KeyIndex{
 			ClusterName: ident.ClusterName,
 		},
-		PrivateKey: pk,
-		Cert:       ident.CertBytes,
-		TLSCert:    ident.TLSCertBytes,
-		TrustedCA:  auth.AuthoritiesToTrustedCerts(hostCAs),
+		PrivateKey:   pk,
+		Cert:         ident.CertBytes,
+		TLSCert:      ident.TLSCertBytes,
+		TrustedCerts: auth.AuthoritiesToTrustedCerts(hostCAs),
 
 		// Note: these fields are never used or persisted with identity files,
 		// so we won't bother to set them. (They may need to be reconstituted

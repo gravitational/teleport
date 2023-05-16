@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
@@ -91,16 +91,6 @@ func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 		LocalPort:             gateway.LocalPort(),
 		CliCommand:            command,
 	}, nil
-}
-
-// RestartGateway stops a gateway and starts a new with identical parameters but fresh certs,
-// keeping the original URI.
-func (s *Handler) RestartGateway(ctx context.Context, req *api.RestartGatewayRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RestartGateway(ctx, req.GatewayUri); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.EmptyResponse{}, nil
 }
 
 // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway

@@ -1,15 +1,12 @@
 name: Lint (Terraform)
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
+  pull_request:
     paths:
       - '**.tf'
       - '**.tf.json'
       - '**.hcl'
-  pull_request:
+  merge_group:
     paths:
       - '**.tf'
       - '**.tf.json'

@@ -2,36 +2,36 @@ does not generate a config for clusterrole.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -40,36 +40,36 @@ does not generate a config for pdb.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -78,36 +78,36 @@ matches snapshot and tests for annotations.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       annotations:
@@ -119,36 +119,36 @@ matches snapshot and tests for extra-labels.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       labels:
@@ -160,36 +160,36 @@ matches snapshot for affinity.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -198,49 +198,49 @@ matches snapshot for all-v6.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: true
-          kube_cluster_name: test-kube-cluster-name
-          labels:
-            cluster: testing
-
+      teleport.yaml: |-
         app_service:
-          enabled: true
           apps:
-            - labels:
-                environment: test
-              name: grafana
-              uri: http://localhost:3000
-
-        db_service:
+          - labels:
+              environment: test
+            name: grafana
+            uri: http://localhost:3000
           enabled: true
+        auth_service:
+          enabled: false
+        db_service:
           databases:
           - labels:
               database: staging
             name: aurora
             protocol: postgres
             uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
-
-        auth_service:
+          enabled: true
+        kubernetes_service:
+          enabled: true
+          kube_cluster_name: test-kube-cluster-name
+          labels:
+            cluster: testing
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       annotations:
@@ -252,28 +252,12 @@ matches snapshot for aws-databases.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: false
-
+      teleport.yaml: |-
         app_service:
           enabled: false
-
+        auth_service:
+          enabled: false
         db_service:
-          enabled: true
           aws:
           - regions:
             - us-east-1
@@ -287,13 +271,29 @@ matches snapshot for aws-databases.yaml:
               env: development
             types:
             - rds
-
-        auth_service:
-          enabled: false
-        ssh_service:
+          enabled: true
+        kubernetes_service:
           enabled: false
         proxy_service:
           enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -302,28 +302,12 @@ matches snapshot for azure-databases.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: false
-
+      teleport.yaml: |-
         app_service:
           enabled: false
-
+        auth_service:
+          enabled: false
         db_service:
-          enabled: true
           azure:
           - tags:
               '*': '*'
@@ -346,13 +330,29 @@ matches snapshot for azure-databases.yaml:
               origin: alice
             types:
             - mysql
-
-        auth_service:
-          enabled: false
-        ssh_service:
+          enabled: true
+        kubernetes_service:
           enabled: false
         proxy_service:
           enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -361,36 +361,36 @@ matches snapshot for backwards-compatibility.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -399,38 +399,38 @@ matches snapshot for ca-pin.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          ca_pin:
-            - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          ca_pin:
+          - sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -439,41 +439,41 @@ matches snapshot for db.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: false
-
+      teleport.yaml: |-
         app_service:
           enabled: false
-
+        auth_service:
+          enabled: false
         db_service:
-          enabled: true
           databases:
           - labels:
               database: staging
             name: aurora
             protocol: postgres
             uri: postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432
-
-        auth_service:
-          enabled: false
-        ssh_service:
+          enabled: true
+        kubernetes_service:
           enabled: false
         proxy_service:
           enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -482,38 +482,38 @@ matches snapshot for dynamic-app.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: false
-
+      teleport.yaml: |-
         app_service:
           enabled: true
           resources:
-            - labels:
-                '*': '*'
-
-        db_service:
-          enabled: false
-
+          - labels:
+              '*': '*'
         auth_service:
           enabled: false
-        ssh_service:
+        db_service:
+          enabled: false
+        kubernetes_service:
           enabled: false
         proxy_service:
           enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -522,38 +522,38 @@ matches snapshot for dynamic-db.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
-        kubernetes_service:
-          enabled: false
-
+      teleport.yaml: |-
         app_service:
           enabled: false
-
+        auth_service:
+          enabled: false
         db_service:
           enabled: true
           resources:
           - labels:
               '*': '*'
-
-        auth_service:
-          enabled: false
-        ssh_service:
+        kubernetes_service:
           enabled: false
         proxy_service:
           enabled: false
+        ssh_service:
+          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -562,36 +562,36 @@ matches snapshot for imagepullsecrets.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -600,36 +600,36 @@ matches snapshot for initcontainers.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -638,36 +638,36 @@ matches snapshot for join-params-iam.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "iam"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: iam
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -676,36 +676,36 @@ matches snapshot for join-params-token.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -714,36 +714,36 @@ matches snapshot for log-basic.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: json
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: json
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -752,36 +752,36 @@ matches snapshot for log-extra.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: DEBUG
-            output: /var/lib/teleport/test.log
-            format:
-              output: json
-              extra_fields: ["level","timestamp","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - level
+              - timestamp
+              - component
+              - caller
+              output: json
+            output: /var/lib/teleport/test.log
+            severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -790,36 +790,36 @@ matches snapshot for log-legacy.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: DEBUG
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -828,36 +828,36 @@ matches snapshot for node-selector.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -866,36 +866,36 @@ matches snapshot for pdb.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: DEBUG
-            output: /var/lib/teleport/test.log
-            format:
-              output: json
-              extra_fields: ["level","timestamp","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - level
+              - timestamp
+              - component
+              - caller
+              output: json
+            output: /var/lib/teleport/test.log
+            severity: DEBUG
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -904,36 +904,36 @@ matches snapshot for resources.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -942,36 +942,36 @@ matches snapshot for stateful.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -980,36 +980,36 @@ matches snapshot for tolerations.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1018,35 +1018,36 @@ matches snapshot for v10.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          auth_servers: ["proxy.example.com:3080"]
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          auth_servers:
+          - proxy.example.com:3080
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1055,36 +1056,36 @@ matches snapshot for v11.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster-name
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME
@@ -1093,36 +1094,36 @@ matches snapshot for volumes.yaml:
   1: |
     apiVersion: v1
     data:
-      teleport.yaml: |
-        version: v3
-        teleport:
-          join_params:
-            method: "token"
-            token_name: "/etc/teleport-secrets/auth-token"
-          proxy_server: proxy.example.com:3080
-          log:
-            severity: INFO
-            output: stderr
-            format:
-              output: text
-              extra_fields: ["timestamp","level","component","caller"]
-
+      teleport.yaml: |-
+        app_service:
+          enabled: false
+        auth_service:
+          enabled: false
+        db_service:
+          enabled: false
         kubernetes_service:
           enabled: true
           kube_cluster_name: test-kube-cluster
-
-        app_service:
-          enabled: false
-
-        db_service:
-          enabled: false
-
-        auth_service:
+        proxy_service:
           enabled: false
         ssh_service:
           enabled: false
-        proxy_service:
-          enabled: false
+        teleport:
+          join_params:
+            method: token
+            token_name: /etc/teleport-secrets/auth-token
+          log:
+            format:
+              extra_fields:
+              - timestamp
+              - level
+              - component
+              - caller
+              output: text
+            output: stderr
+            severity: INFO
+          proxy_server: proxy.example.com:3080
+        version: v3
     kind: ConfigMap
     metadata:
       name: RELEASE-NAME

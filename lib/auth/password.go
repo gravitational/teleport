@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -62,7 +63,7 @@ func (s *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := s.createUserWebSession(ctx, user)
+	webSession, err := s.createUserWebSession(ctx, user, req.LoginIP)
 	if err != nil {
 		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise
@@ -148,9 +149,7 @@ func (s *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 			Type: events.UserPasswordChangeEvent,
 			Code: events.UserPasswordChangeCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: user,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit password change event.")
 	}

@@ -1,0 +1,219 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`snapshot tests 1`] = `
+.c0 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+}
+
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 18px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c3 {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.54);
+  border-radius: 4px;
+  box-sizing: border-box;
+  display: block;
+  height: 40px;
+  font-size: 16px;
+  padding: 0 16px;
+  outline: none;
+  width: 100%;
+  background: #222C59;
+  color: #FFFFFF;
+  margin-top: 4px;
+  border: 2px solid #FF6257;
+  padding: 10px 14px;
+}
+
+.c3:hover,
+.c3:focus,
+.c3:active {
+  border: 1px solid rgba(255,255,255,0.72);
+}
+
+.c3::-ms-clear {
+  display: none;
+}
+
+.c3::placeholder {
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
+}
+
+.c3:read-only {
+  cursor: not-allowed;
+}
+
+.c3:disabled {
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
+}
+
+.c3:hover,
+.c3:focus {
+  border: 2px solid #FF6257;
+}
+
+.c1 {
+  color: #FF6257;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.c5 {
+  vertical-align: middle;
+  display: inline-block;
+  height: 18px;
+}
+
+.c5:hover {
+  cursor: pointer;
+}
+
+.c4 {
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      errorMsg
+      <span
+        class="c2"
+        style="font-weight: normal;"
+      >
+         - Optional tabel tip
+      </span>
+      <input
+        autocomplete="off"
+        class="c3"
+        inputmode="text"
+        name="optional name"
+        type="text"
+        value="value"
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      errorMsg
+      <input
+        autocomplete="off"
+        class="c3"
+        inputmode="text"
+        name="optional name"
+        placeholder="placeholder"
+        type="text"
+        value=""
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      <span
+        class="c4"
+      >
+        errorMsg
+      </span>
+      <span
+        class="c5"
+      >
+        <span
+          class="c6 icon icon-info_outline "
+          font-size="4"
+        />
+      </span>
+      <input
+        autocomplete="off"
+        class="c3"
+        inputmode="text"
+        name="optional name"
+        placeholder="placeholder"
+        type="text"
+        value=""
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+  >
+    <label
+      class="c1"
+      font-size="0"
+    >
+      <span
+        class="c4"
+      >
+        errorMsg
+        <span
+          class="c2"
+          style="font-weight: normal;"
+        >
+           - the label tip
+        </span>
+      </span>
+      <span
+        class="c5"
+      >
+        <span
+          class="c6 icon icon-info_outline "
+          font-size="4"
+        />
+      </span>
+      <input
+        autocomplete="off"
+        class="c3"
+        inputmode="text"
+        name="optional name"
+        placeholder="placeholder"
+        type="text"
+        value=""
+      />
+    </label>
+  </div>
+  <div
+    class="c0"
+  >
+    <input
+      autocomplete="off"
+      class="c3"
+      inputmode="text"
+      placeholder="without label"
+      type="text"
+      value=""
+    />
+  </div>
+</div>
+`;

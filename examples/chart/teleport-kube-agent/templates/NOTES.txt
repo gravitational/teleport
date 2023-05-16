@@ -1,0 +1,22 @@
+{{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) }}
+SECURITY WARNING: Kubernetes 1.25 removes PodSecurityPolicy support and Helm
+doesn't support upgrading from 1.24 to 1.25 with PSPs enabled. Since version 12
+the `teleport-cluster` chart doesn't deploy PSPs on Kubernetes 1.23 or older.
+Instead, we recommend you to configure Pod Security AdmissionControllers for
+the namespace "{{.Release.Namespace}}" by adding the label
+`pod-security.kubernetes.io/enforce: baseline` on the namespace resource.
+
+See https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
+
+To remove this warning, explicitly set "podSecurityPolicy.enabled=false".
+{{- end }}
+
+{{- if .Values.teleportVersionOverride }}
+
+DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run Teleport version {{ .Chart.AppVersion }}.
+You will face compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version {{.Values.teleportVersionOverride}},
+you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
+{{- end }}

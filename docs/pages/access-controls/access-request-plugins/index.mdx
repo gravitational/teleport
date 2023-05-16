@@ -6,7 +6,33 @@ layout: tocless-doc
 
 Teleport Just-in-Time Access Requests allow users to receive temporary elevated
 privileges by seeking consent from one or more reviewers, depending on your
-configuration. 
+configuration.
+
+With Teleport's Access Request plugins, users can manage Access Requests from
+within your organization's existing messaging and project management solutions.
+
+## Plugin guides
 
 (!docs/pages/includes/access-request-integrations.mdx!)
+
+## Architecture
+
+Access Request plugins are self-contained programs that connect to the Teleport
+Auth Service's gRPC API to listen for audit events relating to new or updated
+Access Requests. After processing an Access Request event, Access Request plugins
+interact with a third-party API (e.g., the Slack or PagerDuty APIs). 
+
+Access Request plugins can run within private networks that are isolated from
+the Teleport Auth Service. To access the Auth Service API, they connect to the
+Proxy Service, which establishes a reverse tunnel for the plugin to access the
+Auth Service.
+
+You can run multiple instances of an Access Request plugin for high availability
+by deploying each instance in a separate availability zone. There is no need for
+additional configuration or load balancing, as plugins avoid creating duplicate
+requests to their third-party APIs.
+
+To read more about the architecture of an Access Request plugin, and start
+writing your own, read our [Access Request plugin development
+guide](../../api/access-plugin.mdx).
 

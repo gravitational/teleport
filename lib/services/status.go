@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -29,6 +30,15 @@ type Status interface {
 
 	// UpsertClusterAlert creates the specified alert, overwriting any preexising alert with the same ID.
 	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+
+	// CreateAlertAck marks a cluster alert as acknowledged.
+	CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error
+
+	// GetAlertAcks gets active alert ackowledgements.
+	GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error)
+
+	// ClearAlertAcks clears alert acknowledgments.
+	ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error
 }
 
 // StatusInternal extends Status with auth-internal methods.

@@ -30,6 +30,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -44,7 +46,7 @@ func BotResourceName(botName string) string {
 
 // createBotRole creates a role from a bot template with the given parameters.
 func createBotRole(ctx context.Context, s *Server, botName string, resourceName string, roleRequests []string) (types.Role, error) {
-	role, err := types.NewRole(resourceName, types.RoleSpecV5{
+	role, err := types.NewRole(resourceName, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			// TODO: inherit TTLs from cert length?
 			MaxSessionTTL: types.Duration(12 * time.Hour),
@@ -163,11 +165,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
+	tokenTTL := time.Duration(0)
+	if exp := provisionToken.Expiry(); !exp.IsZero() {
+		tokenTTL = time.Until(exp)
+	}
+
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
 		UserName:   resourceName,
 		RoleName:   resourceName,
-		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
+		TokenTTL:   proto.Duration(tokenTTL),
 		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
@@ -272,6 +279,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		case types.JoinMethodToken,
 			types.JoinMethodIAM,
 			types.JoinMethodGitHub,
+			types.JoinMethodGitLab,
+			types.JoinMethodAzure,
 			types.JoinMethodCircleCI:
 		default:
 			return nil, trace.BadParameter(
@@ -280,6 +289,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 					types.JoinMethodToken,
 					types.JoinMethodIAM,
 					types.JoinMethodGitHub,
+					types.JoinMethodGitLab,
+					types.JoinMethodAzure,
 					types.JoinMethodCircleCI,
 				})
 		}
@@ -302,7 +313,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}
-	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, s.clock.Now().Add(ttl), tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,17 +374,11 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 			return trace.BadParameter("explicitly requested generation %d is not equal to 1, this is a logic error", certReq.generation)
 		}
 
-		// Fetch a fresh copy of the user we can mutate safely. We can't
-		// implement a protobuf clone on User due to protobuf's proto.Clone()
-		// panicing when the user object has traits set, and a JSON
-		// marshal/unmarshal creates an import cycle so... here we are.
-		// There's a tiny chance the underlying user is mutated between calls
-		// to GetUser() but we're comparing with an older value so it'll fail
-		// safely.
-		newUser, err := s.Services.GetUser(user.GetName(), false)
-		if err != nil {
-			return trace.Wrap(err)
+		userV2, ok := user.(*types.UserV2)
+		if !ok {
+			return trace.BadParameter("unsupported version of user: %T", user)
 		}
+		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
 		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(certReq.generation)
 		newUser.SetMetadata(metadata)
@@ -410,7 +415,7 @@ func (s *Server) validateGenerationLabel(ctx context.Context, user types.User, c
 		}
 
 		// Emit an audit event.
-		userMetadata := ClientUserMetadata(ctx)
+		userMetadata := authz.ClientUserMetadata(ctx)
 		if err := s.emitter.EmitAuditEvent(s.closeCtx, &apievents.RenewableCertificateGenerationMismatch{
 			Metadata: apievents.Metadata{
 				Type: events.RenewableCertificateGenerationMismatchEvent,
@@ -475,7 +480,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if user.GetCreatedBy().Connector != nil {
+	if user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
 		return nil, trace.AccessDenied("access denied")
 	}

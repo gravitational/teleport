@@ -20,9 +20,9 @@ import (
 	"os/exec"
 )
 
-func checkTDR() error {
-	if _, err := exec.LookPath("tdr"); err != nil {
-		return fmt.Errorf("can't find tdr in $PATH: %w; get it from https://github.com/gravitational/tdr/", err)
+func checkDrone() error {
+	if _, err := exec.LookPath("drone"); err != nil {
+		return fmt.Errorf("can't find drone in $PATH: %w; get it from https://docs.drone.io/cli/install", err)
 	}
 	if os.Getenv("DRONE_SERVER") == "" || os.Getenv("DRONE_TOKEN") == "" {
 		return fmt.Errorf("$DRONE_SERVER and/or $DRONE_TOKEN env vars not set; get them at https://drone.platform.teleport.sh/account")
@@ -31,7 +31,7 @@ func checkTDR() error {
 }
 
 func signDroneConfig() error {
-	out, err := exec.Command("tdr", "sign", "gravitational/teleport", "--save").CombinedOutput()
+	out, err := exec.Command("drone", "sign", "gravitational/teleport", "--save").CombinedOutput()
 	if err != nil {
 		if len(out) > 0 {
 			err = fmt.Errorf("drone signing failed: %v\noutput:\n%s", err, out)

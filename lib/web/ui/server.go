@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -68,14 +70,17 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) []Server {
+func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) ([]Server, error) {
 	uiServers := []Server{}
 	for _, server := range servers {
 		serverLabels := server.GetStaticLabels()
 		serverCmdLabels := server.GetCmdLabels()
 		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-		serverLogins := userRoles.EnumerateServerLogins(server)
+		serverLogins, err := userRoles.GetAllowedLoginsForResource(server)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		uiServers = append(uiServers, Server{
 			ClusterName: clusterName,
@@ -84,11 +89,11 @@ func MakeServers(clusterName string, servers []types.Server, userRoles services.
 			Hostname:    server.GetHostname(),
 			Addr:        server.GetAddr(),
 			Tunnel:      server.GetUseTunnel(),
-			SSHLogins:   serverLogins.Allowed(),
+			SSHLogins:   serverLogins,
 		})
 	}
 
-	return uiServers
+	return uiServers, nil
 }
 
 // KubeCluster describes a kube cluster.
@@ -122,6 +127,41 @@ func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) 
 	}
 
 	return uiKubeClusters
+}
+
+// KubeResource describes a Kubernetes resource.
+type KubeResource struct {
+	// Kind is the kind of the Kubernetes resource.
+	// Curently supported kinds are: pod.
+	Kind string `json:"kind"`
+	// Name is the name of the Kubernetes resource.
+	Name string `json:"name"`
+	// Labels is a map of static associated with a Kubernetes resource.
+	Labels []Label `json:"labels"`
+	// Namespace is the Kubernetes namespace where the resource is located.
+	Namespace string `json:"namespace"`
+	// KubeCluster is the Kubernetes cluster the resource blongs to.
+	KubeCluster string `json:"cluster"`
+}
+
+// MakeKubeResources creates ui kube resource objects and returns a list.
+func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) []KubeResource {
+	uiKubeResources := make([]KubeResource, 0, len(resources))
+	for _, resource := range resources {
+		staticLabels := resource.GetStaticLabels()
+		uiLabels := makeLabels(staticLabels)
+
+		uiKubeResources = append(uiKubeResources,
+			KubeResource{
+				Kind:        resource.Kind,
+				Name:        resource.GetName(),
+				Labels:      uiLabels,
+				Namespace:   resource.Spec.Namespace,
+				KubeCluster: cluster,
+			},
+		)
+	}
+	return uiKubeResources
 }
 
 // getAllowedKubeUsersAndGroupsForCluster works on a given set of roles to return
@@ -198,17 +238,35 @@ type Database struct {
 	Labels []Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
+	// URI of the database.
+	URI string `json:"uri"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
+	// AWS contains AWS specific fields.
+	AWS *AWS `json:"aws,omitempty"`
 }
+
+// AWS contains AWS specific fields.
+type AWS struct {
+	// embeds types.AWS fields into this struct when des/serializing.
+	types.AWS `json:""`
+	// Status describes the current server status as reported by AWS.
+	// Currently this field is populated for AWS RDS Databases when Listing Databases using the AWS OIDC Integration
+	Status string `json:"status,omitempty"`
+}
+
+const (
+	// LabelStatus is the label key containing the database status, e.g. "available"
+	LabelStatus = "status"
+)
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
-	return Database{
+	db := Database{
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -217,18 +275,59 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
 		Hostname:      stripProtocolAndPort(database.GetURI()),
+		URI:           database.GetURI(),
 	}
+
+	if database.IsAWSHosted() {
+		dbStatus := ""
+		if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
+			dbStatus = statusLabel
+		}
+		db.AWS = &AWS{
+			AWS:    database.GetAWS(),
+			Status: dbStatus,
+		}
+	}
+
+	return db
 }
 
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []types.Database) []Database {
+func MakeDatabases(databases []types.Database, dbUsers, dbNames []string) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, nil /* database Users */, nil /* database Names */)
+		db := MakeDatabase(database, dbUsers, dbNames)
 		uiServers = append(uiServers, db)
 	}
 
 	return uiServers
+}
+
+// DatabaseService describes a DatabaseService resource.
+type DatabaseService struct {
+	// Name is the name of the database.
+	Name string `json:"name"`
+	// ResourceMatchers is a list of resource matchers of the DatabaseService.
+	ResourceMatchers []*types.DatabaseResourceMatcher `json:"resource_matchers"`
+}
+
+// MakeDatabaseService creates DatabaseService resource.
+func MakeDatabaseService(databaseService types.DatabaseService) DatabaseService {
+	return DatabaseService{
+		Name:             databaseService.GetName(),
+		ResourceMatchers: databaseService.GetResourceMatchers(),
+	}
+}
+
+// MakeDatabaseServices creates database service objects.
+func MakeDatabaseServices(databaseServices []types.DatabaseService) []DatabaseService {
+	dbServices := make([]DatabaseService, len(databaseServices))
+	for i, database := range databaseServices {
+		db := MakeDatabaseService(database)
+		dbServices[i] = db
+	}
+
+	return dbServices
 }
 
 // Desktop describes a desktop to pass to the ui.
@@ -243,10 +342,12 @@ type Desktop struct {
 	Labels []Label `json:"labels"`
 	// HostID is the ID of the Windows Desktop Service reporting the desktop.
 	HostID string `json:"host_id"`
+	// Logins is the list of logins this user can use on this desktop.
+	Logins []string `json:"logins"`
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) (Desktop, error) {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -255,7 +356,13 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		}
 		return addr
 	}
+
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
+
+	logins, err := userRoles.GetAllowedLoginsForResource(windowsDesktop)
+	if err != nil {
+		return Desktop{}, trace.Wrap(err)
+	}
 
 	return Desktop{
 		OS:     constants.WindowsOS,
@@ -263,18 +370,23 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop) Desktop {
 		Addr:   stripRdpPort(windowsDesktop.GetAddr()),
 		Labels: uiLabels,
 		HostID: windowsDesktop.GetHostID(),
-	}
+		Logins: logins,
+	}, nil
 }
 
 // MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop) []Desktop {
+func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) ([]Desktop, error) {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktops = append(uiDesktops, MakeDesktop(windowsDesktop))
+		uiDesktop, err := MakeDesktop(windowsDesktop, userRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		uiDesktops = append(uiDesktops, uiDesktop)
 	}
 
-	return uiDesktops
+	return uiDesktops, nil
 }
 
 // DesktopService describes a desktop service to pass to the ui.
@@ -312,9 +424,9 @@ func MakeDesktopServices(windowsDesktopServices []types.WindowsDesktopService) [
 	return desktopServices
 }
 
-// stripProtocolAndPort returns only the hostname of the uri.
-// Handles uri's with no protocol eg: for some database connection
-// endpoint the uri can be in the format "hostname:port".
+// stripProtocolAndPort returns only the hostname of the URI.
+// Handles URIs with no protocol eg: for some database connection
+// endpoint the URI can be in the format "hostname:port".
 func stripProtocolAndPort(uri string) string {
 	stripPort := func(uri string) string {
 		splitURI := strings.Split(uri, ":")

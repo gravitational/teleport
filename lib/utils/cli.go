@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
-	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -57,7 +56,9 @@ func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
 		if level == logrus.DebugLevel {
-			logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+			debugFormatter.timestampEnabled = true
+			logrus.SetFormatter(debugFormatter)
 			logrus.SetOutput(os.Stderr)
 		} else {
 			logrus.SetOutput(io.Discard)
@@ -147,7 +148,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -197,9 +198,9 @@ func formatErrorWriter(err error, w io.Writer) {
 	// it, if it does, print it, otherwise escape and print the original error.
 	if traceErr, ok := err.(*trace.TraceErr); ok {
 		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowNewlines(message))
+			fmt.Fprintln(w, AllowWhitespace(message))
 		}
-		fmt.Fprintln(w, AllowNewlines(trace.Unwrap(traceErr).Error()))
+		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
 		return
 	}
 	strErr := err.Error()
@@ -207,7 +208,7 @@ func formatErrorWriter(err error, w io.Writer) {
 	if strErr == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 	} else {
-		fmt.Fprintln(w, AllowNewlines(err.Error()))
+		fmt.Fprintln(w, AllowWhitespace(err.Error()))
 	}
 }
 
@@ -243,7 +244,7 @@ func formatCertError(err error) string {
 	}
 
 	var certInvalidErr x509.CertificateInvalidError
-	if errors.As(err, &x509.CertificateInvalidError{}) {
+	if errors.As(err, &certInvalidErr) {
 		return fmt.Sprintf(`WARNING:
 
   The certificate presented by the proxy is invalid: %v.
@@ -275,21 +276,6 @@ const (
 // Color formats the string in a terminal escape color
 func Color(color int, v interface{}) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
-}
-
-// Consolef prints the same message to a 'ui console' (if defined) and also to
-// the logger with INFO priority
-func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
-	msg = fmt.Sprintf(msg, params...)
-	log.Info(msg)
-	if w != nil {
-		component := strings.ToUpper(component)
-		// 13 is the length of "[KUBERNETES]", which is the longest component
-		// name prefix we have *today*. Use a Max function here to avoid
-		// negative spacing, in case we add longer component names.
-		spacing := int(math.Max(float64(12-len(component)), 0))
-		fmt.Fprintf(w, "[%v]%v %v\n", strings.ToUpper(component), strings.Repeat(" ", spacing), msg)
-	}
 }
 
 // InitCLIParser configures kingpin command line args parser with
@@ -374,19 +360,47 @@ func EscapeControl(s string) string {
 	return s
 }
 
-// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
-// string that is safe to print on the CLI. This is to ensure that malicious
-// servers can not hide output. For more details, see:
+// isAllowedWhitespace is a helper function for cli output escaping that returns
+// true if a given rune is a whitespace character and allowed to be unescaped.
+func isAllowedWhitespace(r rune) bool {
+	switch r {
+	case '\n', '\t', '\v':
+		// newlines, tabs, vertical tabs are allowed whitespace.
+		return true
+	}
+	return false
+}
+
+// AllowWhitespace escapes all ANSI escape sequences except some whitespace
+// characters (\n \t \v) from string and returns a string that is safe to
+// print on the CLI. This is to ensure that malicious servers can not hide
+// output. For more details, see:
 //   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
-func AllowNewlines(s string) string {
-	if !strings.Contains(s, "\n") {
-		return EscapeControl(s)
+func AllowWhitespace(s string) string {
+	// loop over string searching for part to escape followed by allowed char.
+	// example: `\tabc\ndef\t\n`
+	// 1. part: ""    sep: "\t"
+	// 2. part: "abc" sep: "\n"
+	// 3. part: "def" sep: "\t"
+	// 4. part: ""    sep: "\n"
+	var sb strings.Builder
+	// note that increment also happens at bottom of loop because we can
+	// safely jump to place where allowedWhitespace was found.
+	for i := 0; i < len(s); i++ {
+		sepIdx := strings.IndexFunc(s[i:], isAllowedWhitespace)
+		if sepIdx == -1 {
+			// infalliable call, ignore error.
+			_, _ = sb.WriteString(EscapeControl(s[i:]))
+			// no separators remain.
+			break
+		}
+		part := EscapeControl(s[i : i+sepIdx])
+		_, _ = sb.WriteString(part)
+		sep := s[i+sepIdx]
+		_ = sb.WriteByte(sep)
+		i += sepIdx
 	}
-	parts := strings.Split(s, "\n")
-	for i, part := range parts {
-		parts[i] = EscapeControl(part)
-	}
-	return strings.Join(parts, "\n")
+	return sb.String()
 }
 
 // NewStdlogger creates a new stdlib logger that uses the specified leveled logger

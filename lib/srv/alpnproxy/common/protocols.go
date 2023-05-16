@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -38,6 +39,9 @@ const (
 	// ProtocolMongoDB is TLS ALPN protocol value used to indicate Mongo protocol.
 	ProtocolMongoDB Protocol = "teleport-mongodb"
 
+	// ProtocolOracle is TLS ALPN protocol value used to indicate Oracle protocol.
+	ProtocolOracle Protocol = "teleport-oracle"
+
 	// ProtocolRedisDB is TLS ALPN protocol value used to indicate Redis protocol.
 	ProtocolRedisDB Protocol = "teleport-redis"
 
@@ -53,8 +57,18 @@ const (
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
+	// ProtocolOpenSearch is TLS ALPN protocol value used to indicate OpenSearch protocol.
+	ProtocolOpenSearch Protocol = "teleport-opensearch"
+
+	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
+	ProtocolDynamoDB Protocol = "teleport-dynamodb"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
+
+	// ProtocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport Proxy on the SSH port.
+	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
@@ -77,9 +91,14 @@ const (
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
 
-	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
-	// traffic intended for the Teleport proxy.
-	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
+	// ProtocolProxyGRPCInsecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy join service.
+	// Credentials are not verified since this is used for node joining.
+	ProtocolProxyGRPCInsecure Protocol = "teleport-proxy-grpc"
+
+	// ProtocolProxyGRPCSecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy service with mTLS authentication.
+	ProtocolProxyGRPCSecure Protocol = "teleport-proxy-grpc-mtls"
 
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
@@ -94,8 +113,7 @@ const (
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
-var SupportedProtocols = append(
-	ProtocolsWithPing(ProtocolsWithPingSupport...),
+var SupportedProtocols = WithPingProtocols(
 	append([]Protocol{
 		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
@@ -109,7 +127,10 @@ var SupportedProtocols = append(
 		ProtocolReverseTunnel,
 		ProtocolAuth,
 		ProtocolTCP,
-	}, DatabaseProtocols...)...,
+		ProtocolProxySSHGRPC,
+		ProtocolProxyGRPCInsecure,
+		ProtocolProxyGRPCSecure,
+	}, DatabaseProtocols...),
 )
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
@@ -130,6 +151,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolPostgres, nil
 	case defaults.ProtocolMongoDB:
 		return ProtocolMongoDB, nil
+	case defaults.ProtocolOracle:
+		return ProtocolOracle, nil
 	case defaults.ProtocolRedis:
 		return ProtocolRedisDB, nil
 	case defaults.ProtocolSQLServer:
@@ -140,6 +163,10 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
+	case defaults.ProtocolOpenSearch:
+		return ProtocolOpenSearch, nil
+	case defaults.ProtocolDynamoDB:
+		return ProtocolDynamoDB, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -153,17 +180,19 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 func IsDBTLSProtocol(protocol Protocol) bool {
 	dbTLSProtocols := []Protocol{
 		ProtocolMongoDB,
+		ProtocolOracle,
 		ProtocolRedisDB,
 		ProtocolSQLServer,
 		ProtocolSnowflake,
 		ProtocolCassandra,
 		ProtocolElasticsearch,
+		ProtocolOpenSearch,
+		ProtocolDynamoDB,
 	}
 
-	return slices.Contains(
-		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
-		protocol,
-	)
+	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
+		return protocol == dbTLSProtocol || protocol == ProtocolWithPing(dbTLSProtocol)
+	})
 }
 
 // DatabaseProtocols is the list of the database protocols supported.
@@ -171,26 +200,33 @@ var DatabaseProtocols = []Protocol{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolOracle,
 	ProtocolRedisDB,
 	ProtocolSQLServer,
 	ProtocolSnowflake,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolOpenSearch,
+	ProtocolDynamoDB,
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
 // supported. For now, only database protocols are supported.
-var ProtocolsWithPingSupport = DatabaseProtocols
+var ProtocolsWithPingSupport = append(
+	DatabaseProtocols,
+	ProtocolTCP,
+)
 
-// ProtocolsWithPing receives a list a protocols and returns a list of them with
-// the Ping protocol suffix.
-func ProtocolsWithPing(protocols ...Protocol) []Protocol {
-	res := make([]Protocol, len(protocols))
-	for i := range res {
-		res[i] = ProtocolWithPing(protocols[i])
+// WithPingProtocols adds Ping protocols to the list for each protocol that
+// supports Ping.
+func WithPingProtocols(protocols []Protocol) []Protocol {
+	var pingProtocols []Protocol
+	for _, protocol := range protocols {
+		if HasPingSupport(protocol) {
+			pingProtocols = append(pingProtocols, ProtocolWithPing(protocol))
+		}
 	}
-
-	return res
+	return utils.Deduplicate(append(pingProtocols, protocols...))
 }
 
 // ProtocolWithPing receives a protocol and returns it with the Ping protocol

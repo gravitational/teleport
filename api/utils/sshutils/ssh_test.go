@@ -37,9 +37,11 @@ func TestHostKeyCallback(t *testing.T) {
 	spoofedCert, err := MakeSpoofedHostCert(ca)
 	require.NoError(t, err)
 
-	hostKeyCallback, err := HostKeyCallback([][]byte{
-		[]byte(makeKnownHostsLine("127.0.0.1", ca.PublicKey())),
-	}, false)
+	knownHosts := [][]byte{[]byte(makeKnownHostsLine("127.0.0.1", ca.PublicKey()))}
+	trustedKeys, err := ParseKnownHosts(knownHosts)
+	require.NoError(t, err)
+
+	hostKeyCallback, err := HostKeyCallback(trustedKeys, false)
 	require.NoError(t, err)
 
 	err = hostKeyCallback("127.0.0.1:3022", nil, realCert.PublicKey())
@@ -124,4 +126,27 @@ func TestSSHMarshalEd25519(t *testing.T) {
 
 	result := KeysEqual(ak, bk)
 	require.True(t, result)
+}
+
+func TestMatchesWildcard(t *testing.T) {
+	t.Parallel()
+	t.Run("Wildcard match", func(t *testing.T) {
+		require.True(t, matchesWildcard("foo.example.com", "*.example.com"))
+		require.True(t, matchesWildcard("bar.example.com", "*.example.com"))
+		require.True(t, matchesWildcard("bar.example.com.", "*.example.com"))
+		require.True(t, matchesWildcard("bar.foo", "*.foo"))
+	})
+
+	t.Run("Wildcard mismatch", func(t *testing.T) {
+		require.False(t, matchesWildcard("foo.example.com", "example.com"), "Not a wildcard pattern")
+		require.False(t, matchesWildcard("foo.example.org", "*.example.com"), "Wildcard pattern shouldn't match different suffix")
+		require.False(t, matchesWildcard("a.b.example.com", "*.example.com"), "Wildcard pattern shouldn't match multiple prefixes")
+
+		t.Run("Single part hostname", func(t *testing.T) {
+			require.False(t, matchesWildcard("example", "*.example.com"))
+			require.False(t, matchesWildcard("example", "*.example"))
+			require.False(t, matchesWildcard("example", "example"))
+			require.False(t, matchesWildcard("example", "*."))
+		})
+	})
 }

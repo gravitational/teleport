@@ -21,6 +21,8 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
@@ -186,17 +188,9 @@ func (s *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	// Get the correct cert TTL based on roles.
 	ttl := roles.AdjustSessionTTL(apidefaults.CertDuration)
 
-	caType := types.UserCA
-	if req.SignWithDatabaseCA {
-		// Field SignWithDatabaseCA was added in Teleport 10 when DatabaseCA was introduced.
-		// Previous Teleport versions used UserCA, and we still need to sign certificates with UserCA
-		// for compatibility reason. Teleport 10+ expects request signed with DatabaseCA.
-		caType = types.DatabaseCA
-	}
-
 	// Generate the TLS certificate.
 	ca, err := s.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
+		Type:       types.DatabaseCA,
 		DomainName: clusterName.GetClusterName(),
 	}, true)
 	if err != nil {
@@ -315,3 +309,20 @@ func getSnowflakeJWTParams(accountName, userName string, publicKey []byte) (stri
 
 	return subject, issuer
 }
+
+func filterExtensions(extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
+	filtered := make([]pkix.Extension, 0, len(oids))
+	for _, e := range extensions {
+		for _, id := range oids {
+			if e.Id.Equal(id) {
+				filtered = append(filtered, e)
+			}
+		}
+	}
+	return filtered
+}
+
+var (
+	oidExtKeyUsage    = asn1.ObjectIdentifier{2, 5, 29, 37}
+	oidSubjectAltName = asn1.ObjectIdentifier{2, 5, 29, 17}
+)

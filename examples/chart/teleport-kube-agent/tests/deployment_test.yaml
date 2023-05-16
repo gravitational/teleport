@@ -275,11 +275,11 @@ tests:
       # https://github.com/helm/helm/issues/8137
       unitTestUpgrade: true
 
-      teleportVersionOverride: 8.3.4
+      teleportVersionOverride: 12.2.1
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: public.ecr.aws/gravitational/teleport:8.3.4
+          value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
       - matchSnapshot:
           path: spec.template.spec
 
@@ -614,6 +614,34 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
+  - it: should set dnsConfig when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - notEqual:
+          path: spec.template.spec.dnsConfig
+          value: null
+      - matchSnapshot:
+          path: spec.template.spec.dnsConfig
+
+  - it: should set dnsPolicy when set in values if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/dnsconfig.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+
   - it: should not render Deployment if action is fresh install without storage
     template: deployment.yaml
     release:
@@ -627,3 +655,33 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: sets by default a container security context if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - matchSnapshot:
+          path: spec.template.spec.initContainers[0].securityContext
+      - matchSnapshot:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: sets no container security context when manually unset and if action is Upgrade
+    template: deployment.yaml
+    set:
+      # unit test does not support lookup functions, so to test the behavior we use this undoc value
+      # https://github.com/helm/helm/issues/8137
+      unitTestUpgrade: true
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/security-context-empty.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext
+          value: null
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: null

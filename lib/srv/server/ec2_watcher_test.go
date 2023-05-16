@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -39,7 +40,7 @@ type mockClients struct {
 	azureClient azure.VirtualMachinesClient
 }
 
-func (c *mockClients) GetAWSEC2Client(region string) (ec2iface.EC2API, error) {
+func (c *mockClients) GetAWSEC2Client(ctx context.Context, region string, _ ...cloud.AWSAssumeRoleOptionFn) (ec2iface.EC2API, error) {
 	return c.ec2Client, nil
 }
 
@@ -87,18 +88,73 @@ func (m *mockEC2Client) DescribeInstancesPagesWithContext(
 	return nil
 }
 
+func TestNewEC2InstanceFetcherTags(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		config          ec2FetcherConfig
+		expectedFilters []*ec2.Filter
+	}{
+		{
+			name: "with glob key",
+			config: ec2FetcherConfig{
+				Labels: types.Labels{
+					"*":     []string{},
+					"hello": []string{"other"},
+				},
+			},
+			expectedFilters: []*ec2.Filter{
+				{
+					Name:   aws.String(AWSInstanceStateName),
+					Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
+				},
+			},
+		},
+		{
+			name: "with no glob key",
+			config: ec2FetcherConfig{
+				Labels: types.Labels{
+					"hello": []string{"other"},
+				},
+			},
+			expectedFilters: []*ec2.Filter{
+				{
+					Name:   aws.String(AWSInstanceStateName),
+					Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
+				},
+				{
+					Name:   aws.String("tag:hello"),
+					Values: aws.StringSlice([]string{"other"}),
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fetcher := newEC2InstanceFetcher(tc.config)
+			require.Equal(t, tc.expectedFilters, fetcher.Filters)
+		})
+	}
+}
+
 func TestEC2Watcher(t *testing.T) {
+	t.Parallel()
 	clients := mockClients{
 		ec2Client: &mockEC2Client{},
 	}
 	matchers := []services.AWSMatcher{
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 			SSM:     &services.AWSSSM{},
 		},
 		{
+			Params: services.InstallerParams{
+				InstallTeleport: true,
+			},
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},

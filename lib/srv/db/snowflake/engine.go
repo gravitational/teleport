@@ -44,12 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(newEngine, defaults.ProtocolSnowflake)
-}
-
-// newEngine create new Snowflake engine.
-func newEngine(ec common.EngineConfig) common.Engine {
+// NewEngine create new Snowflake engine.
+func NewEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
@@ -345,19 +341,19 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 // authorizeConnection does authorization check for Snowflake connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	ap, err := e.Auth.GetAuthPreference(ctx)
+	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	mfaParams := e.sessionCtx.MFAParams(ap.GetRequireMFAType())
+	state := e.sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database.GetProtocol(),
+		e.sessionCtx.Database,
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		mfaParams,
+		state,
 		dbRoleMatchers...,
 	)
 	if err != nil {

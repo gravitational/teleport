@@ -1,5 +1,3 @@
-//go:build darwin
-
 // Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +14,11 @@
 
 package native
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/gravitational/teleport/lib/devicetrust"
+)
 
 const (
 	// https://www.osstatus.com/search/results?framework=Security&search=-25300
@@ -34,10 +36,23 @@ type statusError struct {
 func (e *statusError) Error() string {
 	switch e.status {
 	case errSecItemNotFound:
+		// errSecItemNotFound can also occur because of an unsigned binary - it
+		// cannot read the correct key, so it appears the same as not finding any.
+		// TODO(codingllama): Consider adding a signature check to client-side
+		//  Device Trust, like lib/auth/touchid.
 		return "device key not found, was the device enrolled?"
 	case errSecMissingEntitlement:
 		return "binary missing signature or entitlements, download the client binaries from https://goteleport.com/download/"
 	default:
 		return fmt.Sprintf("status %d", e.status)
 	}
+}
+
+func (e *statusError) Is(target error) bool {
+	if target == devicetrust.ErrDeviceKeyNotFound && e.status == errSecItemNotFound {
+		return true
+	}
+
+	other, ok := target.(*statusError)
+	return ok && other.status == e.status
 }

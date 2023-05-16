@@ -21,7 +21,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -119,6 +119,7 @@ func TestRegistrationFlow_BeginFinish(t *testing.T) {
 				SignatureCounter:  0,
 				AttestationObject: ccr.AttestationResponse.AttestationObject,
 				ResidentKey:       test.wantResidentKey,
+				CredentialRpId:    rpID,
 			}
 			if diff := cmp.Diff(wantDevice, gotDevice); diff != "" {
 				t.Errorf("Finish() mismatch (-want +got):\n%s", diff)

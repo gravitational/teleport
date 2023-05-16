@@ -19,19 +19,23 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // ErrSAMLRequiresEnterprise is the error returned by the SAML methods when not
 // using the Enterprise edition of Teleport.
-var ErrSAMLRequiresEnterprise = fmt.Errorf("SAML: %w", ErrRequiresEnterprise)
+//
+// TODO(zmb3): ideally we would wrap ErrRequiresEnterprise here, but
+// we can't currently propagate wrapped errors across the gRPC boundary,
+// and we want tctl to display a clean user-facing message in this case
+var ErrSAMLRequiresEnterprise = trace.AccessDenied("SAML is only available in Teleport Enterprise")
 
 // SAMLService are the methods that the auth server delegates to a plugin for
 // implementing the SAML connector. These are the core functions of SAML
@@ -60,7 +64,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 			Type: events.SAMLConnectorCreatedEvent,
 			Code: events.SAMLConnectorCreatedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connector.GetName(),
 		},
@@ -81,7 +85,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 			Type: events.SAMLConnectorDeletedEvent,
 			Code: events.SAMLConnectorDeletedCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: connectorID,
 		},

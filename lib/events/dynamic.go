@@ -215,6 +215,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionOpenSearchRequestEvent:
+		e = &events.OpenSearchRequest{}
 	case DatabaseSessionDynamoDBRequestEvent:
 		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
@@ -223,6 +225,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
+	case DeviceEvent: // Kept for backwards compatibility.
+		e = &events.DeviceEvent{}
+	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
+		DeviceEnrollEvent, DeviceAuthenticateEvent,
+		DeviceEnrollTokenCreateEvent:
+		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -271,6 +279,34 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DesktopSharedDirectoryRead{}
 	case DesktopSharedDirectoryWriteEvent:
 		e = &events.DesktopSharedDirectoryWrite{}
+	case BotJoinEvent:
+		e = &events.BotJoin{}
+	case InstanceJoinEvent:
+		e = &events.InstanceJoin{}
+	case LoginRuleCreateEvent:
+		e = &events.LoginRuleCreate{}
+	case LoginRuleDeleteEvent:
+		e = &events.LoginRuleDelete{}
+	case SAMLIdPAuthAttemptEvent:
+		e = &events.SAMLIdPAuthAttempt{}
+	case SAMLIdPServiceProviderCreateEvent:
+		e = &events.SAMLIdPServiceProviderCreate{}
+	case SAMLIdPServiceProviderUpdateEvent:
+		e = &events.SAMLIdPServiceProviderUpdate{}
+	case SAMLIdPServiceProviderDeleteEvent:
+		e = &events.SAMLIdPServiceProviderDelete{}
+	case SAMLIdPServiceProviderDeleteAllEvent:
+		e = &events.SAMLIdPServiceProviderDeleteAll{}
+	case OktaGroupsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaApplicationsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaSyncFailureEvent:
+		e = &events.OktaSyncFailure{}
+	case OktaAssignmentProcessEvent:
+		e = &events.OktaAssignmentResult{}
+	case OktaAssignmentCleanupEvent:
+		e = &events.OktaAssignmentResult{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -285,7 +321,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CassandraExecute{}
 
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)

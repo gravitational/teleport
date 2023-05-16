@@ -21,7 +21,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,7 +32,15 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
-func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
+type fakeIDP struct {
+	t          *testing.T
+	signer     jose.Signer
+	privateKey *rsa.PrivateKey
+	server     *httptest.Server
+	ghesMode   bool
+}
+
+func newFakeIDP(t *testing.T, ghesMode bool) *fakeIDP {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -43,72 +50,110 @@ func fakeGithubIDP(t *testing.T) (*httptest.Server, jose.Signer) {
 	)
 	require.NoError(t, err)
 
+	f := &fakeIDP{
+		signer:     signer,
+		ghesMode:   ghesMode,
+		privateKey: privateKey,
+		t:          t,
+	}
+
 	providerMux := http.NewServeMux()
+	providerMux.HandleFunc(
+		f.pathPrefix()+"/.well-known/openid-configuration",
+		f.handleOpenIDConfig,
+	)
+	providerMux.HandleFunc(
+		f.pathPrefix()+"/.well-known/jwks",
+		f.handleJWKSEndpoint,
+	)
+
 	srv := httptest.NewServer(providerMux)
 	t.Cleanup(srv.Close)
-	providerMux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
-		// mimic https://token.actions.githubusercontent.com/.well-known/openid-configuration
-		response := map[string]interface{}{
-			"claims_supported": []string{
-				"sub",
-				"aud",
-				"exp",
-				"iat",
-				"iss",
-				"jti",
-				"nbf",
-				"ref",
-				"repository",
-				"repository_id",
-				"repository_owner",
-				"repository_owner_id",
-				"run_id",
-				"run_number",
-				"run_attempt",
-				"actor",
-				"actor_id",
-				"workflow",
-				"head_ref",
-				"base_ref",
-				"event_name",
-				"ref_type",
-				"environment",
-				"job_workflow_ref",
-				"repository_visibility",
-			},
-			"id_token_signing_alg_values_supported": []string{"RS256"},
-			"issuer":                                srv.URL,
-			"jwks_uri":                              fmt.Sprintf("%s/.well-known/jwks", srv.URL),
-			"response_types_supported":              []string{"id_token"},
-			"scopes_supported":                      []string{"openid"},
-			"subject_types_supported":               []string{"public", "pairwise"},
-		}
-		responseBytes, err := json.Marshal(response)
-		require.NoError(t, err)
-		_, err = w.Write(responseBytes)
-		require.NoError(t, err)
-	})
-	providerMux.HandleFunc("/.well-known/jwks", func(w http.ResponseWriter, r *http.Request) {
-		// mimic https://token.actions.githubusercontent.com/.well-known/jwks
-		// but with our own keys
-		jwks := jose.JSONWebKeySet{
-			Keys: []jose.JSONWebKey{
-				{
-					Key: &privateKey.PublicKey,
-				},
-			},
-		}
-		responseBytes, err := json.Marshal(jwks)
-		require.NoError(t, err)
-		_, err = w.Write(responseBytes)
-		require.NoError(t, err)
-
-	})
-
-	return srv, signer
+	f.server = srv
+	return f
 }
 
-func makeToken(t *testing.T, jwtSigner jose.Signer, issuer, audience, actor, sub string, issuedAt time.Time, expiry time.Time) string {
+func (f *fakeIDP) pathPrefix() string {
+	if f.ghesMode {
+		// GHES instances serve the token related content on a prefix of the
+		// instance hostname.
+		return "/_services/token"
+	}
+	return ""
+}
+
+func (f *fakeIDP) issuer() string {
+	return f.server.URL + f.pathPrefix()
+}
+
+func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
+	// mimic https://token.actions.githubusercontent.com/.well-known/openid-configuration
+	response := map[string]interface{}{
+		"claims_supported": []string{
+			"sub",
+			"aud",
+			"exp",
+			"iat",
+			"iss",
+			"jti",
+			"nbf",
+			"ref",
+			"repository",
+			"repository_id",
+			"repository_owner",
+			"repository_owner_id",
+			"run_id",
+			"run_number",
+			"run_attempt",
+			"actor",
+			"actor_id",
+			"workflow",
+			"head_ref",
+			"base_ref",
+			"event_name",
+			"ref_type",
+			"environment",
+			"job_workflow_ref",
+			"repository_visibility",
+		},
+		"id_token_signing_alg_values_supported": []string{"RS256"},
+		"issuer":                                f.issuer(),
+		"jwks_uri":                              f.issuer() + "/.well-known/jwks",
+		"response_types_supported":              []string{"id_token"},
+		"scopes_supported":                      []string{"openid"},
+		"subject_types_supported":               []string{"public", "pairwise"},
+	}
+	responseBytes, err := json.Marshal(response)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
+	// mimic https://token.actions.githubusercontent.com/.well-known/jwks
+	// but with our own keys
+	jwks := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				Key: &f.privateKey.PublicKey,
+			},
+		},
+	}
+	responseBytes, err := json.Marshal(jwks)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) issueToken(
+	t *testing.T,
+	issuer,
+	audience,
+	actor,
+	sub string,
+	issuedAt time.Time,
+	expiry time.Time,
+) string {
 	stdClaims := jwt.Claims{
 		Issuer:    issuer,
 		Subject:   sub,
@@ -120,7 +165,7 @@ func makeToken(t *testing.T, jwtSigner jose.Signer, issuer, audience, actor, sub
 	customClaims := map[string]interface{}{
 		"actor": actor,
 	}
-	token, err := jwt.Signed(jwtSigner).
+	token, err := jwt.Signed(f.signer).
 		Claims(stdClaims).
 		Claims(customClaims).
 		CompactSerialize()
@@ -131,21 +176,22 @@ func makeToken(t *testing.T, jwtSigner jose.Signer, issuer, audience, actor, sub
 
 func TestIDTokenValidator_Validate(t *testing.T) {
 	t.Parallel()
-	providerServer, jwtSigner := fakeGithubIDP(t)
+	idp := newFakeIDP(t, false)
+	ghesIdp := newFakeIDP(t, true)
 
 	tests := []struct {
 		name        string
 		assertError require.ErrorAssertionFunc
 		want        *IDTokenClaims
 		token       string
+		ghesHost    string
 	}{
 		{
 			name:        "success",
 			assertError: require.NoError,
-			token: makeToken(
+			token: idp.issueToken(
 				t,
-				jwtSigner,
-				providerServer.URL,
+				idp.issuer(),
 				"teleport.cluster.local",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
@@ -158,12 +204,29 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 			},
 		},
 		{
+			name:        "success with ghes",
+			assertError: require.NoError,
+			token: ghesIdp.issueToken(
+				t,
+				ghesIdp.issuer(),
+				"teleport.cluster.local",
+				"octocat",
+				"repo:octo-org/octo-repo:environment:prod",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+			),
+			want: &IDTokenClaims{
+				Actor: "octocat",
+				Sub:   "repo:octo-org/octo-repo:environment:prod",
+			},
+			ghesHost: ghesIdp.server.Listener.Addr().String(),
+		},
+		{
 			name:        "expired",
 			assertError: require.Error,
-			token: makeToken(
+			token: idp.issueToken(
 				t,
-				jwtSigner,
-				providerServer.URL,
+				idp.issuer(),
 				"teleport.cluster.local",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
@@ -174,10 +237,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		{
 			name:        "future",
 			assertError: require.Error,
-			token: makeToken(
+			token: idp.issueToken(
 				t,
-				jwtSigner,
-				providerServer.URL,
+				idp.issuer(),
 				"teleport.cluster.local",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
@@ -186,10 +248,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		{
 			name:        "invalid audience",
 			assertError: require.Error,
-			token: makeToken(
+			token: idp.issueToken(
 				t,
-				jwtSigner,
-				providerServer.URL,
+				idp.issuer(),
 				"incorrect.audience",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
@@ -198,10 +259,9 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		{
 			name:        "invalid issuer",
 			assertError: require.Error,
-			token: makeToken(
+			token: idp.issueToken(
 				t,
-				jwtSigner,
-				"https://not.the.issuer",
+				"https://the.wrong.issuer",
 				"teleport.cluster.local",
 				"octocat",
 				"repo:octo-org/octo-repo:environment:prod",
@@ -212,11 +272,12 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			v := NewIDTokenValidator(IDTokenValidatorConfig{
-				Clock:     clockwork.NewRealClock(),
-				IssuerURL: providerServer.URL,
+				Clock:            clockwork.NewRealClock(),
+				GitHubIssuerHost: idp.server.Listener.Addr().String(),
+				insecure:         true,
 			})
 
-			claims, err := v.Validate(ctx, tt.token)
+			claims, err := v.Validate(ctx, tt.ghesHost, tt.token)
 			tt.assertError(t, err)
 			require.Equal(t, tt.want, claims)
 		})

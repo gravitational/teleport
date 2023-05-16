@@ -20,15 +20,22 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/services"
 	dbiam "github.com/gravitational/teleport/lib/srv/db/common/iam"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 func TestCreateDatabaseRequestParameters(t *testing.T) {
@@ -159,7 +166,6 @@ gtLit9DL5DR5ac/CRGJt
 -----END CERTIFICATE-----`
 
 func TestUpdateDatabaseRequestParameters(t *testing.T) {
-
 	for _, test := range []struct {
 		desc      string
 		req       updateDatabaseRequest
@@ -168,14 +174,14 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 		{
 			desc: "valid",
 			req: updateDatabaseRequest{
-				CACert: fakeValidTLSCert,
+				CACert: &fakeValidTLSCert,
 			},
 			errAssert: require.NoError,
 		},
 		{
 			desc: "invalid missing ca_cert",
 			req: updateDatabaseRequest{
-				CACert: "",
+				CACert: strPtr(""),
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -185,7 +191,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 		{
 			desc: "invalid ca_cert format",
 			req: updateDatabaseRequest{
-				CACert: "ca_cert",
+				CACert: strPtr("ca_cert"),
 			},
 			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
@@ -264,6 +270,124 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	}
 }
 
+type listDatabaseServicesResp struct {
+	Items []ui.DatabaseService `json:"items"`
+}
+
+func TestHandleDatabaseServicesGet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	user := "user"
+	roleRODatabaseServices, err := types.NewRole(services.RoleNameForUser(user), types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Rules: []types.Rule{
+				types.NewRule(types.KindDatabaseService,
+					[]string{types.VerbRead, types.VerbList}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, user, []types.Role{roleRODatabaseServices})
+
+	var listDBServicesResp listDatabaseServicesResp
+
+	// No DatabaseServices exist
+	resp, err := pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservices"), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServicesResp))
+
+	require.Empty(t, listDBServicesResp.Items)
+
+	// Adding one DatabaseService
+	dbServiceName := uuid.NewString()
+	dbService001, err := types.NewDatabaseServiceV1(types.Metadata{
+		Name: dbServiceName,
+	}, types.DatabaseServiceSpecV1{
+		ResourceMatchers: []*types.DatabaseResourceMatcher{
+			{
+				Labels: &types.Labels{"env": []string{"prod"}},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertDatabaseService(ctx, dbService001)
+	require.NoError(t, err)
+
+	// The API returns one DatabaseService.
+	resp, err = pack.clt.Get(ctx, pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databaseservices"), nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &listDBServicesResp))
+
+	dbServices := listDBServicesResp.Items
+	require.Len(t, dbServices, 1)
+	respDBService := dbServices[0]
+
+	require.Equal(t, respDBService.Name, dbServiceName)
+
+	require.Len(t, respDBService.ResourceMatchers, 1)
+	respResourceMatcher := respDBService.ResourceMatchers[0]
+
+	require.Equal(t, respResourceMatcher.Labels, &types.Labels{"env": []string{"prod"}})
+}
+
+func TestHandleSQLServerConfigureScript(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "user", nil /* roles */)
+
+	for _, tc := range []struct {
+		desc        string
+		uri         string
+		assertError require.ErrorAssertionFunc
+		tokenFunc   func(*testing.T) string
+	}{
+		{
+			desc: "valid token and uri",
+			uri:  "instance.example.teleport.dev",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc: "valid token and invalid uri",
+			uri:  "",
+			tokenFunc: func(t *testing.T) string {
+				pt, token := generateProvisionToken(t, types.RoleDatabase, env.clock.Now().Add(time.Hour))
+				require.NoError(t, env.server.Auth().CreateToken(ctx, pt))
+				return token
+			},
+			assertError: require.Error,
+		},
+		{
+			desc:        "invalid token",
+			uri:         "instance.example.teleport.dev",
+			tokenFunc:   func(_ *testing.T) string { return "random-token" },
+			assertError: require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := pack.clt.Get(
+				ctx,
+				pack.clt.Endpoint("webapi/scripts/databases/configure/sqlserver", tc.tokenFunc(t), "configure-ad.ps1"),
+				url.Values{"uri": []string{tc.uri}},
+			)
+			tc.assertError(t, err)
+		})
+	}
+}
+
 func mustCreateDatabaseServer(t *testing.T, db *types.DatabaseV3) types.DatabaseServer {
 	t.Helper()
 
@@ -292,4 +416,20 @@ func requireDatabaseIAMPolicyAWS(t *testing.T, respBody []byte, database types.D
 	require.NoError(t, err)
 	require.Equal(t, expectedPolicyDocument, actualPolicyDocument)
 	require.Equal(t, []string(expectedPlaceholders), resp.AWS.Placeholders)
+}
+
+func strPtr(str string) *string {
+	return &str
+}
+
+func generateProvisionToken(t *testing.T, role types.SystemRole, expiresAt time.Time) (types.ProvisionToken, string) {
+	t.Helper()
+
+	token, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+	require.NoError(t, err)
+
+	pt, err := types.NewProvisionToken(token, types.SystemRoles{role}, expiresAt)
+	require.NoError(t, err)
+
+	return pt, token
 }

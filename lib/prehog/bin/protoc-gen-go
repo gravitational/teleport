@@ -1,4 +1,0 @@
-#!/bin/sh
-
-# uses the version from go.mod
-exec go run google.golang.org/protobuf/cmd/protoc-gen-go "$@"

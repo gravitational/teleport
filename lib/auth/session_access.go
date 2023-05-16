@@ -162,7 +162,7 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 
 	for _, allowRole := range allow.Roles {
 		// GlobToRegexp makes sure this is always a valid regexp.
-		expr := regexp.MustCompile(utils.GlobToRegexp(allowRole))
+		expr := regexp.MustCompile("^" + utils.GlobToRegexp(allowRole) + "$")
 
 		for _, policySet := range e.policySets {
 			if expr.MatchString(policySet.Name) {
@@ -182,13 +182,15 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 	return false
 }
 
-func HasV5Role(roles []types.Role) bool {
+// RoleSupportsModeratedSessions checks if the role version is higher or equal to
+// V5 - V5 is the version where ModeratedSession support was introduced.
+func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
-		if role.GetVersion() == types.V5 {
+		switch role.GetVersion() {
+		case types.V5, types.V6:
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -196,7 +198,7 @@ func HasV5Role(roles []types.Role) bool {
 // If the list is empty, the user doesn't have access to join the session at all.
 func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !HasV5Role(user.Roles) {
+	if !RoleSupportsModeratedSessions(user.Roles) {
 		return preAccessControlsModes(e.kind)
 	}
 
@@ -233,12 +235,12 @@ func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticip
 	return false
 }
 
-// PolicyOptions is a set of settings for the session determined by the matched require policy.
+// PolicyOptions is a set of settings for the session determined by the matched required policy.
 type PolicyOptions struct {
-	TerminateOnLeave bool
+	OnLeaveAction types.OnSessionLeaveAction
 }
 
-// Generate a pretty-printed string of precise requirements for session start suitable for user display.
+// PrettyRequirementsList generates a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	s := new(strings.Builder)
 	s.WriteString("require all:")
@@ -273,7 +275,7 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
-	options := PolicyOptions{TerminateOnLeave: true}
+	var options PolicyOptions
 
 	// Check every policy set to check if it's fulfilled.
 	// We need every policy set to match to allow the session.
@@ -282,6 +284,17 @@ policySetLoop:
 		policies := e.extractApplicablePolicies(policySet)
 		if len(policies) == 0 {
 			continue
+		}
+
+		if options.OnLeaveAction != types.OnSessionLeaveTerminate {
+			terminateOnLeave := types.OnSessionLeavePause
+			for _, p := range policies {
+				if p.OnLeave != string(types.OnSessionLeavePause) {
+					terminateOnLeave = types.OnSessionLeaveTerminate
+					break
+				}
+			}
+			options = PolicyOptions{OnLeaveAction: terminateOnLeave}
 		}
 
 		// Check every require policy to see if it's fulfilled.
@@ -307,10 +320,10 @@ policySetLoop:
 					// Evaluate the filter in the require policy against the participant and allow policy.
 					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 					if err != nil {
-						return false, PolicyOptions{}, trace.Wrap(err)
+						return false, options, trace.Wrap(err)
 					}
 
-					// If the the filter matches the participant and the allow policy matches the session
+					// If the filter matches the participant and the allow policy matches the session
 					// we conclude that the participant matches against the require policy.
 					if matchesPredicate && e.matchesJoin(allowPolicy) {
 						left--
@@ -320,13 +333,6 @@ policySetLoop:
 
 				// If we've matched enough participants against the require policy, we can allow the session.
 				if left <= 0 {
-					switch requirePolicy.OnLeave {
-					case types.OnSessionLeaveTerminate:
-					case types.OnSessionLeavePause:
-						options.TerminateOnLeave = false
-					default:
-					}
-
 					// We matched at least one require policy within the set. Continue ahead.
 					continue policySetLoop
 				}

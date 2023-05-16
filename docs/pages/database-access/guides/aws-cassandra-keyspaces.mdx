@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS Keyspaces (Apache Cassandra)
-description: How to configure Teleport Database Access with AWS Keyspaces (Apache Cassandra)
+description: How to configure Teleport database access with AWS Keyspaces (Apache Cassandra)
 ---
 
 <Details
@@ -10,9 +10,8 @@ description: How to configure Teleport Database Access with AWS Keyspaces (Apach
   scopeOnly={true}
   min="11.0"
 >
-  Database Access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
+  Database access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
 </Details>
-
 
 This guide will help you to:
 
@@ -29,20 +28,15 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
-
-## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
+## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -52,38 +46,30 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ teleport db configure create \
   --token=/tmp/token \
-  --auth-server=teleport.example.com:443 \
+  --proxy=teleport.example.com:443 \
   --name=keyspaces \
   --protocol=cassandra \
   --aws-account-id=12345678912 \
   --aws-region=us-east-1 \
   --labels=env=dev
 ```
-
-<Admonition type="note">
-
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
+Create a configuration for the Teleport Database Service, pointing the
+`--proxy` flag to the address of your Teleport Proxy Service:
 
 ```code
-$ teleport db start \
+$ teleport db configure create \
   --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
+  --proxy=mytenant.teleport.sh:443 \
   --name=keyspaces \
   --protocol=cassandra \
   --aws-account-id=12345678912 \
@@ -93,15 +79,13 @@ $ teleport db start \
 
 </ScopedBlock>
 
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Database Service"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 2/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
-
 
 ## Step 3/5. Create an AWS Keyspaces role
 
@@ -123,7 +107,6 @@ You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to AWS Keysp
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step2.png)
 Enter a role name and press "Create role".
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step3.png)
-
 
 ## Step 4/5. Give Teleport permissions to assume roles
 
@@ -148,7 +131,6 @@ assume the IAM roles:
   You can make the policy more strict by providing specific IAM role resource
   ARNs in the "Resource" field instead of using a wildcard.
 </Admonition>
-
 
 ## Step 5/5. Connect
 
@@ -197,8 +179,9 @@ $ tsh db logout
 ```
 
 ## Further reading
-* [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
-* [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
+
+- [How Amazon Keyspaces works with IAM](https://docs.aws.amazon.com/keyspaces/latest/devguide/security_iam_service-with-iam.html)
+- [What is Amazon Keyspaces (for Apache Cassandra)?](https://docs.aws.amazon.com/keyspaces/latest/devguide/what-is-keyspaces.html)
 
 ## Next steps
 

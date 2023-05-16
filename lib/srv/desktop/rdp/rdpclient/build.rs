@@ -13,7 +13,7 @@
 // limitations under the License.
 
 fn main() {
-    // the cwd of build scripts is the root of the crate
+    // the cwd of build scripts is the root of the crate.
     let bindings = cbindgen::Builder::new()
         .with_crate(".")
         .with_language(cbindgen::Language::C)

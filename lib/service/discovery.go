@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -30,7 +29,7 @@ func (process *TeleportProcess) shouldInitDiscovery() bool {
 }
 
 func (process *TeleportProcess) initDiscovery() {
-	process.registerWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDiscovery, DiscoveryIdentityEvent)
 	process.RegisterCriticalFunc("discovery.init", process.initDiscoveryService)
 }
 
@@ -38,7 +37,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDiscovery, process.id))
 
-	conn, err := process.waitForConnector(DiscoveryIdentityEvent, log)
+	conn, err := process.WaitForConnector(DiscoveryIdentityEvent, log)
 	if conn == nil {
 		return trace.Wrap(err)
 	}
@@ -51,19 +50,19 @@ func (process *TeleportProcess) initDiscoveryService() error {
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
-		Clients:       cloud.NewClients(),
-		AWSMatchers:   process.Config.Discovery.AWSMatchers,
-		AzureMatchers: process.Config.Discovery.AzureMatchers,
-		GCPMatchers:   process.Config.Discovery.GCPMatchers,
-		Emitter:       asyncEmitter,
-		AccessPoint:   accessPoint,
-		Log:           process.log,
+		AWSMatchers:    process.Config.Discovery.AWSMatchers,
+		AzureMatchers:  process.Config.Discovery.AzureMatchers,
+		GCPMatchers:    process.Config.Discovery.GCPMatchers,
+		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
+		Emitter:        asyncEmitter,
+		AccessPoint:    accessPoint,
+		Log:            process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

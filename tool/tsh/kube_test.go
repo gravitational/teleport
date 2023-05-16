@@ -35,17 +35,38 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestListKube(t *testing.T) {
+func TestKube(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
+
+	pack := setupKubeTestPack(t)
+	t.Run("list kube", pack.testListKube)
+	t.Run("proxy kube", pack.testProxyKube)
+}
+
+type kubeTestPack struct {
+	*suite
+
+	rootClusterName  string
+	leafClusterName  string
+	rootKubeCluster1 string
+	rootKubeCluster2 string
+	leafKubeCluster  string
+	serviceLabels    map[string]string
+	formatedLabels   string
+}
+
+func setupKubeTestPack(t *testing.T) *kubeTestPack {
+	t.Helper()
+
 	ctx := context.Background()
-	rootClusterName := "root-cluster"
-	firstClusterName := "first-cluster"
-	leaftClusterName := "leaf-cluster"
+	rootKubeCluster1 := "root-cluster"
+	rootKubeCluster2 := "first-cluster"
+	leafKubeCluster := "leaf-cluster"
 	serviceLabels := map[string]string{
 		"label1": "val1",
 		"ultra_long_label_for_teleport_kubernetes_service_list_kube_clusters_method": "ultra_long_label_value_for_teleport_kubernetes_service_list_kube_clusters_method",
@@ -53,39 +74,45 @@ func TestListKube(t *testing.T) {
 	formatedLabels := formatServiceLabels(serviceLabels)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *service.Config) {
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootClusterName, firstClusterName)
+			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = serviceLabels
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
-			func(cfg *service.Config) {
+			func(cfg *servicecfg.Config) {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leaftClusterName)
+				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
 			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
 			require.NoError(t, err)
-			return len(rootClusters) >= 2
+			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
+			require.NoError(t, err)
+			return len(rootClusters) >= 2 && len(leafClusters) >= 1
 		}),
-		withNewTeleportOption(
-			// Disables cloud auto-imported labels when running tests in cloud envs such as
-			// Github Actions.
-			// This is required otherwise Teleport will import cloud instance labels and use them
-			// as labels in Kubernetes Service and this test would fail because the output
-			// includes unexpected labels.
-			service.WithIMDSClient(&fakeCloudMetadata{}),
-		),
 	)
 
 	mustLoginSetEnv(t, s)
+	return &kubeTestPack{
+		suite:            s,
+		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
+		leafClusterName:  s.leaf.Config.Auth.ClusterName.GetClusterName(),
+		rootKubeCluster1: rootKubeCluster1,
+		rootKubeCluster2: rootKubeCluster2,
+		leafKubeCluster:  leafKubeCluster,
+		serviceLabels:    serviceLabels,
+		formatedLabels:   formatedLabels,
+	}
+}
 
+func (p *kubeTestPack) testListKube(t *testing.T) {
 	tests := []struct {
 		name      string
 		args      []string
@@ -95,9 +122,11 @@ func TestListKube(t *testing.T) {
 			name: "default mode with truncated table",
 			args: nil,
 			wantTable: func() string {
+				// p.rootKubeCluster2 ("first-cluster") should appear before
+				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[][]string{{firstClusterName, formatedLabels, ""}, {rootClusterName, formatedLabels, ""}},
+					[][]string{{p.rootKubeCluster2, p.formatedLabels, ""}, {p.rootKubeCluster1, p.formatedLabels, ""}},
 					"Labels")
 				return table.AsBuffer().String()
 			},
@@ -108,8 +137,8 @@ func TestListKube(t *testing.T) {
 			wantTable: func() string {
 				table := asciitable.MakeTable(
 					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{firstClusterName, formatedLabels, ""},
-					[]string{rootClusterName, formatedLabels, ""})
+					[]string{p.rootKubeCluster2, p.formatedLabels, ""},
+					[]string{p.rootKubeCluster1, p.formatedLabels, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -118,8 +147,8 @@ func TestListKube(t *testing.T) {
 			args: []string{"--quiet"},
 			wantTable: func() string {
 				table := asciitable.MakeHeadlessTable(2)
-				table.AddRow([]string{firstClusterName, formatedLabels, ""})
-				table.AddRow([]string{rootClusterName, formatedLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster2, p.formatedLabels, ""})
+				table.AddRow([]string{p.rootKubeCluster1, p.formatedLabels, ""})
 
 				return table.AsBuffer().String()
 			},
@@ -131,9 +160,9 @@ func TestListKube(t *testing.T) {
 				table := asciitable.MakeTable(
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
 
-					[]string{s.root.Config.Proxy.WebAddr.String(), "leaf1", leaftClusterName, ""},
-					[]string{s.root.Config.Proxy.WebAddr.String(), "localhost", firstClusterName, formatedLabels},
-					[]string{s.root.Config.Proxy.WebAddr.String(), "localhost", rootClusterName, formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, p.formatedLabels},
 				)
 				return table.AsBuffer().String()
 			},
@@ -141,7 +170,10 @@ func TestListKube(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			captureStdout := new(bytes.Buffer)
 			err := Run(
 				context.Background(),
@@ -193,33 +225,6 @@ func formatServiceLabels(labels map[string]string) string {
 
 	sort.Strings(labelSlice)
 	return strings.Join(labelSlice, " ")
-}
-
-type fakeCloudMetadata struct{}
-
-func (f *fakeCloudMetadata) IsAvailable(ctx context.Context) bool {
-	return true
-}
-
-// GetTags gets all of the instance's tags.
-func (f *fakeCloudMetadata) GetTags(ctx context.Context) (map[string]string, error) {
-	return map[string]string{}, nil
-}
-
-// GetHostname gets the hostname set by the cloud instance that Teleport
-// should use, if any.
-func (f *fakeCloudMetadata) GetHostname(ctx context.Context) (string, error) {
-	return "hostname", nil
-}
-
-// GetType gets the cloud instance type.
-func (f *fakeCloudMetadata) GetType() types.InstanceMetadataType {
-	return types.InstanceMetadataTypeDisabled
-}
-
-// GetID gets the cloud instance ID.
-func (f *fakeCloudMetadata) GetID(ctx context.Context) (string, error) {
-	return "id", nil
 }
 
 func newKubeSelfSubjectServer(t *testing.T) string {

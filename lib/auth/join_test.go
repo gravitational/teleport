@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,11 +28,14 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,12 +59,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a dynamic token
-	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
-	require.NotNil(t, dynamicToken)
+	dynamicToken := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*30),
+		a,
+	)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -69,11 +73,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	testcases := []struct {
-		desc           string
-		req            *types.RegisterUsingTokenRequest
-		certsAssertion func(*proto.Certs)
-		errorAssertion func(error) bool
-		clock          clockwork.Clock
+		desc             string
+		req              *types.RegisterUsingTokenRequest
+		certsAssertion   func(*proto.Certs)
+		errorAssertion   func(error) bool
+		clock            clockwork.Clock
+		waitTokenDeleted bool // Expired tokens are deleted in background, might need slight delay in relevant test
 	}{
 		{
 			desc:           "reject empty",
@@ -219,8 +224,9 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				PublicSSHKey: sshPublicKey,
 				PublicTLSKey: tlsPublicKey,
 			},
-			clock:          clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
-			errorAssertion: trace.IsAccessDenied,
+			waitTokenDeleted: true,
+			clock:            clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
+			errorAssertion:   trace.IsAccessDenied,
 		},
 		{
 			// relies on token being deleted during previous testcase
@@ -247,12 +253,30 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			certs, err := a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
 				require.True(t, tc.errorAssertion(err))
+				if tc.waitTokenDeleted {
+					require.Eventually(t, func() bool {
+						_, err := a.ValidateToken(ctx, tc.req.Token)
+						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
+					}, time.Millisecond*100, time.Millisecond*10)
+				}
 				return
 			}
 			require.NoError(t, err)
 			if tc.certsAssertion != nil {
 				tc.certsAssertion(certs)
 			}
+
+			// Check audit log event is emitted
+			evt := p.mockEmitter.LastEvent()
+			require.NotNil(t, evt)
+			joinEvent, ok := evt.(*apievents.InstanceJoin)
+			require.True(t, ok)
+			require.Equal(t, events.InstanceJoinEvent, joinEvent.Type)
+			require.Equal(t, events.InstanceJoinCode, joinEvent.Code)
+			require.Equal(t, tc.req.NodeName, joinEvent.NodeName)
+			require.Equal(t, tc.req.HostID, joinEvent.HostID)
+			require.EqualValues(t, tc.req.Role, joinEvent.Role)
+			require.EqualValues(t, types.JoinMethodToken, joinEvent.Method)
 		})
 	}
 }
@@ -271,15 +295,16 @@ func newBotToken(t *testing.T, tokenName, botName string, role types.SystemRole,
 // renewable certificates for a non-interactive user.
 func TestRegister_Bot(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
 
 	botName := "test"
 	botResourceName := BotResourceName(botName)
 
-	_, err := createBotRole(context.Background(), srv.Auth(), botName, botResourceName, []string{})
+	_, err := createBotRole(ctx, srv.Auth(), botName, botResourceName, []string{})
 	require.NoError(t, err)
-	_, err = createBotUser(context.Background(), srv.Auth(), botName, botResourceName, wrappers.Traits{})
+	_, err = createBotUser(ctx, srv.Auth(), botName, botResourceName, wrappers.Traits{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
@@ -290,13 +315,13 @@ func TestRegister_Bot(t *testing.T) {
 	wrongUser := newBotToken(t, "wrong-user", "llama", types.RoleBot, later)
 	invalidToken := newBotToken(t, "this-token-does-not-exist", botName, types.RoleBot, later)
 
-	err = srv.Auth().UpsertToken(context.Background(), goodToken)
+	err = srv.Auth().UpsertToken(ctx, goodToken)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), expiredToken)
+	err = srv.Auth().UpsertToken(ctx, expiredToken)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), wrongKind)
+	err = srv.Auth().UpsertToken(ctx, wrongKind)
 	require.NoError(t, err)
-	err = srv.Auth().UpsertToken(context.Background(), wrongUser)
+	err = srv.Auth().UpsertToken(ctx, wrongUser)
 	require.NoError(t, err)
 
 	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
@@ -338,6 +363,7 @@ func TestRegister_Bot(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
+			start := srv.Clock().Now()
 			certs, err := Register(RegisterParams{
 				Token: test.token.GetName(),
 				ID: IdentityID{
@@ -354,7 +380,7 @@ func TestRegister_Bot(t *testing.T) {
 				require.NotEmpty(t, certs.TLS)
 
 				// ensure token was removed
-				_, err = srv.Auth().GetToken(context.Background(), test.token.GetName())
+				_, err = srv.Auth().GetToken(ctx, test.token.GetName())
 				require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 				// ensure cert is renewable
@@ -363,6 +389,24 @@ func TestRegister_Bot(t *testing.T) {
 				id, err := tlsca.FromSubject(x509.Subject, later)
 				require.NoError(t, err)
 				require.True(t, id.Renewable)
+
+				// Check audit event
+				evts, _, err := srv.Auth().SearchEvents(
+					start,
+					srv.Clock().Now(),
+					apidefaults.Namespace,
+					[]string{events.BotJoinEvent},
+					1,
+					types.EventOrderDescending,
+					"",
+				)
+				require.NoError(t, err)
+				require.Len(t, evts, 1)
+				evt, ok := evts[0].(*apievents.BotJoin)
+				require.True(t, ok)
+				require.Equal(t, events.BotJoinEvent, evt.Type)
+				require.Equal(t, events.BotJoinCode, evt.Code)
+				require.EqualValues(t, types.JoinMethodToken, evt.Method)
 			}
 		})
 	}

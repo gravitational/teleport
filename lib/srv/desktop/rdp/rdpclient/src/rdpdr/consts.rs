@@ -109,6 +109,7 @@ pub enum MinorFunction {
 #[derive(ToPrimitive, FromPrimitive, Debug, PartialEq, Eq, Copy, Clone)]
 #[repr(u32)]
 #[allow(non_camel_case_types)]
+#[allow(clippy::upper_case_acronyms)]
 #[allow(dead_code)]
 pub enum NTSTATUS {
     STATUS_SUCCESS = 0x00000000,

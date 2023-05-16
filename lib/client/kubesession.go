@@ -28,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -55,8 +57,11 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	}
 
 	dialer := &websocket.Dialer{
+		NetDialContext:  kubeSessionNetDialer(ctx, tc, kubeAddr).DialContext,
 		TLSClientConfig: tlsConfig,
 	}
+
+	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	ws, resp, err := dialer.Dial(joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
@@ -114,6 +119,28 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	s.pipeInOut(stdout, tc.EnableEscapeSequences, mode)
 	return s, nil
+}
+
+func kubeSessionNetDialer(ctx context.Context, tc *TeleportClient, kubeAddr string) client.ContextDialer {
+	dialOpts := []client.DialOption{
+		client.WithInsecureSkipVerify(tc.InsecureSkipVerify),
+	}
+
+	// Add options for ALPN connection upgrade only if kube is served at Proxy
+	// web address.
+	if tc.WebProxyAddr == kubeAddr && tc.TLSRoutingConnUpgradeRequired {
+		dialOpts = append(dialOpts,
+			client.WithALPNConnUpgrade(tc.TLSRoutingConnUpgradeRequired),
+			client.WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		)
+	}
+
+	return client.NewDialer(
+		ctx,
+		defaults.DefaultIdleTimeout,
+		defaults.DefaultIOTimeout,
+		dialOpts...,
+	)
 }
 
 func handleOutgoingResizeEvents(ctx context.Context, stream *streamproto.SessionStream, term *terminal.Terminal) {

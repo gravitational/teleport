@@ -18,12 +18,14 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -32,13 +34,18 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/circleci"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -89,6 +96,13 @@ func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsN
 	return identity, nil
 }
 
+// AzureParams is the parameters specific to the azure join method.
+type AzureParams struct {
+	// ClientID is the client ID of the managed identity for Teleport to assume
+	// when authenticating a node.
+	ClientID string
+}
+
 // RegisterParams specifies parameters
 // for first time register operation with auth server
 type RegisterParams struct {
@@ -125,6 +139,8 @@ type RegisterParams struct {
 	// ec2IdentityDocument is used for Simplified Node Joining to prove the
 	// identity of a joining EC2 instance.
 	ec2IdentityDocument []byte
+	// AzureParams is the parameters specific to the azure join method.
+	AzureParams AzureParams
 	// CircuitBreakerConfig defines how the circuit breaker should behave.
 	CircuitBreakerConfig breaker.Config
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
@@ -195,12 +211,17 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 					`(e.g. /var/lib/teleport/host_uuid)`,
 				params.ID.HostUUID)
 		}
-		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument()
+		params.ec2IdentityDocument, err = utils.GetEC2IdentityDocument(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else if params.JoinMethod == types.JoinMethodGitHub {
 		params.IDToken, err = githubactions.NewIDTokenSource().GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodGitLab {
+		params.IDToken, err = gitlab.NewIDTokenSource(os.Getenv).GetIDToken()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -211,6 +232,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		}
 	} else if params.JoinMethod == types.JoinMethodKubernetes {
 		params.IDToken, err = kubernetestoken.GetIDToken(os.Getenv, os.ReadFile)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else if params.JoinMethod == types.JoinMethodGCP {
+		params.IDToken, err = gcp.GetIDToken(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -281,21 +307,27 @@ func proxyServerIsAuth(server utils.NetAddr) bool {
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, error) {
 	var certs *proto.Certs
-	if params.JoinMethod == types.JoinMethodIAM {
-		// IAM join method requires gRPC client
-		conn, err := proxyJoinServiceConn(params)
+	switch params.JoinMethod {
+	case types.JoinMethodIAM, types.JoinMethodAzure:
+		// IAM and Azure join methods require gRPC client
+		conn, err := proxyJoinServiceConn(params, lib.IsInsecureDevMode())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		defer conn.Close()
 
 		joinServiceClient := client.NewJoinServiceClient(proto.NewJoinServiceClient(conn))
-		certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
+		if params.JoinMethod == types.JoinMethodIAM {
+			certs, err = registerUsingIAMMethod(joinServiceClient, token, params)
+		} else {
+			certs, err = registerUsingAzureMethod(joinServiceClient, token, params)
+		}
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		// non-IAM join methods use GetHostCredentials function passed through
+	default:
+		// The rest of the join methods use GetHostCredentials function passed through
 		// params to call proxy HTTP endpoint
 		var err error
 		certs, err = params.GetHostCredentials(context.Background(),
@@ -349,10 +381,13 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 	defer client.Close()
 
 	var certs *proto.Certs
-	if params.JoinMethod == types.JoinMethodIAM {
-		// IAM method uses unique gRPC endpoint
+	switch params.JoinMethod {
+	// IAM and Azure methods use unique gRPC endpoints
+	case types.JoinMethodIAM:
 		certs, err = registerUsingIAMMethod(client, token, params)
-	} else {
+	case types.JoinMethodAzure:
+		certs, err = registerUsingAzureMethod(client, token, params)
+	default:
 		// non-IAM join methods use HTTP endpoint
 		// Get the SSH and X509 certificates for a node.
 		certs, err = client.RegisterUsingToken(
@@ -377,24 +412,68 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxyJoinServiceConn attempts to connect to the join service running on the
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceConn(params RegisterParams) (*grpc.ClientConn, error) {
+func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientConn, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
-	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPC), http2.NextProtoTLS}
+	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure), http2.NextProtoTLS}
 
-	if lib.IsInsecureDevMode() {
+	if insecure {
 		tlsConfig.InsecureSkipVerify = true
 		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
 	}
 
+	// Check if proxy is behind a load balancer. If so, the connection upgrade
+	// will verify the load balancer's cert using system cert pool. This
+	// provides the same level of security as the client only verifies Proxy's
+	// web cert against system cert pool when connection upgrade is not
+	// required.
+	//
+	// With the ALPN connection upgrade, the tunneled TLS Routing request will
+	// skip verify as the Proxy server will present its host cert which is not
+	// fully verifiable at this point since the client does not have the host
+	// CAs yet before completing registration.
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(getHostAddresses(params)[0], insecure)
+	if alpnConnUpgrade && !insecure {
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
+	}
+
+	dialer := client.NewDialer(
+		context.Background(),
+		apidefaults.DefaultIdleTimeout,
+		apidefaults.DefaultIOTimeout,
+		client.WithInsecureSkipVerify(insecure),
+		client.WithALPNConnUpgrade(alpnConnUpgrade),
+	)
+
 	conn, err := grpc.Dial(
 		getHostAddresses(params)[0],
+		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	return conn, trace.Wrap(err)
+}
+
+// verifyALPNUpgradedConn is a tls.Config.VerifyConnection callback function
+// used by the tunneled TLS Routing request to verify the host cert of a Proxy
+// behind a L7 load balancer.
+//
+// Since the client has not obtained the cluster CAs at this point, the
+// presented cert cannot be fully verified yet. For now, this function only
+// checks if "teleport.cluster.local" is present as one of the DNS names and
+// verifies the cert is not expired.
+func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) error {
+	return func(server tls.ConnectionState) error {
+		for _, cert := range server.PeerCertificates {
+			if slices.Contains(cert.DNSNames, constants.APIDomain) && clock.Now().Before(cert.NotAfter) {
+				return nil
+			}
+		}
+		return trace.AccessDenied("server is not a Teleport proxy or server certificate is expired")
+	}
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the
@@ -532,7 +611,8 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 }
 
 type joinServiceClient interface {
-	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc) (*proto.Certs, error)
+	RegisterUsingAzureMethod(ctx context.Context, challengeResponse client.RegisterAzureChallengeResponseFunc) (*proto.Certs, error)
 }
 
 // registerUsingIAMMethod is used to register using the IAM join method. It is
@@ -540,68 +620,77 @@ type joinServiceClient interface {
 func registerUsingIAMMethod(joinServiceClient joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
 	ctx := context.Background()
 
-	// Attempt to use the regional STS endpoint, fall back to using the global
-	// endpoint. The regional endpoint may fail if Auth is on an older version
-	// which does not support regional endpoints, the STS service is not
-	// enabled in the current region, or an unknown AWS region is configured.
-	var errs []error
-	for _, s := range []struct {
-		desc string
-		opts []stsIdentityRequestOption
-	}{
-		{
-			desc: "regional",
-			opts: []stsIdentityRequestOption{
-				withFIPSEndpoint(params.FIPS),
-				withRegionalEndpoint(true),
-			},
-		},
-		{
-			// DELETE IN 12.0, global endpoint does not support China or
-			// GovCloud or FIPS, is only a fallback for connecting to an auth
-			// server on an older version which does not support regional
-			// endpoints.
-			desc: "global",
-			opts: []stsIdentityRequestOption{
-				withFIPSEndpoint(false),
-				withRegionalEndpoint(false),
-			},
-		},
-	} {
-		log.Infof("Attempting to register %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
-		// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
-		certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
-			// create the signed sts:GetCallerIdentity request and include the challenge
-			signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge, s.opts...)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			// send the register request including the challenge response
-			return &proto.RegisterUsingIAMMethodRequest{
-				RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
-					Token:                token,
-					HostID:               params.ID.HostUUID,
-					NodeName:             params.ID.NodeName,
-					Role:                 params.ID.Role,
-					AdditionalPrincipals: params.AdditionalPrincipals,
-					DNSNames:             params.DNSNames,
-					PublicTLSKey:         params.PublicTLSKey,
-					PublicSSHKey:         params.PublicSSHKey,
-				},
-				StsIdentityRequest: signedRequest,
-			}, nil
-		})
+	log.Infof("Attempting to register %s with IAM method using regional STS endpoint", params.ID.Role)
+	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
+	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
+		// create the signed sts:GetCallerIdentity request and include the challenge
+		signedRequest, err := createSignedSTSIdentityRequest(ctx, challenge,
+			withFIPSEndpoint(params.FIPS),
+			withRegionalEndpoint(true),
+		)
 		if err != nil {
-			log.WithError(err).Infof("Failed to register %s using %s STS endpoint", params.ID.Role, s.desc)
-			errs = append(errs, err)
-		} else {
-			log.Infof("Successfully registered %s with IAM method using %s STS endpoint", params.ID.Role, s.desc)
-			return certs, nil
+			return nil, trace.Wrap(err)
 		}
+
+		// send the register request including the challenge response
+		return &proto.RegisterUsingIAMMethodRequest{
+			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+				Expires:              params.Expires,
+			},
+			StsIdentityRequest: signedRequest,
+		}, nil
+	})
+	if err != nil {
+		log.WithError(err).Infof("Failed to register %s using regional STS endpoint", params.ID.Role)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.NewAggregate(errs...)
+	log.Infof("Successfully registered %s with IAM method using regional STS endpoint", params.ID.Role)
+	return certs, nil
+}
+
+// registerUsingAzureMethod is used to register using the Azure join method. It
+// is able to register through a proxy or through the auth server directly.
+func registerUsingAzureMethod(client joinServiceClient, token string, params RegisterParams) (*proto.Certs, error) {
+	ctx := context.Background()
+	certs, err := client.RegisterUsingAzureMethod(ctx, func(challenge string) (*proto.RegisterUsingAzureMethodRequest, error) {
+		imds := azure.NewInstanceMetadataClient()
+		if !imds.IsAvailable(ctx) {
+			return nil, trace.AccessDenied("could not reach instance metadata. Is Teleport running on an Azure VM?")
+		}
+		ad, err := imds.GetAttestedData(ctx, challenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		accessToken, err := imds.GetAccessToken(ctx, params.AzureParams.ClientID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &proto.RegisterUsingAzureMethodRequest{
+			RegisterUsingTokenRequest: &types.RegisterUsingTokenRequest{
+				Token:                token,
+				HostID:               params.ID.HostUUID,
+				NodeName:             params.ID.NodeName,
+				Role:                 params.ID.Role,
+				AdditionalPrincipals: params.AdditionalPrincipals,
+				DNSNames:             params.DNSNames,
+				PublicTLSKey:         params.PublicTLSKey,
+				PublicSSHKey:         params.PublicSSHKey,
+			},
+			AttestedData: ad,
+			AccessToken:  accessToken,
+		}, nil
+	})
+	return certs, trace.Wrap(err)
 }
 
 // ReRegisterParams specifies parameters for re-registering

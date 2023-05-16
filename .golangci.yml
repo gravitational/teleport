@@ -9,13 +9,7 @@ issues:
     # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
     - linters:
       - unused
-      path: 'operator/controllers/resources/(.+)_controller_test\.go'
-    # TODO(codingllama): Remove ignore after the new golangci-lint image lands.
-    # For some reason this particular files causes problems between different
-    # goimports versions.
-    - path: lib/services/role_test.go
-      linters:
-      - goimports
+      path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -31,6 +25,7 @@ linters:
     - govet
     - ineffassign
     - misspell
+    - nolintlint
     - revive
     - staticcheck
     - unconvert
@@ -41,12 +36,13 @@ linters-settings:
     list-type: denylist
     include-go-root: true # check against stdlib
     packages-with-error-message:
-    - io/ioutil: 'use "io" or "os" packages instead'
-    - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
-    - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
-    - go.uber.org/atomic: 'use "sync/atomic" instead'
-  misspell:
-    locale: US
+      - io/ioutil: 'use "io" or "os" packages instead'
+      - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
+      - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
+      - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
+      - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
+      - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
+      - go.uber.org/atomic: 'use "sync/atomic" instead'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.
@@ -54,10 +50,28 @@ linters-settings:
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
+  misspell:
+    locale: US
+  nolintlint:
+    allow-unused: true # Enabled because of conditional builds / build tags.
+    require-explanation: true
+    require-specific: true
+  revive:
+    rules:
+    - name: unused-parameter
+      disabled: true
+
 output:
   uniq-by-line: false
 
 run:
+  go: '1.20'
+  skip-dirs:
+    - (^|/)node_modules/
+    - ^api/gen/
+    - ^docs/
+    - ^gen/
+    - ^rfd/
+    - ^web/
   skip-dirs-use-default: false
   timeout: 5m
-  go: '1.18'

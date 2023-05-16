@@ -19,13 +19,22 @@ package multiplexer
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"crypto/x509/pkix"
 	"io"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var (
@@ -37,13 +46,13 @@ var (
 	// source=127.0.0.1:12345 destination=127.0.0.2:42
 	sampleIPv4Addresses = []byte{0x7F, 0x00, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x02, 0x30, 0x39, 0x00, 0x2A}
 	// {0x21, 0x11, 0x00, 0x0C} - 4 bits version, 4 bits command, 4 bits address family, 4 bits protocol, 16 bits length
-	sampleProxyV2Line = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
+	sampleProxyV2Line = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
 	// Proxy line with LOCAL command
-	sampleProxyV2LineLocal    = bytes.Join([][]byte{proxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
+	sampleProxyV2LineLocal    = bytes.Join([][]byte{ProxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
 	sampleTLV                 = []byte{byte(PP2TypeTeleport), 0x00, 0x03, 0x01, 0x02, 0x03}
 	sampleEmptyTLV            = []byte{byte(PP2TypeTeleport), 0x00, 0x00}
-	sampleProxyV2LineTLV      = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
-	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
+	sampleProxyV2LineTLV      = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
+	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
 )
 
 func TestReadProxyLine(t *testing.T) {
@@ -54,7 +63,7 @@ func TestReadProxyLine(t *testing.T) {
 		require.ErrorIs(t, err, io.EOF)
 	})
 	t.Run("malformed line", func(t *testing.T) {
-		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("JIBBERISH\r\n"))))
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("GIBBERISH\r\n"))))
 		require.ErrorIs(t, err, trace.BadParameter("malformed PROXY line protocol string"))
 	})
 	t.Run("successfully read proxy v1 line", func(t *testing.T) {
@@ -85,7 +94,7 @@ func TestReadProxyLineV2(t *testing.T) {
 		require.ErrorContains(t, err, "unrecognized signature")
 	})
 	t.Run("malformed PROXY v2 header", func(t *testing.T) {
-		_, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(append(proxyV2Prefix, []byte("JIBBERISH")...))))
+		_, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(append(ProxyV2Prefix, []byte("JIBBERISH")...))))
 		require.ErrorContains(t, err, "unsupported version")
 	})
 	t.Run("successfully read proxy v2 line without TLV", func(t *testing.T) {
@@ -332,6 +341,248 @@ func TestUnmarshalTLVs(t *testing.T) {
 			require.NoError(t, err)
 		}
 		require.Equal(t, tt.expectedTLVs, tlvs)
+	}
+}
+
+func TestProxyLine_AddSignature(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		desc      string
+		inputTLVs []TLV
+		signature string
+		cert      string
+
+		wantErr      string
+		expectedTLVs []TLV
+	}{
+		{
+			desc:         "missing signature bytes",
+			inputTLVs:    nil,
+			signature:    "",
+			cert:         "abc",
+			wantErr:      "missing signature",
+			expectedTLVs: nil,
+		},
+		{
+			desc:         "missing cert",
+			inputTLVs:    nil,
+			signature:    "abc",
+			cert:         "",
+			wantErr:      "missing signing certificate",
+			expectedTLVs: nil,
+		},
+		{
+			desc:      "no existing signature on proxy line",
+			inputTLVs: nil,
+			signature: "123",
+			cert:      "456",
+			wantErr:   "",
+			expectedTLVs: []TLV{
+				{Type: PP2TypeTeleport,
+					Value: []byte{0x1, 0x0, 0x3, 0x34, 0x35, 0x36, 0x2, 0x0, 0x3, 0x31, 0x32, 0x33}},
+			},
+		},
+		{
+			desc:      "existing signature on proxy line",
+			inputTLVs: []TLV{{Type: PP2TypeTeleport, Value: []byte{0x01, 0x02, 0x03}}},
+			signature: "123",
+			cert:      "456",
+			wantErr:   "",
+			expectedTLVs: []TLV{
+				{Type: PP2TypeTeleport,
+					Value: []byte{0x1, 0x0, 0x3, 0x34, 0x35, 0x36, 0x2, 0x0, 0x3, 0x31, 0x32, 0x33}},
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			pl := ProxyLine{
+				TLVs: tt.inputTLVs,
+			}
+
+			err := pl.AddSignature([]byte(tt.signature), []byte(tt.cert))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "Didn't find expected error")
+			} else {
+				require.NoError(t, err, "Unexpected error found")
+			}
+
+			require.Equal(t, tt.expectedTLVs, pl.TLVs, "Proxy line TLVs mismatch")
+		})
+	}
+}
+
+func TestProxyLine_VerifySignature(t *testing.T) {
+	t.Parallel()
+	const clusterName = "test-teleport"
+	clock := clockwork.NewFakeClockAt(time.Now())
+	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
+
+	ip := "1.2.3.4"
+	sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
+	dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
+
+	signature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	wrongClusterSignature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        "wrong-cluster",
+		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	wrongSourceSignature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      "4.3.2.1:1234",
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	ca, err := casGetter(context.Background(), types.CertAuthID{
+		Type:       types.HostCA,
+		DomainName: clusterName,
+	}, false)
+	require.NoError(t, err)
+	hostCACert := ca.GetTrustedTLSKeyPairs()[0].Cert
+
+	_, wrongCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+		CommonName: "wrong-cluster", Organization: []string{"wrong-cluster"}}, []string{"wrong-cluster"}, time.Hour)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc string
+
+		sAddr            net.TCPAddr
+		dAddr            net.TCPAddr
+		hostCACert       []byte
+		localClusterName string
+		signature        string
+		cert             []byte
+
+		wantErr string
+	}{
+		{
+			desc:             "wrong CA certificate",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       []byte(fixtures.TLSCACertPEM),
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "certificate signed by unknown authority",
+		},
+		{
+			desc:             "mangled signing certificate",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             []byte{0x01},
+			wantErr:          "x509: malformed certificate",
+		},
+		{
+			desc:             "mangled signature",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        "42",
+			cert:             tlsProxyCert,
+			wantErr:          "compact JWS format must have three parts",
+		},
+		{
+			desc:             "wrong signature (source address)",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        wrongSourceSignature,
+			cert:             tlsProxyCert,
+			wantErr:          "validation failed, invalid subject claim (sub)",
+		},
+		{
+			desc:             "wrong signature (cluster)",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        wrongClusterSignature,
+			cert:             tlsProxyCert,
+			wantErr:          "validation failed, invalid issuer claim (iss)",
+		},
+		{
+			desc:             "wrong CA cert",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       wrongCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "certificate signed by unknown authority",
+		},
+		{
+			desc:             "non local cluster",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: "different-cluster",
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "signing certificate is not signed by local cluster CA",
+		},
+		{
+			desc:             "success",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signature,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.desc, func(t *testing.T) {
+			pl := ProxyLine{
+				Source:      sAddr,
+				Destination: dAddr,
+			}
+			err := pl.AddSignature([]byte(tt.signature), tt.cert)
+			require.NoError(t, err)
+
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.HostCA,
+				ClusterName: clusterName,
+				ActiveKeys: types.CAKeySet{
+					TLS: []*types.TLSKeyPair{
+						{
+							Cert: tt.hostCACert,
+							Key:  nil,
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			mockCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+				return ca, nil
+			}
+
+			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.localClusterName, clock)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 

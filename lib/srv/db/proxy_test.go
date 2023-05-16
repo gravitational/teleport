@@ -196,6 +196,15 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "handles cancel request and closes connection",
+			tasks: []task{
+				{
+					sendMsg: &pgproto3.CancelRequest{},
+					wantErr: io.EOF,
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +234,9 @@ func TestProxyProtocolPostgresStartup(t *testing.T) {
 					case *pgproto3.StartupMessage:
 						checkResponse = checkReceiveReadyMessage
 					case *pgproto3.Terminate:
+						// try to read one byte to check for expected EOF
+						checkResponse = checkNextMessage(conn, []byte("x"))
+					case *pgproto3.CancelRequest:
 						// try to read one byte to check for expected EOF
 						checkResponse = checkNextMessage(conn, []byte("x"))
 					default:

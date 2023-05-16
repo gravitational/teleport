@@ -21,7 +21,7 @@ use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages};
+use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -110,7 +110,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
-            vchan: vchan::Client::new(),
+            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
             allow_directory_sharing: cfg.allow_directory_sharing,
@@ -524,8 +524,7 @@ impl Client {
                         }
                         _ => {
                             return Err(invalid_data_error(&format!(
-                                "received unknown CreateDisposition value for RDP {:?}",
-                                rdp_req
+                                "received unknown CreateDisposition value for RDP {rdp_req:?}"
                             )));
                         }
                     }
@@ -1675,10 +1674,10 @@ impl SharedHeader {
         let packet_id = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             component: Component::from_u16(component).ok_or_else(|| {
-                invalid_data_error(&format!("invalid component value {:#06x}", component))
+                invalid_data_error(&format!("invalid component value {component:#06x}"))
             })?,
             packet_id: PacketId::from_u16(packet_id).ok_or_else(|| {
-                invalid_data_error(&format!("invalid packet_id value {:#06x}", packet_id))
+                invalid_data_error(&format!("invalid packet_id value {packet_id:#06x}"))
             })?,
         })
     }
@@ -1858,7 +1857,7 @@ impl CapabilityHeader {
         let cap_type = payload.read_u16::<LittleEndian>()?;
         Ok(Self {
             cap_type: CapabilityType::from_u16(cap_type).ok_or_else(|| {
-                invalid_data_error(&format!("invalid capability type {:#06x}", cap_type))
+                invalid_data_error(&format!("invalid capability type {cap_type:#06x}"))
             })?,
             length: payload.read_u16::<LittleEndian>()?,
             version: payload.read_u32::<LittleEndian>()?,
@@ -2030,7 +2029,7 @@ impl DeviceAnnounceHeader {
         if name.len() > 7 {
             name = &name[..7];
         }
-        w.extend_from_slice(&format!("{:\x00<8}", name).into_bytes());
+        w.extend_from_slice(&format!("{name:\x00<8}").into_bytes());
         w.write_u32::<LittleEndian>(self.device_data_length)?;
         w.extend_from_slice(&self.device_data);
         Ok(w)
@@ -2054,8 +2053,7 @@ impl ServerDeviceAnnounceResponse {
             });
         }
         Err(RdpError::TryError(format!(
-            "Read unsupported NTSTATUS: {}",
-            result_code,
+            "Read unsupported NTSTATUS: {result_code}",
         )))
     }
 }
@@ -2138,8 +2136,7 @@ impl DeviceIoRequest {
         let major_function = payload.read_u32::<LittleEndian>()?;
         let major_function = MajorFunction::from_u32(major_function).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid major function value {:#010x}",
-                major_function
+                "invalid major function value {major_function:#010x}"
             ))
         })?;
         let minor_function = payload.read_u32::<LittleEndian>()?;
@@ -2157,8 +2154,7 @@ impl DeviceIoRequest {
         };
         let minor_function = MinorFunction::from_u32(minor_function).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid minor function value {:#010x}",
-                minor_function
+                "invalid minor function value {minor_function:#010x}"
             ))
         })?;
 
@@ -2202,8 +2198,7 @@ impl DeviceControlRequest {
         let io_control_code = payload.read_u32::<LittleEndian>()?;
         let io_control_code = IoctlCode::from_u32(io_control_code).ok_or_else(|| {
             invalid_data_error(&format!(
-                "invalid I/O control code value {:#010x}",
-                io_control_code
+                "invalid I/O control code value {io_control_code:#010x}"
             ))
         })?;
         payload.seek(SeekFrom::Current(20))?; // padding
@@ -2308,8 +2303,7 @@ impl DeviceCreateRequest {
         debug!("In DeviceCreateRequest decode");
         let invalid_flags = |flag_name: &str, v: u32| {
             invalid_data_error(&format!(
-                "invalid flags in Device Create Request: {} = {}",
-                flag_name, v
+                "invalid flags in Device Create Request: {flag_name} = {v}"
             ))
         };
 
@@ -2461,8 +2455,7 @@ impl ServerDriveQueryInformationRequest {
 
         Err(invalid_data_error(
             format!(
-                "received invalid FileInformationClass in ServerDriveQueryInformationRequest: {}",
-                n
+                "received invalid FileInformationClass in ServerDriveQueryInformationRequest: {n}"
             )
             .as_str(),
         ))
@@ -2534,8 +2527,7 @@ impl FileInformationClass {
                 ))
             }
             _ => Err(invalid_data_error(&format!(
-                "decode invalid FileInformationClassLevel: {:?}",
-                file_information_class_level
+                "decode invalid FileInformationClassLevel: {file_information_class_level:?}"
             ))),
         }
     }
@@ -2962,7 +2954,7 @@ impl FileRenameInformation {
         w.write_u8(Boolean::to_u8(&self.replace_if_exists).unwrap())?;
         // RootDirectory. For network operations, this value MUST be zero.
         w.write_u8(0)?;
-        w.write_u32::<LittleEndian>(self.file_name.len() as u32)?;
+        w.write_u32::<LittleEndian>(self.file_name.len())?;
         w.extend_from_slice(&util::to_unicode(&self.file_name.path, false));
         Ok(w)
     }
@@ -2984,7 +2976,7 @@ impl FileRenameInformation {
     }
 
     fn size(&self) -> u32 {
-        Self::BASE_SIZE + self.file_name.len() as u32
+        Self::BASE_SIZE + self.file_name.len()
     }
 }
 
@@ -3732,7 +3724,7 @@ impl ClientDriveSetInformationResponse {
     fn new(req: &ServerDriveSetInformationRequest, io_status: NTSTATUS) -> Self {
         Self {
             device_io_reply: DeviceIoResponse::new(&req.device_io_request, io_status),
-            length: req.set_buffer.size() as u32,
+            length: req.set_buffer.size(),
         }
     }
 
@@ -3770,8 +3762,7 @@ impl ServerDriveSetInformationRequest {
             | FileInformationClassLevel::FileAllocationInformation => {}
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "read invalid FileInformationClassLevel: {:?}",
-                    file_information_class_level
+                    "read invalid FileInformationClassLevel: {file_information_class_level:?}"
                 )))
             }
         };
@@ -3835,8 +3826,7 @@ impl ServerDriveQueryDirectoryRequest {
 
         if !VALID_LEVELS.contains(&file_info_class_lvl) {
             return Err(invalid_data_error(&format!(
-                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                file_info_class_lvl, VALID_LEVELS,
+                "read invalid FileInformationClassLevel: {file_info_class_lvl:?}, expected one of {VALID_LEVELS:?}",
             )));
         }
 
@@ -3904,16 +3894,14 @@ impl ClientDriveQueryDirectoryResponse {
             | NTSTATUS::STATUS_UNSUCCESSFUL => {
                 if buffer.is_some() {
                     return Err(invalid_data_error(&format!(
-                        "a ClientDriveQueryDirectoryResponse with NTSTATUS = {:?} \
-                        should have a None buffer, got {:?}",
-                        io_status, buffer,
+                        "a ClientDriveQueryDirectoryResponse with NTSTATUS = {io_status:?} \
+                        should have a None buffer, got {buffer:?}",
                     )));
                 }
             }
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "received unsupported io_status for ClientDriveQueryDirectoryResponse: {:?}",
-                    io_status
+                    "received unsupported io_status for ClientDriveQueryDirectoryResponse: {io_status:?}"
                 )))
             }
         }
@@ -3931,7 +3919,7 @@ impl ClientDriveQueryDirectoryResponse {
                     fs_info_class.size()
                 }
                 _ => {
-                    return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {:?}", fs_information_class)));
+                    return Err(not_implemented_error(&format!("ClientDriveQueryDirectoryResponse not implemented for fs_information_class {fs_information_class:?}")));
                 }
             },
             None => 0,
@@ -3992,8 +3980,7 @@ impl ServerDriveQueryVolumeInformationRequest {
 
         if !VALID_LEVELS.contains(&fs_info_class_lvl) {
             return Err(invalid_data_error(&format!(
-                "read invalid FileInformationClassLevel: {:?}, expected one of {:?}",
-                fs_info_class_lvl, VALID_LEVELS,
+                "read invalid FileInformationClassLevel: {fs_info_class_lvl:?}, expected one of {VALID_LEVELS:?}",
             )));
         }
 
@@ -4033,16 +4020,14 @@ impl ClientDriveQueryVolumeInformationResponse {
             NTSTATUS::STATUS_UNSUCCESSFUL => {
                 if buffer.is_some() {
                     return Err(invalid_data_error(&format!(
-                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS = {:?} \
-                        should have a None buffer, got {:?}",
-                        io_status, buffer,
+                        "a ClientDriveQueryVolumeInformationResponse with NTSTATUS = {io_status:?} \
+                        should have a None buffer, got {buffer:?}",
                     )));
                 }
             }
             _ => {
                 return Err(invalid_data_error(&format!(
-                    "received unsupported io_status for ClientDriveQueryVolumeInformationResponse: {:?}",
-                    io_status
+                    "received unsupported io_status for ClientDriveQueryVolumeInformationResponse: {io_status:?}"
                 )))
             }
         }

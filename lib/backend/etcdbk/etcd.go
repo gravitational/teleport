@@ -20,6 +20,7 @@ package etcdbk
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -56,7 +57,7 @@ var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(
@@ -186,7 +187,7 @@ func GetName() string {
 }
 
 // keep this here to test interface conformance
-var _ backend.Backend = &EtcdBackend{}
+var _ backend.Backend = (*EtcdBackend)(nil)
 
 // Option is an etcd backend functional option (used in tests).
 type Option func(*options)
@@ -325,7 +326,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = apidefaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultIOTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := os.ReadFile(cfg.PasswordFile)
@@ -458,8 +459,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	defer cancel()
 
 	// wrap fromEvent in a closure compatible with the concurrent queue
-	workfn := func(v interface{}) interface{} {
-		original := v.(clientv3.Event)
+	workfn := func(original clientv3.Event) eventResult {
 		var event backend.Event
 		e, err := b.fromEvent(ctx, original)
 		if e != nil {
@@ -506,8 +506,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	EmitEvents:
 		for {
 			select {
-			case p := <-q.Pop():
-				r := p.(eventResult)
+			case r := <-q.Pop():
 				if r.err != nil {
 					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
 					continue EmitEvents
@@ -531,7 +530,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			for i := range e.Events {
 				eventCount.Inc()
 
-				var event clientv3.Event = *e.Events[i]
+				event := *e.Events[i]
 				// attempt non-blocking push.  We allocate a large input buffer for the queue, so this
 				// aught to succeed reliably.
 				select {
@@ -548,7 +547,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 					lastBacklogWarning = now
 				}
 
-				// fallblack to blocking push
+				// fallback to blocking push
 				select {
 				case q.Push() <- event:
 				case <-ctx.Done():
@@ -661,7 +660,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if subtle.ConstantTimeCompare(expected.Key, replaceWith.Key) != 1 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -723,14 +722,8 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if lease.ID == 0 {
 		return trace.BadParameter("lease is not specified")
 	}
-	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithKeysOnly())
-	if err != nil {
-		return convertErr(err)
-	}
-	if len(re.Kvs) == 0 {
-		return trace.NotFound("item %q is not found", string(lease.Key))
-	}
-	// instead of keep-alive on the old lease, setup a new lease
+
+	// instead of keep-alive on the old lease, set up a new lease
 	// because we would like the event to be generated
 	// which does not happen in case of lease keep-alive
 	var opts []clientv3.OpOption
@@ -739,9 +732,13 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 		return trace.Wrap(err)
 	}
 	opts = append(opts, clientv3.WithIgnoreValue())
-	kv := re.Kvs[0]
-	_, err = b.client.Put(ctx, string(kv.Key), "", opts...)
-	return convertErr(err)
+	_, err := b.client.Put(ctx, b.prependPrefix(lease.Key), "", opts...)
+	err = convertErr(err)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("item %q is not found", string(lease.Key))
+	}
+
+	return err
 }
 
 // Get returns a single item or not found error
@@ -796,13 +793,19 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	return nil
 }
 
+type leaseKey struct {
+	bucket time.Time
+}
+
+var _ map[leaseKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
 	// in order to reduce excess redundant lease generation, we bucket expiry times
 	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
 	// leases can cause problems for etcd at scale.
 	// TODO(fspmarshall): make bucket size configurable.
 	bucket := roundUp(item.Expires, b.leaseBucket)
-	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, bucket, func(ctx context.Context) (clientv3.LeaseID, error) {
+	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
 		ttl := b.ttl(bucket)
 		elease, err := b.client.Grant(ctx, seconds(ttl))
 		if err != nil {
@@ -832,6 +835,12 @@ func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 	return backend.TTL(b.clock, expires)
 }
 
+type ttlKey struct {
+	leaseID int64
+}
+
+var _ map[ttlKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{
 		Type: fromType(e.Type),
@@ -843,13 +852,23 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	if event.Type == types.OpDelete {
 		return event, nil
 	}
-	// get the new expiration date if it was updated
+
+	// Get the new expiration date if it was updated. Multiple resources share the
+	// same lease since the leases are bucketed to the nearest multiple of 10s. To
+	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
-		re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
+			re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+			if err != nil {
+				return 0, convertErr(err)
+			}
+			return re.TTL, nil
+		})
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, trace.Wrap(err)
 		}
-		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(re.TTL))
+
+		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(ttl))
 	}
 	value, err := unmarshal(e.Kv.Value)
 	if err != nil {
@@ -878,34 +897,40 @@ func unmarshal(value []byte) ([]byte, error) {
 }
 
 func convertErr(err error) error {
-	if err == nil {
+	switch {
+	case err == nil:
 		return nil
-	}
-	if err == context.Canceled {
+	case errors.Is(err, context.Canceled):
 		return trace.ConnectionProblem(err, "operation has been canceled")
-	} else if err == context.DeadlineExceeded {
+	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
-	} else if err == rpctypes.ErrEmptyKey {
+	case errors.Is(err, rpctypes.ErrEmptyKey):
 		return trace.BadParameter(err.Error())
-	} else if ev, ok := status.FromError(err); ok {
-		switch ev.Code() {
-		// server-side context might have timed-out first (due to clock skew)
-		// while original client-side context is not timed-out yet
-		case codes.DeadlineExceeded:
-			return trace.ConnectionProblem(err, "operation has timed out")
-		case codes.NotFound:
-			return trace.NotFound(err.Error())
-		case codes.AlreadyExists:
-			return trace.AlreadyExists(err.Error())
-		case codes.FailedPrecondition:
-			return trace.CompareFailed(err.Error())
-		case codes.ResourceExhausted:
-			return trace.LimitExceeded(err.Error())
-		default:
-			return trace.BadParameter(err.Error())
-		}
+	case errors.Is(err, rpctypes.ErrKeyNotFound):
+		return trace.NotFound(err.Error())
 	}
-	return trace.ConnectionProblem(err, err.Error())
+
+	ev, ok := status.FromError(err)
+	if !ok {
+		return trace.ConnectionProblem(err, err.Error())
+	}
+
+	switch ev.Code() {
+	// server-side context might have timed-out first (due to clock skew)
+	// while original client-side context is not timed-out yet
+	case codes.DeadlineExceeded:
+		return trace.ConnectionProblem(err, "operation has timed out")
+	case codes.NotFound:
+		return trace.NotFound(err.Error())
+	case codes.AlreadyExists:
+		return trace.AlreadyExists(err.Error())
+	case codes.FailedPrecondition:
+		return trace.CompareFailed(err.Error())
+	case codes.ResourceExhausted:
+		return trace.LimitExceeded(err.Error())
+	default:
+		return trace.BadParameter(err.Error())
+	}
 }
 
 func fromType(eventType mvccpb.Event_EventType) types.OpType {

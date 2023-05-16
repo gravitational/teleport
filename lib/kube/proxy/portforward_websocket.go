@@ -248,10 +248,14 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	h.onPortForward(fmt.Sprintf("%v:%v", h.podName, p.port), err == nil /* success */)
 	if err != nil {
 		p.sendErr(err)
-		p.close()
 		return
 	}
-	defer targetErrorStream.Close()
+	defer func() {
+		// on stream close, remove the stream from the connection and close it.
+		h.targetConn.RemoveStreams(targetErrorStream)
+		targetErrorStream.Close()
+	}()
+
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
@@ -264,19 +268,23 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 
 	// create data stream
 	headers.Set(StreamType, StreamTypeData)
-	dataStream, err := h.targetConn.CreateStream(headers)
+	targetDataStream, err := h.targetConn.CreateStream(headers)
 	if err != nil {
 		p.sendErr(err)
 		p.close()
 		wg.Wait()
 		return
 	}
-	defer dataStream.Close()
+	defer func() {
+		// on stream close, remove the stream from the connection and close it.
+		h.targetConn.RemoveStreams(targetDataStream)
+		targetDataStream.Close()
+	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := utils.ProxyConn(h.context, p.dataStream, dataStream); err != nil {
+		if err := utils.ProxyConn(h.context, p.dataStream, targetDataStream); err != nil {
 			h.WithError(err).Debugf("Unable to proxy portforward data-stream.")
 		}
 	}()
@@ -285,5 +293,5 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	// Wait until every goroutine exits.
 	wg.Wait()
 
-	h.Infof("Port forwarding pair completed.")
+	h.Debugf("Port forwarding pair completed.")
 }

@@ -18,6 +18,7 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
 
 	containerpb "cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 // GKEFetcherConfig configures the GKE fetcher.
@@ -68,7 +70,7 @@ type gkeFetcher struct {
 }
 
 // NewGKEFetcher creates a new GKE fetcher configuration.
-func NewGKEFetcher(cfg GKEFetcherConfig) (Fetcher, error) {
+func NewGKEFetcher(cfg GKEFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -114,17 +116,9 @@ func (a *gkeFetcher) Cloud() string {
 	return types.CloudGCP
 }
 
-// gcpLabelsToTeleportLabels converts GKE labels to a labels map.
-func (a *gkeFetcher) gcpLabelsToTeleportLabels(tags map[string]string) map[string]string {
-	labels := make(map[string]string)
-	for key, val := range tags {
-		if types.IsValidLabelKey(key) {
-			labels[key] = val
-		} else {
-			a.Log.Debugf("Skipping GKE tag %q, not a valid label key.", key)
-		}
-	}
-	return labels
+func (a *gkeFetcher) String() string {
+	return fmt.Sprintf("gkeFetcher(ProjectID=%v, Location=%v, FilterLabels=%v)",
+		a.ProjectID, a.Location, a.FilterLabels)
 }
 
 // getMatchingKubeCluster checks if the GKE cluster tags matches the GCP matcher
@@ -132,9 +126,12 @@ func (a *gkeFetcher) gcpLabelsToTeleportLabels(tags map[string]string) map[strin
 // If any cluster does not match the filtering criteria, this function returns
 // a “trace.CompareFailed“ error to distinguish filtering and operational errors.
 func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.KubeCluster, error) {
-	gkeCluster.Labels = a.gcpLabelsToTeleportLabels(gkeCluster.Labels)
+	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "Unable to create types.KubernetesClusterV3 cluster from gcp.GKECluster.")
+	}
 
-	if match, reason, err := services.MatchLabels(a.FilterLabels, gkeCluster.Labels); err != nil {
+	if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match GKE cluster labels against match labels.")
 	} else if !match {
 		return nil, trace.CompareFailed("GKE cluster %q labels does not match the selector: %s", gkeCluster.Name, reason)
@@ -146,9 +143,5 @@ func (a *gkeFetcher) getMatchingKubeCluster(gkeCluster gcp.GKECluster) (types.Ku
 		return nil, trace.CompareFailed("GKE cluster %q not enrolled due to its current status: %s", gkeCluster.Name, st)
 	}
 
-	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
-	if err != nil {
-		return nil, trace.WrapWithMessage(err, "Unable to create types.KubernetesClusterV3 cluster from gcp.GKECluster.")
-	}
 	return cluster, nil
 }

@@ -19,7 +19,7 @@ the Application Service and Database Service.
 - A host where you have installed and configured the `teleport` binary.
 </ScopedBlock>
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Enable verbose logging
 
@@ -27,8 +27,17 @@ To diagnose problems, you can configure the `teleport` process to run with
 verbose logging enabled by passing it the `-d` flag. `teleport` will write logs
 to stderr.
 
-Logs will resemble the following (these logs were printed while joining a Node
-to a cluster, then terminating the `teleport` process on the Node):
+Alternatively, you can set the log level from the Teleport configuration file:
+
+```yaml
+teleport:
+  log:
+    severity: DEBUG
+```
+
+Restart the `teleport` process to apply the modified log level. Logs will resemble
+the following (these logs were printed while joining a server to a cluster, then
+terminating the `teleport` process on the server):
 
 ```
 DEBU [NODE:PROX] Agent connected to proxy: [aee1241f-0f6f-460e-8149-23c38709e46d.tele.example.com aee1241f-0f6f-460e-8149-23c38709e46d teleport-proxy-us-west-2-6db8db844c-ftmg9.tele.example.com teleport-proxy-us-west-2-6db8db844c-ftmg9 localhost 127.0.0.1 ::1 tele.example.com 100.92.90.42 remote.kube.proxy.teleport.cluster.local]. leaseID:4 target:tele.example.com:11106 reversetunnel/agent.go:414
@@ -142,13 +151,13 @@ Teleport v9.0.4 git: go1.18
 
 <Tabs>
 <TabItem scope={["cloud", "enterprise"]} label="Commercial">
-If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues) or create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
+If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues) or create a ticket through your [Teleport account](https://teleport.sh).
 
 </TabItem>
 <TabItem scope={["oss"]} label="Open Source">
 If you need help, please ask on our [community forum](https://github.com/gravitational/teleport/discussions). You can also open an [issue on GitHub](https://github.com/gravitational/teleport/issues).
 
-For more information about custom features, or to try our [Enterprise edition](../../deploy-a-cluster/teleport-enterprise/introduction.mdx) of Teleport, please reach out to us at [sales](https://goteleport.com/signup/enterprise/).
+For more information about custom features, or to try our [Enterprise edition](../../choose-an-edition/teleport-enterprise/introduction.mdx) of Teleport, please reach out to us at [sales](https://goteleport.com/signup/enterprise/).
 </TabItem>
 </Tabs>
 

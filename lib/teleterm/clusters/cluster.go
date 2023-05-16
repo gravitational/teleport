@@ -27,9 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -51,10 +51,19 @@ type Cluster struct {
 	clusterClient *client.TeleportClient
 	// clock is a clock for time-related operations
 	clock clockwork.Clock
+}
+
+type ClusterWithDetails struct {
+	*Cluster
 	// Auth server features
-	// only present where the auth client can be queried
-	// and set with GetClusterFeatures
 	Features *proto.Features
+	// AuthClusterID is the unique cluster ID that is set once
+	// during the first auth server startup.
+	AuthClusterID string
+	// SuggestedReviewers for the given user.
+	SuggestedReviewers []string
+	// RequestableRoles for the given user.
+	RequestableRoles []string
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -62,9 +71,15 @@ func (c *Cluster) Connected() bool {
 	return c.status.Name != "" && !c.status.IsExpired(c.clock)
 }
 
-// GetClusterFeatures returns a list of features enabled/disabled by the auth server
-func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, error) {
-	var authPingResponse proto.PingResponse
+// GetWithDetails makes requests to the auth server to return details of the current
+// Cluster that cannot be found on the disk only, including details about the user
+// and enabled enterprise features. This method requires a valid cert.
+func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, error) {
+	var (
+		pingResponse  proto.PingResponse
+		caps          *types.AccessCapabilities
+		authClusterID string
+	)
 
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
@@ -73,14 +88,46 @@ func (c *Cluster) GetClusterFeatures(ctx context.Context) (*proto.Features, erro
 		}
 		defer proxyClient.Close()
 
-		authPingResponse, err = proxyClient.CurrentCluster().Ping(ctx)
-		return trace.Wrap(err)
+		authClient, err := proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		pingResponse, err = authClient.Ping(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		caps, err = authClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			RequestableRoles:   true,
+			SuggestedReviewers: true,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterName, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authClusterID = clusterName.GetClusterID()
+
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return authPingResponse.ServerFeatures, nil
+	withDetails := &ClusterWithDetails{
+		Cluster:            c,
+		SuggestedReviewers: caps.SuggestedReviewers,
+		RequestableRoles:   caps.RequestableRoles,
+		Features:           pingResponse.ServerFeatures,
+		AuthClusterID:      authClusterID,
+	}
+
+	return withDetails, nil
 }
 
 // GetRoles returns currently logged-in user roles
@@ -122,9 +169,10 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 	resourceIds := make([]types.ResourceID, 0, len(req.GetResourceIds()))
 	for _, r := range req.GetResourceIds() {
 		resourceIds = append(resourceIds, types.ResourceID{
-			ClusterName: r.ClusterName,
-			Kind:        r.Kind,
-			Name:        r.Name,
+			ClusterName:     r.ClusterName,
+			Kind:            r.Kind,
+			Name:            r.Name,
+			SubResourceName: r.SubResourceName,
 		})
 	}
 

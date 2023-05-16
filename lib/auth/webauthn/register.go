@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	wan "github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -224,7 +224,8 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 	return wla.UserID, nil
 }
 
-// RegisterResponse represents fields needed to finish registering a new webautn device.
+// RegisterResponse represents fields needed to finish registering a new
+// WebAuthn device.
 type RegisterResponse struct {
 	// User is the device owner.
 	User string
@@ -318,6 +319,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			SignatureCounter:  credential.Authenticator.SignCount,
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
 			ResidentKey:       req.Passwordless,
+			CredentialRpId:    f.Webauthn.RPID,
 		},
 	}
 	// We delegate a few checks to identity, including:

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -138,11 +139,6 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 		return nil, trace.BadParameter("invalid reset password token request type")
 	}
 
-	_, err = s.GetUser(req.Name, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	_, err = s.ResetPassword(req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -173,7 +169,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 			Type: events.ResetPasswordTokenCreateEvent,
 			Code: events.ResetPasswordTokenCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -390,8 +386,7 @@ func (s *Server) getResetPasswordToken(ctx context.Context, tokenID string) (typ
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 9.0.0: remove checking for empty string.
-	if token.GetSubKind() != "" && token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
+	if token.GetSubKind() != UserTokenTypeResetPassword && token.GetSubKind() != UserTokenTypeResetPasswordInvite {
 		return nil, trace.BadParameter("invalid token")
 	}
 
@@ -434,9 +429,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 			Type: events.RecoveryTokenCreateEvent,
 			Code: events.RecoveryTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
@@ -451,7 +444,7 @@ func (s *Server) createRecoveryToken(ctx context.Context, username, tokenType st
 
 // CreatePrivilegeToken implements AuthService.CreatePrivilegeToken.
 func (s *Server) CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error) {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -531,9 +524,7 @@ func (s *Server) createPrivilegeToken(ctx context.Context, username, tokenKind s
 			Type: events.PrivilegeTokenCreateEvent,
 			Code: events.PrivilegeTokenCreateCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User: username,
-		},
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),

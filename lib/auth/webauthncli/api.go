@@ -28,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
+// ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
+// authenticate with a non-registered security key.
+// The error message is meant to be displayed to end-users, thus it breaks the
+// usual Go error conventions (capitalized sentences, punctuation).
+var ErrUsingNonRegisteredDevice = errors.New("You are using a security key that is not registered with Teleport. Try a different security key.")
+
 // AuthenticatorAttachment allows callers to choose a specific attachment.
 type AuthenticatorAttachment int
 
@@ -72,13 +78,21 @@ type LoginPrompt interface {
 	// PromptTouch prompts the user for a security key touch.
 	// In certain situations multiple touches may be required (PIN-protected
 	// devices, passwordless flows, etc).
-	PromptTouch() error
+	// Returns a TouchAcknowledger which should be called to signal to the user
+	// that the touch was successfully detected.
+	// Returns an error if the prompt fails to be sent to the user.
+	PromptTouch() (TouchAcknowledger, error)
 	// PromptCredential prompts the user to choose a credential, in case multiple
 	// credentials are available.
 	// Callers are free to modify the slice, such as by sorting the credentials,
 	// but must return one of the pointers contained within.
 	PromptCredential(creds []*CredentialInfo) (*CredentialInfo, error)
 }
+
+// TouchAcknowledger is a function type which should be called to signal to the
+// user that a security key touch was successfully detected.
+// May return an error if the acknowledgement fails to be sent to the user.
+type TouchAcknowledger func() error
 
 // LoginOpts groups non-mandatory options for Login.
 type LoginOpts struct {
@@ -158,10 +172,20 @@ func crossPlatformLogin(
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
 
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err := prompt.PromptTouch()
+	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+
 	resp, err := U2FLogin(ctx, origin, assertion)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if err := ackTouch(); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
 	return resp, "" /* credentialUser */, err
 }
 
@@ -184,9 +208,12 @@ type RegisterPrompt interface {
 	// PromptPIN prompts the user for their PIN.
 	PromptPIN() (string, error)
 	// PromptTouch prompts the user for a security key touch.
-	// In certain situations multiple touches may be required (eg, PIN-protected
-	// devices)
-	PromptTouch() error
+	// In certain situations multiple touches may be required (PIN-protected
+	// devices, passwordless flows, etc).
+	// Returns a TouchAcknowledger which should be called to signal to the user
+	// that the touch was successfully detected.
+	// Returns an error if the prompt fails to be sent to the user.
+	PromptTouch() (TouchAcknowledger, error)
 }
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
@@ -209,10 +236,17 @@ func Register(
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
 
-	if err := prompt.PromptTouch(); err != nil {
+	ackTouch, err := prompt.PromptTouch()
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return U2FRegister(ctx, origin, cc)
+
+	resp, err := U2FRegister(ctx, origin, cc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, trace.Wrap(ackTouch())
 }
 
 // HasPlatformSupport returns true if the platform supports client-side

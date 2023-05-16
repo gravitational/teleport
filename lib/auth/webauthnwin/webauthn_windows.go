@@ -21,7 +21,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
@@ -63,7 +63,7 @@ type nativeImpl struct {
 func newNativeImpl() *nativeImpl {
 	v, err := checkIfDLLExistsAndGetAPIVersionNumber()
 	if err != nil {
-		log.WithError(err).Warn("WebAuthnWin: failed to check version")
+		log.WithError(err).Debug("WebAuthnWin: failed to check version")
 		return &nativeImpl{
 			hasCompileSupport: true,
 			isAvailable:       false,
@@ -73,7 +73,7 @@ func newNativeImpl() *nativeImpl {
 	if err != nil {
 		// This should not happen if dll exists, however we are fine with
 		// to proceed without uvPlatform.
-		log.WithError(err).Warn("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
+		log.WithError(err).Debug("WebAuthnWin: failed to check isUVPlatformAuthenticatorAvailable")
 	}
 
 	return &nativeImpl{

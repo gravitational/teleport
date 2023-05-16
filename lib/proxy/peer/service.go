@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -89,9 +90,15 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	streamConn := newStreamConn(stream, source, destination)
+	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	sent, received, err := pipeConn(stream.Context(), streamConn, nodeConn)
+	streamConn := utils.NewTrackingConn(streamutils.NewConn(streamRW, source, destination))
+
+	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
+	sent, received := streamConn.Stat()
 	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
 	return trace.Wrap(err)
 }

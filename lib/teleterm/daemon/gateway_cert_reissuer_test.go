@@ -17,6 +17,8 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -26,7 +28,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -184,9 +186,12 @@ func (r *mockDBCertReissuer) ReissueDBCerts(context.Context, tlsca.RouteToDataba
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
-	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
-	return command, nil
+func (m mockCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
+	// Use a relative path to make exec.Command avoid unnecessarily calling exec.LookPath.
+	path := filepath.Join("foo", gateway.Protocol())
+	arg := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
+	cmd := exec.Command(path, arg)
+	return cmd, nil
 }
 
 type mockTSHDEventsClient struct {

@@ -27,15 +27,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// onDaemonStart implements "tsh daemon start" command.
+// onDaemonStart implements the "tsh daemon start" command.
 func onDaemonStart(cf *CLIConf) error {
 	homeDir := profile.FullProfilePath(cf.HomePath)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Use info-level daemon-grade logging for the daemon running in non-debug mode.
-	// tsh already sets debug-level CLI-grade logging when running in debug mode.
-	if !cf.Debug {
+	if cf.Debug {
+		utils.InitLogger(utils.LoggingForDaemon, logrus.DebugLevel)
+	} else {
 		utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 	}
 
@@ -44,6 +44,7 @@ func onDaemonStart(cf *CLIConf) error {
 		CertsDir:           cf.DaemonCertsDir,
 		Addr:               cf.DaemonAddr,
 		InsecureSkipVerify: cf.InsecureSkipVerify,
+		PrehogAddr:         cf.DaemonPrehogAddr,
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -42,9 +42,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -114,6 +116,9 @@ type server struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	// proxySigner is used to sign PROXY headers to securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // Config is a reverse tunnel server configuration
@@ -208,6 +213,12 @@ type Config struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
+
+	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -316,9 +327,10 @@ func NewServer(cfg Config) (Server, error) {
 		clusterPeers:     make(map[string]*clusterPeers),
 		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
+		proxySigner:      cfg.PROXYSigner,
 	}
 
-	localSite, err := newlocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
+	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -342,6 +354,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
+		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
 	)
 	if err != nil {
 		return nil, err
@@ -371,7 +384,6 @@ func (s *server) disconnectClusters(connectedRemoteClusters []*remoteSite, remot
 			}
 			remoteClustersStats.DeleteLabelValues(cluster.GetName())
 		}
-
 	}
 	return nil
 }
@@ -398,7 +410,7 @@ func (s *server) periodicFunctions() {
 
 			connectedRemoteClusters := s.getRemoteClusters()
 
-			remoteClusters, err := s.localAuthClient.GetRemoteClusters()
+			remoteClusters, err := s.localAccessPoint.GetRemoteClusters()
 			if err != nil {
 				s.log.WithError(err).Warn("Failed to get remote clusters")
 			}
@@ -581,8 +593,8 @@ func (s *server) diffConns(newConns, existingConns map[string]types.TunnelConnec
 	return connsToAdd, connsToUpdate, connsToRemove
 }
 
-func (s *server) Wait() {
-	s.srv.Wait(context.TODO())
+func (s *server) Wait(ctx context.Context) {
+	s.srv.Wait(ctx)
 }
 
 func (s *server) Start() error {
@@ -601,8 +613,6 @@ func (s *server) Close() error {
 func (s *server) DrainConnections(ctx context.Context) error {
 	// Ensure listener is closed before sending reconnects.
 	err := s.srv.Close()
-	s.srv.Wait(ctx)
-
 	s.RLock()
 	s.log.Debugf("Advising reconnect to local site: %s", s.localSite.GetName())
 	go s.localSite.adviseReconnect(ctx)
@@ -613,6 +623,7 @@ func (s *server) DrainConnections(ctx context.Context) error {
 	}
 	s.RUnlock()
 
+	s.srv.Wait(ctx)
 	return trace.Wrap(err)
 }
 
@@ -676,6 +687,8 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
 		emitter:          s.Emitter,
+		proxySigner:      s.proxySigner,
+		sconn:            sconn,
 	}
 	go t.start()
 }
@@ -716,6 +729,8 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		s.handleNewCluster(conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleOkta:
+		s.handleNewService(role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.
 	default:
 		s.log.Errorf("Unsupported role attempting to connect: %v", val)
@@ -1129,10 +1144,12 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			Log:       srv.Log,
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Log:          srv.Log,
+			MaxStaleness: time.Minute,
 		},
+		NodesGetter: accessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1193,11 +1210,15 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v11 cluster. If it is,
-// we disable the watcher for types.KindKubeServer and types.KindKubeCluster resources
-// since both resources are not supported in a v10 leaf cluster.
+// Checks if the cluster that is connecting is a pre-v13 cluster. If it is,
+// we disable the watcher for resources not supported in a v12 leaf cluster:
+// - (to fill when we add new resources)
+//
+// **WARNING**: Ensure that the version below matches the version in which backward incompatible
+// changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
+// never become healthy due to unknown resources.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("11.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

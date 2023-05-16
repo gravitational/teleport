@@ -9,12 +9,15 @@
         "podSecurityPolicy",
         "labels",
         "chartMode",
+        "validateConfigOnDeploy",
         "highAvailability",
+        "podMonitor",
         "tls",
         "image",
         "enterpriseImage",
         "log",
         "affinity",
+        "nodeSelector",
         "annotations",
         "extraVolumes",
         "extraVolumeMounts",
@@ -29,6 +32,42 @@
             "$id": "#/properties/clusterName",
             "type": "string",
             "default": ""
+        },
+        "auth": {
+            "$id": "#/properties/auth",
+            "type": "object"
+        },
+        "proxy": {
+            "$id": "#/properties/proxy",
+            "type": "object"
+        },
+        "createProxyToken": {
+            "$id": "#/properties/createProxyToken",
+            "type": "boolean",
+            "default": true
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": ["enabled"],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {"prometheus": "default"},
+                    "additionalProperties": {"type": "string"}
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
         },
         "authentication": {
             "$id": "#/properties/authentication",
@@ -267,9 +306,14 @@
                 "standalone",
                 "aws",
                 "gcp",
-                "custom"
+                "scratch"
             ],
             "default": "standalone"
+        },
+        "validateConfigOnDeploy": {
+            "$id": "#/properties/validateConfigOnDeploy",
+            "type": "boolean",
+            "default": true
         },
         "standalone": {
             "$id": "#/properties/standalone",
@@ -427,9 +471,6 @@
         "gcp": {
             "$id": "#/properties/gcp",
             "type": "object",
-            "required": [
-                "credentialSecretName"
-            ],
             "properties": {
                 "projectId": {
                     "$id": "#/properties/gcp/properties/projectId",
@@ -571,12 +612,17 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-ent"
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
@@ -624,6 +670,11 @@
         },
         "affinity": {
             "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
             "type": "object",
             "default": {}
         },
@@ -703,7 +754,19 @@
                 "create": {
                     "$id": "#properties/service/create",
                     "type": "boolean",
-                    "default": true 
+                    "default": true
+                }
+            }
+        },
+        "rbac": {
+            "$id": "#/properties/rbac",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/rbac/create",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },
@@ -800,6 +863,11 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
+        },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 60
         }
     }
 }

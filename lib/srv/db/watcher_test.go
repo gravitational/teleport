@@ -18,15 +18,22 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	"github.com/aws/aws-sdk-go/service/redshiftserverless"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	clients "github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -122,10 +129,11 @@ func TestWatcher(t *testing.T) {
 	assertReconciledResource(t, reconcileCh, types.Databases{db0})
 }
 
-// TestWatcherRDSDynamicResource RDS dynamic resource registration where the ResourceMatchers should be always
-// evaluated for the dynamic registered resources.
-func TestWatcherCloudDynamicResource(t *testing.T) {
-	var db1, db2, db3 *types.DatabaseV3
+// TestWatcherDynamicResource tests dynamic resource registration where the
+// ResourceMatchers should be always evaluated for the dynamic registered
+// resources.
+func TestWatcherDynamicResource(t *testing.T) {
+	var db1, db2, db3, db4 *types.DatabaseV3
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -173,18 +181,93 @@ func TestWatcherCloudDynamicResource(t *testing.T) {
 		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
 	})
 
-	t.Run("cloud resource - no match", func(t *testing.T) {
-		// Create an RDS Cloud resource with a label that doesn't match resource matcher.
-		db3, err = makeCloudDatabase("db3", map[string]string{"group": "z"})
+	t.Run("discovery resource - no match", func(t *testing.T) {
+		// Created a discovery service created database resource that doesn't
+		// match any db service ResourceMatchers.
+		db3, err = makeDiscoveryDatabase("db3", map[string]string{"group": "z"}, withRDSURL)
 		require.NoError(t, err)
 		require.True(t, db3.IsRDS())
-
-		// The db3 DB RDS Cloud origin resource should properly register by the agent even if  DB labels don't match
-		// any ResourceMatchers. The RDS Cloud origin databases relays could fetchers that return only matching databases.
 		err = testCtx.authServer.CreateDatabase(ctx, db3)
 		require.NoError(t, err)
-		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db3})
+		// The db3 should not be registered by the agent due to ResourceMatchers mismatch:
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2})
 	})
+
+	t.Run("discovery resource - match", func(t *testing.T) {
+		// Created a discovery service created database resource that matches
+		// ResourceMatchers.
+		db4, err = makeDiscoveryDatabase("db4", map[string]string{"group": "a"}, withRDSURL)
+		require.NoError(t, err)
+		require.True(t, db4.IsRDS())
+
+		err = testCtx.authServer.CreateDatabase(ctx, db4)
+		require.NoError(t, err)
+		// The db4 service should be properly registered by the agent.
+		assertReconciledResource(t, reconcileCh, types.Databases{db0, db2, db4})
+	})
+}
+
+func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
+	staticLabels := r.GetStaticLabels()
+	if staticLabels == nil {
+		staticLabels = make(map[string]string)
+	}
+	if discoveryGroup != "" {
+		staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	}
+	r.SetStaticLabels(staticLabels)
+}
+
+// TestWatcherCloudFetchers tests usage of discovery database fetchers by the
+// database service.
+func TestWatcherCloudFetchers(t *testing.T) {
+	// Test an AWS fetcher. Note that status AWS can be set by Metadata
+	// service.
+	redshiftServerlessWorkgroup := mocks.RedshiftServerlessWorkgroup("discovery-aws", "us-east-1")
+	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
+	require.NoError(t, err)
+	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
+	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
+	// Test an Azure fetcher.
+	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
+	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	azSQLServerDatabase.SetOrigin(types.OriginCloud)
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	reconcileCh := make(chan types.Databases)
+	testCtx.setupDatabaseServer(ctx, t, agentParams{
+		// Keep ResourceMatchers as nil to disable resource matchers.
+		OnReconcile: func(d types.Databases) {
+			reconcileCh <- d
+		},
+		CloudClients: &clients.TestCloudClients{
+			RDS: &mocks.RDSMockUnauth{}, // Access denied error should not affect other fetchers.
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				Workgroups: []*redshiftserverless.Workgroup{redshiftServerlessWorkgroup},
+			},
+			AzureSQLServer: azure.NewSQLClientByAPI(&azure.ARMSQLServerMock{
+				AllServers: []*armsql.Server{azSQLServer},
+			}),
+			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
+		},
+		AzureMatchers: []services.AzureMatcher{{
+			Subscriptions: []string{"sub"},
+			Types:         []string{services.AzureMatcherSQLServer},
+			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+		}},
+		AWSMatchers: []services.AWSMatcher{{
+			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
+			Regions: []string{"us-east-1"},
+			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		}},
+	})
+
+	wantDatabases := types.Databases{azSQLServerDatabase, redshiftServerlessDatabase}
+	sort.Sort(wantDatabases)
+
+	assertReconciledResource(t, reconcileCh, wantDatabases)
 }
 
 func assertReconciledResource(t *testing.T, ch chan types.Databases, databases types.Databases) {
@@ -200,7 +283,6 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
-
 }
 
 func makeStaticDatabase(name string, labels map[string]string, opts ...makeDatabaseOpt) (*types.DatabaseV3, error) {
@@ -215,12 +297,10 @@ func makeDynamicDatabase(name string, labels map[string]string, opts ...makeData
 	}, opts...)
 }
 
-func makeCloudDatabase(name string, labels map[string]string) (*types.DatabaseV3, error) {
+func makeDiscoveryDatabase(name string, labels map[string]string, opts ...makeDatabaseOpt) (*types.DatabaseV3, error) {
 	return makeDatabase(name, labels, map[string]string{
 		types.OriginLabel: types.OriginCloud,
-	}, func(v3 *types.DatabaseSpecV3) {
-		v3.URI = "mypostgresql.c6c8mwvfdgv0.us-west-2.rds.amazonaws.com:5432"
-	})
+	}, opts...)
 }
 
 type makeDatabaseOpt func(*types.DatabaseSpecV3)
@@ -247,4 +327,19 @@ func makeDatabase(name string, labels map[string]string, additionalLabels map[st
 		Name:   name,
 		Labels: labels,
 	}, ds)
+}
+
+func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types.Database) {
+	t.Helper()
+
+	server := &armsql.Server{
+		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
+		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
+		Properties: &armsql.ServerProperties{
+			FullyQualifiedDomainName: to.Ptr("localhost"),
+		},
+	}
+	database, err := services.NewDatabaseFromAzureSQLServer(server)
+	require.NoError(t, err)
+	return server, database
 }

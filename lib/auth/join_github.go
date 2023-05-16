@@ -18,30 +18,53 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ghaIDTokenValidator interface {
-	Validate(context.Context, string) (*githubactions.IDTokenClaims, error)
+	Validate(
+		ctx context.Context, GHESHost string, token string,
+	) (*githubactions.IDTokenClaims, error)
 }
 
-func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) error {
+func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.RegisterUsingTokenRequest) (*githubactions.IDTokenClaims, error) {
 	if req.IDToken == "" {
-		return trace.BadParameter("IDToken not provided for Github join request")
+		return nil, trace.BadParameter("IDToken not provided for Github join request")
 	}
 	pt, err := a.GetToken(ctx, req.Token)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	claims, err := a.ghaIDTokenValidator.Validate(ctx, req.IDToken)
+	token, ok := pt.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
+	}
+
+	// enterpriseOverride is a hostname to use instead of github.com when
+	// validating tokens. This allows GHES instances to be connected.
+	enterpriseOverride := token.Spec.GitHub.EnterpriseServerHost
+	if enterpriseOverride != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, fmt.Errorf(
+				"github enterprise server joining: %w",
+				ErrRequiresEnterprise,
+			)
+		}
+	}
+
+	claims, err := a.ghaIDTokenValidator.Validate(
+		ctx, enterpriseOverride, req.IDToken,
+	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -49,15 +72,10 @@ func (a *Server) checkGitHubJoinRequest(ctx context.Context, req *types.Register
 		"token":  pt.GetName(),
 	}).Info("Github actions run trying to join cluster")
 
-	return trace.Wrap(checkGithubAllowRules(pt, claims))
+	return claims, trace.Wrap(checkGithubAllowRules(token, claims))
 }
 
-func checkGithubAllowRules(pt types.ProvisionToken, claims *githubactions.IDTokenClaims) error {
-	token, ok := pt.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("github join method only supports ProvisionTokenV2, '%T' was provided", pt)
-	}
-
+func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *githubactions.IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
 	for _, rule := range token.Spec.GitHub.Allow {
 		// Please consider keeping these field validators in the same order they

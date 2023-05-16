@@ -16,6 +16,10 @@ limitations under the License.
 
 package fixtures
 
+import (
+	"encoding/binary"
+)
+
 var (
 	// PreLogin is an example Pre-Login request packet from the protocol spec:
 	//
@@ -84,3 +88,49 @@ var (
 		0xe7, 0x40, 0x1f, 0x09, 0x04, 0xd0, 0x00, 0x34, 0x06, 0x00, 0x64, 0x00, 0x62, 0x00, 0x6f, 0x00,
 	}
 )
+
+// RPCClientVariableLength returns a RPCCLientRequest packet containing a
+// partially Length-prefixed Bytes request, as described here: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/3f983fde-0509-485a-8c40-a9fa6679a828
+func RPCClientPartiallyLength(length uint64, chunks uint64) []byte {
+	packet := []byte{
+		0x03, 0x01,
+		0x00, 0x00, // Length placeholder
+		0x00, 0x00, 0x01, 0x00, 0x16, 0x00, 0x00, 0x00,
+		0x12, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+		0x00, 0x00, 0x04, 0x00, 0x66, 0x00, 0x6F, 0x00,
+		0x6F, 0x00, 0x33, 0x00, 0x00, 0x00, 0x00, 0x02,
+		0xef,       // NVARCHARTYPE
+		0xff, 0xff, // NULL length
+		0x00, 0x00, 0x00, 0x00, 0x00, // NVARCHARTYPE flags
+	}
+
+	// NVARCHARTYPE must have even length
+	if length%2 != 0 {
+		length += 1
+	}
+
+	packet = binary.LittleEndian.AppendUint64(packet, length)
+
+	if length > 0 && chunks > 1 {
+		chunkSize := length / chunks
+		rem := length
+		for i := uint64(0); i < chunks-1; i++ {
+			packet = binary.LittleEndian.AppendUint32(packet, uint32(chunkSize))
+			data := make([]byte, chunkSize)
+			packet = append(packet, data...)
+			rem -= chunkSize
+		}
+
+		// Last chunk will contain the remaining data.
+		packet = binary.LittleEndian.AppendUint32(packet, uint32(rem))
+		data := make([]byte, rem)
+		packet = append(packet, data...)
+	}
+
+	// PLP_TERMINATOR
+	packet = append(packet, []byte{0x00, 0x00, 0x00, 0x00}...)
+
+	binary.BigEndian.PutUint16(packet[2:], uint16(len(packet)))
+	return packet
+}

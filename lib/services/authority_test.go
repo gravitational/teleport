@@ -17,6 +17,7 @@ limitations under the License.
 package services_test
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -185,4 +186,230 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.NotPanics(t, func() { caUTC.Clone() })
 
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
+}
+
+func TestCheckSAMLIDPCA(t *testing.T) {
+	// Create testing CA.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		keyset           types.CAKeySet
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name:             "no active keys",
+			keyset:           types.CAKeySet{},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "multiple active keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}, {
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "empty key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  []byte{},
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "unparseable key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  bytes.Repeat([]byte{49}, 1222),
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "unparseable cert",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: bytes.Repeat([]byte{49}, 1222),
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "valid CA",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "don't validate non-raw private keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert:    cert,
+					Key:     bytes.Repeat([]byte{49}, 1222),
+					KeyType: types.PrivateKeyType_PKCS11,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.SAMLIDPCA,
+				ClusterName: "cluster1",
+				ActiveKeys:  test.keyset,
+			})
+			require.NoError(t, err)
+			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
+func TestCheckOIDCIdP(t *testing.T) {
+	ta := testauthority.New()
+
+	pub, priv, err := ta.GenerateJWT()
+	require.NoError(t, err)
+
+	pub2, priv2, err := ta.GenerateJWT()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		keyset           types.CAKeySet
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name:             "no active keys",
+			keyset:           types.CAKeySet{},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "multiple active keys",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{
+					{
+						PublicKey:  pub,
+						PrivateKey: priv,
+					},
+					{
+						PublicKey:  pub2,
+						PrivateKey: priv2,
+					},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "empty private key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: []byte{},
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "unparseable private key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: bytes.Repeat([]byte{49}, 1222),
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "unparseable public key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  bytes.Repeat([]byte{49}, 1222),
+					PrivateKey: priv,
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "valid key pair",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: priv,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.OIDCIdPCA,
+				ClusterName: "cluster1",
+				ActiveKeys:  test.keyset,
+			})
+			require.NoError(t, err)
+			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
+func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
+	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1600),
+				Key:  bytes.Repeat([]byte{49}, 1200),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	// ca2 is a clone of ca1.
+	ca2 := ca1.Clone()
+
+	// ca3 has different cert bytes from ca1.
+	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1666),
+				Key:  bytes.Repeat([]byte{49}, 1222),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	b.Run("true", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
+		}
+	})
+
+	b.Run("false", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
+		}
+	})
 }

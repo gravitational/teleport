@@ -115,9 +115,9 @@ func TestSecretKeyFromAWSARN(t *testing.T) {
 	_, err := secretKeyFromAWSARN("invalid:arn")
 	require.True(t, trace.IsBadParameter(err))
 
-	key, err := secretKeyFromAWSARN("arn:aws-cn:elasticache:cn-north-1:1234567890:user:alice")
+	key, err := secretKeyFromAWSARN("arn:aws-cn:elasticache:cn-north-1:123456789012:user:alice")
 	require.NoError(t, err)
-	require.Equal(t, "elasticache/cn-north-1/1234567890/user/alice", key)
+	require.Equal(t, "elasticache/cn-north-1/123456789012/user/alice", key)
 }
 
 type mockUser struct {

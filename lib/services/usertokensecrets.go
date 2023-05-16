@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// UnmarshalUserTokenSecrets unmarshals the ResetPasswordTokenSecrets resource from JSON.
+// UnmarshalUserTokenSecrets unmarshals the UserTokenSecrets resource from JSON.
 func UnmarshalUserTokenSecrets(bytes []byte, opts ...MarshalOption) (types.UserTokenSecrets, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -40,7 +40,7 @@ func UnmarshalUserTokenSecrets(bytes []byte, opts ...MarshalOption) (types.UserT
 	return &secrets, nil
 }
 
-// MarshalUserTokenSecrets marshals the ResetPasswordTokenSecrets resource to JSON.
+// MarshalUserTokenSecrets marshals the UserTokenSecrets resource to JSON.
 func MarshalUserTokenSecrets(secrets types.UserTokenSecrets, opts ...MarshalOption) ([]byte, error) {
 	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

@@ -30,7 +30,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -99,6 +99,36 @@ type MFAChallengeRequest struct {
 	Passwordless bool `json:"passwordless"`
 }
 
+// MFAChallengeResponse holds the response to a MFA challenge.
+type MFAChallengeResponse struct {
+	// TOTPCode is a code for a otp device.
+	TOTPCode string `json:"totp_code,omitempty"`
+	// WebauthnResponse is a response from a webauthn device.
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+}
+
+// GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
+// if there were any responses set. Otherwise returns nil.
+func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
+	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+		return nil, trace.BadParameter("only one MFA response field can be set")
+	}
+
+	if r.TOTPCode != "" {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
+		}}, nil
+	}
+
+	if r.WebauthnResponse != nil {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	}
+
+	return nil, nil
+}
+
 // CreateSSHCertReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
@@ -109,6 +139,8 @@ type CreateSSHCertReq struct {
 	Password string `json:"password"`
 	// OTPToken is second factor token
 	OTPToken string `json:"otp_token"`
+	// HeadlessAuthenticationID is a headless authentication resource id.
+	HeadlessAuthenticationID string `json:"headless_id"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -162,6 +194,13 @@ type AuthenticateWebUserRequest struct {
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
+type HeadlessRequest struct {
+	// Actions can be either accept or deny.
+	Action string `json:"action"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+}
+
 // SSHLogin contains common SSH login parameters.
 type SSHLogin struct {
 	// ProxyAddr is the target proxy address
@@ -172,7 +211,7 @@ type SSHLogin struct {
 	TTL time.Duration
 	// Insecure turns off verification for x509 target proxy
 	Insecure bool
-	// Pool is x509 cert pool to use for server certifcate verification
+	// Pool is x509 cert pool to use for server certificate verification
 	Pool *x509.CertPool
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
@@ -184,6 +223,8 @@ type SSHLogin struct {
 	KubernetesCluster string
 	// AttestationStatement is an attestation statement.
 	AttestationStatement *keys.AttestationStatement
+	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
+	ExtraHeaders map[string]string
 }
 
 // SSHLoginSSO contains SSH login parameters for SSO login.
@@ -249,14 +290,24 @@ type SSHLoginPasswordless struct {
 	CustomPrompt wancli.LoginPrompt
 }
 
+type SSHLoginHeadless struct {
+	SSHLogin
+
+	// User is the login username.
+	User string
+
+	// HeadlessAuthenticationID is a headless authentication request ID.
+	HeadlessAuthenticationID string
+}
+
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClient, *url.URL, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentClient,
 	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v)", proxyAddr, insecure)
+	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
 
-	// validate proxyAddr:
+	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
@@ -270,18 +321,13 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool) (*WebClien
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
 
-	var opts []roundtrip.ClientParam
-
 	if insecure {
-		// Skip https cert verification, print a warning that this is insecure.
-		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to SSH proxy %v\n", proxyAddr)
-		opts = append(opts, roundtrip.HTTPClient(NewInsecureWebClient()))
-	} else if pool != nil {
-		// use custom set of trusted CAs
-		opts = append(opts, roundtrip.HTTPClient(newClientWithPool(pool)))
+		// Skipping https cert verification, print a warning that this is insecure.
+		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 	}
 
-	clt, err := NewWebClient(proxyAddr, opts...)
+	opt := roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders))
+	clt, err := NewWebClient(proxyAddr, opt)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -360,7 +406,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 
 // SSHAgentLogin is used by tsh to fetch local user credentials.
 func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -389,13 +435,46 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	return out, nil
 }
 
+// SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This request will block until the headless login is approved.
+	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+		User:                     login.User,
+		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
+		PubKey:                   login.PubKey,
+		TTL:                      login.TTL,
+		Compatibility:            login.Compatibility,
+		RouteToCluster:           login.RouteToCluster,
+		KubernetesCluster:        login.KubernetesCluster,
+		AttestationStatement:     login.AttestationStatement,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out *auth.SSHLoginResponse
+	err = json.Unmarshal(re.Bytes(), &out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
 // SSHAgentPasswordlessLogin requests a passwordless MFA challenge via the proxy.
 // weblogin.CustomPrompt (or a default prompt) is used for interaction with the
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
 func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*auth.SSHLoginResponse, error) {
-	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -466,7 +545,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
 func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -534,7 +613,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 
 // HostCredentials is used to fetch host credentials for a node.
 func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	clt, _, err := initClient(proxyAddr, insecure, nil)
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -554,7 +633,7 @@ func HostCredentials(ctx context.Context, proxyAddr string, insecure bool, req t
 
 // GetWebConfig is used by teleterm to fetch webconfig.js from proxies
 func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webclient.WebConfig, error) {
-	clt, _, err := initClient(proxyAddr, insecure, nil)
+	clt, _, err := initClient(proxyAddr, insecure, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

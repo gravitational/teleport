@@ -5,7 +5,6 @@ Host *.example.com proxy.example.com
     UserKnownHostsFile "/home/alice/.tsh/known_hosts"
     IdentityFile "/home/alice/.tsh/keys/example.com/bob"
     CertificateFile "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub"
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
 
 # Flags for all example.com hosts except the proxy

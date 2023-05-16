@@ -18,12 +18,12 @@ package types
 
 import (
 	"fmt"
-	"regexp"
+	"net/netip"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -48,8 +48,10 @@ type Server interface {
 	GetCmdLabels() map[string]CommandLabel
 	// SetCmdLabels sets command labels.
 	SetCmdLabels(cmdLabels map[string]CommandLabel)
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+	// GetPublicAddr returns a public address where this server can be reached.
 	GetPublicAddr() string
+	// GetPublicAddrs returns a list of public addresses where this server can be reached.
+	GetPublicAddrs() []string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -62,8 +64,8 @@ type Server interface {
 	String() string
 	// SetAddr sets server address
 	SetAddr(addr string)
-	// SetPublicAddr sets the public address this cluster can be reached at.
-	SetPublicAddr(string)
+	// SetPublicAddrs sets the public addresses where this server can be reached.
+	SetPublicAddrs([]string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
 	// GetApps gets the list of applications this server is proxying.
@@ -72,13 +74,6 @@ type Server interface {
 	// GetApps gets the list of applications this server is proxying.
 	// DELETE IN 9.0.
 	SetApps([]*App)
-	// GetKubeClusters returns the kubernetes clusters directly handled by this
-	// server.
-	// DELETE IN 13.0.0
-	GetKubernetesClusters() []*KubernetesCluster
-	// SetKubeClusters sets the kubernetes clusters handled by this server.
-	// DELETE IN 13.0.0
-	SetKubernetesClusters([]*KubernetesCluster)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
 	// SetPeerAddr sets the peer address of the server.
@@ -136,6 +131,11 @@ func (s *ServerV2) GetKind() string {
 
 // GetSubKind returns resource sub kind
 func (s *ServerV2) GetSubKind() string {
+	// if the server is a node subkind isn't set, this is a teleport node.
+	if s.Kind == KindNode && s.SubKind == "" {
+		return SubKindTeleportNode
+	}
+
 	return s.SubKind
 }
 
@@ -179,9 +179,13 @@ func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetPublicAddr sets the public address this cluster can be reached at.
-func (s *ServerV2) SetPublicAddr(addr string) {
-	s.Spec.PublicAddr = addr
+// SetPublicAddrs sets the public proxy addresses where this server can be reached.
+func (s *ServerV2) SetPublicAddrs(addrs []string) {
+	s.Spec.PublicAddrs = addrs
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(addrs) != 0 {
+		s.Spec.PublicAddr = addrs[0]
+	}
 }
 
 // GetName returns server name
@@ -199,9 +203,22 @@ func (s *ServerV2) GetAddr() string {
 	return s.Spec.Addr
 }
 
-// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
+// GetPublicAddr returns a public address where this server can be reached.
 func (s *ServerV2) GetPublicAddr() string {
-	return s.Spec.PublicAddr
+	addrs := s.GetPublicAddrs()
+	if len(addrs) != 0 {
+		return addrs[0]
+	}
+	return ""
+}
+
+// GetPublicAddrs returns a list of public addresses where this server can be reached.
+func (s *ServerV2) GetPublicAddrs() []string {
+	// DELETE IN 15.0. (Joerger) PublicAddr deprecated in favor of PublicAddrs
+	if len(s.Spec.PublicAddrs) == 0 && s.Spec.PublicAddr != "" {
+		return []string{s.Spec.PublicAddr}
+	}
+	return s.Spec.PublicAddrs
 }
 
 // GetRotation gets the state of certificate authority rotation.
@@ -229,16 +246,29 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := s.Spec.CmdLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetLabels returns server's static label key pairs.
 // GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
-
-// GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
 	return s.Metadata.Labels
 }
@@ -305,19 +335,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 func (s *ServerV2) GetAllLabels() map[string]string {
 	// server labels (static and dynamic)
 	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-
-	// server-specific labels
-	switch s.Kind {
-	case KindKubeService:
-		for _, cluster := range s.Spec.KubernetesClusters {
-			// Combine cluster static and dynamic labels, and merge into
-			// `labels`.
-			for name, value := range CombineLabels(cluster.StaticLabels, cluster.DynamicLabels) {
-				labels[name] = value
-			}
-		}
-	}
-
 	return labels
 }
 
@@ -331,17 +348,6 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 		lmap[key] = cmd.Result
 	}
 	return lmap
-}
-
-// GetKubernetesClusters returns the kubernetes clusters directly handled by this
-// server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
-
-// SetKubernetesClusters sets the kubernetes clusters handled by this server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
-	s.Spec.KubernetesClusters = clusters
 }
 
 // GetPeerAddr returns the peer address of the server.
@@ -391,6 +397,13 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	// TODO(awly): default s.Metadata.Expiry if not set (use
 	// defaults.ServerAnnounceTTL).
 	s.setStaticFields()
+
+	// if the server is a registered OpenSSH node, allow the name to be
+	// randomly generated
+	if s.SubKind == SubKindOpenSSHNode && s.Metadata.Name == "" {
+		s.Metadata.Name = uuid.New().String()
+	}
+
 	if err := s.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,15 +411,35 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	if s.Kind == "" {
 		return trace.BadParameter("server Kind is empty")
 	}
+	if s.Kind != KindNode && s.SubKind != "" {
+		return trace.BadParameter(`server SubKind must only be set when Kind is "node"`)
+	}
+
+	switch s.SubKind {
+	case "", SubKindTeleportNode:
+		// allow but do nothing
+	case SubKindOpenSSHNode:
+		if s.Spec.Addr == "" {
+			return trace.BadParameter(`Addr must be set when server SubKind is "openssh"`)
+		}
+		if len(s.GetPublicAddrs()) != 0 {
+			return trace.BadParameter(`PublicAddrs must not be set when server SubKind is "openssh"`)
+		}
+		if s.Spec.Hostname == "" {
+			return trace.BadParameter(`Hostname must be set when server SubKind is "openssh"`)
+		}
+
+		_, err := netip.ParseAddrPort(s.Spec.Addr)
+		if err != nil {
+			return trace.BadParameter("invalid Addr %q: %v", s.Spec.Addr, err)
+		}
+	default:
+		return trace.BadParameter("invalid SubKind %q", s.SubKind)
+	}
 
 	for key := range s.Spec.CmdLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
-		}
-	}
-	for _, kc := range s.Spec.KubernetesClusters {
-		if !validKubeClusterName.MatchString(kc.Name) {
-			return trace.BadParameter("invalid kubernetes cluster name: %q", kc.Name)
 		}
 	}
 
@@ -421,6 +454,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 	if s.GetKind() == KindNode {
 		fieldVals = append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname(), s.GetAddr())
+		fieldVals = append(fieldVals, s.GetPublicAddrs()...)
 
 		if s.GetUseTunnel() {
 			custom = func(val string) bool {
@@ -434,7 +468,7 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
-	return proto.Clone(s).(*ServerV2)
+	return utils.CloneProtoMsg(s)
 }
 
 // IsAWSConsole returns true if this app is AWS management console.
@@ -522,12 +556,6 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 	}
 	return out
 }
-
-// validKubeClusterName filters the allowed characters in kubernetes cluster
-// names. We need this because cluster names are used for cert filenames on the
-// client side, in the ~/.tsh directory. Restricting characters helps with
-// sneaky cluster names being used for client directory traversal and exploits.
-var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Servers represents a list of servers.
 type Servers []Server

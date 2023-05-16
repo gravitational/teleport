@@ -19,18 +19,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type suite struct {
@@ -48,7 +56,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "rootnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -70,12 +78,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "localhost",
+			ClusterName: "root",
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -93,16 +102,19 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	s.connector = mockConnector(t)
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
 		},
 		Options: types.RoleOptions{
 			ForwardAgent: true,
 		},
 	})
 	require.NoError(t, err)
-	kubeLoginRole, err := types.NewRoleV3("kube-login", types.RoleSpecV5{
+	kubeLoginRole, err := types.NewRole("kube-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			KubeGroups: []string{user.Username},
 			KubernetesLabels: types.Labels{
@@ -121,7 +133,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		options.rootConfigFunc(cfg)
 	}
 
-	s.root = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.root = runTeleport(t, cfg)
 	t.Cleanup(func() { require.NoError(t, s.root.Close()) })
 }
 
@@ -133,7 +145,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "leafnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -160,8 +172,9 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -169,9 +182,12 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	require.NoError(t, err)
 
 	cfg.Proxy.DisableWebInterface = true
-	sshLoginRole, err := types.NewRoleV3("ssh-login", types.RoleSpecV5{
+	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{user.Username},
+			NodeLabels: types.Labels{
+				types.Wildcard: []string{types.Wildcard},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -193,29 +209,28 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 	if options.leafConfigFunc != nil {
 		options.leafConfigFunc(cfg)
 	}
-	s.leaf = runTeleport(t, cfg, options.newTeleportOptions...)
+	s.leaf = runTeleport(t, cfg)
 
 	_, err = s.leaf.GetAuthServer().UpsertTrustedCluster(s.leaf.ExitContext(), tc)
 	require.NoError(t, err)
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc     func(cfg *service.Config)
-	leafConfigFunc     func(cfg *service.Config)
-	leafCluster        bool
-	validationFunc     func(*suite) bool
-	newTeleportOptions []service.NewTeleportOption
+	rootConfigFunc func(cfg *servicecfg.Config)
+	leafConfigFunc func(cfg *servicecfg.Config)
+	leafCluster    bool
+	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
 
-func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withRootConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
 	}
 }
 
-func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withLeafConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.leafConfigFunc = fn
 	}
@@ -230,12 +245,6 @@ func withLeafCluster() testSuiteOptionFunc {
 func withValidationFunc(f func(*suite) bool) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.validationFunc = f
-	}
-}
-
-func withNewTeleportOption(opt service.NewTeleportOption) testSuiteOptionFunc {
-	return func(o *testSuiteOptions) {
-		o.newTeleportOptions = append(o.newTeleportOptions, opt)
 	}
 }
 
@@ -274,9 +283,22 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportOption) *service.TeleportProcess {
-	process, err := service.NewTeleport(cfg, opts...)
-	require.NoError(t, err)
+func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess {
+	if cfg.InstanceMetadataClient == nil {
+		// Disables cloud auto-imported labels when running tests in cloud envs
+		// such as Github Actions.
+		//
+		// This is required otherwise Teleport will import cloud instance
+		// labels, and use them for example as labels in Kubernetes Service and
+		// cause some tests to fail because the output includes unexpected
+		// labels.
+		//
+		// It is also found that Azure metadata client can throw "Too many
+		// requests" during CI which fails services.NewTeleport.
+		cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	}
+	process, err := service.NewTeleport(cfg)
+	require.NoError(t, err, trace.DebugReport(err))
 	require.NoError(t, process.Start())
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -293,9 +315,15 @@ func runTeleport(t *testing.T, cfg *service.Config, opts ...service.NewTeleportO
 	if cfg.Databases.Enabled {
 		serviceReadyEvents = append(serviceReadyEvents, service.DatabasesReady)
 	}
+	if cfg.Apps.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AppsReady)
+	}
+	if cfg.Auth.Enabled {
+		serviceReadyEvents = append(serviceReadyEvents, service.AuthTLSReady)
+	}
 	waitForEvents(t, process, serviceReadyEvents...)
 
-	if cfg.Databases.Enabled {
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, process, cfg.Databases.Databases)
 	}
 	return process
@@ -308,7 +336,7 @@ func localListenerAddr() string {
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {
 	for _, event := range events {
 		_, err := svc.WaitForEventTimeout(30*time.Second, event)
-		require.NoError(t, err, "service server didn't receved %v event after 30s", event)
+		require.NoError(t, err, "service server didn't receive %v event after 30s", event)
 	}
 }
 
@@ -323,4 +351,59 @@ func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string)
 	require.NoError(t, err)
 	_, err = c.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// mustCloneTempDir is a test helper that clones a given directory recursively.
+// Useful for parallelizing tests that rely on a ~/.tsh dir, since FSKeystore
+// races with multiple tsh clients working in the same profile dir.
+func mustCloneTempDir(t *testing.T, srcDir string) string {
+	t.Helper()
+	dstDir := t.TempDir()
+	err := filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if srcPath == srcDir {
+			// special case: root of the walk. skip copying.
+			return nil
+		}
+
+		// Construct the corresponding path in the destination directory.
+		relPath, err := filepath.Rel(srcDir, srcPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dstPath := filepath.Join(dstDir, relPath)
+
+		info, err := d.Info()
+		require.NoError(t, err)
+
+		if d.IsDir() {
+			// If the current item is a directory, create it in the destination directory.
+			if err := os.Mkdir(dstPath, info.Mode().Perm()); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			// If the current item is a file, copy it to the destination directory.
+			srcFile, err := os.Open(srcPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer srcFile.Close()
+
+			dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer dstFile.Close()
+
+			if _, err := io.Copy(dstFile, srcFile); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return dstDir
 }

@@ -275,6 +275,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MFADeviceDelete{
 			MFADeviceDelete: e,
 		}
+	case *DeviceEvent:
+		out.Event = &OneOf_DeviceEvent{
+			DeviceEvent: e,
+		}
+	case *DeviceEvent2:
+		out.Event = &OneOf_DeviceEvent2{
+			DeviceEvent2: e,
+		}
 	case *BillingCardCreate:
 		out.Event = &OneOf_BillingCardCreate{
 			BillingCardCreate: e,
@@ -399,6 +407,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *OpenSearchRequest:
+		out.Event = &OneOf_OpenSearchRequest{
+			OpenSearchRequest: e,
+		}
 	case *DynamoDBRequest:
 		out.Event = &OneOf_DynamoDBRequest{
 			DynamoDBRequest: e,
@@ -471,6 +483,54 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DesktopSharedDirectoryWrite{
 			DesktopSharedDirectoryWrite: e,
 		}
+	case *BotJoin:
+		out.Event = &OneOf_BotJoin{
+			BotJoin: e,
+		}
+	case *InstanceJoin:
+		out.Event = &OneOf_InstanceJoin{
+			InstanceJoin: e,
+		}
+	case *LoginRuleCreate:
+		out.Event = &OneOf_LoginRuleCreate{
+			LoginRuleCreate: e,
+		}
+	case *LoginRuleDelete:
+		out.Event = &OneOf_LoginRuleDelete{
+			LoginRuleDelete: e,
+		}
+	case *SAMLIdPAuthAttempt:
+		out.Event = &OneOf_SAMLIdPAuthAttempt{
+			SAMLIdPAuthAttempt: e,
+		}
+	case *SAMLIdPServiceProviderCreate:
+		out.Event = &OneOf_SAMLIdPServiceProviderCreate{
+			SAMLIdPServiceProviderCreate: e,
+		}
+	case *SAMLIdPServiceProviderUpdate:
+		out.Event = &OneOf_SAMLIdPServiceProviderUpdate{
+			SAMLIdPServiceProviderUpdate: e,
+		}
+	case *SAMLIdPServiceProviderDelete:
+		out.Event = &OneOf_SAMLIdPServiceProviderDelete{
+			SAMLIdPServiceProviderDelete: e,
+		}
+	case *SAMLIdPServiceProviderDeleteAll:
+		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
+			SAMLIdPServiceProviderDeleteAll: e,
+		}
+	case *OktaResourcesUpdate:
+		out.Event = &OneOf_OktaResourcesUpdate{
+			OktaResourcesUpdate: e,
+		}
+	case *OktaSyncFailure:
+		out.Event = &OneOf_OktaSyncFailure{
+			OktaSyncFailure: e,
+		}
+	case *OktaAssignmentResult:
+		out.Event = &OneOf_OktaAssignmentResult{
+			OktaAssignmentResult: e,
+		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())
 		unknown := &Unknown{}
@@ -506,7 +566,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	// OneOfs only have one inner field, verify and then read it.
 	if elem.NumField() != 1 {
 		// This should never happen for proto one-ofs.
-		return nil, trace.BadParameter("unexpect number in value %v: %v != 1", elem.Kind(), elem.NumField())
+		return nil, trace.BadParameter("unexpected number in value %v: %v != 1", elem.Kind(), elem.NumField())
 	}
 
 	auditEvent, ok := elem.Field(0).Interface().(AuditEvent)

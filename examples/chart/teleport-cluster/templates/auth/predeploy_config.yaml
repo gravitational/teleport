@@ -1,0 +1,31 @@
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
+{{- if $auth.validateConfigOnDeploy }}
+{{- $configTemplate := printf "teleport-cluster.auth.config.%s" $auth.chartMode -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-auth-test
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "4"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+{{- if $auth.createProxyToken }}
+  apply-on-startup.yaml: |2
+    kind: token
+    version: v2
+    metadata:
+      name: {{ .Release.Name }}-proxy
+      expires: "3000-01-01T00:00:00Z"
+    spec:
+      roles: [Proxy]
+      join_method: kubernetes
+      kubernetes:
+        allow:
+          - service_account: "{{ .Release.Namespace }}:{{ include "teleport-cluster.proxy.serviceAccountName" . }}"
+{{- end }}
+  teleport.yaml: |2
+    {{- mustMergeOverwrite (include $configTemplate . | fromYaml) $auth.teleportConfig | toYaml | nindent 4 -}}
+{{- end }}

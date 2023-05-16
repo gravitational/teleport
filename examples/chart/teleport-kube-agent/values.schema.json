@@ -14,6 +14,7 @@
         "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
+        "teleportConfig",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
@@ -243,6 +244,11 @@
             "type": "boolean",
             "default": false
         },
+        "teleportConfig": {
+            "$id": "#/properties/teleportConfig",
+            "type": "object",
+            "default": {}
+        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
@@ -284,7 +290,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -415,6 +426,16 @@
             "type": "object",
             "default": {}
         },
+        "dnsConfig": {
+            "$id": "#/properties/dnsConfig",
+            "type": "object",
+            "default": {}
+        },
+        "dnsPolicy": {
+            "$id": "#/properties/dnsPolicy",
+            "type": "string",
+            "default": ""
+        },
         "extraLabels": {
             "$id": "#/properties/extraLabels",
             "type": "object",
@@ -505,6 +526,35 @@
                     "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
+                }
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/serviceAccount/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/serviceAccount/create",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "rbac": {
+            "$id": "#/properties/rbac",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/rbac/create",
+                    "type": "boolean",
+                    "default": true
                 }
             }
         },

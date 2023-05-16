@@ -21,26 +21,30 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -48,56 +52,218 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type eventCheckFn func(t *testing.T, events []apievents.AuditEvent)
+
+func hasAuditEvent(idx int, want apievents.AuditEvent) eventCheckFn {
+	return func(t *testing.T, events []apievents.AuditEvent) {
+		t.Helper()
+		require.Greater(t, len(events), idx)
+		require.Empty(t, cmp.Diff(want, events[idx],
+			cmpopts.IgnoreFields(apievents.AuthAttempt{}, "ConnectionMetadata")))
+	}
+}
+
+func hasAuditEventCount(want int) eventCheckFn {
+	return func(t *testing.T, events []apievents.AuditEvent) {
+		t.Helper()
+		require.Len(t, events, want)
+	}
+}
+
 // TestAuthPOST tests the handler of POST /x-teleport-auth.
 func TestAuthPOST(t *testing.T) {
 	const (
-		stateValue  = "012ac605867e5a7d693cd6f49c7ff0fb"
-		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b"
+		cookieValue = "5588e2be54a2834b4f152c56bafcd789f53b15477129d2ab4044e9a3c1bf0f3b" // random value we set in the header and expect to get back as a cookie
 	)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+	clusterName := "test-cluster"
+	publicAddr := "proxy.goteleport.com:443"
+
+	// Generate CA TLS key and cert with the cluster and application DNS.
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	appSession := createAppSession(t, fakeClock, key, cert, clusterName, publicAddr)
+
 	tests := []struct {
-		desc           string
-		stateInRequest string
-		stateInCookie  string
-		sessionError   error
-		outStatusCode  int
+		desc               string
+		headers            map[string]string
+		sessionError       error
+		outStatusCode      int
+		eventChecks        []eventCheckFn
+		proxyAddrs         []utils.NetAddr
+		cookieValue        string
+		subjectCookieValue string
 	}{
 		{
-			desc:           "success",
-			stateInRequest: stateValue,
-			stateInCookie:  stateValue,
-			sessionError:   nil,
-			outStatusCode:  http.StatusOK,
+			desc: "success",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusOK,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+			cookieValue:        cookieValue,
+			subjectCookieValue: appSession.GetBearerToken(),
 		},
 		{
-			desc:           "missing state token in request",
-			stateInRequest: "",
-			stateInCookie:  stateValue,
-			sessionError:   nil,
-			outStatusCode:  http.StatusForbidden,
+			desc: "success - proxy addr with custom port",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com:3080",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusOK,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr("proxy.goteleport.com:3080"),
+			},
+			cookieValue:        cookieValue,
+			subjectCookieValue: appSession.GetBearerToken(),
 		},
 		{
-			desc:           "invalid session",
-			stateInRequest: stateValue,
-			stateInCookie:  stateValue,
-			sessionError:   trace.NotFound("invalid session"),
-			outStatusCode:  http.StatusForbidden,
+			desc: "missing subject session token in request",
+			headers: map[string]string{
+				"Origin":         "https://proxy.goteleport.com",
+				"X-Cookie-Value": cookieValue,
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						Login: appSession.GetUser(),
+						User:  "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "subject session token is not set",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "subject session token in request does not match",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         cookieValue,
+				"X-Subject-Cookie-Value": "foobar",
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks: []eventCheckFn{
+				hasAuditEventCount(1),
+				hasAuditEvent(0, &apievents.AuthAttempt{
+					Metadata: apievents.Metadata{
+						Type: events.AuthAttemptEvent,
+						Code: events.AuthAttemptFailureCode,
+					},
+					UserMetadata: apievents.UserMetadata{
+						Login: appSession.GetUser(),
+						User:  "unknown",
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "subject session token does not match",
+					},
+				}),
+			},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "invalid session",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			sessionError:  trace.NotFound("invalid session"),
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "incorrect origin",
+			headers: map[string]string{
+				"Origin":                 "https://incorrect.origin.com",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
+		},
+		{
+			desc: "incorrect origin port",
+			headers: map[string]string{
+				"Origin":                 "https://proxy.goteleport.com:3080",
+				"X-Cookie-Value":         "foobar",
+				"X-Subject-Cookie-Value": appSession.GetBearerToken(),
+			},
+			outStatusCode: http.StatusForbidden,
+			eventChecks:   []eventCheckFn{hasAuditEventCount(0)},
+			proxyAddrs: []utils.NetAddr{
+				*utils.MustParseAddr(publicAddr),
+			},
 		},
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			p := setup(t, fakeClock, mockAuthClient{sessionError: test.sessionError}, nil)
+			t.Parallel()
 
-			req, err := json.Marshal(fragmentRequest{
-				StateValue:  test.stateInRequest,
-				CookieValue: cookieValue,
-			})
-			require.NoError(t, err)
+			authClient := &mockAuthClient{
+				sessionError: test.sessionError,
+				appSession:   appSession,
+			}
 
-			status, _ := p.makeRequest(t, "POST", "/x-teleport-auth", AuthStateCookieName, test.stateInCookie, req)
-			require.Equal(t, test.outStatusCode, status)
+			p := setup(t, fakeClock, authClient, nil, test.proxyAddrs)
+
+			res := p.makeRequestWithHeaders(t, "/x-teleport-auth", test.headers)
+
+			require.NoError(t, res.Body.Close())
+			require.Equal(t, test.outStatusCode, res.StatusCode)
+
+			var cookieValue string
+			var subjectCookieValue string
+			for _, cookie := range res.Cookies() {
+				if cookie.Name == CookieName {
+					cookieValue = cookie.Value
+				}
+
+				if cookie.Name == SubjectCookieName {
+					subjectCookieValue = cookie.Value
+				}
+			}
+
+			require.Equal(t, subjectCookieValue, test.subjectCookieValue)
+			require.Equal(t, cookieValue, test.cookieValue)
+
+			for _, check := range test.eventChecks {
+				check(t, authClient.emittedEvents)
+			}
 		})
 	}
 }
@@ -165,7 +331,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
-	authClient := mockAuthClient{
+	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr),
 		// Three app servers with same public addr from our session, and three
@@ -212,8 +378,18 @@ func TestMatchApplicationServers(t *testing.T) {
 		server.Close()
 	})
 
-	p := setup(t, fakeClock, authClient, tunnel)
-	status, content := p.makeRequest(t, "GET", "/", CookieName, "abc", []byte{})
+	p := setup(t, fakeClock, authClient, tunnel, nil)
+	status, content := p.makeRequest(t, "GET", "/", []byte{}, []http.Cookie{
+		{
+			Name:  CookieName,
+			Value: "abc",
+		},
+		{
+			Name:  SubjectCookieName,
+			Value: authClient.appSession.GetBearerToken(),
+		},
+	})
+
 	require.Equal(t, http.StatusOK, status)
 	// Remote site should receive only 4 connection requests: 3 from the
 	// MatchHealthy and 1 from the transport.
@@ -222,17 +398,116 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.Equal(t, expectedContent, content)
 }
 
+func TestHealthCheckAppServer(t *testing.T) {
+	ctx := context.Background()
+	clusterName := "test-cluster"
+
+	for _, tc := range []struct {
+		desc                string
+		publicAddr          string
+		appServersFunc      func(t *testing.T, remoteSite *reversetunnel.FakeRemoteSite) []types.AppServer
+		expectedTunnelCalls int
+		expectErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "match and online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, _ *reversetunnel.FakeRemoteSite) []types.AppServer {
+				return []types.AppServer{createAppServer(t, "valid.example.com")}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.NoError,
+		},
+		{
+			desc:       "match and but no online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+				appServer := createAppServer(t, "valid.example.com")
+				tunnel.OfflineTunnels = map[string]struct{}{
+					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
+				}
+				return []types.AppServer{appServer}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.Error,
+		},
+		{
+			desc:       "no match",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+				return []types.AppServer{}
+			},
+			expectedTunnelCalls: 0,
+			expectErr:           require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			key, cert, err := tlsca.GenerateSelfSignedCA(
+				pkix.Name{CommonName: clusterName},
+				[]string{tc.publicAddr, apiutils.EncodeClusterName(clusterName)},
+				defaults.CATTL,
+			)
+			require.NoError(t, err)
+
+			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
+			authClient := &mockAuthClient{
+				clusterName: clusterName,
+				appSession:  appSession,
+				caKey:       key,
+				caCert:      cert,
+			}
+
+			fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+			authClient.appServers = tc.appServersFunc(t, fakeRemoteSite)
+
+			// Create a httptest server to serve the application requests. It must serve
+			// TLS content with the generated certificate.
+			tlsCert, err := tls.X509KeyPair(cert, key)
+			require.NoError(t, err)
+			server := &httptest.Server{
+				TLS: &tls.Config{
+					Certificates: []tls.Certificate{tlsCert},
+				},
+				Listener: &fakeRemoteListener{fakeRemoteSite},
+				Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					fmt.Fprint(w, "Hello application")
+				})},
+			}
+			server.StartTLS()
+
+			tunnel := &reversetunnel.FakeServer{
+				Sites: []reversetunnel.RemoteSite{fakeRemoteSite},
+			}
+
+			appHandler, err := NewHandler(ctx, &HandlerConfig{
+				Clock:        fakeClock,
+				AuthClient:   authClient,
+				AccessPoint:  authClient,
+				ProxyClient:  tunnel,
+				CipherSuites: utils.DefaultCipherSuites(),
+			})
+			require.NoError(t, err)
+
+			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
+			tc.expectErr(t, err)
+			require.Equal(t, int64(tc.expectedTunnelCalls), fakeRemoteSite.DialCount())
+		})
+	}
+}
+
 type testServer struct {
 	serverURL *url.URL
 }
 
-func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnel.Tunnel) *testServer {
+func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, proxyClient reversetunnel.Tunnel, proxyPublicAddrs []utils.NetAddr) *testServer {
 	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
-		Clock:        clock,
-		AuthClient:   authClient,
-		AccessPoint:  authClient,
-		ProxyClient:  proxyClient,
-		CipherSuites: utils.DefaultCipherSuites(),
+		Clock:            clock,
+		AuthClient:       authClient,
+		AccessPoint:      authClient,
+		ProxyClient:      proxyClient,
+		CipherSuites:     utils.DefaultCipherSuites(),
+		ProxyPublicAddrs: proxyPublicAddrs,
 	})
 	require.NoError(t, err)
 
@@ -247,7 +522,7 @@ func setup(t *testing.T, clock clockwork.FakeClock, authClient auth.ClientI, pro
 	}
 }
 
-func (p *testServer) makeRequest(t *testing.T, method, endpoint, cookieName, cookieValue string, reqBody []byte) (int, string) {
+func (p *testServer) makeRequest(t *testing.T, method, endpoint string, reqBody []byte, cookies []http.Cookie) (int, string) {
 	u := url.URL{
 		Scheme: p.serverURL.Scheme,
 		Host:   p.serverURL.Host,
@@ -257,10 +532,9 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint, cookieName, coo
 	require.NoError(t, err)
 
 	// Attach the cookie.
-	req.AddCookie(&http.Cookie{
-		Name:  cookieName,
-		Value: cookieValue,
-	})
+	for _, c := range cookies {
+		req.AddCookie(&c)
+	}
 
 	// Issue request.
 	client := &http.Client{
@@ -284,14 +558,48 @@ func (p *testServer) makeRequest(t *testing.T, method, endpoint, cookieName, coo
 	return resp.StatusCode, string(content)
 }
 
+func (p *testServer) makeRequestWithHeaders(t *testing.T, endpoint string, headers map[string]string) *http.Response {
+	u := url.URL{
+		Scheme: p.serverURL.Scheme,
+		Host:   p.serverURL.Host,
+		Path:   endpoint,
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	require.NoError(t, err)
+
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	// Issue request.
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	return resp
+}
+
 type mockAuthClient struct {
 	auth.ClientI
-	clusterName  string
-	appSession   types.WebSession
-	sessionError error
-	appServers   []types.AppServer
-	caKey        []byte
-	caCert       []byte
+	clusterName   string
+	appSession    types.WebSession
+	sessionError  error
+	appServers    []types.AppServer
+	caKey         []byte
+	caCert        []byte
+	emittedEvents []apievents.AuditEvent
+	mtx           sync.Mutex
 }
 
 type mockClusterName struct {
@@ -299,7 +607,14 @@ type mockClusterName struct {
 	name string
 }
 
-func (c mockAuthClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
+func (c *mockAuthClient) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.emittedEvents = append(c.emittedEvents, event)
+	return nil
+}
+
+func (c *mockAuthClient) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
 	return mockClusterName{name: c.clusterName}, nil
 }
 
@@ -311,15 +626,15 @@ func (n mockClusterName) GetClusterName() string {
 	return "local-cluster"
 }
 
-func (c mockAuthClient) GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error) {
+func (c *mockAuthClient) GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error) {
 	return c.appSession, c.sessionError
 }
 
-func (c mockAuthClient) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
+func (c *mockAuthClient) GetApplicationServers(_ context.Context, _ string) ([]types.AppServer, error) {
 	return c.appServers, nil
 }
 
-func (c mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: c.clusterName,
@@ -393,10 +708,11 @@ func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []b
 	require.NoError(t, err)
 
 	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
-		User:    "testuser",
-		Priv:    priv,
-		TLSCert: cert,
-		Expires: clock.Now().Add(5 * time.Minute),
+		User:        "testuser",
+		Priv:        priv,
+		TLSCert:     cert,
+		Expires:     clock.Now().Add(5 * time.Minute),
+		BearerToken: "abc123",
 	})
 	require.NoError(t, err)
 

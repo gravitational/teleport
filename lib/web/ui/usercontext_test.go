@@ -38,7 +38,7 @@ func TestNewUserContext(t *testing.T) {
 	}
 
 	// set some rules
-	role1 := &types.RoleV5{}
+	role1 := &types.RoleV6{}
 	role1.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role1.SetRules(types.Allow, []types.Rule{
 		{
@@ -48,6 +48,10 @@ func TestNewUserContext(t *testing.T) {
 		{
 			Resources: []string{types.KindWindowsDesktop},
 			Verbs:     services.RW(),
+		},
+		{
+			Resources: []string{types.KindIntegration},
+			Verbs:     append(services.RW(), types.VerbUse),
 		},
 	})
 
@@ -59,7 +63,7 @@ func TestNewUserContext(t *testing.T) {
 		},
 	})
 
-	role2 := &types.RoleV5{}
+	role2 := &types.RoleV6{}
 	role2.SetNamespaces(types.Allow, []string{apidefaults.Namespace})
 	role2.SetRules(types.Allow, []types.Rule{
 		{
@@ -72,23 +76,19 @@ func TestNewUserContext(t *testing.T) {
 		},
 	})
 
-	// set some windows desktop logins
-	role1.SetWindowsLogins(types.Allow, []string{"a", "b"})
-	role1.SetWindowsLogins(types.Deny, []string{"c"})
-	role2.SetWindowsLogins(types.Allow, []string{"d"})
-
 	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
 	require.NoError(t, err)
 
-	allowed := access{true, true, true, true, true}
-	denied := access{false, false, false, false, false}
+	allowedRW := access{true, true, true, true, true, false}
+	denied := access{false, false, false, false, false, false}
 
 	// test user name and acl
 	require.Equal(t, userContext.Name, "root")
-	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
+	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, denied))
+	require.Empty(t, cmp.Diff(userContext.ACL.Locks, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Events, denied))
@@ -99,8 +99,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
-	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
+	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
@@ -111,6 +110,9 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
 	require.Empty(t, cmp.Diff(userContext.ACL.License, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Download, denied))
+
+	// test enabling of the 'Use' verb
+	require.Empty(t, cmp.Diff(userContext.ACL.Integrations, access{true, true, true, true, true, true}))
 
 	// test local auth type
 	require.Equal(t, userContext.AuthType, authLocal)
@@ -123,7 +125,7 @@ func TestNewUserContext(t *testing.T) {
 
 	userContext, err = NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(userContext.ACL.Billing, access{true, true, false, false, false}))
+	require.Empty(t, cmp.Diff(userContext.ACL.Billing, access{true, true, false, false, false, false}))
 
 	// test that desktopRecordingEnabled being false overrides the roleSet.RecordDesktopSession() returning true
 	userContext, err = NewUserContext(user, roleSet, proto.Features{}, false)
@@ -140,7 +142,7 @@ func TestNewUserContextCloud(t *testing.T) {
 		},
 	}
 
-	role := &types.RoleV5{}
+	role := &types.RoleV6{}
 	role.SetNamespaces(types.Allow, []string{"*"})
 	role.SetRules(types.Allow, []types.Rule{
 		{
@@ -154,25 +156,24 @@ func TestNewUserContextCloud(t *testing.T) {
 
 	roleSet := []types.Role{role}
 
-	allowed := access{true, true, true, true, true}
+	allowedRW := access{true, true, true, true, true, false}
 
 	userContext, err := NewUserContext(user, roleSet, proto.Features{Cloud: true}, true)
 	require.NoError(t, err)
 
 	require.Equal(t, userContext.Name, "root")
-	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Events, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.RecordedSessions, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Roles, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Users, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b"}))
+	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Events, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.RecordedSessions, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Roles, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Users, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, allowedRW))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
@@ -182,6 +183,6 @@ func TestNewUserContextCloud(t *testing.T) {
 	require.Equal(t, userContext.ACL.DesktopSessionRecording, true)
 
 	// cloud-specific asserts
-	require.Empty(t, cmp.Diff(userContext.ACL.Billing, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
+	require.Empty(t, cmp.Diff(userContext.ACL.Billing, allowedRW))
+	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowedRW))
 }

@@ -17,11 +17,14 @@ package limiter
 
 import (
 	"context"
+	"errors"
+	"net"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/gravitational/oxy/ratelimit"
+	"github.com/gravitational/trace"
 	"github.com/mailgun/timetools"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -303,4 +306,172 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 		}
 	}
 	require.Error(t, err)
+}
+
+// TestListener verifies that a [Listener] only accepts
+// connections if the connection limit has not been exceeded.
+func TestListener(t *testing.T) {
+	const connLimit = 5
+	failedAcceptErr := errors.New("failed accept")
+	tooManyConnectionsErr := trace.LimitExceeded("too many connections from 127.0.0.1: 2, max is 2")
+
+	tests := []struct {
+		name             string
+		config           Config
+		listener         *fakeListener
+		acceptAssertion  func(t *testing.T, iteration int, conn net.Conn, err error)
+		numConnAssertion func(t *testing.T, num int64)
+	}{
+		{
+			name:   "all connections allowed",
+			config: Config{MaxConnections: 0},
+			listener: &fakeListener{
+				acceptConn: &fakeConn{
+					addr: mockAddr{},
+				},
+			},
+			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, conn)
+			},
+			numConnAssertion: func(t *testing.T, num int64) {
+				// MaxConnections == 0 prevents any connections from being accumulated
+				require.Zero(t, num)
+			},
+		},
+		{
+			name:   "accept failure",
+			config: Config{MaxConnections: 0},
+			listener: &fakeListener{
+				acceptError: failedAcceptErr,
+			},
+			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
+				require.ErrorIs(t, err, failedAcceptErr)
+				require.Nil(t, conn)
+			},
+			numConnAssertion: func(t *testing.T, num int64) {
+				require.Zero(t, num)
+			},
+		},
+		{
+			name:   "invalid remote address",
+			config: Config{MaxConnections: 0},
+			listener: &fakeListener{
+				acceptConn: &fakeConn{
+					addr: &utils.NetAddr{
+						Addr:        "abcd",
+						AddrNetwork: "tcp",
+					},
+				},
+			},
+			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
+				require.Error(t, err)
+				require.Nil(t, conn)
+			},
+			numConnAssertion: func(t *testing.T, num int64) {
+				require.Zero(t, num)
+			},
+		},
+		{
+			name:   "max connections exceeded",
+			config: Config{MaxConnections: 2},
+			listener: &fakeListener{
+				acceptConn: &fakeConn{
+					addr: mockAddr{},
+				},
+			},
+			acceptAssertion: func(t *testing.T, i int, conn net.Conn, err error) {
+				if i < 2 {
+					require.NoError(t, err)
+					require.NotNil(t, conn)
+					return
+				}
+				require.Error(t, err)
+				require.ErrorIs(t, err, tooManyConnectionsErr)
+				require.True(t, trace.IsLimitExceeded(err))
+				require.Nil(t, conn)
+			},
+			numConnAssertion: func(t *testing.T, num int64) {
+				require.Equal(t, int64(2), num)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			limiter, err := NewConnectionsLimiter(test.config)
+			require.NoError(t, err)
+
+			ln := NewListener(test.listener, limiter)
+
+			// open connections without closing to enforce limits
+			conns := make([]net.Conn, 0, connLimit)
+			for i := 0; i < connLimit; i++ {
+				conn, err := ln.Accept()
+				test.acceptAssertion(t, i, conn, err)
+
+				if conn != nil {
+					conns = append(conns, conn)
+				}
+			}
+
+			// validate limits were enforced
+			n, err := limiter.GetNumConnection("127.0.0.1")
+			require.NoError(t, err)
+			test.numConnAssertion(t, n)
+
+			// close connections to reset limits
+			for _, conn := range conns {
+				require.NoError(t, conn.Close())
+			}
+
+			// ensure closing connections resets count
+			n, err = limiter.GetNumConnection("127.0.0.1")
+			if test.config.MaxConnections == 0 {
+				require.NoError(t, err)
+				require.Zero(t, n)
+			} else {
+				require.True(t, trace.IsBadParameter(err))
+				require.Equal(t, int64(-1), n)
+			}
+
+			// open connections again after closing to
+			// ensure that closing reset limits
+			for i := 0; i < 5; i++ {
+				conn, err := ln.Accept()
+				test.acceptAssertion(t, i, conn, err)
+
+				if conn != nil {
+					t.Cleanup(func() {
+						require.NoError(t, err)
+					})
+				}
+			}
+		})
+	}
+}
+
+type fakeListener struct {
+	net.Listener
+
+	acceptConn  net.Conn
+	acceptError error
+}
+
+func (f *fakeListener) Accept() (net.Conn, error) {
+	return f.acceptConn, f.acceptError
+}
+
+type fakeConn struct {
+	net.Conn
+
+	addr net.Addr
+}
+
+func (f *fakeConn) RemoteAddr() net.Addr {
+	return f.addr
+}
+
+func (f *fakeConn) Close() error {
+	return nil
 }

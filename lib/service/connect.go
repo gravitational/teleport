@@ -17,7 +17,6 @@ limitations under the License.
 package service
 
 import (
-	"context"
 	"crypto/tls"
 	"path/filepath"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -599,7 +599,7 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			dataDir = process.Config.DataDir
 		}
 
-		certs, err := auth.Register(auth.RegisterParams{
+		registerParams := auth.RegisterParams{
 			Token:                token,
 			ID:                   id,
 			AuthServers:          process.Config.AuthServerAddresses(),
@@ -616,7 +616,14 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 			JoinMethod:           process.Config.JoinMethod,
 			CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 			FIPS:                 process.Config.FIPS,
-		})
+		}
+		if registerParams.JoinMethod == types.JoinMethodAzure {
+			registerParams.AzureParams = auth.AzureParams{
+				ClientID: process.Config.JoinParams.Azure.ClientID,
+			}
+		}
+
+		certs, err := auth.Register(registerParams)
 		if err != nil {
 			if utils.IsUntrustedCertErr(err) {
 				return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
@@ -1101,7 +1108,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		logger.Debug("Attempting to discover reverse tunnel address.")
 		logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
+		tunnelClient, err := process.newClientThroughTunnel(authServers[0].String(), tlsConfig, sshClientConfig)
 		if err != nil {
 			process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.log.Errorf("- connecting to auth server directly: %v", directErr)
@@ -1127,7 +1134,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			logger := process.log.WithField("proxy-server", proxyServer.String())
 			logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-			tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyServer}, tlsConfig, sshClientConfig)
+			tunnelClient, err := process.newClientThroughTunnel(proxyServer.String(), tlsConfig, sshClientConfig)
 			if err != nil {
 				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1146,8 +1153,13 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
+func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
+	resolver := reversetunnel.WebClientResolver(&webclient.Config{
+		Context:   process.ExitContext(),
+		ProxyAddr: addr,
+		Insecure:  lib.IsInsecureDevMode(),
+		Timeout:   process.Config.ClientTimeout,
+	})
 
 	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
@@ -1159,6 +1171,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
+		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1170,6 +1183,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 			apiclient.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		DialTimeout:          process.Config.ClientTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1177,7 +1191,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetDomainName(context.TODO())
+	_, err = clt.GetDomainName(process.ExitContext())
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -1191,7 +1205,10 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
-		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
+		cltParams = []roundtrip.ClientParam{
+			auth.ClientParamIdleConnTimeout(process.Config.ClientTimeout),
+			auth.ClientParamResponseHeaderTimeout(process.Config.ClientTimeout),
+		}
 	}
 
 	var dialOpts []grpc.DialOption
@@ -1212,6 +1229,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		DialTimeout:          process.Config.ClientTimeout,
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		DialOpts:             dialOpts,
 	}, cltParams...)
@@ -1219,7 +1237,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetDomainName(context.TODO()); err != nil {
+	if _, err := clt.GetDomainName(process.ExitContext()); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}

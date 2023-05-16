@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var clusterNameNotFound = prometheus.NewCounter(
@@ -379,6 +382,31 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 	return installers, nil
 }
 
+func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, uiPrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalUIConfig(item.Value)
+}
+
+func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	value, err := services.MarshalUIConfig(uic)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, uiPrefix),
+		Value: value,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *ClusterConfigurationService) DeleteUIConfig(ctx context.Context) error {
+	return trace.Wrap(s.Delete(ctx, backend.Key(clusterConfigPrefix, uiPrefix)))
+}
+
 // GetInstaller gets the script of the cluster from the backend.
 func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
@@ -419,6 +447,44 @@ func (s *ClusterConfigurationService) DeleteAllInstallers(ctx context.Context) e
 	return nil
 }
 
+// GetClusterMaintenanceConfig loads the maintenance config singleton resource.
+func (s *ClusterConfigurationService) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, maintenancePrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("no maintenance config has been created")
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	var cmc types.ClusterMaintenanceConfigV1
+	if err := utils.FastUnmarshal(item.Value, &cmc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &cmc, nil
+}
+
+// UpdateClusterMaintenanceConfig performs a nonce-protected update of the maintenance config singleton resource.
+func (s *ClusterConfigurationService) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.ClusterMaintenanceConfig) error {
+	if err := cmc.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err := generic.FastUpdateNonceProtectedResource(
+		ctx,
+		s.Backend,
+		backend.Key(clusterConfigPrefix, maintenancePrefix),
+		cmc,
+	)
+
+	if errors.Is(err, generic.ErrNonceViolation) {
+		return trace.CompareFailed("maintenance config was concurrently modified, please re-pull and work from latest state")
+	}
+
+	return trace.Wrap(err)
+}
+
 const (
 	clusterConfigPrefix    = "cluster_configuration"
 	namePrefix             = "name"
@@ -430,5 +496,7 @@ const (
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
 	scriptsPrefix          = "scripts"
+	uiPrefix               = "ui"
 	installerPrefix        = "installer"
+	maintenancePrefix      = "maintenance"
 )

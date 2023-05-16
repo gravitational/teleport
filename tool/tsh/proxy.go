@@ -19,7 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -36,18 +36,19 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -187,15 +188,28 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	}
 	defer upstreamConn.Close()
 
+	signers, err := tc.LocalAgent().Signers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(signers) == 0 {
+		return trace.BadParameter("no SSH auth methods loaded, are you logged in?")
+	}
+
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
-		User: tc.HostLogin,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
-		},
+		User:            tc.HostLogin,
+		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signers...)},
 		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
+			log.Infof("Access denied to %v connecting to %v: %v", tc.HostLogin, remoteProxyAddr, err)
+			return trace.AccessDenied(`access denied to %v connecting to %v`, tc.HostLogin, remoteProxyAddr)
+		}
 		return trace.Wrap(err)
 	}
 	defer client.Close()
@@ -233,50 +247,31 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	// if sp.tlsRouting is true, remoteProxyAddr is the ALPN listener port.
 	// if it is false, then remoteProxyAddr is the SSH proxy port.
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
-	httpsProxy := proxy.GetProxyURL(remoteProxyAddr)
 
-	// If HTTPS_PROXY is configured, we need to open a TCP connection via
-	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
-	// connection.
-	var tcpConn net.Conn
-	var err error
-	if httpsProxy != nil {
-		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr)
+	var dialer client.ContextDialer
+	switch {
+	case sp.tlsRouting:
+		pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-	} else {
-		tcpConn, err = (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+
+		dialer = client.NewALPNDialer(client.ALPNDialerConfig{
+			TLSConfig: &tls.Config{
+				RootCAs:            pool,
+				NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
+				InsecureSkipVerify: tc.InsecureSkipVerify,
+				ServerName:         sp.proxyHost,
+			},
+			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(remoteProxyAddr),
+		})
+
+	default:
+		dialer = client.NewDialer(ctx, apidefaults.DefaultIdleTimeout, apidefaults.DefaultIOTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
 	}
 
-	// If TLS routing is not enabled, just return the TCP connection
-	if !sp.tlsRouting {
-		return tcpConn, nil
-	}
-
-	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
-	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-	if err != nil {
-		tcpConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs:            pool,
-		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-		ServerName:         sp.proxyHost,
-	}
-	tlsConn := tls.Client(tcpConn, tlsConfig)
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		tlsConn.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	return tlsConn, nil
+	conn, err := dialer.DialContext(ctx, "tcp", remoteProxyAddr)
+	return conn, trace.Wrap(err)
 }
 
 func proxySubsystemName(userHost, cluster string) string {
@@ -367,27 +362,36 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := libclient.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routeToDatabase, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := maybeDatabaseLogin(cf, client, profile, routeToDatabase); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if routeToDatabase.Protocol == defaults.ProtocolSnowflake && !cf.LocalProxyTunnel {
-		return trace.BadParameter("Snowflake proxy works only in the tunnel mode. Please add --tunnel flag to enable it")
+	// When proxying without the `--tunnel` flag, we need to:
+	// 1. check if --tunnel is required.
+	// 2. check if db login is required.
+	// These steps are not needed with `--tunnel`, because the local proxy tunnel
+	// will manage database certificates itself and reissue them as needed.
+	requires := getDBLocalProxyRequirement(tc, route)
+	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
+		// Some scenarios require a local proxy tunnel, e.g.:
+		// - Snowflake, DynamoDB protocol
+		// - Hardware-backed private key policy
+		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
+	}
+	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
+		return trace.Wrap(err)
 	}
 
-	rootCluster, err := client.RootClusterName(cf.Context)
+	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,30 +402,33 @@ func onProxyCommandDB(cf *CLIConf) error {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
-	listener, err := net.Listen("tcp", addr)
+
+	listener, err := createLocalProxyListener(addr, route, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	defer func() {
 		if err := listener.Close(); err != nil {
 			log.WithError(err).Warnf("Failed to close listener.")
 		}
 	}()
 
+	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   client,
+		cf:               cf,
+		tc:               tc,
 		profile:          profile,
-		routeToDatabase:  routeToDatabase,
-		listener:         listener,
-		localProxyTunnel: cf.LocalProxyTunnel,
-		rootClusterName:  rootCluster,
+		route:            *route,
+		database:         db,
+		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
+		tunnel:           tunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, proxyOpts)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -430,7 +437,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if cf.LocalProxyTunnel {
+	if tunnel {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -440,12 +447,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+			dbcmd.WithTolerateMissingCLIClient(),
 		}
 		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(client, profile, routeToDatabase, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(tc, profile, route, rootCluster,
 			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
@@ -454,14 +462,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database":   routeToDatabase.ServiceName,
-			"type":       defaults.ReadableDatabaseProtocol(routeToDatabase.Protocol),
-			"cluster":    client.SiteName,
+			"database":   route.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
+			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, route.Protocol)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -469,10 +477,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   routeToDatabase.ServiceName,
+			"database":   route.ServiceName,
 			"address":    listener.Addr().String(),
 			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, routeToDatabase.ServiceName),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
 			"key":        profile.KeyPath(),
 			"randomPort": randomPort,
 		})
@@ -507,10 +515,14 @@ type templateCommandItem struct {
 	Command     string
 }
 
-func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative) *template.Template {
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, protocol string) *template.Template {
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
 		templateArgs["command"] = formatCommand(commands[0].Command)
+		if protocol == defaults.ProtocolOracle {
+			templateArgs["args"] = commands[0].Command.Args
+			return dbProxyOracleAuthTpl
+		}
 		return dbProxyAuthTpl
 	}
 
@@ -523,72 +535,6 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 
 	templateArgs["commands"] = commandsArg
 	return dbProxyAuthMultiTpl
-}
-
-type localProxyOpts struct {
-	proxyAddr               string
-	listener                net.Listener
-	protocols               []alpncommon.Protocol
-	insecure                bool
-	certs                   []tls.Certificate
-	rootCAs                 *x509.CertPool
-	alpnConnUpgradeRequired bool
-	middleware              alpnproxy.LocalProxyMiddleware
-}
-
-// protocol returns the first protocol or string if configuration doesn't contain any protocols.
-func (l *localProxyOpts) protocol() string {
-	if len(l.protocols) == 0 {
-		return ""
-	}
-	return string(l.protocols[0])
-}
-
-func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	alpnProtocol, err := alpncommon.ToALPNProtocol(opts.protocol())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	address, err := utils.ParseAddr(opts.proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	protocols := append([]alpncommon.Protocol{alpnProtocol}, opts.protocols...)
-	if alpncommon.HasPingSupport(alpnProtocol) {
-		protocols = append(alpncommon.ProtocolsWithPing(alpnProtocol), protocols...)
-	}
-
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      opts.insecure,
-		RemoteProxyAddr:         opts.proxyAddr,
-		Protocols:               protocols,
-		Listener:                opts.listener,
-		ParentContext:           ctx,
-		SNI:                     address.Host(),
-		Certs:                   opts.certs,
-		RootCAs:                 opts.rootCAs,
-		ALPNConnUpgradeRequired: opts.alpnConnUpgradeRequired,
-		Middleware:              opts.middleware,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lp, nil
-}
-
-func mkLocalProxyCerts(certFile, keyFile string) ([]tls.Certificate, error) {
-	if certFile == "" && keyFile == "" {
-		return []tls.Certificate{}, nil
-	}
-	if (certFile == "" && keyFile != "") || (certFile != "" && keyFile == "") {
-		return nil, trace.BadParameter("both --cert-file and --key-file are required")
-	}
-	cert, err := keys.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return []tls.Certificate{cert}, nil
 }
 
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
@@ -614,11 +560,6 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	address, err := utils.ParseAddr(tc.WebProxyAddr)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	addr := "localhost:0"
 	if cf.LocalProxyPort != "" {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
@@ -629,15 +570,12 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		Listener:           listener,
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		Protocols:          []alpncommon.Protocol{alpnProtocolForApp(app)},
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		SNI:                address.Host(),
-		Certs:              []tls.Certificate{appCerts},
-	})
+	lp, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf, tc, listener),
+		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
+		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
+	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
 			return trace.NewAggregate(err, cerr)
@@ -665,6 +603,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 // onProxyCommandAWS creates local proxes for AWS apps.
 func onProxyCommandAWS(cf *CLIConf) error {
+	if err := checkProxyAWSFormatCompatibility(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -681,6 +623,21 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		}
 	}()
 
+	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
+		return trace.Wrap(err)
+	}
+	<-cf.Context.Done()
+	return nil
+}
+
+type awsAppInfo interface {
+	GetAppName() string
+	GetEnvVars() (map[string]string, error)
+	GetEndpointURL() string
+	GetForwardProxyAddr() string
+}
+
+func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	envVars, err := awsApp.GetEnvVars()
 	if err != nil {
 		return trace.Wrap(err)
@@ -688,18 +645,113 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	templateData := map[string]interface{}{
 		"envVars":     envVars,
-		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
 		"format":      cf.Format,
 		"randomPort":  cf.LocalProxyPort == "",
+		"appName":     awsApp.GetAppName(),
+		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
-	template := awsHTTPSProxyTemplate
-	if cf.AWSEndpointURLMode {
-		template = awsEndpointURLProxyTemplate
+	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
+		proxyHost, proxyPort, err := net.SplitHostPort(proxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		templateData["proxyScheme"] = "http"
+		templateData["proxyHost"] = proxyHost
+		templateData["proxyPort"] = proxyPort
 	}
 
-	if err = template.Execute(os.Stdout, templateData); err != nil {
+	templates := []string{awsProxyHeaderTemplate}
+	switch {
+	case cf.Format == awsProxyFormatAthenaODBC:
+		templates = append(templates, awsProxyAthenaODBCTemplate)
+	case cf.Format == awsProxyFormatAthenaJDBC:
+		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
+	case cf.AWSEndpointURLMode:
+		templates = append(templates, awsEndpointURLProxyTemplate)
+	default:
+		templates = append(templates, awsHTTPSProxyTemplate)
+	}
+
+	combined := template.New("").Funcs(cloudTemplateFuncs)
+	for _, text := range templates {
+		combined, err = combined.Parse(text)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(combined.Execute(cf.Stdout(), templateData))
+}
+
+func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
+	switch cf.Format {
+	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
+	}
+	return nil
+}
+
+// onProxyCommandAzure creates local proxes for Azure apps.
+func onProxyCommandAzure(cf *CLIConf) error {
+	azApp, err := pickActiveAzureApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = azApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := azApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close Azure app.")
+		}
+	}()
+
+	envVars, err := azApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudAzure); err != nil {
+		return trace.Wrap(err)
+	}
+
+	<-cf.Context.Done()
+	return nil
+}
+
+// onProxyCommandGCloud creates local proxies for GCP apps.
+func onProxyCommandGCloud(cf *CLIConf) error {
+	gcpApp, err := pickActiveGCPApp(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = gcpApp.StartLocalProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	defer func() {
+		if err := gcpApp.Close(); err != nil {
+			log.WithError(err).Error("Failed to close GCP app.")
+		}
+	}()
+
+	envVars, err := gcpApp.GetEnvVars()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = printCloudTemplate(envVars, cf.Format, cf.LocalProxyPort == "", types.CloudGCP); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -715,7 +767,7 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 	}
 	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh app login'")
+		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh apps login'")
 	}
 
 	tlsCert, err := key.TLSCertificate(cert)
@@ -725,23 +777,91 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 
 	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
-		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh app login'")
+		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh apps login'")
 	}
 	if time.Until(expiresAt) < 5*time.Second {
 		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh app login'",
+			"application %s certificate has expired, please re-login to the app using 'tsh apps login'",
 			appName)
+	}
+	return tlsCert, nil
+}
+
+func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
+	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	cert, ok := key.DBTLSCerts[dbName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
+	}
+	tlsCert, err := key.TLSCertificate(cert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
 	}
 	return tlsCert, nil
 }
 
 // getTLSCertExpireTime returns the certificate NotAfter time.
 func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
-	x509cert, err := utils.TLSCertToX509(cert)
+	x509cert, err := utils.TLSCertLeaf(cert)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
 	return x509cert.NotAfter, nil
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// isLocalProxyTunnelRequested is a helper function that returns whether the user
+// requested a local proxy tunnel, either via --tunnel or equivalently by specifying
+// --cert-file/--key-file.
+func isLocalProxyTunnelRequested(cf *CLIConf) bool {
+	return cf.LocalProxyTunnel ||
+		cf.LocalProxyCertFile != "" ||
+		cf.LocalProxyKeyFile != ""
+}
+
+func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
+	return alpnproxy.LocalProxyConfig{
+		RemoteProxyAddr:         tc.WebProxyAddr,
+		InsecureSkipVerify:      cf.InsecureSkipVerify,
+		ParentContext:           cf.Context,
+		Listener:                listener,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+	}
+}
+
+func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
+	path := profile.DatabaseLocalCAPath()
+	if utils.FileExists(path) {
+		return nil
+
+	}
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         defaults.CATTL,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(profile.DatabaseLocalCAPath(), certPem, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
@@ -754,6 +874,10 @@ Use following credentials to connect to the {{.database}} proxy:
   key_file={{.key}}
 `))
 
+var templateFunctions = map[string]any{
+	"contains": strings.Contains,
+}
+
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
@@ -761,6 +885,22 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 {{end}}
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
+`))
+
+// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
+var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following command to connect to the Oracle database server using CLI:
+  $ {{.command}}
+
+or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
+{{- range $val := .args}}
+  {{- if contains $val "jdbc:oracle:"}}
+  {{$val}}
+  {{- end}}
+{{- end}}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
@@ -781,19 +921,40 @@ const (
 	envVarFormatUnix                 = "unix"
 	envVarFormatWindowsCommandPrompt = "command-prompt"
 	envVarFormatWindowsPowershell    = "powershell"
+
+	awsProxyFormatAthenaODBC = "athena-odbc"
+	awsProxyFormatAthenaJDBC = "athena-jdbc"
 )
 
-var envVarFormats = []string{
-	envVarFormatUnix,
-	envVarFormatWindowsCommandPrompt,
-	envVarFormatWindowsPowershell,
-	envVarFormatText,
-}
+var (
+	envVarFormats = []string{
+		envVarFormatUnix,
+		envVarFormatWindowsCommandPrompt,
+		envVarFormatWindowsPowershell,
+		envVarFormatText,
+	}
+
+	awsProxyServiceFormats = []string{
+		awsProxyFormatAthenaODBC,
+		awsProxyFormatAthenaJDBC,
+	}
+
+	awsProxyFormats = append(envVarFormats, awsProxyServiceFormats...)
+)
 
 func envVarFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"Optional format to print the commands for setting environment variables, one of: %s.",
+		"Optional format to print the commands for setting environment variables, one of: %s. Default is %s.",
 		strings.Join(envVarFormats, ", "),
+		envVarDefaultFormat(),
+	)
+}
+
+func awsProxyFormatFlagDescription() string {
+	return fmt.Sprintf(
+		"%s Or specify a service format, one of: %s",
+		envVarFormatFlagDescription(),
+		strings.Join(awsProxyServiceFormats, ", "),
 	)
 }
 
@@ -827,31 +988,116 @@ func envVarCommand(format, key, value string) (string, error) {
 	}
 }
 
-var awsTemplateFuncs = template.FuncMap{
+var cloudTemplateFuncs = template.FuncMap{
 	"envVarCommand": envVarCommand,
 }
 
-// awsHTTPSProxyTemplate is the message that gets printed to a user when an
-// HTTPS proxy is started.
-var awsHTTPSProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
-	`Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+// awsProxyHeaderTemplate contains common header used for AWS proxy.
+const awsProxyHeaderTemplate = `
+{{define "header"}}
+{{- if .envVars.HTTPS_PROXY -}}
+Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
+{{- else -}}
+Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
+{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
+{{end}}
+`
+
+// awsProxyJDBCHeaderFooterTemplate contains common header and footer for AWS
+// proxy in JDBC formats.
+const awsProxyJDBCHeaderFooterTemplate = `
+{{define "jdbc-header" }}
+{{- template "header" . -}}
+First, add the following certificate to your keystore:
+{{.envVars.AWS_CA_BUNDLE}}
+
+For example, to import the certificate using "keytool":
+keytool -noprompt -importcert -alias teleport-{{.appName}} -file {{.envVars.AWS_CA_BUNDLE}} -keystore {{.keystore}}
+
+{{end}}
+{{define "jdbc-footer" }}
+
+Note that a new certificate might be generated for a new app session. If you
+encounter the "remote error: tls: unknown certificate" error, make sure your
+keystore is up-to-date.
+
+{{end}}
+`
+
+// awsHTTPSProxyTemplate is the message that gets printed to a user when an
+// HTTPS proxy is started.
+var awsHTTPSProxyTemplate = `{{- template "header" . -}}
 Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
-`))
+`
 
 // awsEndpointURLProxyTemplate is the message that gets printed to a user when an
 // AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = template.Must(template.New("").Funcs(awsTemplateFuncs).Parse(
-	`Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
-{{end}}
+var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
 In addition to the endpoint URL, use the following credentials to connect to the proxy:
   {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
   {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
   {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
+`
+
+// awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
+// AWS proxy is used for Athena ODBC driver.
+var awsProxyAthenaODBCTemplate = `{{- template "header" . -}}
+Set the following properties for the Athena ODBC data source:
+[Teleport AWS Athena Access]
+AuthenticationType = IAM Credentials
+UID = {{.envVars.AWS_ACCESS_KEY_ID}}
+PWD = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+UseProxy = 1;
+ProxyScheme = {{.proxyScheme}};
+ProxyHost = {{.proxyHost}};
+ProxyPort = {{.proxyPort}};
+TrustedCerts = {{.envVars.AWS_CA_BUNDLE}}
+
+Here is a sample connection string using the above credentials and proxy settings:
+DRIVER=Simba Amazon Athena ODBC Connector;AuthenticationType=IAM Credentials;UID={{.envVars.AWS_ACCESS_KEY_ID}};PWD={{.envVars.AWS_SECRET_ACCESS_KEY}};UseProxy=1;ProxyScheme={{.proxyScheme}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};TrustedCerts={{.envVars.AWS_CA_BUNDLE}};AWSRegion={{.region}};Workgroup={{.workgroup}}
+`
+
+// awsProxyAthenaJDBCTemplate is the message that gets printed to a user when
+// an AWS proxy is used for Athena JDBC driver.
+var awsProxyAthenaJDBCTemplate = `{{- template "jdbc-header" . -}}
+Then, set the following properties in the JDBC connection URL:
+User = {{.envVars.AWS_ACCESS_KEY_ID}}
+Password = {{.envVars.AWS_SECRET_ACCESS_KEY}}
+ProxyHost = {{.proxyHost}};
+ProxyPort = {{.proxyPort}};
+
+Here is a sample JDBC connection URL using the above credentials and proxy settings:
+jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SECRET_ACCESS_KEY}};ProxyHost={{.proxyHost}};ProxyPort={{.proxyPort}};AwsRegion={{.region}};Workgroup={{.workgroup}}
+
+{{- template "jdbc-footer" -}}
+`
+
+func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
+	templateData := map[string]interface{}{
+		"envVars":    envVars,
+		"format":     format,
+		"randomPort": randomPort,
+		"cloudName":  cloudName,
+	}
+	err := cloudHTTPSProxyTemplate.Execute(os.Stdout, templateData)
+	return trace.Wrap(err)
+}
+
+// cloudHTTPSProxyTemplate is the message that gets printed to a user when a cloud HTTPS proxy is started.
+var cloudHTTPSProxyTemplate = template.Must(template.New("").Funcs(cloudTemplateFuncs).Parse(
+	`Started {{.cloudName}} proxy on {{.envVars.HTTPS_PROXY}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following credentials and HTTPS proxy setting to connect to the proxy:
+
+{{- $fmt := .format }}
+{{ range $key, $value := .envVars}}
+  {{envVarCommand $fmt $key $value}}
+{{- end}}
 `))
