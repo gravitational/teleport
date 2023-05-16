@@ -853,6 +853,20 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| $(RENDER_TESTS) -report-by test
 
 #
+# Integration tests that run Kubernetes tests in order to complete successfully
+# are run separately to all other integration tests.
+#
+INTEGRATION_KUBE_REGEX := TestKube.*
+.PHONY: integration-kube
+integration-kube: FLAGS ?= -v -race
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration-kube.json \
+		| $(RENDER_TESTS) -report-by test
+
+#
 # Integration tests which need to be run as root in order to complete successfully
 # are run separately to all other integration tests. Need a TTY to work.
 #
