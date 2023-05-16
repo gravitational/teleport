@@ -904,8 +904,8 @@ github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680 h1:acbjjEJoR2vu1
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680/go.mod h1:SP8xfwGas4wleDVXDmeVpfn/Fv+wD8rrb2SqN/DlNXQ=
 github.com/gravitational/predicate v1.3.0 h1:n1lmH6YU1oX/Y546qHQNJb50FJy6Ou/+MvW8W9ICrlw=
 github.com/gravitational/predicate v1.3.0/go.mod h1:wPNu01gNYh2LRVtIGmFBvRpfBzl4nI2EaxbYDG8Mm4w=
-github.com/gravitational/protobuf v1.3.2-1 h1:xnpUphWZEOfvJOWcbZ2J/lpxMWrK6a3jkg+bD+meC5E=
-github.com/gravitational/protobuf v1.3.2-1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
+github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
+github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.0.0-teleport.3 h1:Eg/j3jiNUZ558KDXOqzF682EFmf97vxAFFnMgZ0YHns=
 github.com/gravitational/redis/v9 v9.0.0-teleport.3/go.mod h1:8et+z03j0l8N+DvsVnclzjf3Dl/pFHgRk+2Ct1qw66A=
 github.com/gravitational/roundtrip v1.0.2 h1:eOCY0NEKKaB0ksJmvhO6lPMFz1pIIef+vyPBTBROQ5c=
