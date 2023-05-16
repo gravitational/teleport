@@ -96,6 +96,14 @@ const User = styled.div`
   align-items: center;
   font-weight: bold;
 
+  .react-select--is-disabled {
+    .react-select__single-value,
+    .react-select__placeholder,
+    .react-select__indicator {
+      color: rgba(255, 255, 255, 0.7);
+    }
+  }
+
   svg {
     margin-right: 10px;
   }
