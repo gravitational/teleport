@@ -22,6 +22,8 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
+// AttestationParametersToProto converts an attest.AttestationParameters to
+// its protobuf representation.
 func AttestationParametersToProto(in attest.AttestationParameters) *devicepb.TPMAttestationParameters {
 	return &devicepb.TPMAttestationParameters{
 		Public:            in.Public,
@@ -31,7 +33,12 @@ func AttestationParametersToProto(in attest.AttestationParameters) *devicepb.TPM
 	}
 }
 
+// AttestationParametersFromProto extracts an attest.AttestationParameters from
+// its protobuf representation.
 func AttestationParametersFromProto(in *devicepb.TPMAttestationParameters) attest.AttestationParameters {
+	if in == nil {
+		return attest.AttestationParameters{}
+	}
 	return attest.AttestationParameters{
 		Public:            in.Public,
 		CreateData:        in.CreateData,
@@ -40,21 +47,36 @@ func AttestationParametersFromProto(in *devicepb.TPMAttestationParameters) attes
 	}
 }
 
+// EncryptedCredentialToProto converts an attest.EncryptedCredential to
+// its protobuf representation.
 func EncryptedCredentialToProto(in *attest.EncryptedCredential) *devicepb.TPMEncryptedCredential {
+	if in == nil {
+		return nil
+	}
 	return &devicepb.TPMEncryptedCredential{
 		CredentialBlob: in.Credential,
 		Secret:         in.Secret,
 	}
 }
 
+// EncryptedCredentialFromProto extracts an attest.EncryptedCredential from
+// its protobuf representation.
 func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) attest.EncryptedCredential {
+	if in == nil {
+		return attest.EncryptedCredential{}
+	}
 	return attest.EncryptedCredential{
 		Credential: in.CredentialBlob,
 		Secret:     in.Secret,
 	}
 }
 
+// PlatformParametersToProto converts an attest.PlatformParameters to
+// its protobuf representation.
 func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatformParameters {
+	if in == nil {
+		return nil
+	}
 	return &devicepb.TPMPlatformParameters{
 		EventLog: in.EventLog,
 		Quotes:   quotesToProto(in.Quotes),
@@ -62,7 +84,12 @@ func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatf
 	}
 }
 
+// PlatformParametersFromProto extracts an attest.PlatformParameters from
+// its protobuf representation.
 func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.PlatformParameters {
+	if in == nil {
+		return attest.PlatformParameters{}
+	}
 	return attest.PlatformParameters{
 		TPMVersion: attest.TPMVersion20,
 		Quotes:     quotesFromProto(in.Quotes),

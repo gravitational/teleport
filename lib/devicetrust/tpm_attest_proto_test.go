@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package devicetrust
+package devicetrust_test
 
 import (
 	"crypto"
@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
 func TestAttestationParametersProto(t *testing.T) {
@@ -31,9 +32,9 @@ func TestAttestationParametersProto(t *testing.T) {
 		CreateAttestation: []byte("create_attestation"),
 		CreateSignature:   []byte("create_signature"),
 	}
-	pb := AttestationParametersToProto(want)
+	pb := devicetrust.AttestationParametersToProto(want)
 	clonedPb := utils.CloneProtoMsg(pb)
-	got := AttestationParametersFromProto(clonedPb)
+	got := devicetrust.AttestationParametersFromProto(clonedPb)
 	require.Equal(t, want, got)
 }
 
@@ -42,9 +43,9 @@ func TestEncryptedCredentialProto(t *testing.T) {
 		Credential: []byte("encrypted_credential"),
 		Secret:     []byte("secret"),
 	}
-	pb := EncryptedCredentialToProto(&want)
+	pb := devicetrust.EncryptedCredentialToProto(&want)
 	clonedPb := utils.CloneProtoMsg(pb)
-	got := EncryptedCredentialFromProto(clonedPb)
+	got := devicetrust.EncryptedCredentialFromProto(clonedPb)
 	require.Equal(t, want, got)
 }
 
@@ -78,9 +79,9 @@ func TestPlatformParametersProto(t *testing.T) {
 			},
 		},
 	}
-	pb := PlatformParametersToProto(&want)
+	pb := devicetrust.PlatformParametersToProto(&want)
 	clonedPb := utils.CloneProtoMsg(pb)
-	got := PlatformParametersFromProto(clonedPb)
+	got := devicetrust.PlatformParametersFromProto(clonedPb)
 	// We expect `Public` to be nil because we don't transmit this field over
 	// the wire. This is because we don't use this value and rely on our stored
 	// version of the key.
