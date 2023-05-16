@@ -53,8 +53,8 @@ cloud.google.com/go/compute v1.19.0 h1:+9zda3WGgW1ZSTlVppLCYFIr48Pa35q1uG2N1itbC
 cloud.google.com/go/compute v1.19.0/go.mod h1:rikpw2y+UMidAe9tISo04EHNOIf42RLYF/q8Bs93scU=
 cloud.google.com/go/compute/metadata v0.2.3 h1:mg4jlk7mCAj6xXp9UJ4fjI9VUI5rubuGBW5aJ7UnBMY=
 cloud.google.com/go/compute/metadata v0.2.3/go.mod h1:VAV5nSsACxMJvgaAuX6Pk2AawlZn8kiOGuCv6gTkwuA=
-cloud.google.com/go/container v1.16.0 h1:dALHCKAYowNhUeENL4pf3+5ToHuSiE2emTDnuzwn4kc=
-cloud.google.com/go/container v1.16.0/go.mod h1:ft+9S0WGjAyjDggg5S06DXj+fHJICWg8L7isCQe9pQA=
+cloud.google.com/go/container v1.18.1 h1:kiWpJohdRQ38NpjNgdgBUCCQQZURXSJ8qcrLfMEw6C8=
+cloud.google.com/go/container v1.18.1/go.mod h1:SquvRVfP3NA5yd8hiKe8SSB5mXXIx3uX4QAXu3oFn4A=
 cloud.google.com/go/datastore v1.0.0/go.mod h1:LXYbyblFSglQ5pkeyhO+Qmw7ukd3C+pD7TKLgZqpHYE=
 cloud.google.com/go/datastore v1.1.0/go.mod h1:umbIZjpQpHh4hmRpGhH4tLFup+FVzqBi1b3c64qFpCk=
 cloud.google.com/go/firestore v1.1.0/go.mod h1:ulACoGHTpvq5r8rxGJ4ddJZBZqakUQqClKRT5SZwBmk=
