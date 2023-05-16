@@ -318,7 +318,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// Check for self-hosted vs Cloud.
 	// TODO(justinas): this needs to be modified when we allow user-supplied API keys in Cloud
-	if modules.GetModules().Features().Cloud {
+	if cfg.ClusterFeatures.GetCloud() {
 		h.assistantLimiter = rate.NewLimiter(assistantLimiterRate, assistantLimiterCapacity)
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
