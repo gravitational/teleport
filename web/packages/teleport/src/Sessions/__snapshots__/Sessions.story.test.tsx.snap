@@ -609,7 +609,7 @@ exports[`loaded with CTA 1`] = `
   width: 340px;
 }
 
-.c23 {
+.c22 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
@@ -639,6 +639,9 @@ exports[`loaded with CTA 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
   height: 36px;
 }
 
@@ -660,7 +663,7 @@ exports[`loaded with CTA 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c24 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -688,40 +691,40 @@ exports[`loaded with CTA 1`] = `
   padding: 0px 16px;
 }
 
-.c24:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c24:hover,
-.c24:focus {
+.c23:hover,
+.c23:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c24:active {
+.c23:active {
   opacity: 0.24;
 }
 
-.c24:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c8 {
+.c7 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c19 {
+.c18 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c22 {
+.c21 {
   display: inline-block;
   transition: color 0.3s;
   margin-right: 16px;
@@ -730,7 +733,7 @@ exports[`loaded with CTA 1`] = `
   font-size: 16px;
 }
 
-.c25 {
+.c24 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
@@ -738,7 +741,7 @@ exports[`loaded with CTA 1`] = `
   font-size: 14px;
 }
 
-.c16 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -749,27 +752,27 @@ exports[`loaded with CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c6 {
+.c5 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c15 {
+.c14 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c17 {
+.c16 {
   box-sizing: border-box;
   display: flex;
 }
@@ -814,22 +817,14 @@ exports[`loaded with CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c5 {
-  text-transform: none;
-  width: 100%;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
-}
-
-.c9 {
+.c8 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 4px;
 }
 
-.c20 {
+.c19 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -842,39 +837,39 @@ exports[`loaded with CTA 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c20 > thead > tr > th,
-.c20 > tbody > tr > th,
-.c20 > tfoot > tr > th,
-.c20 > thead > tr > td,
-.c20 > tbody > tr > td,
-.c20 > tfoot > tr > td {
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th:first-child,
-.c20 > tbody > tr > th:first-child,
-.c20 > tfoot > tr > th:first-child,
-.c20 > thead > tr > td:first-child,
-.c20 > tbody > tr > td:first-child,
-.c20 > tfoot > tr > td:first-child {
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c20 > thead > tr > th:last-child,
-.c20 > tbody > tr > th:last-child,
-.c20 > tfoot > tr > th:last-child,
-.c20 > thead > tr > td:last-child,
-.c20 > tbody > tr > td:last-child,
-.c20 > tfoot > tr > td:last-child {
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c20 > tbody > tr > td {
+.c19 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c20 > thead > tr > th {
+.c19 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -888,26 +883,26 @@ exports[`loaded with CTA 1`] = `
   white-space: nowrap;
 }
 
-.c20 > thead > tr > th .c7 {
+.c19 > thead > tr > th .c6 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c20 > tbody > tr > td {
+.c19 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c20 tbody tr {
+.c19 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c20 tbody tr:hover {
+.c19 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c10 {
+.c9 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -919,32 +914,32 @@ exports[`loaded with CTA 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c18 {
+.c17 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c18 .c7 {
+.c17 .c6 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c18:hover .c7,
-.c18:focus .c7 {
+.c17:hover .c6,
+.c17:focus .c6 {
   opacity: 1;
 }
 
-.c18:disabled {
+.c17:disabled {
   cursor: default;
 }
 
-.c18:disabled .c7 {
+.c17:disabled .c6 {
   opacity: 0.1;
 }
 
-.c13 {
+.c12 {
   position: absolute;
   height: 100%;
   right: 0;
@@ -955,7 +950,7 @@ exports[`loaded with CTA 1`] = `
   border-radius: 200px;
 }
 
-.c11 {
+.c10 {
   position: relative;
   display: flex;
   overflow: hidden;
@@ -965,7 +960,7 @@ exports[`loaded with CTA 1`] = `
   background: #111B48;
 }
 
-.c12 {
+.c11 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -980,20 +975,20 @@ exports[`loaded with CTA 1`] = `
   padding-right: 184px;
 }
 
-.c12:hover,
-.c12:focus,
-.c12:active {
+.c11:hover,
+.c11:focus,
+.c11:active {
   background: #1C254D;
   box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
   color: rgba(255,255,255,0.87);
 }
 
-.c12::placeholder {
+.c11::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c21 tbody > tr > td {
+.c20 tbody > tr > td {
   vertical-align: middle;
 }
 
@@ -1012,47 +1007,51 @@ exports[`loaded with CTA 1`] = `
       class="c3"
       width="340px"
     >
-      <button
-        class="c4 c5"
+      <a
+        class="c4"
         height="36px"
+        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
+        style="text-transform: none;"
+        target="blank"
+        width="100%"
       >
         <div
-          class="c6"
+          class="c5"
         >
           <span
-            class="c7 c8 icon icon-unlock c9"
+            class="c6 c7 icon icon-unlock c8"
             color="light"
           />
           Join Active Sessions With Teleport Enterprise
         </div>
-      </button>
+      </a>
     </div>
   </div>
   <nav
-    class="c10"
+    class="c9"
   >
     <div
-      class="c11"
+      class="c10"
     >
       <input
-        class="c12"
+        class="c11"
         placeholder="SEARCH..."
         value=""
       />
       <div
-        class="c13"
+        class="c12"
       />
     </div>
     <div
-      class="c14"
+      class="c13"
       width="100%"
     >
       <div
-        class="c15"
+        class="c14"
       >
         <div
-          class="c16"
+          class="c15"
           color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
@@ -1072,26 +1071,26 @@ exports[`loaded with CTA 1`] = `
         </div>
       </div>
       <div
-        class="c17"
+        class="c16"
       >
         <button
-          class="c18"
+          class="c17"
           disabled=""
           title="Previous page"
         >
           <span
-            class="c7 c19 icon icon-arrow-left-circle "
+            class="c6 c18 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c18"
+          class="c17"
           disabled=""
           title="Next page"
         >
           <span
-            class="c7 c19 icon icon-arrow-right-circle "
+            class="c6 c18 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -1100,7 +1099,7 @@ exports[`loaded with CTA 1`] = `
     </div>
   </nav>
   <table
-    class="c20 c21"
+    class="c19 c20"
   >
     <thead>
       <tr>
@@ -1108,7 +1107,7 @@ exports[`loaded with CTA 1`] = `
           <a>
             Type
             <span
-              class="c7 c8 icon icon-chevrons-expand-vertical "
+              class="c6 c7 icon icon-chevrons-expand-vertical "
               color="light"
               title="sort items"
             />
@@ -1118,7 +1117,7 @@ exports[`loaded with CTA 1`] = `
           <a>
             Name
             <span
-              class="c7 c8 icon icon-chevrons-expand-vertical "
+              class="c6 c7 icon icon-chevrons-expand-vertical "
               color="light"
               title="sort items"
             />
@@ -1138,7 +1137,7 @@ exports[`loaded with CTA 1`] = `
           <a>
             Duration
             <span
-              class="c7 c8 icon icon-chevron-up "
+              class="c6 c7 icon icon-chevron-up "
               color="light"
               title="sort items asc"
             />
@@ -1153,7 +1152,7 @@ exports[`loaded with CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c7 c22 icon icon-kubernetes c7 c22"
+            class="c6 c21 icon icon-kubernetes c6 c21"
             color="light"
             font-size="3"
           />
@@ -1178,7 +1177,7 @@ exports[`loaded with CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c7 c22 icon icon-terminal c7 c22"
+            class="c6 c21 icon icon-terminal c6 c21"
             color="light"
             font-size="3"
           />
@@ -1200,16 +1199,16 @@ exports[`loaded with CTA 1`] = `
           height="26px"
         >
           <div
-            class="c23"
+            class="c22"
             width="80px"
           >
             <button
-              class="c24"
+              class="c23"
               kind="border"
             >
               Join
               <span
-                class="c7 c25 icon icon-caret-down "
+                class="c6 c24 icon icon-caret-down "
                 color="text.slightlyMuted"
                 font-size="2"
               />
@@ -1220,7 +1219,7 @@ exports[`loaded with CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c7 c22 icon icon-desktop c7 c22"
+            class="c6 c21 icon icon-desktop c6 c21"
             color="light"
             font-size="3"
           />
@@ -1245,7 +1244,7 @@ exports[`loaded with CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c7 c22 icon icon-database c7 c22"
+            class="c6 c21 icon icon-database c6 c21"
             color="light"
             font-size="3"
           />
@@ -1270,7 +1269,7 @@ exports[`loaded with CTA 1`] = `
       <tr>
         <td>
           <span
-            class="c7 c22 icon icon-new-tab c7 c22"
+            class="c6 c21 icon icon-new-tab c6 c21"
             color="light"
             font-size="3"
           />

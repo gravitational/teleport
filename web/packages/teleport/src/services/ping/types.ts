@@ -16,4 +16,5 @@ limitations under the License.
 
 export interface PingResponse {
   automaticUpgrades: boolean;
+  assistEnabled: boolean;
 }

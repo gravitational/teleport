@@ -1081,20 +1081,36 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        desktopMessage += ` on [${windows_domain}]`;
+      }
+      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      return message;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',

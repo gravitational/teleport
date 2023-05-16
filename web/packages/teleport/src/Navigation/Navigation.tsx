@@ -50,7 +50,6 @@ const NavigationLogo = styled.div`
 const NavigationContainer = styled.div`
   background: ${p => p.theme.colors.levels.surface};
   width: var(--sidebar-width);
-  overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
