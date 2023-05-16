@@ -180,6 +180,20 @@ message OktaResourcesUpdatedMetadata {
   int32 Updated = 2 [(gogoproto.jsontag) = "updated"];
   // Deleted is the number of resources deleted.
   int32 Deleted = 3 [(gogoproto.jsontag) = "deleted"];
+  // AddedResources is a list of the actual resources that were added.
+  repeated OktaResource AddedResources = 4 [(gogoproto.jsontag) = "added_resources"];
+  // UpdatedResources is a list of the actual resources that were updated.
+  repeated OktaResource UpdatedResources = 5 [(gogoproto.jsontag) = "updated_resources"];
+  // DeletedResources is a list of the actual resources that were deleted.
+  repeated OktaResource DeletedResources = 6 [(gogoproto.jsontag) = "deleted_resources"];
+}
+
+// OktaResource is a descriptor of an Okta resource.
+message OktaResource {
+  // ID is the identifier of the Okta resource.
+  string ID = 1 [(gogoproto.jsontag) = "id"];
+  // Description is the description of the Okta resource.
+  string Description = 2 [(gogoproto.jsontag) = "description"];
 }
 
 // OktaAssignmentMetadata contains common metadata for Okta assignment events.
