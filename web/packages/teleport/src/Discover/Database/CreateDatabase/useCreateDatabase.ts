@@ -22,6 +22,7 @@ import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import { matchLabels } from '../util';
 
@@ -32,7 +33,6 @@ import type {
 } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { DbMeta } from 'teleport/Discover/useDiscover';
-import { ApiError } from 'teleport/services/api/parseError';
 
 export const WAITING_TIMEOUT = 30000; // 30 seconds
 
@@ -158,14 +158,9 @@ export function useCreateDatabase() {
       } catch (err) {
         // Check if the error is a result of an existing database.
         if (err instanceof ApiError) {
-          if (
-            err.response.status === 409 ||
-            err.message.toLowerCase().includes('already exists')
-          ) {
-            return attemptDbServerQueryAndBuildErrMsg(
-              db.name,
-              Boolean(db.awsRds && db.awsRds.accountId)
-            );
+          if (err.response.status === 409) {
+            const isAwsRds = Boolean(db.awsRds && db.awsRds.accountId);
+            return attemptDbServerQueryAndBuildErrMsg(db.name, isAwsRds);
           }
         }
         handleRequestError(err, 'failed to create database: ');
@@ -224,32 +219,24 @@ export function useCreateDatabase() {
     isAwsRds = false
   ) {
     const preErrMsg = 'failed to register database: ';
+    const nonAwsMsg = `use a different name and try again`;
+    const awsMsg = `change (or define) the value of the \
+    tag "teleport.dev/database_name" on the RDS instance and try again`;
+
     try {
       await ctx.databaseService.fetchDatabase(clusterId, dbName);
       let message = `a database with the name "${dbName}" is already \
-      a part of this cluster, `;
-      if (isAwsRds) {
-        message += `set "teleport.dev/database_name" tag on this RDS instance to `;
-      }
-      message += `use a different name and try again`;
+      a part of this cluster, ${isAwsRds ? awsMsg : nonAwsMsg}`;
       handleRequestError(new Error(message), preErrMsg);
     } catch (e) {
       // No database server were found for the database name.
       if (e instanceof ApiError) {
-        if (
-          e.response.status === 404 ||
-          e.message.toLowerCase().includes('not found')
-        ) {
+        if (e.response.status === 404) {
           let message = `a database with the name "${dbName}" already exists \
           but there are no database servers for it, you can remove this \
-          database using the command, “tctl rm db/${dbName}”`;
-
-          if (isAwsRds) {
-            message += `, or set a "teleport.dev/database_name" tag on this RDS \
-            instance to use a different name and try again`;
-          } else {
-            message += `, or use a different name and try again`;
-          }
+          database using the command, “tctl rm db/${dbName}”, or ${
+            isAwsRds ? awsMsg : nonAwsMsg
+          }`;
           handleRequestError(new Error(message), preErrMsg);
         }
         return;
