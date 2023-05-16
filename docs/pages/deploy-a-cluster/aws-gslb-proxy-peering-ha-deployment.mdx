@@ -72,7 +72,6 @@ traffic across multiple zones. Doing this improves resiliency against localized 
 Configure the load balancer to forward traffic from the following ports on the
 load balancer to the corresponding port on an available Teleport instance.
 
-<Tabs>
 <TabItem label="NLB Proxy ports">
 
 | Port | Description |
@@ -80,7 +79,6 @@ load balancer to the corresponding port on an available Teleport instance.
 | `443` | ALPN port for TLS Routing, HTTPS connections to authenticate `tsh` users into the cluster, and to serve Teleport's Web UI |
 
 </TabItem>
-</Tabs>
 
 ### Configure the Auth Service NLB
 
