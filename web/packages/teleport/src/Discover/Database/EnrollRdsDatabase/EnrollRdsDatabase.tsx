@@ -126,11 +126,7 @@ export function EnrollRdsDatabase() {
       const query = resourceIds.join(' || ');
       const { agents: fetchedDbServers } = await fetchDatabaseServers(
         query,
-        // Adding +5 for the corner case possiblity where user
-        // registered the same rds dbs but under a different name.
-        // This was possible before the check for existing db servers
-        // existed.
-        fetchedRdsDbs.length + 5 // limit
+        fetchedRdsDbs.length // limit
       );
 
       const dbServerLookupByResourceId: Record<string, Database> = {};
