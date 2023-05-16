@@ -201,3 +201,9 @@ export type ListAwsRdsDatabaseResponse = {
   // Empty value means last page.
   nextToken?: string;
 };
+
+export type IntegrationUpdateRequest = {
+  awsoidc: {
+    roleArn: string;
+  };
+};

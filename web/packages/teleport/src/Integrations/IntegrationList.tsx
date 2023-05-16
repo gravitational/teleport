@@ -37,7 +37,10 @@ import {
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
-  onDeleteIntegration?(i: Integration): void;
+  integrationOps?: {
+    onDeleteIntegration(i: Integration): void;
+    onEditIntegration(i: Integration): void;
+  };
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -87,7 +90,16 @@ export function IntegrationList(props: Props<IntegrationLike>) {
             return (
               <Cell align="right">
                 <MenuButton>
-                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                  <MenuItem
+                    onClick={() => props.integrationOps.onEditIntegration(item)}
+                  >
+                    Edit...
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() =>
+                      props.integrationOps.onDeleteIntegration(item)
+                    }
+                  >
                     Delete...
                   </MenuItem>
                 </MenuButton>

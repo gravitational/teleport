@@ -136,9 +136,16 @@ export function LandingPage() {
         </p>
 
         <Warning>
-          This is an experimental project. The AI can hallucinate and produce
-          harmful commands. Do not use in production. Let us know what you think
-          in our{' '}
+          Warning: This is an experimental{' '}
+          <Link
+            href="https://goteleport.com/legal/tos#product-previews"
+            target="_blank"
+            color="white"
+          >
+            Product Preview
+          </Link>
+          . The AI can hallucinate and produce harmful commands. Do not use in
+          production. Let us know what you think in our{' '}
           <Link
             href="https://goteleport.com/slack"
             target="_blank"
