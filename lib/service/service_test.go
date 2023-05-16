@@ -52,6 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -386,6 +388,47 @@ func TestServiceInitExternalLog(t *testing.T) {
 			} else {
 				require.NotNil(t, loggers)
 			}
+		})
+	}
+}
+
+func TestAthenaAuditLogSetup(t *testing.T) {
+	sampleValidConfig := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
+	tests := []struct {
+		name   string
+		uri    string
+		wantFn func(*testing.T, events.AuditLogger, error)
+	}{
+		{
+			name: "valid athena config",
+			uri:  sampleValidConfig,
+			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
+				require.NoError(t, err)
+				v, ok := alog.(*athena.Log)
+				require.True(t, ok, "invalid logger type, got %T", v)
+			},
+		},
+		{
+			name: "config with rate limit - should use events.SearchEventsLimiter",
+			uri:  sampleValidConfig + "&limiterRefillAmount=3&limiterBurst=2",
+			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
+				require.NoError(t, err)
+				_, ok := alog.(*events.SearchEventsLimiter)
+				require.True(t, ok, "invalid logger type, got %T", alog)
+			},
+		},
+	}
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
+				AuditEventsURI:   []string{tt.uri},
+				AuditSessionsURI: "s3://testbucket/sessions-rec",
+			})
+			require.NoError(t, err)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			tt.wantFn(t, log, err)
 		})
 	}
 }
