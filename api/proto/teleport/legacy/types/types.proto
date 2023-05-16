@@ -5054,6 +5054,8 @@ message PluginSpecV1 {
     PluginOpsgenieAccessSettings opsgenie = 2;
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
+    // Settings for the Okta plugin
+    PluginOktaSettings okta = 4;
   }
 }
 
@@ -5079,6 +5081,14 @@ message PluginOpsgenieAccessSettings {
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Okta plugin.
+message PluginOktaSettings {
+  option (gogoproto.equal) = true;
+
+  // OrgUrl is the Okta organization URL to use for API communication.
+  string org_url = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
