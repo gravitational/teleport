@@ -58,7 +58,7 @@ This guide is not intended for local deployments. If your environment doesn't
 meet the prerequisites above, you can get started with Teleport by signing up
 for a [free trial of Teleport Enterprise Cloud](https://goteleport.com/signup/).
 
-## Step 1/5. Configure DNS
+## Step 1/4. Configure DNS
 
 Teleport uses TLS to provide secure access to its Proxy Service and Auth
 Service, and this requires a domain name that clients can use to verify
@@ -71,7 +71,7 @@ set up records for:
 |`teleport.example.com`|Traffic to the Proxy Service from users and services.|
 |`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
 
-## Step 2/5. Set up Teleport on your Linux host
+## Step 2/4. Set up Teleport on your Linux host
 
 ### Install Teleport
 
@@ -98,7 +98,7 @@ following:
 
 ![Teleport Welcome Screen](../img/quickstart/welcome.png)
 
-## Step 3/5. Create a Teleport user and set up two-factor authentication
+## Step 3/4. Create a Teleport user and set up two-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -145,11 +145,10 @@ one-time passwords (OTP) and second-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
-## Step 4/5. Log in using tsh
+<Details title="Logging in via the CLI">
 
-`tsh` is our client tool. It helps you log in to Teleport clusters and obtain
-short-lived credentials. It can also be used to list resources registered with
-Teleport, such as servers, applications, and Kubernetes clusters.
+In addition to Teleport's Web UI, you can access resources in your
+infrastructure via the `tsh` client tool.
 
 Install `tsh` on your local workstation:
 
@@ -210,7 +209,10 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-## Step 5/5. Add your infrastructure
+
+</Details>
+
+## Step 4/4. Add your infrastructure
 
 With Teleport, you can protect all of the resources in your infrastructure
 behind a single identity-aware access proxy, including servers, databases,
