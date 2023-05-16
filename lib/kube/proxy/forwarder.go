@@ -1636,7 +1636,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	// proxy.Close closes the underlying connection and releases the resources.
+	defer proxy.Close()
 	if sess.noAuditEvents {
 		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
@@ -1644,20 +1645,30 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	if !request.tty {
 		resp, err = f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
-		return
+		if err != nil {
+			// will hang waiting for the response.
+			proxy.sendStatus(err)
+		}
+		return nil, nil
 	}
 
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*authCtx, types.SessionPeerMode, client)
 	session, err := newSession(*authCtx, f, req, p, party, sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	<-party.closeC
