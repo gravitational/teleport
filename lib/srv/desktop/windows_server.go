@@ -783,7 +783,11 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 
 	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
-		sendTDPError("RDP connection failed.")
+		msg := "RDP connection failed."
+		if um, ok := err.(trace.UserMessager); ok {
+			msg = um.UserMessage()
+		}
+		sendTDPError(msg)
 		return
 	}
 }
