@@ -22,6 +22,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { retryWithRelogin } from 'teleterm/ui/utils';
+import * as tshdGateway from 'teleterm/services/tshd/gateway';
 
 export function useDocumentGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
@@ -90,7 +91,7 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
   });
 
   const runCliCommand = () => {
-    const [command] = gateway.cliCommand.argsList;
+    const command = tshdGateway.getCliCommandArgv0(gateway.cliCommand);
     let title = `${command} · ${doc.targetUser}@${doc.targetName}`;
 
     if (doc.targetSubresourceName) {
