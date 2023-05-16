@@ -263,8 +263,12 @@ Disable the systemd timer:
 ```code
 $ sudo systemctl disable --now teleport-upgrade.timer
 ```
+  
+To enable and start the systemd timer after suspending:
 
-Use the `systemctl enable` to reenable automatic updates.
+```code
+$ sudo systemctl enable --now teleport-upgrade.timer
+```
 </TabItem>
 <TabItem label="teleport-kube-agent chart">
 Annotate the agent deployment with `teleport.dev/skipreconcile: "true"`.
