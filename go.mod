@@ -34,7 +34,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.24
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.65
-	github.com/aws/aws-sdk-go-v2/service/athena v1.26.1
+	github.com/aws/aws-sdk-go-v2/service/athena v1.27.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0
 	github.com/aws/aws-sdk-go-v2/service/glue v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.43.3

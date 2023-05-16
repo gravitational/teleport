@@ -342,8 +342,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34 h1:gGLG7yKaXG02/jBlg210R7VgQIo
 github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34/go.mod h1:Etz2dj6UHYuw+Xw830KfzCfWGMzqvUTCjUj5b76GVDc=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.25 h1:AzwRi5OKKwo4QNqPf7TjeO+tK8AyOK3GVSwmRPo7/Cs=
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.25/go.mod h1:SUbB4wcbSEyCvqBxv/O/IBf93RbEze7U7OnoTlpPB+g=
-github.com/aws/aws-sdk-go-v2/service/athena v1.26.1 h1:ztONDoMfRjoIUzp0cmCIzKVzvEAVb8IpmuCKweOG/u4=
-github.com/aws/aws-sdk-go-v2/service/athena v1.26.1/go.mod h1:97btS9UBEnajlbXXJkaCAFIu1j3vfJKdQCnIhs853xY=
+github.com/aws/aws-sdk-go-v2/service/athena v1.27.0 h1:U0NGzxt/d/q44RhynVhnfFWuOT/gV+19F9Gp2Eg8MMI=
+github.com/aws/aws-sdk-go-v2/service/athena v1.27.0/go.mod h1:97btS9UBEnajlbXXJkaCAFIu1j3vfJKdQCnIhs853xY=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0 h1:glGFVlA0MVrOpDF+KsVZZA/QCwykYPanYMW0DoIJN34=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0/go.mod h1:L3ZT0N/vBsw77mOAawXmRnREpEjcHd2v5Hzf7AkIH8M=
 github.com/aws/aws-sdk-go-v2/service/glue v1.45.3 h1:yWGd1MsH+LtaBuMnSxYB3mXxFIIpKmV9msv8usr0IBs=
