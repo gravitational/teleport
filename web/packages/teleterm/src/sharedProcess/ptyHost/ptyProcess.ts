@@ -41,7 +41,9 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
     this._logger = new Logger(
-      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args})`
+      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args.join(
+        ' '
+      )})`
     );
   }
 
