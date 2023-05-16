@@ -44,7 +44,7 @@ type Bot struct {
 
 // CheckHealth checks if the bot can connect to its messaging service
 func (b *Bot) CheckHealth(ctx context.Context) error {
-	return nil
+	return trace.NotImplemented("this is not supported for opsgenie bots")
 }
 
 // Broadcast creates an alert for the provided recipients (schedules)
