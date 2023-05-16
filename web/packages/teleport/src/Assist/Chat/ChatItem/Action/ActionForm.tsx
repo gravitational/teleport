@@ -92,6 +92,18 @@ const LabelForm = styled.div`
 const LabelFormContent = styled.div`
   display: flex;
   align-items: center;
+
+  .react-select__control {
+    .react-select__value-container {
+      .react-select__single-value {
+        color: white;
+      }
+    }
+  }
+
+  .react-select__menu {
+    color: black;
+  }
 `;
 
 const Input = styled.input`
