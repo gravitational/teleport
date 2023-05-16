@@ -593,7 +593,21 @@ func IsErrorResolvableWithRelogin(err error) bool {
 // profiles directory. If profileDir is an empty string, the default profile
 // directory ~/.tsh is used.
 func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
-	profile, err := LoadProfileFromStore(ps, proxyAddr)
+	var proxyHost string
+	var err error
+	if proxyAddr == "" {
+		proxyHost, err = ps.CurrentProfile()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		proxyHost, err = utils.Host(proxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	profile, err := ps.GetProfile(proxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -218,32 +218,6 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	return currentProfile, profiles, nil
 }
 
-// TODO
-func LoadProfileFromStore(ps ProfileStore, proxy string) (*profile.Profile, error) {
-	var profileName string
-	var err error
-	if proxy == "" {
-		profileName, err = ps.CurrentProfile()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		profileName, err = utils.Host(proxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	profile, err := ps.GetProfile(profileName)
-	return profile, trace.Wrap(err)
-}
-
-// TODO
-func LoadProfileFromDir(dirPath, proxy string) (*profile.Profile, error) {
-	profile, err := LoadProfileFromStore(NewFSProfileStore(dirPath), proxy)
-	return profile, trace.Wrap(err)
-}
-
 // LoadKeysToKubeFromStore loads the keys for a given teleport cluster and kube cluster from the store.
 // It returns the certificate and private key to be used for the kube cluster.
 // If the keys are not found, it returns an error.
@@ -252,13 +226,11 @@ func LoadProfileFromDir(dirPath, proxy string) (*profile.Profile, error) {
 // when the store has a lot of keys and when we call the function multiple times in
 // parallel.
 // Although this function speeds up the process since it removes all transversals,
-// it still has to read 3 different files if the proxy is specified, otherwise it also
-// has to read $TSH_HOME/current_profile.
-// - $TSH_HOME/$profile.yaml
+// it still has to read 2 different files:
 // - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 // - $TSH_HOME/keys/$PROXY/$USER
-func LoadKeysToKubeFromStore(profile *profile.Profile, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
-	fsKeyStore := NewFSKeyStore(profile.Dir)
+func LoadKeysToKubeFromStore(profile *profile.Profile, dirPath, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+	fsKeyStore := NewFSKeyStore(dirPath)
 
 	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
 	kubeCert, err := os.ReadFile(certPath)

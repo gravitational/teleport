@@ -20,7 +20,9 @@ import (
 	"path"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -30,11 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
-func Test_shouldUseKubeLocalProxy(t *testing.T) {
+func Test_maybeStartKubeLocalProxy(t *testing.T) {
 	t.Parallel()
 
 	tshHome := t.TempDir()
-	kubeconfigLocation := mustSetupKubeconfig(t, tshHome)
+	kubeCluster := "kube1"
+	kubeconfigLocation := mustSetupKubeconfig(t, tshHome, kubeCluster)
 
 	tests := []struct {
 		name             string
@@ -44,7 +47,7 @@ func Test_shouldUseKubeLocalProxy(t *testing.T) {
 		wantKubeClusters kubeconfig.LocalProxyClusters
 	}{
 		{
-			name:           "no profile yet",
+			name:           "no profile",
 			inputArgs:      []string{"kubectl", "--kubeconfig", kubeconfigLocation, "version"},
 			wantLocalProxy: false,
 		},
@@ -88,25 +91,55 @@ func Test_shouldUseKubeLocalProxy(t *testing.T) {
 			wantLocalProxy: true,
 			wantKubeClusters: kubeconfig.LocalProxyClusters{{
 				TeleportCluster: "localhost",
-				KubeCluster:     "kube",
+				KubeCluster:     kubeCluster,
 			}},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ps := client.NewFSProfileStore(tshHome)
 			if test.inputProfile != nil {
-				err := ps.SaveProfile(test.inputProfile, true)
+				err := client.NewFSProfileStore(tshHome).SaveProfile(test.inputProfile, true)
 				require.NoError(t, err)
 			}
 
-			_, clusters, useLocalProxy := shouldUseKubeLocalProxy(&CLIConf{
+			cf := &CLIConf{
 				HomePath: tshHome,
 				Proxy:    "localhost",
-			}, test.inputArgs)
-			require.ElementsMatch(t, test.wantKubeClusters, clusters)
-			require.Equal(t, test.wantLocalProxy, useLocalProxy)
+			}
+
+			var localProxyCreated bool
+			kubeconfigLocationForLocalProxy := path.Join(tshHome, uuid.NewString())
+
+			// Fake makeAndStartKubeLocalProxyFunc instead of making a real
+			// kube local proxy. Verify the loaded kube cluster is correct.
+			verifyKubeCluster := func(o *kubeLocalProxyOpts) {
+				o.makeAndStartKubeLocalProxyFunc = func(_ *CLIConf, _ *clientcmdapi.Config, clusters kubeconfig.LocalProxyClusters) (func(), string, error) {
+					localProxyCreated = true
+					require.True(t, test.wantLocalProxy, "makeAndStartKubeLocalProxy should only be called if local proxy is required.")
+					require.ElementsMatch(t, test.wantKubeClusters, clusters)
+					return func() {}, kubeconfigLocationForLocalProxy, nil
+				}
+			}
+			// Fake os.Setenv and verify the env value.
+			verifyEnv := func(o *kubeLocalProxyOpts) {
+				o.setEnvFunc = func(key, value string) error {
+					require.Equal(t, "KUBECONFIG", key)
+					require.Equal(t, kubeconfigLocationForLocalProxy, value)
+					return nil
+				}
+			}
+
+			closeFn, err := maybeStartKubeLocalProxy(cf,
+				withKubectlArgs(test.inputArgs),
+				verifyKubeCluster,
+				verifyEnv,
+			)
+			require.NoError(t, err)
+			defer closeFn()
+
+			// Make sure makeAndStartKubeLocalProxyFunc is called if local proxy is required.
+			require.Equal(t, test.wantLocalProxy, localProxyCreated)
 		})
 	}
 }
@@ -135,7 +168,7 @@ func Test_isKubectlConfigCommand(t *testing.T) {
 			checkResult: require.True,
 		},
 		{
-			name:        "kubectl get",
+			name:        "kubectl get pod",
 			inputArgs:   []string{"kubectl", "get", "pod", "-n", "config"},
 			checkResult: require.False,
 		},
@@ -186,7 +219,7 @@ func Test_extractKubeConfigAndContext(t *testing.T) {
 	}
 }
 
-func Test_overwriteKubeconfigFlag(t *testing.T) {
+func Test_overwriteKubeconfigFlagInArgs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -198,37 +231,37 @@ func Test_overwriteKubeconfigFlag(t *testing.T) {
 		{
 			name:       "no kubeconfig flag",
 			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "get", "po"},
-			expectArgs: []string{"kubectl", "get", "po"},
+			inputArgs:  []string{"kubectl", "version"},
+			expectArgs: []string{"kubectl", "version"},
 		},
 		{
 			name:       "kubeconfig flag",
 			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "get", "po", "--kubeconfig", "oldpath"},
-			expectArgs: []string{"kubectl", "get", "po", "--kubeconfig", "newpath"},
+			inputArgs:  []string{"kubectl", "version", "--kubeconfig", "oldpath"},
+			expectArgs: []string{"kubectl", "version", "--kubeconfig", "newpath"},
 		},
 		{
 			name:       "kubeconfig equal flag",
 			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "get", "po", "--kubeconfig=oldpath"},
-			expectArgs: []string{"kubectl", "get", "po", "--kubeconfig=newpath"},
+			inputArgs:  []string{"kubectl", "version", "--kubeconfig=oldpath"},
+			expectArgs: []string{"kubectl", "version", "--kubeconfig=newpath"},
 		},
 	}
 
 	for _, test := range tests {
-		overwriteKubeconfigFlag(test.inputArgs, test.inputPath)
+		overwriteKubeconfigFlagInArgs(test.inputArgs, test.inputPath)
 		require.Equal(t, test.expectArgs, test.inputArgs)
 	}
 }
 
-func mustSetupKubeconfig(t *testing.T, tshHome string) string {
+func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 	kubeconfigLocation := path.Join(tshHome, "kubeconfig")
 	priv, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
 	require.NoError(t, err)
 	err = kubeconfig.Update(kubeconfigLocation, kubeconfig.Values{
 		TeleportClusterName: "localhost",
 		ClusterAddr:         "https://localhost:443",
-		KubeClusters:        []string{"kube"},
+		KubeClusters:        []string{kubeCluster},
 		Credentials: &client.Key{
 			PrivateKey: priv,
 			TLSCert:    []byte(fixtures.TLSCACertPEM),
@@ -236,7 +269,7 @@ func mustSetupKubeconfig(t *testing.T, tshHome string) string {
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},
-		SelectCluster: "kube",
+		SelectCluster: kubeCluster,
 	}, false)
 	require.NoError(t, err)
 	return kubeconfigLocation

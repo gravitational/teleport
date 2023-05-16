@@ -437,11 +437,11 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 }
 
 func (c *kubeExecCommand) run(cf *CLIConf) error {
-	cleanUp, err := maybeStartKubeLocalProxy(cf, nil)
+	closeFn, err := maybeStartKubeLocalProxy(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer cleanUp()
+	defer closeFn()
 
 	var p ExecOptions
 	p.IOStreams = genericclioptions.IOStreams{
@@ -586,7 +586,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 }
 
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
-	profile, err := client.LoadProfileFromDir(cf.HomePath, cf.Proxy)
+	profile, err := cf.GetProfile()
 	if err != nil {
 		// Cannot find the profile, continue to c.issueCert for a login.
 		return trace.Wrap(c.issueCert(cf))
@@ -601,12 +601,15 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 3 different files from the disk:
-	// - $TSH_HOME/$profile.yaml
+	// it removes all transversals, it still has to read 2 different files from the disk:
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 	// - $TSH_HOME/keys/$PROXY/$USER
+	//
+	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
+	// cf.GetProfile call above.
 	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
 		profile,
+		cf.HomePath,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {

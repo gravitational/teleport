@@ -152,31 +152,31 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 	return clusters
 }
 
-// LocalProxySelectClusterFromDefaultConfig loads the Teleport kube cluster
-// based on provided context name.
-func LocalProxySelectClusterFromDefaultConfig(defaultConfig *clientcmdapi.Config, clusterAddr, selectContextName string) LocalProxyClusters {
-	if selectContextName == "" {
-		selectContextName = defaultConfig.CurrentContext
-	}
-	context, found := defaultConfig.Contexts[selectContextName]
-	if !found {
-		return nil
+// FindTeleportClusterForLocalProxy finds the Teleport kube cluster based on
+// provided cluster address and context name, and prepares a LocalProxyCluster.
+func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, clusterAddr, contextName string) (LocalProxyCluster, bool) {
+	if contextName == "" {
+		contextName = defaultConfig.CurrentContext
 	}
 
+	context, found := defaultConfig.Contexts[contextName]
+	if !found {
+		return LocalProxyCluster{}, false
+	}
 	cluster, found := defaultConfig.Clusters[context.Cluster]
 	if !found || cluster.Server != clusterAddr {
-		return nil
+		return LocalProxyCluster{}, false
 	}
 	auth, found := defaultConfig.AuthInfos[context.AuthInfo]
 	if !found {
-		return nil
+		return LocalProxyCluster{}, false
 	}
 
-	return LocalProxyClusters{{
+	return LocalProxyCluster{
 		TeleportCluster:   context.Cluster,
-		KubeCluster:       KubeClusterFromContext(selectContextName, context.Cluster),
+		KubeCluster:       KubeClusterFromContext(contextName, context.Cluster),
 		Namespace:         context.Namespace,
 		Impersonate:       auth.Impersonate,
 		ImpersonateGroups: auth.ImpersonateGroups,
-	}}
+	}, true
 }

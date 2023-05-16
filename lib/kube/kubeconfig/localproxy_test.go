@@ -87,44 +87,48 @@ func TestLocalProxy(t *testing.T) {
 		}, clusters)
 	})
 
-	t.Run("LocalProxySelectClusterFromDefaultConfig", func(t *testing.T) {
+	t.Run("FindTeleportClusterForLocalProxy", func(t *testing.T) {
 		tests := []struct {
 			name          string
 			selectContext string
-			wantClusters  LocalProxyClusters
+			checkResult   require.BoolAssertionFunc
+			wantCluster   LocalProxyCluster
 		}{
 			{
 				name:          "not Teleport cluster",
 				selectContext: "dev",
-				wantClusters:  nil,
+				checkResult:   require.False,
 			},
 			{
 				name:          "not found",
 				selectContext: "not-found",
-				wantClusters:  nil,
+				checkResult:   require.False,
 			},
 			{
-				name:          "select Teleport cluster",
+				name:          "find Teleport cluster by context name",
 				selectContext: rootClusterName + "-kube1",
-				wantClusters: LocalProxyClusters{{
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
 					TeleportCluster: rootClusterName,
 					KubeCluster:     "kube1",
-				}},
+				},
 			},
 			{
-				name:          "select Teleport cluster (current context)",
+				name:          "find Teleport cluster by current context",
 				selectContext: "",
-				wantClusters: LocalProxyClusters{{
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
 					TeleportCluster: rootClusterName,
 					KubeCluster:     "kube2",
-				}},
+				},
 			},
 		}
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				clusters := LocalProxySelectClusterFromDefaultConfig(configAfterLogins, rootKubeClusterAddr, test.selectContext)
-				require.ElementsMatch(t, test.wantClusters, clusters)
+				cluster, found := FindTeleportClusterForLocalProxy(configAfterLogins, rootKubeClusterAddr, test.selectContext)
+				test.checkResult(t, found)
+				require.Equal(t, test.wantCluster, cluster)
 			})
 		}
 	})

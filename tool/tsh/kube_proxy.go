@@ -259,7 +259,6 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	if err := kubeProxy.WriteKubeConfig(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return kubeProxy, nil
 }
 
