@@ -109,7 +109,7 @@ func TestSessionEventsCRUD(t *testing.T) {
 func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	tt.suite.SearchSessionEvensBySessionID(t)
+	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
 func TestSizeBreak(t *testing.T) {
