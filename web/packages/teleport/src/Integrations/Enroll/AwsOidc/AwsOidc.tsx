@@ -74,6 +74,7 @@ const RestartAnimation = styled.div`
   left: 50%;
   transform: translate(-50%, 0);
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+  color: ${props => props.theme.colors.light};
 
   &:hover {
     box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
