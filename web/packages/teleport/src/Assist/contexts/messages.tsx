@@ -26,7 +26,7 @@ import useWebSocket from 'react-use-websocket';
 
 import { useParams } from 'react-router';
 
-import logger from 'shared/libs/logger';
+import Logger from 'shared/libs/logger';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
@@ -222,12 +222,18 @@ async function convertServerMessage(
     });
 
     // The offset here is set base on A/B test that was run between me, myself and I.
-    const resp = await api
-      .fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
-        Accept: 'text/plain',
-        'Content-Type': 'text/plain; charset=utf-8',
-      })
-      .then(response => response.text());
+    const resp = await api.fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
+      Accept: 'text/plain',
+      'Content-Type': 'text/plain; charset=utf-8',
+    });
+
+    let msg;
+    let errorMsg;
+    if (resp.status === 200) {
+      msg = await resp.text();
+    } else {
+      errorMsg = 'No session recording. The command execution failed.';
+    }
 
     const newMessage: Message = {
       author: Author.Teleport,
@@ -236,7 +242,8 @@ async function convertServerMessage(
         type: Type.ExecuteCommandOutput,
         nodeId: payload.node_id,
         executionId: payload.execution_id,
-        payload: resp,
+        payload: msg,
+        errorMsg,
       },
     };
 
@@ -318,6 +325,8 @@ export async function setConversationTitle(
     title: title,
   });
 }
+
+const logger = Logger.create('assist');
 
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>

@@ -72,6 +72,8 @@ export function TopBar() {
       {!hasClusterUrl && (
         <Text fontSize="18px" bold>
           {title}
+
+          <span id="topbar-portal"></span>
         </Text>
       )}
       <ClusterSelector
