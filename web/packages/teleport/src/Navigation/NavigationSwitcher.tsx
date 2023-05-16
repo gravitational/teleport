@@ -295,8 +295,8 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
             <TooltipTitle>
               <TooltipTitleBackground>New!</TooltipTitleBackground>
             </TooltipTitle>{' '}
-            Connect Teleport to OpenAI GPT-4 and try out our new Assist
-            integration
+            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
+            your infrastructure
             <TooltipFooter>
               <TooltipLogos>
                 <OpenAIIcon size={30} />
