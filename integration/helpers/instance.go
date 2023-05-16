@@ -1017,6 +1017,8 @@ type ProxyConfig struct {
 	SSHAddr string
 	// WebAddr the address the web service should listen on
 	WebAddr string
+	// KubeAddr is the kube proxy address.
+	KubeAddr string
 	// ReverseTunnelAddr the address the reverse proxy service should listen on
 	ReverseTunnelAddr string
 	// Disable the web service
@@ -1281,17 +1283,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 	var webProxyAddr string
 	var sshProxyAddr string
+	var kubeProxyAddr string
 
 	switch {
 	case cfg.Proxy != nil:
 		webProxyAddr = cfg.Proxy.WebAddr
 		sshProxyAddr = cfg.Proxy.SSHAddr
+		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
 		webProxyAddr = cfg.ALBAddr
 		sshProxyAddr = cfg.ALBAddr
+		kubeProxyAddr = cfg.ALBAddr
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
+		kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
@@ -1311,6 +1317,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:                        cfg.Labels,
 		WebProxyAddr:                  webProxyAddr,
 		SSHProxyAddr:                  sshProxyAddr,
+		KubeProxyAddr:                 kubeProxyAddr,
 		InteractiveCommand:            cfg.Interactive,
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",

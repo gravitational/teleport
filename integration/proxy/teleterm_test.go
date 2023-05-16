@@ -66,7 +66,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.Root.Cluster.Web)
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
 
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendDB(pack.Root.MysqlService.Name)

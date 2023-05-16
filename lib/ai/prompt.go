@@ -21,7 +21,7 @@ import "fmt"
 const promptSummarizeTitle = `You will be given a message. Create a short summary of that message.
 Respond only with summary, nothing else.`
 
-const initialAIResponse = `Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT.`
+const initialAIResponse = `Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via OpenAI GPT-4.`
 
 const promptExtractInstruction = `If the input is a request to complete a task on a server, try to extract the following information:
 - A Linux shell command
