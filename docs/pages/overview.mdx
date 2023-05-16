@@ -1,0 +1,154 @@
+---
+title: Teleport Documentation Overview
+description: Overview of the Teleport Documentation
+layout: tocless-doc
+---
+
+This page provides an overview of Teleport's documentation.
+
+<Notice type="info">
+
+If your organization is already using Teleport and you want to learn how to
+access infrastructure, read our [Connect your
+Client](./connect-your-client/introduction.mdx) guides for instructions.
+
+</Notice>
+
+## Try out Teleport
+
+If you are curious to see how Teleport works, you can get started by [spinning
+up a demo cluster](./index.mdx) on a Linux server. After seeing how your demo
+Teleport cluster lets you securely access a server and play back your SSH
+sessions, you can configure RBAC, add resources, and protect your home lab with
+Teleport.
+
+You can also get started right away with a production-ready Teleport cluster.
+[Sign up for a free trial](https://goteleport.com/signup/) of Teleport
+Enterprise Cloud. 
+
+Once you are ready to learn more about Teleport, read our [Core Concepts
+guide](./core-concepts.mdx), which introduces the components of a Teleport
+cluster. You can refer to this glossary as you continue through the
+documentation.
+
+## Choose an edition
+
+After trying out Teleport, you are ready to deploy a cluster to your
+infrastructure. Teleport has three editions, Teleport Enterprise, Teleport
+Enterprise Cloud, and Teleport Community Edition, and you can compare these in
+our [Choose an Edition](./choose-an-edition/introduction.mdx) section.
+
+<Notice type="tip">
+
+You can view information specific to an edition of Teleport by using the "Open
+Source", "Enterprise", and "Cloud" buttons at the top of the page.
+
+</Notice>
+
+## Deploy a cluster
+
+Once you know which edition you would like to deploy, read our [Deploy a
+Cluster](./deploy-a-cluster/introduction.mdx) documentation for how to launch a
+fully fledged Teleport cluster in production. (If you are using Teleport
+Enterprise Cloud, you can skip this step.) This section shows you the best
+practices to follow for a high-availability Teleport cluster, and how to deploy
+Teleport on your cloud provider of choice.
+
+## Manage access
+
+Now that you have a running Teleport cluster, set up role-based access controls
+to enable secure access to your infrastructure.  You can define roles with
+granular permissions and use Teleport's integrations with Single Sign-On
+providers to automatically map these roles to users. You can also set up Access
+Requests to enable just-in-time access to your infrastructure. Read [Manage
+Access](./access-controls/introduction.mdx) to get started.
+
+## Manage your cluster
+
+With your Teleport cluster configured, you can now begin Day Two operations
+such as upgrades, adding agents to the cluster, and integrating Teleport with
+third-party tools. Read [Manage your
+Cluster](./management/introduction.mdx) for more information.
+
+## Enroll your infrastructure
+
+Teleport is protocol aware and provides functionality that is unique to each
+protocol it supports. To enable access to a protocol, deploy the appropriate
+Teleport service and configure it to communicate with resources in your
+infrastructure. 
+
+Read about how to enable access to:
+
+- [Servers](./server-access/getting-started.mdx), including OpenSSH servers that
+  [do not have Teleport installed](./server-access/guides/openssh.mdx)
+- [Kubernetes clusters](./kubernetes-access/introduction.mdx)
+- [Databases](./database-access/introduction.mdx)
+- [Applications](./application-access/introduction.mdx)
+- [Remote desktops](./desktop-access/introduction.mdx)
+
+You can also set up [Machine ID](./machine-id/introduction.mdx) to enable
+service accounts to access resources in your infrastructure with short-lived
+credentials.
+
+## Extend Teleport for your organization
+
+Teleport is highly customizable, exposing much of its functionality via a gRPC
+API. For example, you can build API clients to register infrastructure
+automatically or manage Access Requests using your organization's unique
+workflows. Read how to build applications that interact with Teleport's API in
+our [API guides](./api/introduction.mdx).
+
+## Learn more about Teleport
+
+Get more information about Teleport by reading our library of architecture,
+reference, and developer guides. See the
+[Upcoming Releases](./upcoming-releases.mdx) section for a glimpse of features we
+will release in the next Teleport version. Consult our
+[Reference](./reference/introduction.mdx) guides for comprehensive lists of
+configuration options, CLI flags, and more. For detailed explanations of how
+Teleport works, see the [Architecture](./architecture/introduction.mdx) section.
+
+Finally, if you're interested in adding to Teleport's documentation, view
+our [contribution guide](./contributing/documentation.mdx). 
+
+<TileSet>
+    <TileList title="For developers" icon="stack">
+        <TileListItem href="./connect-your-client/tsh.mdx#sharing-sessions">
+            Collaborate through session sharing.
+        </TileListItem>
+        <TileListItem href="./management/admin/labels.mdx">
+            Discover servers and clusters with dynamic labels.
+        </TileListItem>
+        <TileListItem href="./management/admin/adding-nodes.mdx#adding-a-node-located-behind-nat">
+            Connect to computing resources located behind firewalls or without static IPs.
+        </TileListItem>
+    </TileList>
+    <TileList title="For security teams" icon="lock">
+        <TileListItem href="./server-access/guides/openssh.mdx">
+            Capture sessions and manage certificates for an existing OpenSSH fleet.
+        </TileListItem>
+        <TileListItem href="./architecture/authentication.mdx#issuing-user-certificates">
+            Replace static keys and passwords with short-lived certificates.
+        </TileListItem>
+        <TileListItem href="./access-controls/guides/webauthn.mdx">
+            Enforce two-factor authentication for all of your infrastructure.
+        </TileListItem>
+    </TileList>
+    <TileList title="Reach out" icon="question">
+        <TileListItem href="https://github.com/gravitational/teleport/discussions">
+            Ask a question in the discussion forum.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/slack">
+            Join our Slack channel to get help with your setup.
+        </TileListItem>
+        <TileListItem href="https://github.com/gravitational/teleport/">
+            Create an issue on GitHub.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/get-started/">
+            Reach out to sales for a demo of Teleport Enterprise.
+        </TileListItem>
+        <TileListItem href="https://goteleport.com/signup/">
+            Start a free trial of Teleport Cloud.
+        </TileListItem>
+    </TileList>
+</TileSet>

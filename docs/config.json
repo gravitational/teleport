@@ -5,12 +5,12 @@
       "title": "Home",
       "entries": [
         {
-          "title": "Introduction",
+          "title": "Get Started",
           "slug": "/"
         },
         {
-          "title": "Get Started with Teleport",
-          "slug": "/get-started/"
+          "title": "Documentation Overview",
+          "slug": "/overview/"
         },
         {
           "title": "Core Concepts",
@@ -1870,7 +1870,7 @@
     },
     {
       "source": "/quickstart/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -1970,7 +1970,7 @@
     },
     {
       "source": "/getting-started/digitalocean/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2175,7 +2175,7 @@
     },
     {
       "source": "/setup/deployments/digitalocean/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2225,7 +2225,7 @@
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2480,12 +2480,12 @@
     },
     {
       "source": "/getting-started/docker-compose/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/getting-started/local-kubernetes/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2550,17 +2550,17 @@
     },
     {
       "source": "/deploy-a-cluster/deployments/digitalocean/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/deploy-a-cluster/open-source/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/getting-started/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2620,7 +2620,7 @@
     },
     {
       "source": "/try-out-teleport/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2710,27 +2710,27 @@
     },
     {
       "source": "/try-out-teleport/browser-labs/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/try-out-teleport/digitalocean/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/try-out-teleport/docker-compose/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/try-out-teleport/introduction/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
       "source": "/try-out-teleport/local-kubernetes/",
-      "destination": "/get-started/",
+      "destination": "/",
       "permanent": true
     },
     {
@@ -2750,6 +2750,11 @@
     },
     {
       "source": "/adopters/",
+      "destination": "/overview/",
+      "permanent": true
+    },
+    {
+      "source": "/get-started/",
       "destination": "/",
       "permanent": true
     }
