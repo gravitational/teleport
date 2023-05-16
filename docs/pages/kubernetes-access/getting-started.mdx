@@ -42,14 +42,10 @@ domain name, e.g., `mytenant.teleport.sh`, rather than `teleport.example.com`.
 ```mermaid
 flowchart TB
 subgraph priv[Private Network]
-style telekube fill: #844cff,color: #ffffff
-style kube fill: #326ce5,color: #ffffff
   telekube[Teleport Kubernetes Service]<--> kube[Kubernetes API Server]
 end
 
 subgraph pub[ ]
-style pub fill:none,stroke:none
-style proxy fill: #844cff,color: #ffffff
   Users-- "kubectl get pods (mTLS)" -->proxy[Teleport Proxy Service\nteleport.example.com]
 end
 
