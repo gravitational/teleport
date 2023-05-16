@@ -89,7 +89,7 @@ require (
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae
-	github.com/pkg/sftp v1.13.5 // replaced
+	github.com/pkg/sftp v1.13.5
 	github.com/pquerna/otp v1.3.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
@@ -98,7 +98,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.3.0
 	github.com/schollz/progressbar/v3 v3.11.0
 	github.com/sethvargo/go-diceware v0.3.0
-	github.com/sirupsen/logrus v1.9.0 // replaced
+	github.com/sirupsen/logrus v1.9.0
 	github.com/snowflakedb/gosnowflake v1.6.13
 	github.com/stretchr/testify v1.8.2
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
@@ -364,7 +364,6 @@ replace (
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60
-	github.com/sirupsen/logrus => github.com/gravitational/logrus v1.4.4-0.20210817004754-047e20245621
 	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
 )
 
