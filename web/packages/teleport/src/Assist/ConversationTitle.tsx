@@ -14,33 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled, { keyframes } from 'styled-components';
+import React from 'react';
+import { useParams } from 'react-router';
 
-const appear = keyframes`
-  0% {
-    opacity: 0;
-  }
+import { useConversations } from 'teleport/Assist/contexts/conversations';
 
-  100% {
-    opacity: 1;
-  }
-`;
+export function ConversationTitle() {
+  const { conversations } = useConversations();
+  const params = useParams<{ conversationId: string }>();
 
-export const ExampleItem = styled.div`
-  border: 1px solid white;
-  margin-right: 20px;
-  padding: 10px 15px;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  font-size: 14px;
-  opacity: 0;
-  animation: ${appear} linear 0.6s forwards;
+  if (params.conversationId) {
+    const conversation = conversations.find(
+      conversation => conversation.id === params.conversationId
+    );
 
-  svg {
-    margin-right: 15px;
-    path {
-      fill: white;
+    if (conversation) {
+      return <> - {conversation.title}</>;
     }
   }
-`;
+
+  return null;
+}
