@@ -28,8 +28,6 @@ import { useTeleport } from 'teleport';
 
 import { getBorderRadius } from 'teleport/Assist/Chat/ChatItem/utils';
 
-import { ExampleList } from '../Examples/ExampleList';
-
 import { Author, Message, Type } from '../../services/messages';
 
 import { Timestamp } from '../Timestamp';
@@ -178,6 +176,12 @@ const Output = styled.div`
     monospace;
 `;
 
+const ErrorMessage = styled.div`
+  color: ${p => p.theme.colors.error.main};
+  font-size: 15px;
+  font-weight: 500;
+`;
+
 marked.setOptions({
   renderer: new marked.Renderer(),
   highlight: function (code, lang) {
@@ -245,7 +249,11 @@ export function ChatItem(props: ChatItemProps) {
                 Command ran on node{' '}
                 <strong>{props.message.content.nodeId}</strong>
               </MachineName>
-              <Output>{props.message.content.payload}</Output>
+              {props.message.content.errorMsg ? (
+                <ErrorMessage>{props.message.content.errorMsg}</ErrorMessage>
+              ) : (
+                <Output>{props.message.content.payload}</Output>
+              )}
             </CommandOutput>
           </Content>
         </Container>
@@ -289,31 +297,6 @@ export function ChatItem(props: ChatItemProps) {
       <Content>{content}</Content>
 
       {!props.hideAvatar && avatar}
-    </Container>
-  );
-}
-
-export function ExampleChatItem() {
-  const ctx = useTeleport();
-
-  return (
-    <Container teleport={true} isNew={false}>
-      <Content isFirstFromUser={true} isLastFromUser={true}>
-        Hey {ctx.storeUser.state.username}, I'm Teleport - a powerful tool that
-        can assist you in managing your Teleport cluster via OpenAI GPT-4.
-        <br />
-        <br />
-        Start a new chat with me on the left to get started! Here's some of the
-        things I can do:
-        <ExampleList />
-      </Content>
-      <TeleportAvatarContainer>
-        <ChatItemAvatarTeleport>
-          <ChatItemAvatarImage backgroundImage={teleport} />
-        </ChatItemAvatarTeleport>
-
-        <strong>Teleport</strong>
-      </TeleportAvatarContainer>
     </Container>
   );
 }

@@ -57,6 +57,7 @@ export interface CommandExecutionOutput {
   nodeId: string;
   executionId: string;
   payload: string;
+  errorMsg?: string;
 }
 
 export type MessageContent =
