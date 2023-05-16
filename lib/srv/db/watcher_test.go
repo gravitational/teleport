@@ -207,6 +207,17 @@ func TestWatcherDynamicResource(t *testing.T) {
 	})
 }
 
+func setDiscoveryGroupLabel(r types.ResourceWithLabels, discoveryGroup string) {
+	staticLabels := r.GetStaticLabels()
+	if staticLabels == nil {
+		staticLabels = make(map[string]string)
+	}
+	if discoveryGroup != "" {
+		staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	}
+	r.SetStaticLabels(staticLabels)
+}
+
 // TestWatcherCloudFetchers tests usage of discovery database fetchers by the
 // database service.
 func TestWatcherCloudFetchers(t *testing.T) {
@@ -216,10 +227,12 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	redshiftServerlessDatabase, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(redshiftServerlessWorkgroup, nil)
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
-
+	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
-
+	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -270,7 +283,6 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
-
 }
 
 func makeStaticDatabase(name string, labels map[string]string, opts ...makeDatabaseOpt) (*types.DatabaseV3, error) {

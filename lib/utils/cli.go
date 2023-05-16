@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
-	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -149,7 +148,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -277,21 +276,6 @@ const (
 // Color formats the string in a terminal escape color
 func Color(color int, v interface{}) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
-}
-
-// Consolef prints the same message to a 'ui console' (if defined) and also to
-// the logger with INFO priority
-func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
-	msg = fmt.Sprintf(msg, params...)
-	log.Info(msg)
-	if w != nil {
-		component := strings.ToUpper(component)
-		// 13 is the length of "[KUBERNETES]", which is the longest component
-		// name prefix we have *today*. Use a Max function here to avoid
-		// negative spacing, in case we add longer component names.
-		spacing := int(math.Max(float64(12-len(component)), 0))
-		fmt.Fprintf(w, "[%v]%v %v\n", strings.ToUpper(component), strings.Repeat(" ", spacing), msg)
-	}
 }
 
 // InitCLIParser configures kingpin command line args parser with

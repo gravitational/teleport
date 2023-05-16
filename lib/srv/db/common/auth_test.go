@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -102,11 +104,14 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	t.Parallel()
 
+	// setup mock aws sessions.
+	stsMock := &mocks.STSMock{}
 	clock := clockwork.NewFakeClock()
 	auth, err := NewAuth(AuthConfig{
 		Clock:      clock,
 		AuthClient: new(authClientMock),
 		Clients: &cloud.TestCloudClients{
+			STS: stsMock,
 			RedshiftServerless: &mocks.RedshiftServerlessMock{
 				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
 			},
@@ -122,6 +127,8 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "IAM:some-user", dbUser)
 	require.Equal(t, "some-password", dbPassword)
+	require.Equal(t, []string{"arn:aws:iam::123456789012:role/some-user"}, stsMock.GetAssumedRoleARNs())
+	require.Equal(t, []string{""}, stsMock.GetAssumedRoleExternalIDs())
 }
 
 func TestAuthGetTLSConfig(t *testing.T) {
@@ -165,12 +172,12 @@ func TestAuthGetTLSConfig(t *testing.T) {
 		},
 		{
 			name:            "AWS ElastiCache Redis",
-			sessionDatabase: newElastiCacheRedisDatabase(t, fixtures.SAMLOktaCertPEM),
+			sessionDatabase: newElastiCacheRedisDatabase(t, withCA(fixtures.SAMLOktaCertPEM)),
 			expectRootCAs:   awsCertPool,
 		},
 		{
 			name:             "AWS Redshift",
-			sessionDatabase:  newRedshiftDatabase(t, fixtures.SAMLOktaCertPEM),
+			sessionDatabase:  newRedshiftDatabase(t, withCA(fixtures.SAMLOktaCertPEM)),
 			expectServerName: "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com",
 			expectRootCAs:    awsCertPool,
 		},
@@ -435,6 +442,135 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 	}
 }
 
+func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	tests := map[string]struct {
+		database       types.Database
+		checkGetAuthFn func(t *testing.T, auth Auth, sessionCtx *Session)
+		checkSTS       func(t *testing.T, stsMock *mocks.STSMock)
+	}{
+		"Redshift": {
+			database: newRedshiftDatabase(t,
+				withCA(fixtures.SAMLOktaCertPEM),
+				withAssumeRole(services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
+					ExternalID: "externalRedshift",
+				})),
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				dbUser, dbPassword, err := auth.GetRedshiftAuthToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				require.Equal(t, "IAM:some-user", dbUser)
+				require.Equal(t, "some-password", dbPassword)
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshift")
+			},
+		},
+		"Redshift Serverless": {
+			database: newRedshiftServerlessDatabase(t,
+				withAssumeRole(services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
+					ExternalID: "externalRedshiftServerless",
+				})),
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				require.Equal(t, "IAM:some-user", dbUser)
+				require.Equal(t, "some-password", dbPassword)
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedshiftServerlessRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRedshiftServerless")
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/some-user")
+			},
+		},
+		"RDS Proxy": {
+			database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
+				withAssumeRole(services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
+					ExternalID: "externalRDSProxy",
+				})),
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				token, err := auth.GetRDSAuthToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				require.Contains(t, token, "DBUser=some-user")
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RDSProxyRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRDSProxy")
+			},
+		},
+		"ElastiCache Redis": {
+			database: newElastiCacheRedisDatabase(t,
+				withAssumeRole(services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
+					ExternalID: "externalElastiCacheRedis",
+				})),
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				token, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				u, err := url.Parse(token)
+				require.NoError(t, err)
+				require.Equal(t, "example-cluster/", u.Path)
+				query := u.Query()
+				require.Equal(t, "connect", query.Get("Action"))
+				require.Equal(t, "some-user", query.Get("User"))
+				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
+				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
+				require.Equal(t, "arn:aws:iam::123456789012:role/RedisRole/20010203/ca-central-1/elasticache/aws4_request",
+					query.Get("X-Amz-Credential"))
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedisRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalElastiCacheRedis")
+			},
+		},
+	}
+
+	stsMock := &mocks.STSMock{}
+	clock := clockwork.NewFakeClockAt(time.Date(2001, time.February, 3, 0, 0, 0, 0, time.UTC))
+	auth, err := NewAuth(AuthConfig{
+		Clock:      clock,
+		AuthClient: new(authClientMock),
+		Clients: &cloud.TestCloudClients{
+			STS: stsMock,
+			RDS: &mocks.RDSMock{},
+			Redshift: &mocks.RedshiftMock{
+				GetClusterCredentialsOutput: mocks.RedshiftGetClusterCredentialsOutput("IAM:some-user", "some-password", clock),
+			},
+			RedshiftServerless: &mocks.RedshiftServerlessMock{
+				GetCredentialsOutput: mocks.RedshiftServerlessGetCredentialsOutput("IAM:some-user", "some-password", clock),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			tt.checkGetAuthFn(t, auth, &Session{
+				DatabaseUser: "some-user",
+				DatabaseName: "some-database",
+				Database:     tt.database,
+			})
+			tt.checkSTS(t, stsMock)
+		})
+	}
+}
+
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 	t.Helper()
 
@@ -481,64 +617,89 @@ func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Datab
 	return database
 }
 
-func newElastiCacheRedisDatabase(t *testing.T, ca string) types.Database {
+type databaseSpecOpt func(spec *types.DatabaseSpecV3)
+
+func withCA(ca string) databaseSpecOpt {
+	return func(spec *types.DatabaseSpecV3) {
+		spec.TLS.CACert = ca
+	}
+}
+
+func withAssumeRole(assumeRole services.AssumeRole) databaseSpecOpt {
+	return func(spec *types.DatabaseSpecV3) {
+		spec.AWS.AssumeRoleARN = assumeRole.RoleARN
+		spec.AWS.ExternalID = assumeRole.ExternalID
+	}
+}
+
+func newElastiCacheRedisDatabase(t *testing.T, specOpts ...databaseSpecOpt) types.Database {
 	t.Helper()
 
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "test-database",
-	}, types.DatabaseSpecV3{
+	spec := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
 		URI:      "master.example-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
-		TLS: types.DatabaseTLS{
-			CACert: ca,
-		},
-	})
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
 	require.NoError(t, err)
 	return database
 }
 
-func newRedshiftDatabase(t *testing.T, ca string) types.Database {
+func newRedshiftDatabase(t *testing.T, specOpts ...databaseSpecOpt) types.Database {
 	t.Helper()
 
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "test-database",
-	}, types.DatabaseSpecV3{
+	spec := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "redshift-cluster-1.abcdefghijklmnop.us-east-1.redshift.amazonaws.com:5432",
-		TLS: types.DatabaseTLS{
-			CACert: ca,
-		},
-	})
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
 	require.NoError(t, err)
 	return database
 }
 
-func newRedshiftServerlessDatabase(t *testing.T) types.Database {
+func newRedshiftServerlessDatabase(t *testing.T, specOpts ...databaseSpecOpt) types.Database {
 	t.Helper()
 
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "test-database",
-	}, types.DatabaseSpecV3{
+	spec := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "my-workgroup.123456789012.eu-west-2.redshift-serverless.amazonaws.com:5439",
-	})
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
 	require.NoError(t, err)
 	return database
 }
 
-func newRDSProxyDatabase(t *testing.T, uri string) types.Database {
-	database, err := types.NewDatabaseV3(types.Metadata{
-		Name: "test-database",
-	}, types.DatabaseSpecV3{
+func newRDSProxyDatabase(t *testing.T, uri string, specOpts ...databaseSpecOpt) types.Database {
+	spec := types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
 		URI:      uri,
 		AWS: types.AWS{
-			Region: "us-east-1",
+			AccountID: "123456789012",
 			RDSProxy: types.RDSProxy{
 				Name: "test-database",
 			},
 		},
-	})
+	}
+	for _, opt := range specOpts {
+		opt(&spec)
+	}
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, spec)
 	require.NoError(t, err)
 	return database
 }

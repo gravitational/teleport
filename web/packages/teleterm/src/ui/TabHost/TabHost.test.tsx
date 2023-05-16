@@ -69,7 +69,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       return {
         closeTab: 'Command-W',
         newTab: 'Command-T',
-        openCommandBar: 'Command-K',
+        openSearchBar: 'Command-K',
         openConnections: 'Command-P',
         openClusters: 'Command-E',
         openProfiles: 'Command-I',

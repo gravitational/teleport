@@ -81,7 +81,7 @@ export class MockTshClient implements TshClient {
 
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
-  removeCluster: (clusterUri: string) => Promise<undefined>;
+  removeCluster = () => Promise.resolve();
   loginLocal: (
     params: LoginLocalParams,
     abortSignal?: TshAbortSignal
@@ -94,7 +94,7 @@ export class MockTshClient implements TshClient {
     params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<undefined>;
-  logout: (clusterUri: string) => Promise<undefined>;
+  logout = () => Promise.resolve();
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
 }

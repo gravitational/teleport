@@ -19,7 +19,7 @@ package teleport.plugins.v1;
 import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1;pluginsv1";
 
 // PluginType represents a single type of hosted plugin
 // that can be onboarded.
@@ -49,6 +49,9 @@ message CreatePluginRequest {
 message GetPluginRequest {
   // Name is the name of the plugin instance.
   string name = 1;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 2;
 }
 
 // ListPluginsRequest is a paginated request to list all plugin instances.
@@ -59,6 +62,9 @@ message ListPluginsRequest {
   // StartKey is the value of NextKey received in the last ListPluginsResponse.
   // When making the initial request, this should be left empty.
   string start_key = 2;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 3;
 }
 
 // ListPluginsResponse is a paginated response to a ListPluginsRequest.

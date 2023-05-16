@@ -23,7 +23,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -422,7 +421,7 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 
 // Copy returns a copy of the access request resource.
 func (r *AccessRequestV3) Copy() AccessRequest {
-	return proto.Clone(r).(*AccessRequestV3)
+	return utils.CloneProtoMsg(r)
 }
 
 // GetLabel retrieves the label with the provided key. If not found

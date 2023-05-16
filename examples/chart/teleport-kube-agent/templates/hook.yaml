@@ -67,12 +67,16 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      {{- if .Values.tolerations }}
+{{- if .Values.tolerations }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
-      {{- end }}
+{{- end }}
       serviceAccountName: {{ .Release.Name }}-hook
       restartPolicy: OnFailure
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
       containers:
       - name: post-install-job
         image: alpine/k8s:1.26.0
@@ -87,4 +91,7 @@ spec:
               # delete deployment
               kubectl delete deployment/{{ .Release.Name }}
             EOF
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
 {{- end}}

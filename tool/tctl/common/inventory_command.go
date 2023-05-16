@@ -66,7 +66,7 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
-	c.inventoryList = inventory.Command("list", "List teleport instance inventory").Alias("ls")
+	c.inventoryList = inventory.Command("list", "List Teleport instance inventory").Alias("ls")
 	c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)

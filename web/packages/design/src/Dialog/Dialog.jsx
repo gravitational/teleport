@@ -61,8 +61,8 @@ const ModalBox = styled.div`
 const DialogBox = styled.div`
   padding: 32px;
   padding-top: 24px;
-  background: ${props => props.theme.colors.levels.surfaceSecondary};
-  color: ${props => props.theme.colors.text.primary};
+  background: ${props => props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
   display: flex;

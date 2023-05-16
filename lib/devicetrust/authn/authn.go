@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
@@ -47,7 +48,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 
 	stream, err := devicesClient.AuthenticateDevice(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 
 	// 1. Init.
@@ -72,12 +73,13 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 			},
 		},
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
+	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
 	chalResp := resp.GetChallenge()

@@ -19,7 +19,7 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.3
+GOLANG_VERSION ?= go1.20.4
 
 NODE_VERSION ?= 16.18.1
 
@@ -244,7 +244,7 @@ ui: buildbox
 .PHONY: grpc
 grpc: buildbox
 	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
+		$(DOCKERFLAGS) -u $(UID):$(GID) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
@@ -327,6 +327,11 @@ integration: buildbox
 integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
+
+.PHONY:integration-kube
+integration-kube: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
 
 #
 # Runs linters on new changes inside a build container.
@@ -415,57 +420,6 @@ release-amd64-centos7-fips: buildbox-centos7-fips
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
-# #############################################################################
-# GHA release build targets
-# #############################################################################
-
-#
-# The `release-oss` and `release-enterprise` make targets are for building OSS
-# and Enterprise releases from GitHub actions. These make targets execute in a
-# container based on a caller-supplied `BUILDBOX` image.
-#
-# Unlike the other release targets, these release targets do not attempt to
-# automatically construct the buildbox image at build time - the build box
-# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
-# make command line
-#
-# Separating the construction of build environment from the actual build itself
-# allows us to use the appropriate GHA actions to pre-build the buildbox
-# image, so that the image construction works nicely with GHA.
-#
-
-define RELEASE_RECIPE
-		docker run \
-			--rm \
-			--platform linux/$(ARCH) \
-			--memory-swap -1 \
-			-h buildbox \
-			-e GOMODCACHE=$(GOMODCACHE) \
-			-e GOCACHE=$(GOCACHE) \
-			-v "/tmp:/tmp" \
-			-v "$(WORKSPACE):/go/teleport" \
-			-w /go/teleport \
-			$(BUILDBOX) \
-		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
-endef
-
-# It's ok to ignore `go: command not found`. Makefile's $(shell go env)-line commands are producing it.
-.PHONY: release-oss-ensure-webassets
-release-oss-ensure-webassets:
-	$(call RELEASE_RECIPE,ensure-webassets)
-
-.PHONY: release-enterprise-ensure-webassets
-release-enterprise-ensure-webassets:
-	$(call RELEASE_RECIPE,ensure-webassets-e)
-
-.PHONY: release-oss
-release-oss:
-	$(call RELEASE_RECIPE,full build-archive)
-
-.PHONY: release-enterprise
-release-enterprise:
-	$(call RELEASE_RECIPE,release-unix-only)
 
 # #############################################################################
 

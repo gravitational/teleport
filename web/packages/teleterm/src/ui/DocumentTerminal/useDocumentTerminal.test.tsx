@@ -42,17 +42,11 @@ import type { IAppContext } from 'teleterm/ui/types';
 import type * as tsh from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 
-jest.mock('teleterm/staticConfig', () => ({
-  staticConfig: {
-    prehogAddress: undefined,
-  },
-}));
-
 beforeAll(() => {
   Logger.init(new NullService());
 });
 
-afterEach(() => {
+beforeEach(() => {
   jest.restoreAllMocks();
 });
 

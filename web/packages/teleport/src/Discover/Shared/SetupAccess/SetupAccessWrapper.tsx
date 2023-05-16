@@ -66,7 +66,7 @@ export function SetupAccessWrapper({
       $content = (
         <>
           <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="danger" />
+            <Icons.Warning ml={1} mr={2} color="error.main" />
             Encountered Error: {attempt.statusText}
           </Text>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
@@ -146,7 +146,7 @@ export function SetupAccessWrapper({
 
 const StyledBox = styled(Box)`
   max-width: 700px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

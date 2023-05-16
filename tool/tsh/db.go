@@ -77,7 +77,7 @@ func onListDatabases(cf *CLIConf) error {
 	}
 	defer proxy.Close()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.DefaultResourceFilter(), tc.SiteName)
+	databases, err := proxy.FindDatabasesByFiltersForCluster(cf.Context, *tc.ResourceFilter(types.KindDatabaseServer), tc.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +139,7 @@ func (l databaseListings) Swap(i, j int) {
 
 func listDatabasesAllClusters(cf *CLIConf) error {
 	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	clusters, err := getClusterClients(cf)
+	clusters, err := getClusterClients(cf, types.KindDatabaseServer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -291,11 +291,10 @@ func onDatabaseLogin(cf *CLIConf) error {
 func checkAndSetDBRouteDefaults(r *tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
-	// user to authenticate the connection as.
-	// Elasticsearch needs database username too.
+	// user to authenticate the connection as Elasticsearch needs database username too.
 	if r.Username == "" {
 		switch r.Protocol {
-		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch, defaults.ProtocolOracle:
+		case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch, defaults.ProtocolOracle, defaults.ProtocolOpenSearch:
 			return trace.BadParameter("please provide the database user name using the --db-user flag")
 		case defaults.ProtocolRedis:
 			// Default to "default" in the same way as Redis does. We need the username to check access on our side.
@@ -881,6 +880,7 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 		var err error
 		databases, err = tc.ListDatabases(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
+			ResourceType:        types.KindDatabaseServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
 		})
 		return trace.Wrap(err)
@@ -1171,7 +1171,10 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
-		if tc.TLSRoutingEnabled {
+		// When TLS routing is enabled and MySQL is listening on the web port,
+		// a local proxy is required to connect. With a separate port, MySQL
+		// does not require a local proxy even if TLS routing is enabled.
+		if tc.TLSRoutingEnabled && tc.DoesDatabaseUseWebProxyHostPort(*route) {
 			out.addLocalProxy(fmt.Sprintf("%v and %v",
 				formatDBProtocolReason(route.Protocol),
 				formatTLSRoutingReason(tc.SiteName)))
@@ -1191,10 +1194,10 @@ func withConnectRequirements(ctx context.Context, tc *client.TeleportClient, rou
 			r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 		}
 		switch route.Protocol {
-		case defaults.ProtocolElasticsearch:
-			// ElasticSearch access can work without a local proxy tunnel, but not
-			// via `tsh db connect`.
-			// (elasticsearch-sql-cli cannot be configured to use specific certs).
+		case defaults.ProtocolElasticsearch, defaults.ProtocolOpenSearch:
+			// ElasticSearch and OpenSearch access can work without a local proxy tunnel,
+			// but not via `tsh db connect`.
+			// (elasticsearch-sql-cli and opensearchsql cannot be configured to use specific certs).
 			r.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 		}
 		if r.localProxy && r.tunnel {

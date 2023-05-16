@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
+	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -264,6 +267,9 @@ const (
 	// ComponentAthena represents athena clients.
 	ComponentAthena = "athena"
 
+	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
+	ComponentProxySecureGRPC = "proxy:secure-grpc"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -303,7 +309,7 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
-	// PTY is a raw pty session capture format
+	// PTY is a raw PTY session capture format
 	PTY = "pty"
 
 	// Names is for formatting node names in plain text
@@ -465,6 +471,11 @@ const (
 	// CertExtensionDeviceCredentialID is the identifier for the credential used
 	// by the device to authenticate itself.
 	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
+
+	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
+	// from which this certificate is accepted for authentication.
+	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
+	CertCriticalOptionSourceAddress = "source-address"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -765,6 +776,9 @@ const (
 	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
 	// uses to get the home directory of a remote user.
 	GetHomeDirSubsystem = "gethomedir"
+
+	// SFTPSubsystem is the SFTP SSH subsystem.
+	SFTPSubsystem = "sftp"
 )
 
 // A principal name for use in SSH certificates.

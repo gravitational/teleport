@@ -18,12 +18,7 @@ import PropTypes from 'prop-types';
 import styled from 'styled-components';
 import { fontSize, color, space } from 'styled-system';
 
-import defaultTheme from './../theme';
-
 const defaultValues = {
-  theme: defaultTheme,
-  bg: 'light',
-  color: 'link',
   fontSize: 1,
   px: 3,
 };
@@ -38,11 +33,13 @@ const fromTheme = props => {
     ...space(values),
     ...color(values),
     fontWeight: values.theme.regular,
-    color: values.theme.colors.grey[600],
 
     '&:hover, &:focus': {
-      color: values.theme.colors.link,
-      background: values.theme.colors.grey[50],
+      color: values.theme.colors.text.main,
+      background: values.theme.colors.spotBackground[0],
+    },
+    '&:active': {
+      background: values.theme.colors.spotBackground[1],
     },
   };
 };
@@ -58,6 +55,7 @@ const MenuItem = styled.div`
   overflow: hidden;
   text-decoration: none;
   white-space: nowrap;
+  color: ${props => props.theme.colors.text.main};
 
   &:hover,
   &:focus {

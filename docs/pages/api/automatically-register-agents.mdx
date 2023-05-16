@@ -464,7 +464,7 @@ To launch a new Application Service instance, we will create a **join token**.
 Teleport's services can join a cluster by presenting a token to the Auth
 Service.
 
-The code below generates a join token for a new Applicaiton Service instance:
+The code below generates a join token for a new Application Service instance:
 
 ```go
 func cryptoRandomHex(len int) (string, error) {
@@ -638,7 +638,7 @@ with dots replaced by hyphens.
 
 Next, we create the container. The executable that serves as the container's
 entrypoint is the same one that the `teleport` image uses by default, but with
-additonal flags that launch the container as an Application Service instance and
+additional flags that launch the container as an Application Service instance and
 set it to proxy our RabbitMQ container.
 
 Finally, we use the ID of the container we created to run the container.
@@ -683,7 +683,7 @@ can take some time after stopping an Application Service instance.
 <Admonition type="tip" title="Changing a resource's TTL">
 
 You can change the interval that Teleport will use to check the availability of
-a resource before deregistering it from its backend. To do so, use the
+a resource before de-registering it from its backend. To do so, use the
 `SetExpiry` method of the `types.Resource` interface.
 
 For example, the following `SetExpiry` call configures a `WindowsDesktopV3`
@@ -799,9 +799,6 @@ func newTokenDemoApp() *tokenDemoApp {
 	t, err := teleport.New(ctx, teleport.Config{
 		Addrs:       []string{proxyAddr},
 		Credentials: []teleport.Credentials{creds},
-		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
-		},
 	})
 	if err != nil {
 		panic(err)
@@ -829,10 +826,6 @@ up an API client. Our plugin initializes a Teleport client by calling
 `client.LoadIdentityFile` to obtain a `client.Credentials`. It then uses the
 `client.Credentials` to call `client.New`, which connects to the Teleport Proxy
 Service specified in the `Addrs` field using the provided identity file.
-
-In this example, we are passing the `grpc.WithReturnConnectionError()` function
-call to `client.New`, which instructs the gRPC client to return more detailed
-connection errors.
 
 <Admonition type="warning">
 
@@ -974,5 +967,4 @@ the program you wrote. For production usage, we recommend provisioning
 short-lived credentials via Machine ID, which reduces the risk of these
 credentials becoming stolen. View our [Machine ID
 documentation](../machine-id/introduction.mdx) to learn more.
-
 

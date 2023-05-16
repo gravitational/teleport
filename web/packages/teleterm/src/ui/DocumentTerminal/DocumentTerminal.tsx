@@ -111,6 +111,8 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
       visible={visible}
       flexDirection="column"
       pl={2}
+      // adds some space from the top so the shell content is not covered by a shadow
+      pt={1}
       onContextMenu={attempt.data?.openContextMenu}
       autoFocusDisabled={true}
     >
@@ -145,7 +147,7 @@ function DocumentReconnect(props: {
         alignItems="center"
         mt={100}
       >
-        <Text typography="h5" color="text.primary">
+        <Text typography="h5" color="text.main">
           {message}
         </Text>
         <Flex flexDirection="column" alignItems="center" mx="auto">

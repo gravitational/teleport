@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"path"
 	"strings"
 )
 
@@ -29,10 +28,6 @@ const (
 
 	// ProductionRegistry is the production image registry that hosts are customer facing container images.
 	ProductionRegistry = "public.ecr.aws"
-
-	// ProductionRegistryQuay is the production image registry that hosts images on quay.io. Will be deprecated in the future.
-	// See RFD 73 - https://github.com/gravitational/teleport/blob/c18c09f5d562dd46a509154eab4295ad39decc3c/rfd/0073-public-image-registry.md
-	ProductionRegistryQuay = "quay.io"
 
 	// Go version used by internal tools
 	GoVersion = "1.18"
@@ -334,24 +329,6 @@ func cloneRepoStep(clonePath, commit string) step {
 		Image:    "alpine/git:latest",
 		Pull:     "if-not-exists",
 		Commands: cloneRepoCommands(clonePath, commit),
-	}
-}
-
-func verifyNotPrereleaseStep() step {
-	clonePath := "/tmp/repo"
-	commands := []string{
-		"apk add git",
-	}
-	commands = append(commands, cloneRepoCommands(clonePath, "${DRONE_TAG}")...)
-	commands = append(commands,
-		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
-		"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
-	)
-
-	return step{
-		Name:     "Check if tag is prerelease",
-		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
-		Commands: commands,
 	}
 }
 

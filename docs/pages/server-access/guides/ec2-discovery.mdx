@@ -220,7 +220,6 @@ mainSteps:
     runCommand:
       - /bin/sh /tmp/installTeleport.sh "{{ token }}"
 
-
 4. Attach IAM policies to "yourUser-discovery-role".
 
 Confirm? [y/N]: y
@@ -339,6 +338,8 @@ The `installer` resource has the following templating options:
   installing from the repository.
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
 connect to.
+- `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
+Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
 
 These can be used as follows:
 
@@ -350,6 +351,7 @@ spec:
   script: |
     echo {{ .PublicProxyAddr }}
     echo Teleport-{{ .MajorVersion }}
+    echo Repository Channel: {{ .RepoChannel }}
 version: v1
 ```
 
@@ -359,6 +361,7 @@ with the following contents:
 ```sh
 echo teleport.example.com
 echo Teleport-(=teleport.version=)
+echo Repository Channel: stable/v(=teleport.version=)
 ```
 
 The default installer will take the following actions:
@@ -383,9 +386,34 @@ If Installs are showing failed or instances are failing to appear check the
 Command history in AWS System Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
+### `cannot unmarshal object into Go struct field`
+
+If you encounter an error similar to the following:
+
+```text
+invalid format in plugin properties map[destinationPath:/tmp/installTeleport.sh sourceInfo:map[url:[https://example.teleport.sh:443/webapi/scripts/installer/preprod-installer](https://example.teleport.sh/webapi/scripts/installer/preprod-installer)] sourceType:HTTP];
+error json: cannot unmarshal object into Go struct field DownloadContentPlugin.sourceInfo of type string
+```
+
+It is likely that you're running an older SSM agent version. Upgrade to SSM agent version 3.1 or greater to resolve.
+
+### `InvalidInstanceId: Instances [[i-123]] not in a valid state for account 456`
+
+The following problems can cause this error:
+- The Discovery Service doesn't have permission to access the managed node.
+- AWS Systems Manager Agent (SSM Agent) isn't running. Verify that SSM Agent is running.
+- SSM Agent isn't registered with the SSM endpoint. Try reinstalling SSM Agent.
+- The discovered instance does not have permission to receive SSM
+  commands, verify the instance includes the AmazonSSMManagedInstanceCore IAM policy.
+
+See SSM RunCommand error codes and troubleshooting information in AWS documentation for more details:
+- https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-managed-instances.html
+- https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors
+
 ## Next steps
 
-- Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
+- Read [Joining Nodes via AWS IAM
+  Role](../../management/join-services-to-your-cluster/aws-iam.mdx)
 for more information on IAM Invite Tokens.
 - Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for in the [AWS Cloud Operations & Migrations Blog

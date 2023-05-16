@@ -291,14 +291,15 @@ func (e *Engine) handshake(sessionCtx *common.Session, clientConn, serverConn *p
 		return trace.Wrap(err)
 	}
 	e.handshakeTriggered = true
-	return auth.handleHandshake(clientConn, serverConn)
+	return auth.handleHandshake(e.Context, clientConn, serverConn)
 }
 
 func (e *Engine) getAuth(sessionCtx *common.Session) (handshakeHandler, error) {
 	switch {
 	case sessionCtx.Database.IsAWSHosted():
 		return &authAWSSigV4Auth{
-			ses: sessionCtx,
+			cloudClients: e.CloudClients,
+			ses:          sessionCtx,
 		}, nil
 	default:
 		return &basicHandshake{ses: sessionCtx}, nil

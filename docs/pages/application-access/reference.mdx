@@ -1,6 +1,6 @@
 ---
 title: Application Access Reference Documentation
-description: Configuration and CLI reference documentation for Teleport Application Access.
+description: Configuration and CLI reference documentation for Teleport application access.
 ---
 
 ## Configuration
@@ -93,8 +93,10 @@ spec:
     - "grafana.internal.dev"
     # Headers passthrough configuration.
     headers:
-    - "X-Custom-Header: example"
-    - "X-External-Trait: {{external.env}}"
+    - name: "X-Custom-Header"
+      value: "example"
+    - name: "X-External-Trait"
+      value: "{{external.env}}"
   # Optional dynamic labels.
   dynamic_labels:
   - name: "hostname"
@@ -130,7 +132,7 @@ $ tctl create -f app.yaml
 
 ## CLI
 
-This section shows CLI commands relevant for Application Access.
+This section shows CLI commands relevant for application access.
 
 ### tsh apps ls
 

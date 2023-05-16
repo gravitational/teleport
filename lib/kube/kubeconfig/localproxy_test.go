@@ -86,14 +86,14 @@ func TestLocalProxy(t *testing.T) {
 		}, clusters)
 	})
 
-	t.Run("SaveLocalProxyValues", func(t *testing.T) {
+	t.Run("CreateLocalProxyConfig", func(t *testing.T) {
+		caData := []byte("CAData")
+		clientKeyData := []byte("clientKeyData")
 		values := &LocalProxyValues{
-			LocalProxyCAPaths: map[string]string{
-				rootClusterName: "/path/to/ca",
-			},
+			LocalProxyCAs:           map[string][]byte{rootClusterName: caData},
 			TeleportKubeClusterAddr: rootKubeClusterAddr,
 			LocalProxyURL:           "http://localhost:12345",
-			ClientKeyPath:           "/path/to/key",
+			ClientKeyData:           clientKeyData,
 			Clusters: LocalProxyClusters{{
 				TeleportCluster:   rootClusterName,
 				KubeCluster:       "kube1",
@@ -102,7 +102,10 @@ func TestLocalProxy(t *testing.T) {
 				ImpersonateGroups: []string{"group1", "group2"},
 			}},
 		}
-		require.NoError(t, SaveLocalProxyValues(kubeconfigPath, configAfterLogins, values))
+
+		newConfig := CreateLocalProxyConfig(&initialConfig, values)
+		err := Save(kubeconfigPath, *newConfig)
+		require.NoError(t, err)
 
 		generatedConfig, err := Load(kubeconfigPath)
 		require.NoError(t, err)
@@ -112,12 +115,12 @@ func TestLocalProxy(t *testing.T) {
 
 		// Check for root-cluster-kube1.
 		wantConfig.Clusters["root-cluster-kube1"] = &clientcmdapi.Cluster{
-			ProxyURL:             "http://localhost:12345",
-			Server:               rootKubeClusterAddr,
-			CertificateAuthority: "/path/to/ca",
-			TLSServerName:        "6b75626531.root-cluster",
-			LocationOfOrigin:     kubeconfigPath,
-			Extensions:           map[string]runtime.Object{},
+			ProxyURL:                 "http://localhost:12345",
+			Server:                   rootKubeClusterAddr,
+			CertificateAuthorityData: caData,
+			TLSServerName:            "6b75626531.root-cluster",
+			LocationOfOrigin:         kubeconfigPath,
+			Extensions:               map[string]runtime.Object{},
 		}
 		wantConfig.Contexts["root-cluster-kube1"] = &clientcmdapi.Context{
 			Namespace:        "namespace",
@@ -127,12 +130,12 @@ func TestLocalProxy(t *testing.T) {
 			Extensions:       map[string]runtime.Object{},
 		}
 		wantConfig.AuthInfos["root-cluster-kube1"] = &clientcmdapi.AuthInfo{
-			ClientCertificate: "/path/to/ca",
-			ClientKey:         "/path/to/key",
-			Impersonate:       "as",
-			ImpersonateGroups: []string{"group1", "group2"},
-			LocationOfOrigin:  kubeconfigPath,
-			Extensions:        map[string]runtime.Object{},
+			ClientCertificateData: caData,
+			ClientKeyData:         clientKeyData,
+			Impersonate:           "as",
+			ImpersonateGroups:     []string{"group1", "group2"},
+			LocationOfOrigin:      kubeconfigPath,
+			Extensions:            map[string]runtime.Object{},
 		}
 
 		// Current context is updated.

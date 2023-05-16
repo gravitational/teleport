@@ -13,6 +13,6 @@ roleRef:
   name: {{ .Values.clusterRoleName | default .Release.Name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ template "teleport.serviceAccountName" . }}
+  name: {{ template "teleport-kube-agent.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
 {{- end -}}

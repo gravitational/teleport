@@ -528,6 +528,86 @@ export namespace UIDiscoverResourceSelectionEvent {
     }
 }
 
+export class UIDiscoverIntegrationAWSOIDCConnectEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverIntegrationAWSOIDCConnectEvent): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverIntegrationAWSOIDCConnectEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverIntegrationAWSOIDCConnectEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverIntegrationAWSOIDCConnectEvent, reader: jspb.BinaryReader): UIDiscoverIntegrationAWSOIDCConnectEvent;
+}
+
+export namespace UIDiscoverIntegrationAWSOIDCConnectEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDatabaseRDSEnrollEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRDSEnrollEvent;
+
+    getSelectedResourcesCount(): number;
+    setSelectedResourcesCount(value: number): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDatabaseRDSEnrollEvent): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDatabaseRDSEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDatabaseRDSEnrollEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDatabaseRDSEnrollEvent, reader: jspb.BinaryReader): UIDiscoverDatabaseRDSEnrollEvent;
+}
+
+export namespace UIDiscoverDatabaseRDSEnrollEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+        selectedResourcesCount: number,
+    }
+}
+
 export class UIDiscoverDeployServiceEvent extends jspb.Message { 
 
     hasMetadata(): boolean;
@@ -1021,6 +1101,31 @@ export namespace UICreateNewRoleViewDocumentationClickEvent {
     }
 }
 
+export class UICallToActionClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICallToActionClickEvent;
+
+    getCta(): CTA;
+    setCta(value: CTA): UICallToActionClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICallToActionClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICallToActionClickEvent): UICallToActionClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICallToActionClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICallToActionClickEvent;
+    static deserializeBinaryFromReader(message: UICallToActionClickEvent, reader: jspb.BinaryReader): UICallToActionClickEvent;
+}
+
+export namespace UICallToActionClickEvent {
+    export type AsObject = {
+        userName: string,
+        cta: CTA,
+    }
+}
+
 export class KubeRequestEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): KubeRequestEvent;
@@ -1129,6 +1234,43 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+    }
+}
+
+export class AssistCompletionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistCompletionEvent;
+
+    getConversationId(): string;
+    setConversationId(value: string): AssistCompletionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistCompletionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistCompletionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistCompletionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistCompletionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistCompletionEvent): AssistCompletionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistCompletionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistCompletionEvent;
+    static deserializeBinaryFromReader(message: AssistCompletionEvent, reader: jspb.BinaryReader): AssistCompletionEvent;
+}
+
+export namespace AssistCompletionEvent {
+    export type AsObject = {
+        userName: string,
+        conversationId: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
     }
 }
 
@@ -1359,6 +1501,30 @@ export class SubmitEventRequest extends jspb.Message {
     setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverIntegrationAwsOidcConnectEvent(): boolean;
+    clearUiDiscoverIntegrationAwsOidcConnectEvent(): void;
+    getUiDiscoverIntegrationAwsOidcConnectEvent(): UIDiscoverIntegrationAWSOIDCConnectEvent | undefined;
+    setUiDiscoverIntegrationAwsOidcConnectEvent(value?: UIDiscoverIntegrationAWSOIDCConnectEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDatabaseRdsEnrollEvent(): boolean;
+    clearUiDiscoverDatabaseRdsEnrollEvent(): void;
+    getUiDiscoverDatabaseRdsEnrollEvent(): UIDiscoverDatabaseRDSEnrollEvent | undefined;
+    setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
+
+
+    hasUiCallToActionClickEvent(): boolean;
+    clearUiCallToActionClickEvent(): void;
+    getUiCallToActionClickEvent(): UICallToActionClickEvent | undefined;
+    setUiCallToActionClickEvent(value?: UICallToActionClickEvent): SubmitEventRequest;
+
+
+    hasAssistCompletion(): boolean;
+    clearAssistCompletion(): void;
+    getAssistCompletion(): AssistCompletionEvent | undefined;
+    setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1411,6 +1577,10 @@ export namespace SubmitEventRequest {
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
+        uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
+        uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
+        uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
+        assistCompletion?: AssistCompletionEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1487,6 +1657,14 @@ export namespace SubmitEventRequest {
     AGENT_METADATA_EVENT = 38,
 
     RESOURCE_HEARTBEAT = 39,
+
+    UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
+
+    UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
+
+    UI_CALL_TO_ACTION_CLICK_EVENT = 42,
+
+    ASSIST_COMPLETION = 43,
 
     }
 
@@ -1639,4 +1817,14 @@ export enum DiscoverStatus {
     DISCOVER_STATUS_SKIPPED = 2,
     DISCOVER_STATUS_ERROR = 3,
     DISCOVER_STATUS_ABORTED = 4,
+}
+
+export enum CTA {
+    CTA_UNSPECIFIED = 0,
+    CTA_AUTH_CONNECTOR = 1,
+    CTA_ACTIVE_SESSIONS = 2,
+    CTA_ACCESS_REQUESTS = 3,
+    CTA_PREMIUM_SUPPORT = 4,
+    CTA_TRUSTED_DEVICES = 5,
+    CTA_UPGRADE_BANNER = 6,
 }

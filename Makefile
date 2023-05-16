@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.0.0-dev
+VERSION=14.0.0-dev
 
 DOCKER_IMAGE ?= teleport
 
@@ -37,6 +37,10 @@ TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
 CGOFLAG ?= CGO_ENABLED=1
 
+# RELEASE_DIR is where the release artifacts (tarballs, pacakges, etc) are put. It
+# should be an absolute directory as it is used by e/Makefile too, from the e/ directory.
+RELEASE_DIR := $(CURDIR)/$(BUILDDIR)/artifacts
+
 # When TELEPORT_DEBUG is true, set flags to produce
 # debugger-friendly builds.
 ifeq ("$(TELEPORT_DEBUG)","true")
@@ -45,8 +49,12 @@ else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -75,9 +83,19 @@ PAM_MESSAGE := with-PAM-support
 endif
 endif
 
+# darwin universal (Intel + Apple Silicon combined) binary support
+RELEASE_darwin_arm64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-arm64-bin.tar.gz
+RELEASE_darwin_amd64 = $(RELEASE_DIR)/teleport-$(GITTAG)-darwin-amd64-bin.tar.gz
+BUILDDIR_arm64 = $(BUILDDIR)/arm64
+BUILDDIR_amd64 = $(BUILDDIR)/amd64
+# TARBINS is the path of the binaries in the release tarballs
+TARBINS = $(addprefix teleport/,$(BINS))
+
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 
 # Have cargo use sparse crates.io protocol:
 # https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
@@ -108,6 +126,13 @@ endif
 
 endif
 endif
+
+# Set C_ARCH for building libfido2 and dependencies. ARCH is the Go
+# architecture which uses different names for architectures than C
+# uses. Export it for the build.assets/build-fido2-macos.sh script.
+C_ARCH_amd64 = x86_64
+C_ARCH = $(or $(C_ARCH_$(ARCH)),$(ARCH))
+export C_ARCH
 
 # Enable libfido2 for testing?
 # Eagerly enable if we detect the package, we want to test as much as possible.
@@ -170,10 +195,10 @@ endif
 
 # On Windows only build tsh. On all other platforms build teleport, tctl,
 # and tsh.
-BINARIES=$(BUILDDIR)/teleport $(BUILDDIR)/tctl $(BUILDDIR)/tsh $(BUILDDIR)/tbot
-ifeq ("$(OS)","windows")
-BINARIES=$(BUILDDIR)/tsh
-endif
+BINS_default = teleport tctl tsh tbot
+BINS_windows = tsh
+BINS = $(or $(BINS_$(OS)),$(BINS_default))
+BINARIES = $(addprefix $(BUILDDIR)/,$(BINS))
 
 # Joins elements of the list in arg 2 with the given separator.
 #   1. Element separator.
@@ -235,6 +260,11 @@ BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=exe
 endif
 
 CGOFLAG_TSH ?= $(CGOFLAG)
+
+# Map ARCH into the architecture flag for electron-builder if they
+# are different to the Go $(ARCH) we use as an input.
+ELECTRON_BUILDER_ARCH_amd64 = x64
+ELECTRON_BUILDER_ARCH = $(or $(ELECTRON_BUILDER_ARCH_$(ARCH)),$(ARCH))
 
 #
 # 'make all' builds all 4 executables and places them in the current directory.
@@ -328,6 +358,15 @@ else
 rdpclient:
 endif
 
+# Build libfido2 and dependencies for MacOS. Uses exported C_ARCH variable defined earlier.
+.PHONY: build-fido2
+build-fido2:
+	./build.assets/build-fido2-macos.sh build
+
+.PHONY: print-fido2-pkg-path
+print-fido2-pkg-path:
+	@./build.assets/build-fido2-macos.sh pkg_config_path
+
 #
 # make full - Builds Teleport binaries with the built-in web assets and
 # places them into $(BUILDDIR). On Windows, this target is skipped because
@@ -379,6 +418,11 @@ clean-ui:
 #
 # make release - Produces a binary release tarball.
 #
+
+# RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
+$(RELEASE_DIR):
+	mkdir $@
+
 .PHONY:
 export
 release:
@@ -412,10 +456,10 @@ release-arm64:
 # make build-archive - Packages the results of a build into a release tarball
 #
 .PHONY: build-archive
-build-archive:
+build-archive: | $(RELEASE_DIR)
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
-	cp -rf $(BUILDDIR)/* \
+	cp -rf $(BINARIES) \
 		examples \
 		build.assets/install\
 		README.md \
@@ -423,6 +467,7 @@ build-archive:
 		teleport/
 	echo $(GITTAG) > teleport/VERSION
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
+	cp $(RELEASE).tar.gz $(RELEASE_DIR)
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
 
@@ -438,22 +483,41 @@ include darwin-signing.mk
 
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
-release-darwin-unsigned: clean full build-archive
+release-darwin-unsigned: full build-archive
 
 .PHONY: release-darwin
+ifneq ($(ARCH),universal)
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
 	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+else
 
+# release-darwin for ARCH == universal does not build binaries, but instead
+# combines previously-built binaries. For this, it depends on the ARM64 and
+# AMD64 signed tarballs being built into $(RELEASE_DIR). The dependencies
+# expressed here will not make that happen as this is typically done on CI
+# where these two tarballs are built in separate pipelines, and copied in for
+# the universal build.
 #
-# make release-unix-only - Produces an Enterprise binary release tarball containing
-# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
-#
-.PHONY: release-unix-only
-release-unix-only: clean
+# For local manual runs, create these tarballs with:
+#   make ARCH=arm64 release-darwin
+#   make ARCH=amd64 release-darwin
+# Ensure you have the rust toolchains for these installed by running
+#   make ARCH=arm64 rustup-install-target-toolchain
+#   make ARCH=amd64 rustup-install-target-toolchain
+release-darwin: $(RELEASE_darwin_arm64) $(RELEASE_darwin_amd64)
+	mkdir -p $(BUILDDIR_arm64) $(BUILDDIR_amd64)
+	tar -C $(BUILDDIR_arm64) -xzf $(RELEASE_darwin_arm64) --strip-components=1 $(TARBINS)
+	tar -C $(BUILDDIR_amd64) -xzf $(RELEASE_darwin_amd64) --strip-components=1 $(TARBINS)
+	lipo -create -output $(BUILDDIR)/teleport $(BUILDDIR_arm64)/teleport $(BUILDDIR_amd64)/teleport
+	lipo -create -output $(BUILDDIR)/tctl $(BUILDDIR_arm64)/tctl $(BUILDDIR_amd64)/tctl
+	lipo -create -output $(BUILDDIR)/tsh $(BUILDDIR_arm64)/tsh $(BUILDDIR_amd64)/tsh
+	lipo -create -output $(BUILDDIR)/tbot $(BUILDDIR_arm64)/tbot $(BUILDDIR_amd64)/tbot
+	$(MAKE) ARCH=universal build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+endif
 
 #
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
@@ -521,13 +585,22 @@ release-windows: release-windows-unsigned
 # proper release (a proper release needs the APP_PATH as that points to
 # the complete signed package). See web/packages/teleterm/README.md for
 # details.
-#
+
 .PHONY: release-connect
-release-connect:
+release-connect: | $(RELEASE_DIR)
 	$(eval export CSC_NAME)
 	yarn install --frozen-lockfile
 	yarn build-term
-	yarn package-term -c.extraMetadata.version=$(VERSION)
+	yarn package-term -c.extraMetadata.version=$(VERSION) --$(ELECTRON_BUILDER_ARCH)
+	# Only copy proper builds with tsh.app to $(RELEASE_DIR)
+	# Drop -universal "arch" from dmg name when copying to $(RELEASE_DIR)
+	if [ -n "$$CONNECT_TSH_APP_PATH" ]; then \
+		TARGET_NAME="Teleport Connect-$(VERSION)-$(ARCH).dmg"; \
+		if [ "$(ARCH)" = 'universal' ]; then \
+			TARGET_NAME="$${TARGET_NAME/-universal/}"; \
+		fi; \
+		cp web/packages/teleterm/build/release/"Teleport Connect-$(VERSION)-$(ELECTRON_BUILDER_ARCH).dmg" "$(RELEASE_DIR)/$${TARGET_NAME}"; \
+	fi
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
@@ -769,6 +842,20 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration.json \
+		| $(RENDER_TESTS) -report-by test
+
+#
+# Integration tests that run Kubernetes tests in order to complete successfully
+# are run separately to all other integration tests.
+#
+INTEGRATION_KUBE_REGEX := TestKube.*
+.PHONY: integration-kube
+integration-kube: FLAGS ?= -v -race
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration-kube.json \
 		| $(RENDER_TESTS) -report-by test
 
 #
@@ -1140,23 +1227,25 @@ endif
 
 # build .pkg
 .PHONY: pkg
-pkg:
+pkg: | $(RELEASE_DIR)
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
-	# arch and runtime are currently ignored on OS X
-	# we pass them through for consistency - they will be dropped by the build script
+	# runtime is currently ignored on OS X
+	# we pass it through for consistency - it will be dropped by the build script
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cp $(BUILDDIR)/teleport-*.pkg $(RELEASE_DIR)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
-pkg-tsh:
+pkg-tsh: | $(RELEASE_DIR)
 	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) $(TARBALL_PATH_SECTION)
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) -a $(ARCH) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
+	cp $(BUILDDIR)/tsh-*.pkg $(RELEASE_DIR)
 
 # build .rpm
 .PHONY: rpm
@@ -1241,3 +1330,13 @@ build-ui-e: ensure-js-deps
 .PHONY: docker-ui
 docker-ui:
 	$(MAKE) -C build.assets ui
+
+# rustup-install-target-toolchain ensures the required rust compiler is
+# installed to build for $(ARCH)/$(OS) for the version of rust we use, as
+# defined in build.assets/Makefile. It assumes that `rustup` is already
+# installed for managing the rust toolchain.
+.PHONY: rustup-install-target-toolchain
+rustup-install-target-toolchain: RUST_VERSION := $(shell $(MAKE) --no-print-directory -C build.assets print-rust-version)
+rustup-install-target-toolchain:
+	rustup override set $(RUST_VERSION)
+	rustup target add $(RUST_TARGET_ARCH)

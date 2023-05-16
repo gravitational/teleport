@@ -95,7 +95,7 @@ export function UserJobRole(props: UserJobRoleProps) {
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             <Close fontSize={5} />
           </ButtonIcon>
@@ -140,7 +140,7 @@ const DarkInput = styled(Input)`
   background: inherit;
   border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
   box-shadow: none;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
@@ -148,6 +148,6 @@ const DarkInput = styled(Input)`
 
   ::placeholder {
     opacity: 1;
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
   }
 `;

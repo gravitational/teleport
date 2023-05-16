@@ -19,6 +19,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -62,11 +64,16 @@ type TunnelAuthDialerConfig struct {
 	Log logrus.FieldLogger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// ClusterCAs contains cluster CAs.
+	ClusterCAs *x509.CertPool
 }
 
 func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	if c.Resolver == nil {
 		return trace.BadParameter("missing tunnel address resolver")
+	}
+	if c.ClusterCAs == nil {
+		return trace.BadParameter("missing cluster CAs")
 	}
 	return nil
 }
@@ -91,8 +98,14 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
-		opts = append(opts, proxy.WithALPNDialer(&tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
+			TLSConfig: &tls.Config{
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				InsecureSkipVerify: t.InsecureSkipTLSVerify,
+			},
+			DialTimeout:             t.ClientConfig.Timeout,
+			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
 		}))
 	}
 
@@ -164,6 +177,12 @@ type transport struct {
 
 	// proxySigner is used to sign PROXY headers and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
+
+	// forwardClientAddress indicates whether we should take into account ClientSrcAddr/ClientDstAddr on incoming
+	// dial request. If false, we ignore those fields and take address from the parent ssh connection. It allows
+	// preventing users connecting to the proxy tunnel listener spoofing their address; but we are still able to
+	// correctly propagate client address in reverse tunnel agents of nodes/services.
+	forwardClientAddress bool
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -201,6 +220,24 @@ func (p *transport) start() {
 		p.reply(req, false, []byte(err.Error()))
 		return
 	}
+
+	if !p.forwardClientAddress {
+		// This shouldn't happen in normal operation. Either malicious user or misconfigured client.
+		if dreq.ClientSrcAddr != "" || dreq.ClientDstAddr != "" {
+			p.log.Warnf("Received unexpected dial request with client source address %q, "+
+				"client destination address %q, when they should be empty.", dreq.ClientSrcAddr, dreq.ClientDstAddr)
+		}
+
+		// Make sure address fields are overwritten.
+		if p.sconn != nil {
+			dreq.ClientSrcAddr = p.sconn.RemoteAddr().String()
+			dreq.ClientDstAddr = p.sconn.LocalAddr().String()
+		} else {
+			dreq.ClientSrcAddr = ""
+			dreq.ClientDstAddr = ""
+		}
+	}
+
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v], from %v.", dreq.Address, dreq.ServerID, dreq.ClientSrcAddr)
 
 	// directAddress will hold the address of the node to dial to, if we don't
@@ -426,11 +463,13 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
+		// Connections to applications (including Okta applications) and databases should never occur over
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.OktaTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
 		case types.DatabaseTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}

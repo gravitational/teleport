@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS DynamoDB
-description: How to access AWS DynamoDB with Teleport Database Access
+description: How to access AWS DynamoDB with Teleport database access
 ---
 
 Access to AWS DynamoDB can be provided by [Teleport Database
@@ -44,10 +44,10 @@ organization's access conventions. You should adjust the AWS IAM permissions to 
 ## Step 1/4. Create IAM roles for DynamoDB access
 
 The setup described in this guide requires two IAM roles:
-- One associated with the EC2 instance running the Teleport Database Access
-  service, which lets it assume additional roles granted to the user.
-- One that can be assumed by the EC2 instance role and grants access to
-  DynamoDB services to users.
+- One associated with the EC2 instance running the Teleport Database Service,
+  which lets it assume additional roles granted to the user.
+- One that can be assumed by the EC2 instance role and grants access to DynamoDB
+  services to users.
 
 ### EC2 instance role
 
@@ -159,8 +159,9 @@ many instances, consider alternative methods for joining new EC2 instances runni
 Teleport:
 
 - [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
-- [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
-- [Joining Nodes via AWS EC2 Identity Document](../../management/guides/joining-nodes-aws-ec2.mdx)
+- [Joining Nodes via AWS IAM
+  Role](../../management/join-services-to-your-cluster/aws-iam.mdx)
+- [Joining Nodes via AWS EC2 Identity Document](../../management/join-services-to-your-cluster/aws-ec2.mdx)
 
 </Details>
 
@@ -196,9 +197,6 @@ teleport:
   auth_token: (=presets.tokens.first=)
 db_service:
   enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
   # Lists statically registered databases proxied by this agent.
   databases:
     - name: "example-dynamodb"
@@ -217,26 +215,7 @@ Substitute `teleport.example.com` with the address of your Teleport Proxy Servic
 (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
 Replace the value of `auth_token` with the token generated in the previous step.
 
-Now start the Teleport Database Service:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 4/4 Connect
 

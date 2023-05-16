@@ -1,6 +1,6 @@
 ---
 title: Database Access with MySQL on GCP Cloud SQL
-description: How to configure Teleport Database Access with GCP Cloud SQL MySQL.
+description: How to configure Teleport database access with GCP Cloud SQL MySQL.
 ---
 
 This guide will help you to:
@@ -22,7 +22,7 @@ This guide will help you to:
 
 <Notice type="warning">
 
-Teleport Database Access for Cloud SQL MySQL is available starting from the
+Teleport database access for Cloud SQL MySQL is available starting from the
 `7.0` release.
 
 </Notice>
@@ -129,8 +129,8 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 ## Step 4/5. Set up the Teleport Database service
 
-Below is an example of a database service configuration file that proxies
-a single Cloud SQL MySQL database:
+Below is an example of a Database Service configuration file that proxies
+a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -224,15 +224,11 @@ proxy_service:
   title="Tip"
 >
   A single Teleport process can run multiple different services, for example
-  multiple Database Access instances as well as other services such the SSH
+  multiple Database Service instances as well as other services such the SSH
   Service or Application Service.
 </Admonition>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ### GCP credentials
 

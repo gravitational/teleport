@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events
+package events_test
 
 import (
 	"context"
@@ -31,7 +31,8 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,16 +70,16 @@ func TestLogRotation(t *testing.T) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		event := &events.Resize{
-			Metadata:     events.Metadata{Type: "resize", Time: now},
+		event := &apievents.Resize{
+			Metadata:     apievents.Metadata{Type: "resize", Time: now},
 			TerminalSize: "10:10",
 		}
 		err := alog.EmitAuditEvent(ctx, event)
 		require.NoError(t, err)
-		logfile := alog.localLog.file.Name()
+		logfile := alog.CurrentFile()
 
 		// make sure that file has the same date as the event
-		dt, err := parseFileTime(filepath.Base(logfile))
+		dt, err := events.ParseFileTime(filepath.Base(logfile))
 		require.NoError(t, err)
 		require.Equal(t, time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), dt)
 
@@ -91,19 +92,26 @@ func TestLogRotation(t *testing.T) {
 		require.Equal(t, string(bytes), string(contents))
 
 		// read back the contents using symlink
-		bytes, err = os.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
+		bytes, err = os.ReadFile(alog.CurrentFileSymlink())
 		require.NoError(t, err)
 		require.Equal(t, string(bytes), string(contents))
 
-		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
+		found, _, err := alog.SearchEvents(
+			now.Add(-time.Hour),
+			now.Add(time.Hour),
+			apidefaults.Namespace,
+			nil, // event types
+			0,   // limit
+			types.EventOrderAscending,
+			"") // start key
 		require.NoError(t, err)
 		require.Len(t, found, 1)
 	}
 }
 
 func TestConcurrentStreaming(t *testing.T) {
-	uploader := NewMemoryUploader()
-	alog, err := NewAuditLog(AuditLogConfig{
+	uploader := eventstest.NewMemoryUploader()
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       t.TempDir(),
 		Clock:         clockwork.NewFakeClock(),
 		ServerID:      "remote",
@@ -149,35 +157,35 @@ func TestConcurrentStreaming(t *testing.T) {
 }
 
 func TestExternalLog(t *testing.T) {
-	m := &mockAuditLog{
-		emitter: eventstest.MockEmitter{},
+	m := &eventstest.MockAuditLog{
+		Emitter: &eventstest.MockEmitter{},
 	}
 
 	fakeClock := clockwork.NewFakeClock()
-	alog, err := NewAuditLog(AuditLogConfig{
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       t.TempDir(),
 		Clock:         fakeClock,
 		ServerID:      "remote",
-		UploadHandler: NewMemoryUploader(),
+		UploadHandler: eventstest.NewMemoryUploader(),
 		ExternalLog:   m,
 	})
 	require.NoError(t, err)
 	defer alog.Close()
 
-	evt := &events.SessionConnect{}
+	evt := &apievents.SessionConnect{}
 	require.NoError(t, alog.EmitAuditEvent(context.Background(), evt))
 
-	require.Len(t, m.emitter.Events(), 1)
-	require.Equal(t, m.emitter.Events()[0], evt)
+	require.Len(t, m.Emitter.Events(), 1)
+	require.Equal(t, m.Emitter.Events()[0], evt)
 }
 
-func makeLog(t *testing.T, clock clockwork.Clock) *AuditLog {
-	alog, err := NewAuditLog(AuditLogConfig{
+func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
+	alog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:       t.TempDir(),
 		ServerID:      "server1",
 		Clock:         clock,
 		UIDGenerator:  utils.NewFakeUID(),
-		UploadHandler: NewMemoryUploader(),
+		UploadHandler: eventstest.NewMemoryUploader(),
 	})
 	require.NoError(t, err)
 

@@ -144,7 +144,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	for {
 		select {
 		case <-periodic.Next():
-			if err := u.checkUploads(ctx); err != nil {
+			if err := u.CheckUploads(ctx); err != nil {
 				u.log.WithError(err).Warningf("Failed to check uploads.")
 			}
 		case <-u.closeC:
@@ -155,8 +155,8 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	}
 }
 
-// checkUploads fetches uploads and completes any abandoned uploads
-func (u *UploadCompleter) checkUploads(ctx context.Context) error {
+// CheckUploads fetches uploads and completes any abandoned uploads
+func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	uploads, err := u.cfg.Uploader.ListUploads(ctx)
 	if err != nil {
 		return trace.Wrap(err)

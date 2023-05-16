@@ -17,27 +17,22 @@
 package native
 
 import (
-	"errors"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
-// trace.NotImplemented avoided on purpose: we use NotImplemented errors to
-// detect the lack of a server-side Device Trust implementation.
-var errPlatformNotSupported = errors.New("platform not supported")
-
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }

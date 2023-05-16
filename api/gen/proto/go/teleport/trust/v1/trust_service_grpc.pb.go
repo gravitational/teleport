@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/trust/v1/trust_service.proto
 
-package v1
+package trustv1
 
 import (
 	context "context"

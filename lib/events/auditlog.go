@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -643,7 +644,7 @@ func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 	for {
 		out, err := l.getSessionChunk(namespace, sid, offsetBytes, maxBytes)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return data, nil
 			}
 			return nil, trace.Wrap(err)
@@ -868,6 +869,18 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event apievents.AuditEven
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// CurrentFileSymlink returns the path to the symlink pointing at the current
+// local file being used for logging.
+func (l *AuditLog) CurrentFileSymlink() string {
+	return filepath.Join(l.localLog.SymlinkDir, SymlinkFilename)
+}
+
+// CurrentFile returns the path to the current local file
+// being used for logging.
+func (l *AuditLog) CurrentFile() string {
+	return l.localLog.file.Name()
 }
 
 // auditDirs returns directories used for audit log storage

@@ -16,6 +16,15 @@ limitations under the License.
 
 import { AuthType } from 'teleport/services/user';
 
+// TODO(ravicious): Refactor teleport.e and teleterm.e to import pluralize from shared/utils/text
+// and remove this temporary reexport.
+export {
+  /**
+   * @deprecated Import pluralize from `shared/utils/text` instead.
+   */
+  pluralize,
+} from 'shared/utils/text';
+
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');
   element.setAttribute('href', `${url}`);
@@ -26,14 +35,6 @@ export const openNewTab = (url: string) => {
   element.click();
   document.body.removeChild(element);
 };
-
-export function pluralize(num: number, word: string) {
-  if (num > 1) {
-    return `${word}s`;
-  }
-
-  return word;
-}
 
 // Adapted from https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#converting_a_digest_to_a_hex_string
 export async function Sha256Digest(

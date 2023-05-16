@@ -24,7 +24,7 @@ import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
-export default function useGateway(doc: types.DocumentGateway) {
+export function useDocumentGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
   const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
@@ -37,9 +37,6 @@ export default function useGateway(doc: types.DocumentGateway) {
   const defaultPort = doc.port || '';
   const gateway = ctx.clustersService.findGateway(doc.gatewayUri);
   const connected = !!gateway;
-  const rootCluster = ctx.clustersService.findRootClusterByResource(
-    doc.targetUri
-  );
   const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
@@ -67,6 +64,7 @@ export default function useGateway(doc: types.DocumentGateway) {
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {
     await ctx.clustersService.removeGateway(doc.gatewayUri);
+    workspaceDocumentsService.close(doc.uri);
   });
 
   const [changeDbNameAttempt, changeDbName] = useAsync(async (name: string) => {
@@ -93,18 +91,6 @@ export default function useGateway(doc: types.DocumentGateway) {
     });
   });
 
-  const reconnect = (port: string) => {
-    if (rootCluster.connected) {
-      createGateway(port);
-      return;
-    }
-
-    ctx.commandLauncher.executeCommand('cluster-connect', {
-      clusterUri: rootCluster.uri,
-      onSuccess: () => createGateway(doc.port),
-    });
-  };
-
   const runCliCommand = () => {
     const { rootClusterId, leafClusterId } = routing.parseClusterUri(
       cluster.uri
@@ -116,22 +102,17 @@ export default function useGateway(doc: types.DocumentGateway) {
     });
   };
 
-  useEffect(() => {
-    if (disconnectAttempt.status === 'success') {
-      workspaceDocumentsService.close(doc.uri);
-    }
-  }, [disconnectAttempt.status]);
-
-  const shouldCreateGateway =
-    rootCluster.connected && !connected && connectAttempt.status === '';
-
   useEffect(
-    function createGatewayOnDocumentOpen() {
-      if (shouldCreateGateway) {
+    function createGatewayOnMount() {
+      // Since the user can close DocumentGateway without shutting down the gateway, it's possible
+      // to open DocumentGateway while the gateway is already running. In that scenario, we must
+      // not attempt to create a gateway.
+      if (!gateway && connectAttempt.status === '') {
         createGateway(doc.port);
       }
     },
-    [shouldCreateGateway]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   return {
@@ -139,8 +120,10 @@ export default function useGateway(doc: types.DocumentGateway) {
     defaultPort,
     disconnect,
     connected,
-    reconnect,
+    reconnect: createGateway,
     connectAttempt,
+    // TODO(ravicious): Show disconnectAttempt errors in UI.
+    disconnectAttempt,
     runCliCommand,
     changeDbName,
     changeDbNameAttempt,

@@ -1,6 +1,6 @@
 ---
 authors: Hugo Hervieux (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0094 - Kubernetes node joining
@@ -26,7 +26,7 @@ without user interaction and without compromising the cluster security (no
 long-lived tokens).  Proxy nodes can be automatically created or deleted (by a
 Kubernetes HPA for example).
 
-User Motivation: 
+User Motivation:
 
 - As new Teleport adopter, I want to deploy a working, secure and highly
   available Teleport cluster on Kubernetes, with a single Helm command and as
@@ -95,7 +95,7 @@ In this approach, proxy certificates are delivered by MachineID.
 flowchart LR
     cluster[Teleport cluster]
     tBot
-    stateA 
+    stateA
     podA
     stateB
     podB
@@ -178,7 +178,7 @@ failure modes.
 The first approach seems the more robust, leverages previous work with
 ProvisionTokens and provides very solid security guarantees for Kubernetes 1.20+.
 MachineID would also benefit from it as `tBot` would be easily deployed in a
-Kubernetes cluster hosting a Teleport cluster. 
+Kubernetes cluster hosting a Teleport cluster.
 
 ### Implementation details
 

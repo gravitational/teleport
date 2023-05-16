@@ -573,8 +573,22 @@ func (s *Server) Serve() {
 		return
 	}
 
+	// OpenSSH nodes don't support moderated sessions, send an error to
+	// the user and gracefully fail the user is attempting to create one.
+	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		policySets := s.identityContext.AccessChecker.SessionPolicySets()
+		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
+		if evaluator.IsModerated() {
+			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
+			sconn.Close()
+
+			s.log.Debugf("Dropping connection to %s@%s that needs moderation", sconn.User(), s.clientConn.RemoteAddr())
+			return
+		}
+	}
+
 	// Connect and authenticate to the remote node.
-	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
+	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
 	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
@@ -957,9 +971,13 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 
 	scx.RemoteClient = s.remoteClient
 	scx.ChannelType = teleport.ChanSession
+	// Allow file copying at the server level as controlling node-wide
+	// file copying isn't supported for OpenSSH nodes. Users not allowed
+	// to copy files will still get checked and denied properly.
+	scx.SetAllowFileCopying(true)
 	defer scx.Close()
 
-	// Create a "session" channel on the remote host.  Note that we
+	// Create a "session" channel on the remote host. Note that we
 	// create the remote session channel before accepting the local
 	// channel request; this allows us to propagate the rejection
 	// reason/message in the event the channel is rejected.
@@ -1161,6 +1179,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		ctx.AddCloser(userAgent)
 	}
 
 	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
@@ -1279,6 +1298,13 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	subsystem, err := parseSubsystemRequest(req, serverContext)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// if SFTP was requested, check that
+	if subsystem.subsytemName == teleport.SFTPSubsystem {
+		if err := serverContext.CheckSFTPAllowed(s.sessionRegistry); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// start the requested subsystem, if it fails to start return result right away

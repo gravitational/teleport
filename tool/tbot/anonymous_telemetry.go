@@ -28,8 +28,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
 )
 
@@ -54,7 +54,7 @@ func telemetryEnabled(envGetter envGetter) bool {
 	return false
 }
 
-func telemetryClient(envGetter envGetter) prehogv1c.TbotReportingServiceClient {
+func telemetryClient(envGetter envGetter) prehogv1ac.TbotReportingServiceClient {
 	// Override the default value using TELEPORT_ANONYMOUS_TELEMETRY_ADDRESS
 	// environment variable.
 	// staging: https://reporting-tbot-staging.teleportinfra.dev
@@ -63,7 +63,7 @@ func telemetryClient(envGetter envGetter) prehogv1c.TbotReportingServiceClient {
 		endpoint = env
 	}
 
-	return prehogv1c.NewTbotReportingServiceClient(
+	return prehogv1ac.NewTbotReportingServiceClient(
 		http.DefaultClient, endpoint,
 	)
 }
@@ -73,7 +73,7 @@ func telemetryClient(envGetter envGetter) prehogv1c.TbotReportingServiceClient {
 // identifiable information.
 func sendTelemetry(
 	ctx context.Context,
-	client prehogv1c.TbotReportingServiceClient,
+	client prehogv1ac.TbotReportingServiceClient,
 	envGetter envGetter,
 	log logrus.FieldLogger,
 	cfg *config.BotConfig,
@@ -85,8 +85,8 @@ func sendTelemetry(
 	}
 	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 
-	data := &prehogv1.TbotStartEvent{
-		RunMode: prehogv1.TbotStartEvent_RUN_MODE_DAEMON,
+	data := &prehogv1a.TbotStartEvent{
+		RunMode: prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
 		// Default to reporting the "token" join method to account for
 		// scenarios where initial join has onboarding configured but future
 		// starts renew using credentials.
@@ -94,7 +94,7 @@ func sendTelemetry(
 		Version:  teleport.Version,
 	}
 	if cfg.Oneshot {
-		data.RunMode = prehogv1.TbotStartEvent_RUN_MODE_ONE_SHOT
+		data.RunMode = prehogv1a.TbotStartEvent_RUN_MODE_ONE_SHOT
 	}
 	if helper := envGetter(helperEnv); helper != "" {
 		data.Helper = helper
@@ -117,10 +117,10 @@ func sendTelemetry(
 	}
 
 	distinctID := uuid.New().String()
-	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&prehogv1.SubmitTbotEventRequest{
+	_, err := client.SubmitTbotEvent(ctx, connect.NewRequest(&prehogv1a.SubmitTbotEventRequest{
 		DistinctId: distinctID,
 		Timestamp:  timestamppb.New(start),
-		Event:      &prehogv1.SubmitTbotEventRequest_Start{Start: data},
+		Event:      &prehogv1a.SubmitTbotEventRequest_Start{Start: data},
 	}))
 	if err != nil {
 		return trace.Wrap(err)

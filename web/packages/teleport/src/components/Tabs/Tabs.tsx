@@ -29,35 +29,58 @@ export function Tabs({ tabs }: Props) {
           // Only applies to chrome and safari as firefox uses
           // overlay scrollbars.
           ::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
           }
         `}
       >
         {tabs.map((tab, index) => {
           const isActive = index === currContentIndex;
           return (
-            <Box
-              as="button"
-              key={index}
-              onClick={() => setCurrContentIndex(index)}
-              py={3}
-              px={4}
-              borderTopLeftRadius={2}
-              borderTopRightRadius={2}
-              bg={isActive ? 'rgba(255, 255, 255, 0.05)' : 'transparent'}
-              css={`
-                opacity: ${isActive ? 1 : 0.6};
-                color: inherit;
-                border: none;
-                :hover,
-                :focus {
-                  cursor: pointer;
-                  opacity: 1;
-                }
-              `}
-            >
-              {tab.title}
-            </Box>
+            <React.Fragment key={index}>
+              {isActive ? (
+                <Box
+                  as="button"
+                  onClick={() => setCurrContentIndex(index)}
+                  py={3}
+                  px={4}
+                  borderTopLeftRadius={2}
+                  borderTopRightRadius={2}
+                  css={`
+                    color: inherit;
+                    border: none;
+                    background: ${props =>
+                      props.theme.colors.spotBackground[0]};
+                    :hover,
+                    :focus {
+                      cursor: pointer;
+                      opacity: 1;
+                    }
+                  `}
+                >
+                  {tab.title}
+                </Box>
+              ) : (
+                <Box
+                  as="button"
+                  onClick={() => setCurrContentIndex(index)}
+                  py={3}
+                  px={4}
+                  borderTopLeftRadius={2}
+                  borderTopRightRadius={2}
+                  css={`
+                    color: inherit;
+                    border: none;
+                    background: transparent;
+                    :hover,
+                    :focus {
+                      cursor: pointer;
+                      opacity: 1;
+                    }
+                  `}
+                >
+                  {tab.title}
+                </Box>
+              )}
+            </React.Fragment>
           );
         })}
       </Flex>
@@ -65,7 +88,9 @@ export function Tabs({ tabs }: Props) {
         p={2}
         borderBottomLeftRadius={2}
         borderBottomRightRadius={2}
-        bg="rgba(255, 255, 255, 0.05)"
+        css={`
+          background: ${props => props.theme.colors.spotBackground[0]};
+        `}
       >
         {tabs[currContentIndex].content}
       </Box>

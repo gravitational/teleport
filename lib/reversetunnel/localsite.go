@@ -400,6 +400,10 @@ func (s *localSite) dialAndForward(params DialParams) (_ net.Conn, retErr error)
 		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
 	}
+	// Ensure the hostname is set correctly if we have details of the target
+	if params.TargetServer != nil {
+		serverConfig.TargetHostname = params.TargetServer.GetHostname()
+	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -454,7 +458,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)

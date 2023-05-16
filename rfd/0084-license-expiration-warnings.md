@@ -1,5 +1,6 @@
 ---
 authors: edwarddowling (edward.dowling@goteleport.com), r0mant (roman@goteleport.com)
+state: implemented
 ---
 
 
@@ -30,7 +31,7 @@ License warning should be displayed in both Web UI and CLI (tsh/tctl).
 
 ### CLI UX
 
-License warnings should be displayed in CLI (tsh/tctl) 
+License warnings should be displayed in CLI (tsh/tctl)
 
 TSH - on “tsh login” and "tsh status"
 When the user uses the “tsh login” command the appropriate license warning will be displayed. (see examples below)
@@ -74,12 +75,12 @@ Your Teleport Enterprise Edition license will expire in 10 days on instance Inst
 
 ```
 $ build/tctl status -c /home/edward/teleport/teleport.yaml
-Cluster  localhost                                                               
-Version  10.1.2                                                                  
-host CA  never updated                                                           
-user CA  never updated                                                           
-db CA    never updated                                                           
-jwt CA   never updated                                                           
+Cluster  localhost
+Version  10.1.2
+host CA  never updated
+user CA  never updated
+db CA    never updated
+jwt CA   never updated
 CA pin   sha256:3d72102f020146d09ff400810f59f70b8163ebfe6ec1ecfb0b3b2a0c151592
 
 Your Teleport Enterprise Edition license has expired on instance InstanceName. Please reach out to [licenses@goteleport.com](mailto:licenses@goteleport.com) to obtain a new license. Inaction may lead to unplanned outage or degraded performance and support.
@@ -176,4 +177,3 @@ message ClusterAlertSpec {
 ## Security considerations
 If your license expired, you can’t disable or snooze the warning.
 Users could avoid seeing this warning by passing the output of the CLI through a program that strips the warning from it.
-

@@ -6,6 +6,7 @@ TELEPORT_TYPE=''     # -t, oss or ent
 TELEPORT_VERSION=''  # -v, version, without leading 'v'
 TARBALL_DIRECTORY='' # -s
 BUNDLEID="${TSH_BUNDLEID}"
+PACKAGE_ARCH=amd64   # -a, default to amd64 for backward-compatibilty.
 
 usage() {
   log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
@@ -35,7 +36,7 @@ main() {
   . "$buildassets/build-common.sh"
 
   local opt=''
-  while getopts "t:v:s:b:n" opt; do
+  while getopts "t:v:s:b:a:n" opt; do
     case "$opt" in
       t)
         if [[ "$OPTARG" != "oss" && "$OPTARG" != "ent" ]]; then
@@ -57,6 +58,9 @@ main() {
         ;;
       b)
         BUNDLEID="$OPTARG"
+        ;;
+      a)
+        PACKAGE_ARCH="$OPTARG"
         ;;
       n)
         DRY_RUN_PREFIX='echo + '  # declared by build-common.sh
@@ -119,8 +123,8 @@ of the key to sign packages"
   [[ "$TELEPORT_TYPE" == 'ent' ]] && ent='-ent'
   local tarname=''
   tarname="$(printf \
-    "teleport%s-v%s-darwin-amd64-bin.tar.gz" \
-    "$ent" "$TELEPORT_VERSION")"
+    "teleport%s-v%s-darwin-%s-bin.tar.gz" \
+    "$ent" "$TELEPORT_VERSION" "$PACKAGE_ARCH")"
   [[ -n "$TARBALL_DIRECTORY" ]] && tarname="$TARBALL_DIRECTORY/$tarname"
 
   tarout='' # find_or_fetch_tarball writes to this
@@ -165,7 +169,12 @@ of the key to sign packages"
 
   # Prepare and sign the installer package.
   # Note that the installer does __NOT__ have a `v` in the version number.
-  target="$tmp/tsh-$TELEPORT_VERSION.pkg" # switches from app to pkg
+  # The package for the universal binary does not have an architecture in the name.
+  local arch_tag=""
+  if [[ "$PACKAGE_ARCH" != "universal" ]]; then
+    arch_tag="-$PACKAGE_ARCH"
+  fi
+  target="$tmp/tsh-$TELEPORT_VERSION$arch_tag.pkg" # switches from app to pkg
   local pkg_root="$tmp/root"
   local pkg_component_plist="$tmp/tsh-component.plist"
   local pkg_scripts="$buildassets/macos/scripts"

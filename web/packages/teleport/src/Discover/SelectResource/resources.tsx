@@ -24,7 +24,6 @@ import {
   DATABASES_UNGUIDED_DOC,
 } from './databases';
 import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
-import { icons } from './icons';
 
 const baseServerKeywords = 'server node';
 export const SERVERS: ResourceSpec[] = [
@@ -32,35 +31,35 @@ export const SERVERS: ResourceSpec[] = [
     name: 'Ubuntu 14.04+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'ubuntu',
-    Icon: icons.Linux,
+    icon: 'Linux',
     event: DiscoverEventResource.Server,
   },
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'debian',
-    Icon: icons.Linux,
+    icon: 'Linux',
     event: DiscoverEventResource.Server,
   },
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'rhel centos',
-    Icon: icons.Linux,
+    icon: 'Linux',
     event: DiscoverEventResource.Server,
   },
   {
     name: 'Amazon Linux 2',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'amazon linux',
-    Icon: icons.Aws,
+    icon: 'Aws',
     event: DiscoverEventResource.Server,
   },
   {
     name: 'macOS (Intel)',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'mac macos intel',
-    Icon: icons.Apple,
+    icon: 'Apple',
     event: DiscoverEventResource.Server,
   },
 ];
@@ -70,7 +69,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     name: 'Application',
     kind: ResourceKind.Application,
     keywords: 'application',
-    Icon: icons.Application,
+    icon: 'Application',
     unguidedLink:
       'https://goteleport.com/docs/application-access/getting-started/',
     event: DiscoverEventResource.ApplicationHttp,
@@ -82,7 +81,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     name: 'Active Directory',
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop active directory ad',
-    Icon: icons.Windows,
+    icon: 'Windows',
     event: DiscoverEventResource.WindowsDesktop,
   },
   // {
@@ -99,7 +98,7 @@ export const KUBERNETES: ResourceSpec[] = [
     name: 'Kubernetes',
     kind: ResourceKind.Kubernetes,
     keywords: 'kubernetes cluster kubes',
-    Icon: icons.Kube,
+    icon: 'Kube',
     event: DiscoverEventResource.Kubernetes,
   },
 ];

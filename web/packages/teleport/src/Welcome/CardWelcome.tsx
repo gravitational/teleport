@@ -21,7 +21,7 @@ export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
     <Card bg="levels.surface" my={6} mx="auto" width="464px">
       <Box p={6}>
-        <Text typography="h2" mb={3} textAlign="center" color="light">
+        <Text typography="h2" mb={3} textAlign="center" color="text.main">
           {title}
         </Text>
         <Text typography="h5" mb={3} textAlign="center">

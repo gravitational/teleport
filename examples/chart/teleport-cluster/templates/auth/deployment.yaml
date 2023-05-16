@@ -1,5 +1,6 @@
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
+{{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,7 +66,7 @@ spec:
                   - key: app.kubernetes.io/component
                     operator: In
                     values:
-                      - proxy
+                      - auth
               topologyKey: "kubernetes.io/hostname"
   {{- else if $replicated }}
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -80,7 +81,7 @@ spec:
                     - key: app.kubernetes.io/component
                       operator: In
                       values:
-                        - proxy
+                        - auth
                 topologyKey: "kubernetes.io/hostname"
   {{- end }}
 {{- end }}
@@ -115,6 +116,11 @@ spec:
             readOnly: true
           - mountPath: /var/lib/teleport
             name: "data"
+    {{- if $projectedServiceAccountToken }}
+          - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: auth-serviceaccount-token
+            readOnly: true
+    {{- end }}
     {{- if $auth.extraVolumeMounts }}
       {{- toYaml $auth.extraVolumeMounts | nindent 10 }}
     {{- end }}
@@ -214,6 +220,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+{{- if $projectedServiceAccountToken }}
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: auth-serviceaccount-token
+          readOnly: true
+{{- end }}
 {{- if $auth.extraVolumeMounts }}
   {{- toYaml $auth.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -243,8 +254,35 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+  {{- if $projectedServiceAccountToken }}
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: auth-serviceaccount-token
+          readOnly: true
+  {{- end }}
 {{ end }}
+{{- if $projectedServiceAccountToken }}
+      automountServiceAccountToken: false
+{{- end }}
       volumes:
+{{- if $projectedServiceAccountToken }}
+      # This projected token volume mimics the `automountServiceAccountToken`
+      # behaviour but defaults to a 1h TTL instead of 1y.
+      - name: auth-serviceaccount-token
+        projected:
+          sources:
+            - serviceAccountToken:
+                path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                  - path: "namespace"
+                    fieldRef:
+                      fieldPath: metadata.namespace
+{{- end }}
 {{- if $auth.enterprise }}
       - name: license
         secret:

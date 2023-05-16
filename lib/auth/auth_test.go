@@ -1896,14 +1896,21 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	require.NoError(t, err)
 
 	// create keypair and sign with OpenSSH CA
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	logins := []string{"login1", "login2"}
+	u, r, err := CreateUserAndRole(p.a, "test-user", logins, nil)
 	require.NoError(t, err)
+
+	user, ok := u.(*types.UserV2)
+	require.True(t, ok)
+	role, ok := r.(*types.RoleV6)
+	require.True(t, ok)
 
 	priv, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
-		Username:  user.GetName(),
+		User:      user,
+		Roles:     []*types.RoleV6{role},
 		PublicKey: priv.MarshalSSHPublicKey(),
 		TTL:       proto.Duration(time.Hour),
 		Cluster:   p.clusterName.GetClusterName(),
@@ -1930,6 +1937,10 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, caPubkey.Marshal(), signedCert.SignatureKey.Marshal())
+
+	// verify that user's logins are present in cert
+	logins = append(logins, teleport.SSHSessionJoinPrincipal)
+	require.Equal(t, logins, signedCert.ValidPrincipals)
 }
 
 func TestGenerateUserCertWithLocks(t *testing.T) {

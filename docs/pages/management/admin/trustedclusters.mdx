@@ -27,7 +27,7 @@ A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster
 <Notice type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
-databases behind a firewall. For more information, see [Adding Nodes to the Cluster](./adding-nodes.mdx).
+databases behind a firewall. For more information, see [Adding Nodes to the Cluster](../join-services-to-your-cluster/join-token.mdx).
 </Notice>
 
 When a user tries to connect to any resource inside the leaf cluster using the root's proxy
@@ -62,8 +62,8 @@ This guide will explain how to:
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport Node in your cluster.
 
 </TabItem>
 <TabItem
@@ -73,8 +73,7 @@ This guide will explain how to:
   our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
+  which you can download by visiting your [Teleport account](https://teleport.sh).
 
   ```code
   $ tctl version
@@ -87,7 +86,7 @@ This guide will explain how to:
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a Teleport Node in
   your cluster.
 
 </TabItem>
@@ -117,8 +116,8 @@ how to set up this cluster, see one of our
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport Node in your cluster.
 
 </TabItem>
 </Tabs>

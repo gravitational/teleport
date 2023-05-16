@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/samlidp/v1/samlidp.proto
 
-package v1
+package samlidpv1
 
 import (
 	context "context"

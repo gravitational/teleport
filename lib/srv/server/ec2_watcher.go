@@ -68,7 +68,8 @@ func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients 
 
 	for _, matcher := range matchers {
 		for _, region := range matcher.Regions {
-			ec2Client, err := clients.GetAWSEC2Client(region)
+			// TODO(gavin): support assume_role_arn for ec2.
+			ec2Client, err := clients.GetAWSEC2Client(ctx, region)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

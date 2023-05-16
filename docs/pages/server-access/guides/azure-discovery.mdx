@@ -294,6 +294,8 @@ The `installer` resource has the following templating options:
   installing from the repository.
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
 connect to.
+- `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
+Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
 
 These can be used as follows:
 
@@ -305,6 +307,7 @@ spec:
   script: |
     echo {{ .PublicProxyAddr }}
     echo Teleport-{{ .MajorVersion }}
+    echo Repository Channel: {{ .RepoChannel }}
 version: v1
 ```
 
@@ -314,6 +317,7 @@ with the following contents:
 ```sh
 echo teleport.example.com
 echo Teleport-(=teleport.version=)
+echo Repository Channel: stable/v(=teleport.version=)
 ```
 
 The default installer will take the following actions:
@@ -336,7 +340,7 @@ for more information.
 
 ## Next steps
 
-- Read [Joining Nodes via Azure Managed Identity](../../management/guides/joining-nodes-azure.mdx)
+- Read [Joining Nodes via Azure Managed Identity](../../management/join-services-to-your-cluster/azure.mdx)
   for more information on Azure tokens.
 - Full documentation on Azure discovery configuration can be found through the [
   config file reference documentation](../../reference/config.mdx).

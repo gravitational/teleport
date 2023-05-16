@@ -23,8 +23,6 @@ Standalone Teleport Cluster](./register-clusters/static-kubeconfig.mdx).
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- The `jq` tool to process `JSON` output. This is available via common package managers.
-
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
@@ -52,7 +50,7 @@ join token from the Teleport Auth Service:
 
 ```code
 # Create a join token for the Teleport Kubernetes Service to authenticate
-$ TOKEN=$(tctl nodes add --roles=kube --ttl=1h --format=json | jq -r '.[0]')
+$ TOKEN=$(tctl tokens add --type=kube --ttl=1h --format=text)
 $ echo $TOKEN
 ```
 

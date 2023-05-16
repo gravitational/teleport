@@ -434,6 +434,7 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
+	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
 // SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
@@ -448,6 +449,11 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
+}
+
+// DeepCopy creates a clone of this user value.
+func (u *UserV2) DeepCopy() User {
+	return utils.CloneProtoMsg(u)
 }
 
 // IsEmpty returns true if there's no info about who created this user

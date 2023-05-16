@@ -57,8 +57,7 @@ func setupDynamoContext(t *testing.T) *dynamoContext {
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
 		t.Skip("Skipping AWS-dependent test suite.")
 	}
-
-	fakeClock := clockwork.NewFakeClock()
+	fakeClock := clockwork.NewFakeClockAt(time.Now().UTC())
 
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
@@ -110,7 +109,7 @@ func TestSessionEventsCRUD(t *testing.T) {
 func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	tt.suite.SearchSessionEvensBySessionID(t)
+	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
 func TestSizeBreak(t *testing.T) {
@@ -202,7 +201,8 @@ func TestLargeTableRetrieve(t *testing.T) {
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC()},
+				Time: tt.suite.Clock.Now().UTC(),
+			},
 		})
 		require.NoError(t, err)
 	}
@@ -262,10 +262,10 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	ctx := context.Background()
-	now := tt.suite.Clock.Now()
+	now := tt.suite.Clock.Now().UTC()
 	dbQueryEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now(),
+			Time: tt.suite.Clock.Now().UTC(),
 			Type: events.DatabaseSessionQueryEvent,
 		},
 		DatabaseQuery: strings.Repeat("A", maxItemSize),
@@ -286,13 +286,13 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 
 	appReqEvent := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now(),
+			Time: tt.suite.Clock.Now().UTC(),
 			Type: events.AppSessionRequestEvent,
 		},
 		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -347,7 +347,6 @@ func TestConfig_SetFromURL(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-
 			uri, err := url.Parse(tt.url)
 			require.NoError(t, err)
 			require.NoError(t, tt.cfg.SetFromURL(uri))

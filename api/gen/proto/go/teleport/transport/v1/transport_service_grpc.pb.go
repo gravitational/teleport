@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/transport/v1/transport_service.proto
 
-package v1
+package transportv1
 
 import (
 	context "context"

@@ -21,8 +21,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -30,6 +28,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (

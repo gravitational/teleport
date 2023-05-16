@@ -323,7 +323,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl nodes add --roles=kube --ttl=10000h --format=json
+$ tctl tokens add --type=kube --ttl=10000h --format=json
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
@@ -499,7 +499,7 @@ authenticates to the API using mutual TLS, loading a client certificate,
 certificate authority, and private key from the file at `kubeconfigPath`.
 Earlier in the guide, we requested this from the Teleport Auth Service.
 
-The program sets up a Kubernetes API client with the `getRBBACClient` function:
+The program sets up a Kubernetes API client with the `getRBACClient` function:
 
 ```go
 func getRBACClient() (v1.RbacV1Interface, error) {
@@ -526,7 +526,7 @@ func getRBACClient() (v1.RbacV1Interface, error) {
 }
 ```
 
-`getRBBACClient` opens and reads the Kubernetes credentials file at
+`getRBACClient` opens and reads the Kubernetes credentials file at
 `kubeconfigPath`, then uses the file to set up a Kubernetes API client
 configuration (`clientcmd.RESTConfigFromKubeConfig(kc)`) and, with that, an HTTP
 client (`kubernetes.NewForConfig(n)`). 
@@ -593,7 +593,7 @@ func createTeleportRoleFromClusterRoleBinding(teleport *client.Client, k types.K
 
 To avoid unexpected behavior, this function ignores Kubernetes-managed roles and
 roles for internal systems like the Teleport Kubernetes Service. This function
-checks the cluster role binding's metatada for an annotation with a specific
+checks the cluster role binding's metadata for an annotation with a specific
 key, `roleAnnotationKey`, and ignores any resource where this key is not set to
 `"true"`.
 
@@ -748,9 +748,6 @@ func main() {
 	teleport, err := client.New(ctx, client.Config{
 		Addrs:       []string{proxyAddr},
 		Credentials: []client.Credentials{creds},
-		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
-		},
 	})
 	if err != nil {
 		panic(err)
@@ -782,10 +779,6 @@ initializes a Teleport client by calling `client.LoadIdentityFile` to obtain a
 `client.Credentials`. It then uses the `client.Credentials` to call
 `client.New`, which connects to the Teleport Proxy Service specified in the
 `Addrs` field using the provided identity file.
-
-In this example, we are passing the `grpc.WithReturnConnectionError()` function
-call to `client.New`, which instructs the gRPC client to return more detailed
-connection errors.
 
 <Admonition type="warning">
 

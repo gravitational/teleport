@@ -93,6 +93,11 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 	}, nil
 }
 
+// GetAppName returns the app name.
+func (a *awsApp) GetAppName() string {
+	return a.appName
+}
+
 // StartLocalProxies sets up local proxies for serving AWS clients.
 //
 // There are two ways clients can connect to the local proxies.

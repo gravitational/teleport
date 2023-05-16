@@ -198,4 +198,10 @@ const (
 	// It usually happens when a database agent has shut down (or crashed) but
 	// hasn't expired from the backend yet.
 	NoDatabaseTunnel = "could not find reverse tunnel, check that Database Service agent proxying this database is up and running"
+	// NoOktaTunnel is the error message returned when an Okta
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when an Okta service has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoOktaTunnel = "could not find reverse tunnel, check that Okta Service agent proxying this application is up and running"
 )

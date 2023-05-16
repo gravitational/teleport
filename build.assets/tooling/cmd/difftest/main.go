@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -41,6 +43,23 @@ var (
 	excludeUpdates   = testCmd.Flag("exclude-updates", "Exclude updated test methods").Short('u').Bool()
 	onlyRunFlag      = testCmd.Flag("only-run-flag", "Show only -run flag").Short('r').Bool()
 	escapeDollarSign = testCmd.Flag("escape-dollar-sign", "Output $ as $$").Short('d').Bool()
+
+	// testsToSkip contains a list of tests that are excluded from running.
+	testsToSkip = []string{
+		// TestCompletenessReset and TestCompletenessInit take around 8s and 17s respectively to run.
+		// The script for Flaky Tests is running 100x, which gives us a total of 800s and 1700s.
+		// The timeout for running all the tests (`go test ... -count=100`) is 600s, which is not enough.
+		// These tests are now skipped and should be added back when they take less time to run.
+		"TestCompletenessReset", "TestCompletenessInit",
+
+		// TestSSHOnMultipleNodes and its successor TestSSHWithMFA take ~10-15s to run which prevents
+		// it from ever completing the 100 runs successfully.
+		"TestSSHOnMultipleNodes", "TestSSHWithMFA",
+
+		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
+		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
+		"TestProxySSH", "TestList",
+	}
 )
 
 func main() {
@@ -153,6 +172,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
+			if slices.Contains(testsToSkip, n.RefName) {
+				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
+				continue
+			}
 			methods = append(methods, "^"+n.RefName+dollarSign)
 			dirs[dir] = struct{}{}
 		}

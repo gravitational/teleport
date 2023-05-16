@@ -455,7 +455,12 @@ func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {
 		using to sign in. This is set to become a strict requirement by May 2023,
 		please update your configuration file before then.`)
 	}
-	certDER, keyDER, err := s.generateCredentials(s.closeCtx, user, s.cfg.Domain, windowsDesktopServiceCertTTL, s.cfg.SID)
+	certDER, keyDER, err := s.generateCredentials(s.closeCtx, generateCredentialsRequest{
+		username:           user,
+		domain:             s.cfg.Domain,
+		ttl:                windowsDesktopServiceCertTTL,
+		activeDirectorySID: s.cfg.SID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -857,10 +862,16 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
+	groups, err := authCtx.Checker.DesktopGroups(desktop)
+	if err != nil && !trace.IsAccessDenied(err) {
+		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
+		return trace.Wrap(err)
+	}
+	createUsers := err == nil
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
-			return s.generateUserCert(ctx, username, ttl, desktop)
+			return s.generateUserCert(ctx, username, ttl, desktop, createUsers, groups)
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
@@ -1097,7 +1108,7 @@ func timer() func() int64 {
 
 // generateUserCert generates a keypair for the given Windows username,
 // optionally querying LDAP for the user's Security Identifier.
-func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop) (certDER, keyDER []byte, err error) {
+func (s *WindowsService) generateUserCert(ctx context.Context, username string, ttl time.Duration, desktop types.WindowsDesktop, createUsers bool, groups []string) (certDER, keyDER []byte, err error) {
 	var activeDirectorySID string
 	if !desktop.NonAD() {
 		// Find the user's SID
@@ -1130,7 +1141,32 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 		}
 		s.cfg.Log.Debugf("Found objectSid %v for Windows username %v", activeDirectorySID, username)
 	}
-	return s.generateCredentials(ctx, username, desktop.GetDomain(), ttl, activeDirectorySID)
+	return s.generateCredentials(ctx, generateCredentialsRequest{
+		username:           username,
+		domain:             desktop.GetDomain(),
+		ttl:                ttl,
+		activeDirectorySID: activeDirectorySID,
+		createUser:         createUsers,
+		groups:             groups,
+	})
+}
+
+// generateCredentialsRequest are the request parameters for generating a windows cert/key pair
+type generateCredentialsRequest struct {
+	// username is the Windows username
+	username string
+	// domain is the Windows domain
+	domain string
+	// ttl for the certificate
+	ttl time.Duration
+	// activeDirectorySID is the SID of the Windows user
+	// specified by Username. If specified (!= ""), it is
+	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
+	activeDirectorySID string
+	// createUser specifies if Windows user should be created if missing
+	createUser bool
+	// groups are groups that user should be member of
+	groups []string
 }
 
 // generateCredentials generates a private key / certificate pair for the given
@@ -1138,16 +1174,18 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID string) (certDER, keyDER []byte, err error) {
+func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
 		CAType:             types.UserCA,
-		Username:           username,
-		Domain:             domain,
-		TTL:                ttl,
+		Username:           request.username,
+		Domain:             request.domain,
+		TTL:                request.ttl,
 		ClusterName:        s.clusterName,
-		ActiveDirectorySID: activeDirectorySID,
+		ActiveDirectorySID: request.activeDirectorySID,
 		LDAPConfig:         s.cfg.LDAPConfig,
 		AuthClient:         s.cfg.AuthClient,
+		CreateUser:         request.createUser,
+		Groups:             request.groups,
 	})
 }
 

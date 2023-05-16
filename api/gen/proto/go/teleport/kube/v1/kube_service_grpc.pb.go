@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/kube/v1/kube_service.proto
 
-package v1
+package kubev1
 
 import (
 	context "context"

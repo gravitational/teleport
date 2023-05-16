@@ -55,6 +55,9 @@ type Proxy struct {
 	Limiter *limiter.Limiter
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
+	// ServerVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
+	// the dynamic service version propagation by ALPN extension will take precedes over Proxy ServerVersion.
+	ServerVersion string
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
@@ -69,7 +72,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-	mysqlServerVersion := getServerVersionFromCtx(ctx)
+	mysqlServerVersion := getServerVersionFromCtx(ctx, p.ServerVersion)
 
 	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it
@@ -140,9 +143,12 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 
 // getServerVersionFromCtx tries to extract MySQL server version from the passed context.
 // The default version is returned if context doesn't have it.
-func getServerVersionFromCtx(ctx context.Context) string {
-	// Set default server version.
-	mysqlServerVersion := serverVersion
+func getServerVersionFromCtx(ctx context.Context, configEngineVersion string) string {
+	// Set default server version or use the Proxy MySQL Engine Version if it was provided.
+	mysqlServerVersion := DefaultServerVersion
+	if configEngineVersion != "" {
+		mysqlServerVersion = configEngineVersion
+	}
 
 	if mysqlVerCtx := ctx.Value(dbutils.ContextMySQLServerVersion); mysqlVerCtx != nil {
 		version, ok := mysqlVerCtx.(string)
@@ -275,9 +281,9 @@ func (p *Proxy) waitForOK(server *server.Conn, serviceConn net.Conn) error {
 }
 
 const (
-	// serverVersion is advertised to MySQL clients during handshake.
+	// DefaultServerVersion is advertised to MySQL clients during handshake.
 	//
 	// Some clients may refuse to work with older servers (e.g. MySQL
 	// Workbench requires > 5.5).
-	serverVersion = "8.0.0-Teleport"
+	DefaultServerVersion = "8.0.0-Teleport"
 )

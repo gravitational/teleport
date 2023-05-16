@@ -19,7 +19,6 @@ package test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -80,12 +79,16 @@ type EventsSuite struct {
 	Log        events.AuditLogger
 	Clock      clockwork.Clock
 	QueryDelay time.Duration
+
+	// SearchSessionEvensBySessionIDTimeout is used to specify timeout on query
+	// in SearchSessionEvensBySessionID test case.
+	SearchSessionEvensBySessionIDTimeout time.Duration
 }
 
 // EventPagination covers event search pagination.
 func (s *EventsSuite) EventPagination(t *testing.T) {
 	// This serves no special purpose except to make querying easier.
-	baseTime := time.Date(2019, time.May, 10, 14, 43, 0, 0, time.UTC)
+	baseTime := time.Now().UTC()
 
 	names := []string{"bob", "jack", "daisy", "evan"}
 
@@ -95,6 +98,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
 			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
 				Type: events.UserLoginEvent,
 				Time: baseTime.Add(time.Second * time.Duration(i)),
 			},
@@ -174,6 +178,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: name},
 			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
 				Type: events.UserLoginEvent,
 				Time: baseTime2,
 			},
@@ -206,14 +211,16 @@ Outer:
 
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
+	loginTime := s.Clock.Now().UTC()
 	// Bob has logged in
 	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 		Method:       events.LoginMethodSAML,
 		Status:       apievents.Status{Success: true},
 		UserMetadata: apievents.UserMetadata{User: "bob"},
 		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
 			Type: events.UserLoginEvent,
-			Time: s.Clock.Now().UTC(),
+			Time: loginTime,
 		},
 	})
 	require.NoError(t, err)
@@ -226,7 +233,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	var history []apievents.AuditEvent
 
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		history, _, err = s.Log.SearchEvents(loginTime.Add(-1*time.Hour), loginTime.Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
 		return err
 	})
 	require.NoError(t, err)
@@ -235,9 +245,13 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
 
+	// sessionStartTime must be greater than loginTime, because in search we assume
+	// order.
+	sessionStartTime := loginTime.Add(1 * time.Minute)
 	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionStart{
 		Metadata: apievents.Metadata{
-			Time:  s.Clock.Now().UTC(),
+			ID:    uuid.NewString(),
+			Time:  sessionStartTime,
 			Index: 0,
 			Type:  events.SessionStartEvent,
 		},
@@ -250,9 +264,11 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	sessionEndTime := s.Clock.Now().Add(time.Hour).UTC()
 	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
 		Metadata: apievents.Metadata{
-			Time:  s.Clock.Now().Add(time.Hour).UTC(),
+			ID:    uuid.NewString(),
+			Time:  sessionEndTime,
 			Index: 4,
 			Type:  events.SessionEndEvent,
 		},
@@ -268,7 +284,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	// search for the session event.
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		if err != nil {
+			t.Logf("Retrying searching of events because of: %v", err)
+		}
 		return err
 	})
 	require.NoError(t, err)
@@ -277,7 +296,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.Equal(t, history[1].GetType(), events.SessionStartEvent)
 	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 
@@ -288,20 +307,20 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
 	require.NoError(t, err)
 	require.Len(t, history, 0)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil, "")
+	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), sessionEndTime.Add(-time.Second), 100, types.EventOrderAscending, "", nil, "")
 	require.NoError(t, err)
 	require.Len(t, history, 0)
 }
 
-func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
+func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 	now := time.Now().UTC()
 	firstID := uuid.New().String()
 	secondID := uuid.New().String()
@@ -309,7 +328,7 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
 	for i, id := range []string{firstID, secondID, thirdID} {
 		event := &apievents.WindowsDesktopSessionEnd{
 			Metadata: apievents.Metadata{
-				ID:   fmt.Sprintf("eventID%d", i),
+				ID:   uuid.NewString(),
 				Type: events.WindowsDesktopSessionEndEvent,
 				Code: events.DesktopSessionEndCode,
 				Time: now.Add(time.Duration(i) * time.Second),
@@ -324,6 +343,8 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
 	from := time.Time{}
 	to := now.Add(10 * time.Second)
 
+	// TODO(tobiaszheller): drop running SearchSessionEvents in gorouting and using select for cancelation
+	// when ctx is propagated to search calls.
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -335,9 +356,14 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
 		require.Equal(t, e.GetSessionID(), secondID)
 	}()
 
+	queryTimeout := s.SearchSessionEvensBySessionIDTimeout
+	if queryTimeout == 0 {
+		queryTimeout = time.Second * 10
+	}
+
 	select {
-	case <-time.After(time.Second * 10):
-		t.Fatalf("Search event query timeout")
+	case <-time.After(queryTimeout):
+		t.Fatalf("Search event query timeout after %s", queryTimeout)
 	case <-done:
 	}
 }

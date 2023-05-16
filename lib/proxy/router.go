@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -196,7 +197,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // configuration is not set to route to the most recent an error is returned. Also returns teleport version of the
 // target server if it's a teleport server
 // DELETE IN 14.0: remove returning teleport version, it was needed for compatibility
-func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter, signer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -277,7 +278,11 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 	// when connecting to the remote node
 	var sshSigner ssh.Signer
 	if isAgentlessNode {
-		sshSigner, err = signer(ctx)
+		client, err := r.GetSiteClient(ctx, clusterName)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		sshSigner, err = signer(ctx, client)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

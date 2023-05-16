@@ -1,5 +1,5 @@
 ---
-authors: Zac Bergquist <zac@goteleport.com
+authors: Zac Bergquist <zac@goteleport.com>
 state: Implemented
 ---
 

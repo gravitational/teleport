@@ -115,8 +115,11 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 		UpdateTime:   timestamppb.New(t2),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
 		Credential: &devicepb.DeviceCredential{
-			Id:           "557762f0-4cd4-4b75-aaee-575c57237c0b",
-			PublicKeyDer: []byte("insert public key here"),
+			Id:                    "557762f0-4cd4-4b75-aaee-575c57237c0b",
+			PublicKeyDer:          []byte("insert public key here"),
+			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED,
+			TpmEkcertSerial:       "00:00:00:00:00:00:00:00:00:00:00:DE:AD:BE:EF:CA:FE",
+			TpmAkPublic:           []byte("a TPMT_PUBLIC encoded blob"),
 		},
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
@@ -146,5 +149,41 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 	require.NoError(t, err, "DeviceFromResource failed")
 	if diff := cmp.Diff(dev, gotDev, protocmp.Transform()); diff != "" {
 		t.Errorf("DeviceFromResource mismatch (-want +got)\n%s", diff)
+	}
+}
+
+func TestResourceAttestationType_toAndFrom(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		attestationType string
+		errorContains   string
+	}{
+		{
+			attestationType: "unspecified",
+		},
+		{
+			attestationType: "tpm_ekpub",
+		},
+		{
+			attestationType: "tpm_ekcert",
+		},
+		{
+			attestationType: "tpm_ekcert_trusted",
+		},
+		{
+			attestationType: "quantum_entanglement",
+			errorContains:   "unknown attestation type",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.attestationType, func(t *testing.T) {
+			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
+			if tt.errorContains != "" {
+				require.ErrorContains(t, err, tt.errorContains)
+				return
+			}
+			got := ResourceDeviceAttestationTypeToString(asEnum)
+			require.Equal(t, tt.attestationType, got)
+		})
 	}
 }

@@ -61,7 +61,7 @@ export function ConnectionsFilterableList(
           )}
         />
       ) : (
-        <Text color="text.placeholder">No Connections</Text>
+        <Text color="text.muted">No Connections</Text>
       )}
     </Box>
   );

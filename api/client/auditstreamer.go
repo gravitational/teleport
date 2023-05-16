@@ -32,8 +32,7 @@ import (
 // createOrResumeAuditStream creates or resumes audit stream described in the request.
 func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.AuditStreamRequest) (events.Stream, error) {
 	closeCtx, cancel := context.WithCancel(ctx)
-	callOpts := append(c.callOpts, grpc.UseCompressor(ggzip.Name))
-	stream, err := c.grpc.CreateAuditStream(closeCtx, callOpts...)
+	stream, err := c.grpc.CreateAuditStream(closeCtx, grpc.UseCompressor(ggzip.Name))
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)
