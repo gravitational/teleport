@@ -109,6 +109,9 @@ type Config struct {
 	// Okta defines the okta service configuration.
 	Okta OktaConfig
 
+	// Jamf defines the Jamf MDM service configuration.
+	Jamf JamfConfig
+
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
 
@@ -681,6 +684,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.WindowsDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
+		cfg.Jamf.Enabled(),
 		cfg.OpenSSH.Enabled,
 	}
 
@@ -691,5 +695,5 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
 }
