@@ -1,5 +1,42 @@
 # Changelog
 
+## 12.4.0 (05/15/23)
+
+### Teleport Assist
+
+This release of Teleport introduces a preview release of Teleport Assist, a
+GPT-4 powered chat assistant that allows you to execute commands on servers
+connected to your Teleport cluster.
+
+It is available for Teleport Cloud customers on Teleport Team plan starting
+from 05/19/23.
+
+### Changelog
+
+In addition, this release contains the following improvements and bug fixes.
+
+* Auth
+  * Improved error message on `tsh login` when trying to authenticate with unregistered device. [#26104](https://github.com/gravitational/teleport/pull/26104)
+  * Populate `locked_time` user status value when local user is locked. [#26256](https://github.com/gravitational/teleport/pull/26256)
+* Machine ID
+  * Fixed goroutine leak in `tbot`. [#26146](https://github.com/gravitational/teleport/pull/26146)
+  * Added pprof diagnostics endpoints to `tbot`. [#26118](https://github.com/gravitational/teleport/pull/26118)
+* Audit Log
+  * Added audit events for Okta integration. [#26003](https://github.com/gravitational/teleport/pull/26003)
+  * Do not include empty Windows domains in audit log for Desktop Access. [#26080](https://github.com/gravitational/teleport/pull/26080)
+  * Fixed issue with `device.authenticate` showing up as uknown. [#26069](https://github.com/gravitational/teleport/pull/26069)
+* CLI
+  * Added `--format` flag to `tctl alerts ls` command and include acknowledged alerts in verbose mode. [#26041](https://github.com/gravitational/teleport/pull/26041)
+  * Added `tsh fido2 attobj` debug command that can parse attestation objects. [#25924](https://github.com/gravitational/teleport/pull/25924)
+* IP Pinning
+  * Fixed issue with `tctl` commands not working when IP pinning is enabled. [#25994](https://github.com/gravitational/teleport/pull/25994)
+* Terraform
+  * Fixed issue with ACL being disabled for new buckets in non-HA terraform setup. [#25855](https://github.com/gravitational/teleport/pull/25855)
+* Performance & Scalability
+  * Added ability to enable trace logging level. [#25832](https://github.com/gravitational/teleport/pull/25832)
+* HSM
+  * Added support for YubiHSM2 SDK version 2023.01. [#25817](https://github.com/gravitational/teleport/pull/25817)
+
 ## 12.3.3 (05/08/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
