@@ -41,7 +41,7 @@ const Container = styled.div`
 `;
 
 const Content = styled.div`
-  background: #4A5688;
+  background: #4a5688;
   color: white;
   font-size: 15px;
   padding: 20px 25px;
@@ -65,7 +65,7 @@ const Features = styled.div`
 `;
 
 const Feature = styled.div`
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
   margin-bottom: 10px;
   margin-right: 20px;
   padding: 10px 15px;
@@ -84,7 +84,7 @@ const Feature = styled.div`
 `;
 
 const Warning = styled.div`
-  border: 2px solid #FFAB00;
+  border: 2px solid #ffab00;
   border-radius: 7px;
   padding: 10px 15px;
   margin-bottom: 15px;
@@ -98,7 +98,7 @@ const NewChatButton = styled.div`
   display: flex;
   cursor: pointer;
   margin: 0 15px;
-  background: #9F85FF;
+  background: #9f85ff;
   color: black;
   align-items: center;
   justify-content: center;
@@ -109,7 +109,7 @@ const NewChatButton = styled.div`
   }
 
   &:hover {
-    background: #B29DFF;
+    background: #b29dff;
   }
 `;
 

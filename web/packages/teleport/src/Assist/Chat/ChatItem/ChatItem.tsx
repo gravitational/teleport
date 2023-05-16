@@ -171,7 +171,7 @@ const Output = styled.div`
 `;
 
 const ErrorMessage = styled.div`
-  color: #FF6257;
+  color: #ff6257;
   font-size: 15px;
   font-weight: 500;
 `;
