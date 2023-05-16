@@ -40,10 +40,7 @@ const (
 	attestationKeyFileName = "attestation.key"
 )
 
-// Ensures that device state directory exists with the correct permissions and:
-// - If it does not exist, creates it.
-// - If the directory exists, it has 700 perms or errors.
-// - If an attestation key exists, it has 600 perms or errors.
+// Ensures that device state directory exists.
 // It returns the absolute path to where the attestation key can be found:
 // ~/teleport-device/attestation.key
 func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
@@ -74,7 +71,6 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 func openTPM() (*attest.TPM, error) {
 	cfg := &attest.OpenConfig{
 		TPMVersion: attest.TPMVersion20,
-		// TODO: Determine if windows command channel wrapper is necessary
 	}
 
 	tpm, err := attest.OpenTPM(cfg)
@@ -116,7 +112,7 @@ func loadAK(
 
 	ak, err := tpm.LoadAK(ref)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "loading ak into tpm")
 	}
 
 	return ak, nil
@@ -128,17 +124,17 @@ func createAndSaveAK(
 ) (*attest.AK, error) {
 	ak, err := tpm.NewAK(nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "creating ak")
 	}
 
 	// Write it to the well-known location on disk
 	ref, err := ak.Marshal()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "marshalling ak")
 	}
 	err = os.WriteFile(persistencePath, ref, 600)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "writing ak to disk")
 	}
 
 	return ak, nil
@@ -147,12 +143,12 @@ func createAndSaveAK(
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	akPath, err := setupDeviceStateDir(os.UserHomeDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
 	tpm, err := openTPM()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "opening tpm")
 	}
 	defer tpm.Close()
 
@@ -161,28 +157,31 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	ak, err := loadAK(tpm, akPath)
 	if err != nil {
 		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "loading ak")
 		}
+		log.Debug("No existing AK was found on disk, an AK will be created.")
 		ak, err = createAndSaveAK(tpm, akPath)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "creating ak")
 		}
+	} else {
+		log.Debug("Existing AK was found on disk, it will be reused.")
 	}
 	defer ak.Close(tpm)
 
 	deviceData, err := collectDeviceData()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "collecting device data")
 	}
 
 	marshaledEK, err := getMarshaledEK(tpm)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "marshalling ek")
 	}
 
 	credentialID, err := credentialIDFromAK(ak)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "determining credential id")
 	}
 
 	return &devicepb.EnrollDeviceInit{
@@ -212,7 +211,7 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 		ak.AttestationParameters().Public,
 	)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.Wrap(err, "parsing ak public")
 	}
 	publicKey := akPub.Public
 	switch publicKey := publicKey.(type) {
@@ -317,6 +316,23 @@ func getOSVersion() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+func getOSBuildNumber() (string, error) {
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber",
+	)
+	// ThinkPad P P14s:
+	// PS>  Get-WmiObject Win32_OperatingSystem | Select -ExpandProperty BuildNumber
+	// 22621
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
 func firstOf(strings ...string) string {
 	for _, str := range strings {
 		if str != "" {
@@ -330,28 +346,33 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	log.Debug("Collecting device data.")
 	systemSerial, err := getDeviceSerial()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching system serial")
 	}
 	model, err := getDeviceModel()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching device model")
 	}
 	baseBoardSerial, err := getDeviceBaseBoardSerial()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching base board serial")
 	}
 	reportedAssetTag, err := getReportedAssetTag()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching reported asset tag")
 	}
 	osVersion, err := getOSVersion()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching os version")
+	}
+	osBuildNumber, err := getOSBuildNumber()
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching os build number")
 	}
 	u, err := user.Current()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "fetching user")
 	}
+
 	serial := firstOf(reportedAssetTag, systemSerial, baseBoardSerial)
 	if serial == "" {
 		return nil, trace.BadParameter("unable to determine serial number")
@@ -364,11 +385,14 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 		ModelIdentifier:       model,
 		OsUsername:            u.Username,
 		OsVersion:             osVersion,
+		OsBuild:               osBuildNumber,
 		SystemSerialNumber:    systemSerial,
 		BaseBoardSerialNumber: baseBoardSerial,
 		ReportedAssetTag:      reportedAssetTag,
 	}
-	log.WithField("device_collected_data", dcd).Debug("Device data collected.")
+	log.WithField(
+		"device_collected_data", dcd,
+	).Debug("Device data collected.")
 	return dcd, nil
 }
 
@@ -377,24 +401,24 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	akPath, err := setupDeviceStateDir(os.UserHomeDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 	tpm, err := openTPM()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "opening tpm")
 	}
 	defer tpm.Close()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "loading ak")
 	}
 	defer ak.Close(tpm)
 
 	credentialID, err := credentialIDFromAK(ak)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "determining credential id")
 	}
 
 	return &devicepb.DeviceCredential{
@@ -407,19 +431,19 @@ func solveTPMEnrollChallenge(
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	akPath, err := setupDeviceStateDir(os.UserHomeDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
 	tpm, err := openTPM()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "opening tpm")
 	}
 	defer tpm.Close()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "loading ak")
 	}
 	defer ak.Close(tpm)
 
