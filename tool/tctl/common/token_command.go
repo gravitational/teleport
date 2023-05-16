@@ -52,7 +52,7 @@ Use this token to add an MDM service to Teleport.
 > teleport start \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   -c=/path/to/mdm_service.yaml
+   -c=/path/to/teleport.yaml
 
 `))
 
