@@ -4918,6 +4918,9 @@ message GetClusterAlertsRequest {
   bool WithSuperseded = 4;
   // WithAcknowledged includes acknowledged alerts in the output of the request.
   bool WithAcknowledged = 5;
+  // WithUntargeted requests that alerts be included even if they are not specifically
+  // targeted toward the caller. This has no effect unless the caller has `cluster_alert:list`.
+  bool WithUntargeted = 6;
 }
 
 // AlertAcknowledgement marks a cluster alert as having been "acknowledged".
