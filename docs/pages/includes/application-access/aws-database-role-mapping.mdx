@@ -1,5 +1,5 @@
-The next step is to give your Teleport users permissions to assume IAM roles in
-your Teleport cluster.
+Give your Teleport users permissions to assume IAM roles in your Teleport
+cluster.
 
 You can do this by creating a Teleport role with the `aws_role_arns` field
 listing the IAM role ARN created in the previous step. Create a file called
@@ -19,6 +19,7 @@ spec:
     - arn:aws:iam::<Var name="aws-account-id"/>:role/{{ iam-role }}
 EOF
 ```
+Remember to replace <Var name="aws-account-id"/> with your AWS Account ID.
 
 <Details title="Templating &quot;aws_role_arns&quot; in role definitions">
 The `aws_role_arns` field supports template variables so they can be populated
@@ -81,7 +82,7 @@ examples:
   </TabItem>
 </Tabs>
 
-See [Role Templates](docs/pages/access-controls/guides/role-templates.mdx) for
+See [Role Templates](../../access-controls/guides/role-templates.mdx) for
 details.
 </Details>
 

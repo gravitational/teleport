@@ -1,7 +1,6 @@
-The first step is to create an IAM role that provides access to your
-{{ database }} resources. Teleport Application Service will assume this IAM
-role on behalf of the Teleport user that accesses these {{ database }}
-resources.
+Create an IAM role that provides access to your {{ database }} resources.
+Teleport Application Service will assume this IAM role on behalf of the
+Teleport user that accesses these {{ database }} resources.
 
 There are several methods to create an IAM role:
 
@@ -25,7 +24,8 @@ Press "Next". Enter role name `{{ iam-role }}` and press "Create role":
 </TabItem>
 
 <TabItem label="Using AWS CLI">
-Create a file with the following trust policy:
+Create a file with the following trust policy. Replace <Var
+name="aws-account-id"/> with your AWS Account ID:
 ```code
 $ cat > trust-relationship.json <<EOF
 {
@@ -55,7 +55,8 @@ $ aws iam attach-role-policy --role-name {{ iam-role }} --policy-arn arn:aws:iam
 </TabItem>
 
 <TabItem label="Using Terraform">
-Add the following resources to your Terraform deployment:
+Add the following resources to your Terraform deployment. Replace <Var
+name="aws-account-id"/> with your AWS Account ID:
 ```code
 $ cat > teleport_iam_role_{{ iam-role }}.tf <<EOF
 resource "aws_iam_role" "teleport-{{ iam-role }}" {
