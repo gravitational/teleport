@@ -1424,17 +1424,15 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 				}
 				return nil, trace.Wrap(err)
 			}
-			resource := types.KindWebSession
 			// Allow reading Snowflake sessions to DB service.
-			if kind.SubKind == types.KindSnowflakeSession {
-				resource = types.KindDatabase
-			}
-			if filter.User == "" || a.currentUserAction(filter.User) != nil {
-				if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
-					if watch.AllowPartialSuccess {
-						continue
+			if !(kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase)) {
+				if filter.User == "" || a.currentUserAction(filter.User) != nil {
+					if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+						if watch.AllowPartialSuccess {
+							continue
+						}
+						return nil, trace.Wrap(err)
 					}
-					return nil, trace.Wrap(err)
 				}
 			}
 		default:
@@ -4475,10 +4473,13 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	if session.GetSubKind() != types.KindSnowflakeSession {
 		return nil, trace.AccessDenied("GetSnowflakeSession only allows reading sessions with SubKind Snowflake")
 	}
-	// Users can only fetch their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		// Users can only fetch their own web sessions.
+		if err := a.currentUserAction(session.GetUser()); err != nil {
+			if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	return session, nil
@@ -4527,8 +4528,11 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
@@ -4564,8 +4568,11 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.Create
 
 // CreateSnowflakeSession creates a Snowflake web session.
 func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	snowflakeSession, err := a.authServer.CreateSnowflakeSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
@@ -4626,8 +4633,10 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		return trace.Wrap(err)
 	}
 	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
-		return trace.Wrap(err)
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -4653,8 +4662,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.De
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (a *ServerWithRoles) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := a.authServer.DeleteAllSnowflakeSessions(ctx); err != nil {
