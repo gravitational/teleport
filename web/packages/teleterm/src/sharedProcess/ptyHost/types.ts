@@ -29,6 +29,7 @@ export type IPtyProcess = {
   onData(cb: (data: string) => void): void;
   onOpen(cb: () => void): void;
   start(cols: number, rows: number): void;
+  onStartError(cb: (message: string) => void): void;
   onExit(cb: (ev: { exitCode: number; signal?: number }) => void): void;
   getCwd(): Promise<string>;
 };

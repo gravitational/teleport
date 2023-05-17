@@ -49,19 +49,25 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   start(cols: number, rows: number) {
-    // TODO(ravicious): Set argv0 when node-pty adds support for it.
-    // https://github.com/microsoft/node-pty/issues/472
-    this._process = nodePTY.spawn(this.options.path, this.options.args, {
-      cols,
-      rows,
-      name: 'xterm-color',
-      // HOME should be always defined. But just in case it isn't let's use the cwd from process.
-      // https://unix.stackexchange.com/questions/123858
-      cwd: this.options.cwd || getDefaultCwd(this.options.env),
-      env: this.options.env,
-      // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
-      useConpty: false,
-    });
+    try {
+      // TODO(ravicious): Set argv0 when node-pty adds support for it.
+      // https://github.com/microsoft/node-pty/issues/472
+      this._process = nodePTY.spawn(this.options.path, this.options.args, {
+        cols,
+        rows,
+        name: 'xterm-color',
+        // HOME should be always defined. But just in case it isn't let's use the cwd from process.
+        // https://unix.stackexchange.com/questions/123858
+        cwd: this.options.cwd || getDefaultCwd(this.options.env),
+        env: this.options.env,
+        // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
+        useConpty: false,
+      });
+    } catch (error) {
+      this._logger.error(error);
+      this.handleStartError(error);
+      return;
+    }
 
     this._setStatus('open');
     this.emit(TermEventEnum.OPEN);
@@ -125,6 +131,10 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     this.addListener(TermEventEnum.EXIT, cb);
   }
 
+  onStartError(cb: (message: string) => void) {
+    this.addListener(TermEventEnum.START_ERROR, cb);
+  }
+
   private getPid() {
     return this._process?.pid;
   }
@@ -163,6 +173,10 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
   }
 
+  private handleStartError(error: Error) {
+    this.emit(TermEventEnum.START_ERROR, error.message);
+  }
+
   private _setStatus(value: Status) {
     this._status = value;
     this._logger.info(`status -> ${value}`);
@@ -175,6 +189,7 @@ export const TermEventEnum = {
   DATA: 'terminal.data',
   OPEN: 'terminal.open',
   EXIT: 'terminal.exit',
+  START_ERROR: 'terminal.start_error',
 };
 
 async function getWorkingDirectory(pid: number): Promise<string> {

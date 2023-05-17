@@ -35,6 +35,8 @@ export class MockPtyProcess implements IPtyProcess {
 
   onOpen() {}
 
+  onStartError() {}
+
   getPid() {
     return 0;
   }

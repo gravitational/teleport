@@ -90,6 +90,14 @@ export class PtyEventsStreamHandler {
     });
   }
 
+  onStartError(callback: (message: string) => void): void {
+    this.stream.addListener('data', (event: PtyServerEvent) => {
+      if (event.hasStartError()) {
+        callback(event.getStartError().toObject().message);
+      }
+    });
+  }
+
   private writeOrThrow(event: PtyClientEvent) {
     return this.stream.write(event, (error: Error | undefined) => {
       if (error) {

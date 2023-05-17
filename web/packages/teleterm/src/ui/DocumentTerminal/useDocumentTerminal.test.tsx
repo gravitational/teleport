@@ -95,6 +95,7 @@ const getPtyProcessMock = () => ({
   dispose: jest.fn(),
   onData: jest.fn(),
   start: jest.fn(),
+  onStartError: jest.fn(),
   onExit: jest.fn(),
   getCwd: jest.fn(),
 });

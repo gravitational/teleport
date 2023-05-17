@@ -63,6 +63,10 @@ export function createPtyProcess(
       exchangeEventsStream.onExit(callback);
     },
 
+    onStartError(callback: (message: string) => void): void {
+      exchangeEventsStream.onStartError(callback);
+    },
+
     /**
      * Unary calls
      */
