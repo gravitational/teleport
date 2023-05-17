@@ -64,8 +64,8 @@ func TestRunCeremony(t *testing.T) {
 			},
 			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
 				require.NotNil(t, d, "RunCeremony returned nil device")
-				require.NotNil(t, d.Credential)
-				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id)
+				require.NotNil(t, d.Credential, "device credential is nil")
+				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
 			},
 		},
 		{
@@ -74,12 +74,12 @@ func TestRunCeremony(t *testing.T) {
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				assert.True(
-					t, trace.IsBadParameter(err), "RunCeremony did not return an error of the correct type",
+					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
 				)
-				assert.ErrorContains(t, err, "linux")
+				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
 			},
 			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
-				assert.Nil(t, d)
+				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
 			},
 		},
 	}
