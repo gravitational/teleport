@@ -4183,6 +4183,9 @@ message SSODiagnosticInfo {
 
   // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
   GithubTokenInfo GithubTokenInfo = 33 [(gogoproto.jsontag) = "github_token_info,omitempty"];
+
+  // AppliedLoginRules stores the name of each login rule that was applied.
+  repeated string AppliedLoginRules = 34 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
