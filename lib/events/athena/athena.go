@@ -30,9 +30,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -397,12 +397,12 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchEvents(ctx, req.FromUTC, req.ToUTC, req.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 }
 
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchSessionEvents(ctx, req.FromUTC, req.ToUTC, req.Limit, req.Order, req.StartKey, req.Cond, req.SessionID)
 }
 
 func (l *Log) Close() error {

@@ -3482,7 +3482,15 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		FromUTC:    req.StartDate,
+		ToUTC:      req.EndDate,
+		Namespace:  req.Namespace,
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3511,7 +3519,13 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		FromUTC:  req.StartDate,
+		ToUTC:    req.EndDate,
+		Limit:    int(req.Limit),
+		Order:    types.EventOrder(req.Order),
+		StartKey: req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

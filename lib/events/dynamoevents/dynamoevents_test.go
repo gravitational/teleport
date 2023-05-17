@@ -135,20 +135,20 @@ func TestSizeBreak(t *testing.T) {
 	}
 
 	var checkpoint string
-	events := make([]apievents.AuditEvent, 0)
-
+	gotEvents := make([]apievents.AuditEvent, 0)
+	ctx := context.Background()
 	for {
-		fetched, lCheckpoint, err := tt.log.SearchEvents(
-			tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			tt.suite.Clock.Now().UTC().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			eventCount,
-			types.EventOrderDescending,
-			checkpoint)
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   tt.suite.Clock.Now().UTC().Add(-time.Hour),
+			ToUTC:     tt.suite.Clock.Now().UTC().Add(time.Hour),
+			Namespace: apidefaults.Namespace,
+			Limit:     eventCount,
+			Order:     types.EventOrderDescending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		checkpoint = lCheckpoint
-		events = append(events, fetched...)
+		gotEvents = append(gotEvents, fetched...)
 
 		if checkpoint == "" {
 			break
@@ -157,7 +157,7 @@ func TestSizeBreak(t *testing.T) {
 
 	lastTime := tt.suite.Clock.Now().UTC().Add(time.Hour)
 
-	for _, event := range events {
+	for _, event := range gotEvents {
 		require.True(t, event.GetTime().Before(lastTime))
 		lastTime = event.GetTime()
 	}
@@ -211,17 +211,16 @@ func TestLargeTableRetrieve(t *testing.T) {
 		history []apievents.AuditEvent
 		err     error
 	)
+	ctx := context.Background()
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
 		time.Sleep(tt.suite.QueryDelay)
 
-		history, _, err = tt.suite.Log.SearchEvents(
-			tt.suite.Clock.Now().Add(-1*time.Hour),
-			tt.suite.Clock.Now().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			0,
-			types.EventOrderAscending,
-			"")
+		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   tt.suite.Clock.Now().Add(-1 * time.Hour),
+			ToUTC:     tt.suite.Clock.Now().Add(time.Hour),
+			Namespace: apidefaults.Namespace,
+			Order:     types.EventOrderAscending,
+		})
 		require.NoError(t, err)
 
 		if len(history) == eventCount {
@@ -273,14 +272,13 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
 	require.NoError(t, err)
 
-	result, _, err := tt.suite.Log.SearchEvents(
-		now.Add(-1*time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		[]string{events.DatabaseSessionQueryEvent},
-		0, types.EventOrderAscending,
-		"",
-	)
+	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
+		FromUTC:    now.Add(-1 * time.Hour),
+		ToUTC:      now.Add(time.Hour),
+		Namespace:  apidefaults.Namespace,
+		EventTypes: []string{events.DatabaseSessionQueryEvent},
+		Order:      types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 

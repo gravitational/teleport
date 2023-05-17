@@ -289,8 +289,8 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 }
 
 // SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.FromUTC, req.ToUTC, req.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -299,8 +299,8 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
+func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(ctx, req.FromUTC, req.ToUTC, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

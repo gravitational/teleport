@@ -111,8 +111,16 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var err error
 	var checkpoint string
 
+	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     100,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		return err
 	})
 	require.NoError(t, err)
@@ -120,7 +128,14 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	require.Equal(t, checkpoint, "")
 
 	for _, name := range names {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
@@ -128,7 +143,14 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		require.Equal(t, name, event.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
 	}
@@ -137,7 +159,14 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     2,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 2)
 		eventA, okA := arr[0].(*apievents.UserLogin)
@@ -148,14 +177,28 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		require.Equal(t, nameB, eventB.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
 	}
 	require.Equal(t, checkpoint, "")
 
 	for i := len(names) - 1; i >= 0; i-- {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderDescending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
@@ -163,7 +206,14 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		require.Equal(t, names[i], event.User)
 	}
 	if checkpoint != "" {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime,
+			ToUTC:     toTime,
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderDescending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
 	}
@@ -188,7 +238,14 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 
 Outer:
 	for i := 0; i < len(names); i++ {
-		arr, checkpoint, err = s.Log.SearchEvents(baseTime2, baseTime2.Add(time.Second), apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
+		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   baseTime2,
+			ToUTC:     baseTime2.Add(time.Second),
+			Namespace: apidefaults.Namespace,
+			Limit:     1,
+			Order:     types.EventOrderAscending,
+			StartKey:  checkpoint,
+		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
@@ -231,9 +288,15 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	}
 
 	var history []apievents.AuditEvent
-
+	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(loginTime.Add(-1*time.Hour), loginTime.Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   loginTime.Add(-1 * time.Hour),
+			ToUTC:     loginTime.Add(time.Hour),
+			Namespace: apidefaults.Namespace,
+			Limit:     100,
+			Order:     types.EventOrderAscending,
+		})
 		if err != nil {
 			t.Logf("Retrying searching of events because of: %v", err)
 		}
@@ -284,7 +347,13 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	// search for the session event.
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
+		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   s.Clock.Now().UTC().Add(-1 * time.Hour),
+			ToUTC:     s.Clock.Now().UTC().Add(time.Hour),
+			Namespace: apidefaults.Namespace,
+			Limit:     100,
+			Order:     types.EventOrderAscending,
+		})
 		if err != nil {
 			t.Logf("Retrying searching of events because of: %v", err)
 		}
@@ -296,7 +365,12 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.Equal(t, history[1].GetType(), events.SessionStartEvent)
 	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
+		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit:   100,
+		Order:   types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 
@@ -307,15 +381,32 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
+		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit:   100,
+		Order:   types.EventOrderAscending,
+		Cond:    withParticipant("alice"),
+	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), s.Clock.Now().UTC().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
+		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit:   100,
+		Order:   types.EventOrderAscending,
+		Cond:    withParticipant("cecile"),
+	})
 	require.NoError(t, err)
 	require.Len(t, history, 0)
 
-	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().UTC().Add(-1*time.Hour), sessionEndTime.Add(-time.Second), 100, types.EventOrderAscending, "", nil, "")
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
+		ToUTC:   sessionEndTime.Add(-time.Second),
+		Limit:   100,
+		Order:   types.EventOrderAscending,
+	})
 	require.NoError(t, err)
 	require.Len(t, history, 0)
 }
@@ -348,7 +439,14 @@ func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		events, _, err := s.Log.SearchSessionEvents(from, to, 1000, types.EventOrderDescending, "", nil, secondID)
+		ctx := context.Background()
+		events, _, err := s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+			FromUTC:   from,
+			ToUTC:     to,
+			Limit:     1000,
+			Order:     types.EventOrderDescending,
+			SessionID: secondID,
+		})
 		require.NoError(t, err)
 		require.Len(t, events, 1)
 		e, ok := events[0].(*apievents.WindowsDesktopSessionEnd)

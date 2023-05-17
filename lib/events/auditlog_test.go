@@ -96,14 +96,12 @@ func TestLogRotation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, string(bytes), string(contents))
 
-		found, _, err := alog.SearchEvents(
-			now.Add(-time.Hour),
-			now.Add(time.Hour),
-			apidefaults.Namespace,
-			nil, // event types
-			0,   // limit
-			types.EventOrderAscending,
-			"") // start key
+		found, _, err := alog.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC:   now.Add(-time.Hour),
+			ToUTC:     now.Add(time.Hour),
+			Namespace: apidefaults.Namespace,
+			Order:     types.EventOrderAscending,
+		})
 		require.NoError(t, err)
 		require.Len(t, found, 1)
 	}

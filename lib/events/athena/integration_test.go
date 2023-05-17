@@ -134,7 +134,12 @@ func TestIntegrationAthenaLargeEvents(t *testing.T) {
 	var history []apievents.AuditEvent
 	// We have batch time 10s, and 5s for upload and additional buffer for s3 download
 	err = retryutils.RetryStaticFor(time.Second*20, time.Second*2, func() error {
-		history, _, err = ac.log.SearchEvents(ac.clock.Now().UTC().Add(-1*time.Minute), ac.clock.Now().UTC(), "", nil, 10, types.EventOrderDescending, "")
+		history, _, err = ac.log.SearchEvents(ctx, events.SearchEventsRequest{
+			FromUTC: ac.clock.Now().UTC().Add(-1 * time.Minute),
+			ToUTC:   ac.clock.Now().UTC(),
+			Limit:   10,
+			Order:   types.EventOrderDescending,
+		})
 		if err != nil {
 			return err
 		}
@@ -428,7 +433,7 @@ func (e *eventuallyConsitentAuditLogger) EmitAuditEvent(ctx context.Context, in 
 	return e.inner.EmitAuditEvent(ctx, in)
 }
 
-func (e *eventuallyConsitentAuditLogger) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
+func (e *eventuallyConsitentAuditLogger) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.emitWasAfterLastDelay {
@@ -436,10 +441,10 @@ func (e *eventuallyConsitentAuditLogger) SearchEvents(fromUTC, toUTC time.Time, 
 		// clear emit delay
 		e.emitWasAfterLastDelay = false
 	}
-	return e.inner.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	return e.inner.SearchEvents(ctx, req)
 }
 
-func (e *eventuallyConsitentAuditLogger) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (e *eventuallyConsitentAuditLogger) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.emitWasAfterLastDelay {
@@ -447,7 +452,7 @@ func (e *eventuallyConsitentAuditLogger) SearchSessionEvents(fromUTC, toUTC time
 		// clear emit delay
 		e.emitWasAfterLastDelay = false
 	}
-	return e.inner.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	return e.inner.SearchSessionEvents(ctx, req)
 }
 
 func (e *eventuallyConsitentAuditLogger) Close() error {
