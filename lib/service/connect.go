@@ -733,7 +733,27 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	if err := registerServer(process.Config, ctx, conn.Client); err != nil {
+	state, err := process.storage.GetState(types.RoleNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	mostRecentRotation := state.Spec.Rotation.LastRotated
+	if state.Spec.Rotation.State == types.RotationStateInProgress && state.Spec.Rotation.Started.After(mostRecentRotation) {
+		mostRecentRotation = state.Spec.Rotation.Started
+	}
+	for _, ca := range cas {
+		caRot := ca.GetRotation()
+		if caRot.State == types.RotationStateInProgress && caRot.Started.After(mostRecentRotation) {
+			mostRecentRotation = caRot.Started
+		}
+
+		if caRot.LastRotated.After(mostRecentRotation) {
+			mostRecentRotation = caRot.LastRotated
+		}
+	}
+
+	if err := registerServer(process.Config, ctx, conn.Client, mostRecentRotation); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -755,12 +775,12 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 	return nil
 }
 
-func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI) error {
+func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
 	server, err := types.NewServer(a.HostUUID, types.KindNode, types.ServerSpecV2{
 		Addr:     a.OpenSSH.InstanceAddr,
 		Hostname: a.Hostname,
 		Rotation: types.Rotation{
-			LastRotated: time.Now(),
+			LastRotated: lastRotation,
 		},
 	})
 	if err != nil {

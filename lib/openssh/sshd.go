@@ -25,9 +25,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 )
 
 const sshdBinary = "sshd"
@@ -81,7 +82,7 @@ type SSHDConfigUpdate struct {
 	DataDir string
 }
 
-var sshdConfigTmpl = template.Must(template.New("").Parse(`# Created by 'teleport join openssh', do not edit
+var sshdConfigTmpl = template.Must(template.New("sshd_config_include").Parse(`# Created by 'teleport join openssh', do not edit
 TrustedUserCAKeys {{ .OpenSSHCAPath }}
 HostKey {{ .HostKeyPath }}
 HostCertificate {{ .HostCertPath }}
@@ -148,18 +149,15 @@ func (s *SSHD) UpdateConfig(u SSHDConfigUpdate, restart bool) error {
 // WriteKeys writes the OpenSSH keys and CA from the Identity and the
 // OpenSSH CA to disk for the OpenSSH daemon to use
 func WriteKeys(keysdir string, id *auth.Identity, cas []types.CertAuthority) error {
-	if err := os.MkdirAll(keysdir, 0o700); err != nil {
+	if err := os.MkdirAll(keysdir, 0o755); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
-	if err := writeTempAndRename(filepath.Join(keysdir, TeleportKey), func(_ string) error { return nil }, id.KeyBytes); err != nil {
+	if err := writeTempAndRename(filepath.Join(keysdir, TeleportKey), nil, id.KeyBytes); err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := os.Chmod(filepath.Join(keysdir, TeleportKey), 0o600); err != nil {
-		return trace.Wrap(err)
-	}
 
-	if err := writeTempAndRename(filepath.Join(keysdir, TeleportCert), func(_ string) error { return nil }, id.CertBytes); err != nil {
+	if err := writeTempAndRename(filepath.Join(keysdir, TeleportCert), nil, id.CertBytes); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
@@ -171,7 +169,7 @@ func WriteKeys(keysdir string, id *auth.Identity, cas []types.CertAuthority) err
 		}
 	}
 
-	if err := writeTempAndRename(filepath.Join(keysdir, TeleportOpenSSHCA), func(_ string) error { return nil }, caKeyBytes); err != nil {
+	if err := writeTempAndRename(filepath.Join(keysdir, TeleportOpenSSHCA), nil, caKeyBytes); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil
@@ -212,6 +210,9 @@ func (b *sshdBackend) restart() error {
 	return nil
 }
 
+// writeTempAndRename creates a temporary file with 0o600 permissions,
+// and writes contents to the it, if checkfunc passes without error,
+// it'll then rename the file to the path specified with configPath
 func writeTempAndRename(configPath string, checkFunc func(string) error, contents []byte) error {
 	configTmp, err := os.CreateTemp(filepath.Dir(configPath), "")
 	if err != nil {
@@ -229,9 +230,12 @@ func writeTempAndRename(configPath string, checkFunc func(string) error, content
 		return trace.Wrap(err)
 	}
 
-	if err := checkFunc(tmpName); err != nil {
-		return trace.Wrap(err)
+	if checkFunc != nil {
+		if err := checkFunc(tmpName); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	if err := os.Rename(tmpName, configPath); err != nil {
 		return trace.Wrap(err)
 	}
@@ -246,7 +250,7 @@ func prependToSSHDConfig(sshdConfigPath, config string) error {
 	line := append([]byte(config), byte('\n'))
 	contents = append(line, contents...)
 
-	if err := writeTempAndRename(sshdConfigPath, func(_ string) error { return nil }, contents); err != nil {
+	if err := writeTempAndRename(sshdConfigPath, nil, contents); err != nil {
 		return trace.Wrap(err)
 	}
 
