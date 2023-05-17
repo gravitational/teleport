@@ -2565,11 +2565,14 @@ func (process *TeleportProcess) initUploaderService() error {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("starting upload completer service")
-
 	connectors := process.getConnectors()
 	var conn *Connector
 	for _, c := range connectors {
+		// Skip types.RoleMDM, MDM services don't have the necessary permissions to
+		// run the uploader.
+		if c.ServerIdentity != nil && c.ServerIdentity.ID.Role == types.RoleMDM {
+			continue
+		}
 		if c.Client != nil {
 			conn = c
 			log.Debugf("upload completer will use role %v", c.ServerIdentity.ID.Role)
@@ -2584,12 +2587,13 @@ func (process *TeleportProcess) initUploaderService() error {
 	// safely return.
 	if conn == nil {
 		for _, localService := range types.LocalServiceMappings() {
-			if localService != types.RoleAuth && process.instanceRoleExpected(localService) {
+			if localService != types.RoleAuth && localService != types.RoleMDM && process.instanceRoleExpected(localService) {
 				return trace.BadParameter("no connectors found")
 			}
 		}
 		return nil
 	}
+	log.Info("starting upload completer service")
 
 	// create folder for uploads
 	uid, gid, err := adminCreds()
