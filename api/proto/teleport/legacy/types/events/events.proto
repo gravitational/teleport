@@ -1085,6 +1085,10 @@ message UserLogin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AppliedLoginRules stores the name of each login rule that was applied
+  // during the login.
+  repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
