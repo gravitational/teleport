@@ -31,7 +31,7 @@ export default function TdpClientCanvas(props: Props) {
     tdpCli,
     tdpCliInit = false,
     tdpCliOnPngFrame,
-    tdpCliOnBitmapFrame,
+    tdpCliOnBmpFrame,
     tdpCliOnClipboardData,
     tdpCliOnTdpError,
     tdpCliOnTdpWarning,
@@ -90,7 +90,7 @@ export default function TdpClientCanvas(props: Props) {
   }, [tdpCli, tdpCliOnPngFrame]);
 
   useEffect(() => {
-    if (tdpCli && tdpCliOnBitmapFrame) {
+    if (tdpCli && tdpCliOnBmpFrame) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
 
@@ -99,7 +99,7 @@ export default function TdpClientCanvas(props: Props) {
       const renderBuffer = () => {
         if (bitmapBuffer.length) {
           for (let i = 0; i < bitmapBuffer.length; i++) {
-            tdpCliOnBitmapFrame(ctx, bitmapBuffer[i]);
+            tdpCliOnBmpFrame(ctx, bitmapBuffer[i]);
           }
           bitmapBuffer = [];
         }
@@ -111,16 +111,13 @@ export default function TdpClientCanvas(props: Props) {
         bitmapBuffer.push(bmpFrame);
       };
 
-      tdpCli.on(TdpClientEvent.TDP_BITMAP_FRAME, pushToBitmapBuffer);
+      tdpCli.on(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
 
       return () => {
-        tdpCli.removeListener(
-          TdpClientEvent.TDP_BITMAP_FRAME,
-          pushToBitmapBuffer
-        );
+        tdpCli.removeListener(TdpClientEvent.TDP_BMP_FRAME, pushToBitmapBuffer);
       };
     }
-  }, [tdpCli, tdpCliOnBitmapFrame]);
+  }, [tdpCli, tdpCliOnBmpFrame]);
 
   useEffect(() => {
     if (tdpCli && tdpCliOnClientScreenSpec) {
@@ -319,7 +316,7 @@ export type Props = {
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
   ) => void;
-  tdpCliOnBitmapFrame?: (
+  tdpCliOnBmpFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: BitmapFrame
   ) => void;

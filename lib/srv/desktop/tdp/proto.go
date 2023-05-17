@@ -288,16 +288,11 @@ func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 		return FastPathFrame{}, trace.Wrap(err)
 	}
 
-	// Allocate buffer that will fit FastPathFrame message
-	// message type (1) + data_length (4) + data => 5 + data
-	data := make([]byte, 5+dataLength)
-
-	// Write message type and png length into the buffer
-	data[0] = byte(TypeFastPathFrame)
-	binary.BigEndian.PutUint32(data[1:5], dataLength)
+	// Allocate buffer that will fit the data
+	data := make([]byte, dataLength)
 
 	// Write the data into the buffer
-	if _, err := io.ReadFull(in, data[5:]); err != nil {
+	if _, err := io.ReadFull(in, data); err != nil {
 		return FastPathFrame{}, trace.Wrap(err)
 	}
 
@@ -310,7 +305,7 @@ func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 func (f FastPathFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeFastPathFrame))
-	buf.WriteByte(byte(f.RpcId))
+	writeUint32(buf, f.RpcId)
 	writeUint32(buf, uint32(len(f.Data)))
 	buf.Write(f.Data)
 	return buf.Bytes(), nil

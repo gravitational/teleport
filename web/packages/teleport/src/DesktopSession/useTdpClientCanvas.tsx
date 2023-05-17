@@ -28,6 +28,8 @@ import { Sha256Digest } from 'teleport/lib/util';
 
 import { TopBarHeight } from './TopBar';
 
+import type { BitmapFrame } from 'teleport/lib/tdp/client';
+
 declare global {
   interface Navigator {
     userAgentData?: { platform: any };
@@ -82,6 +84,20 @@ export default function useTdpClientCanvas(props: Props) {
       initialTdpConnectionSucceeded.current = true;
     }
     ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
+  };
+
+  // Default TdpClientEvent.TDP_BMP_FRAME handler (buffered)
+  const onBitmapFrame = (
+    ctx: CanvasRenderingContext2D,
+    bmpFrame: BitmapFrame
+  ) => {
+    // The first image fragment we see signals a successful tdp connection.
+    if (!initialTdpConnectionSucceeded.current) {
+      syncCanvasSizeToDisplaySize(ctx.canvas);
+      setTdpConnection({ status: 'success' });
+      initialTdpConnectionSucceeded.current = true;
+    }
+    ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
   };
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
@@ -245,6 +261,7 @@ export default function useTdpClientCanvas(props: Props) {
   return {
     tdpClient,
     onPngFrame,
+    onBitmapFrame,
     onTdpError,
     onClipboardData,
     onWsClose,

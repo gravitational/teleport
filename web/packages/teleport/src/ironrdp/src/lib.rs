@@ -71,6 +71,55 @@ struct BitmapFrame {
     image_data: ImageData,
 }
 
+#[wasm_bindgen]
+impl BitmapFrame {
+    #[wasm_bindgen(getter)]
+    pub fn top(&self) -> u16 {
+        self.top
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn left(&self) -> u16 {
+        self.left
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn image_data(&self) -> ImageData {
+        self.image_data.clone() // todo(isaiah): bad
+
+        // You can pass the `&[u8]` from Rust to JavaScript without copying it by using the `wasm_bindgen::memory` function to directly access the WebAssembly linear memory. Here's how you can achieve this:
+
+        // 1. Get a pointer to the data and its length.
+        // 2. Create a `Uint8Array` that directly refers to the WebAssembly linear memory.
+        // 3. Use the `subarray` method to create a new view that refers to the desired data without copying it.
+
+        // ```rust
+        // #[wasm_bindgen(getter)]
+        // pub fn image_data(&self) -> JsValue {
+        //     let data = self.image_data.data();
+        //     let data_ptr = data.as_ptr() as u32;
+        //     let data_len = data.len() as u32;
+
+        //     let memory_buffer = wasm_bindgen::memory()
+        //         .dyn_into::<WebAssembly::Memory>()
+        //         .unwrap()
+        //         .buffer();
+
+        //     let data_array = js_sys::Uint8Array::new(&memory_buffer).subarray(data_ptr, data_ptr + data_len);
+
+        //     let obj = js_sys::Object::new();
+        //     js_sys::Reflect::set(&obj, &"data".into(), &data_array).unwrap();
+        //     js_sys::Reflect::set(&obj, &"width".into(), &JsValue::from(self.image_data.width())).unwrap();
+        //     js_sys::Reflect::set(&obj, &"height".into(), &JsValue::from(self.image_data.height())).unwrap();
+
+        //     obj.into()
+        // }
+        // ```
+
+        // This implementation should pass the data from Rust to JavaScript without copying it. Note that the returned `Uint8Array` is a view over the WebAssembly linear memory, so you need to make sure that the data is not modified on the Rust side while it's being used in JavaScript. Also, keep in mind that the lifetime of the `Uint8Array` is tied to the lifetime of the `ImageData` object in Rust. If the `ImageData` object is dropped, the underlying data may be deallocated, and the `Uint8Array` in JavaScript may become invalid.
+    }
+}
+
 fn create_image_data_from_image_and_region(
     image_data: &[u8],
     image_location: Rectangle,
@@ -182,6 +231,7 @@ impl FastPathProcessor {
         };
 
         let bitmap_frame = &JsValue::from(bitmap_frame);
+        debug!("bitmap_frame: {:?}", bitmap_frame);
 
         let _ret = callback.call1(callback_context, bitmap_frame)?;
         Ok(())

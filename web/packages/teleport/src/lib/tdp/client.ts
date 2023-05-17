@@ -55,7 +55,7 @@ import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
-  TDP_BITMAP_FRAME = 'tdp bitmap frame',
+  TDP_BMP_FRAME = 'tdp bmp frame',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
   // TDP_ERROR corresponds with the TDP error message
   TDP_ERROR = 'tdp error',
@@ -282,6 +282,8 @@ export default class Client extends EventEmitterWebAuthnSender {
       decodedFastPathFrame.rpcId,
       decodedFastPathFrame.data
     );
+
+    console.log('fastPathFrame: ', fastPathFrame);
     // Passes buffer into RdpFrameProcessor.process
     // In there we call RdpFrameProcessor.fast_path_processor.process()
     // for out in outputs {}:
@@ -295,7 +297,11 @@ export default class Client extends EventEmitterWebAuthnSender {
       fastPathFrame,
       this,
       (bmpFrame: BitmapFrame) => {
-        this.emit(TdpClientEvent.TDP_BITMAP_FRAME, bmpFrame); // todo(isaiah): in tdpclientcanvas render this event to the canvas
+        console.log('emitting TDP_BITMAP_FRAME: ', bmpFrame);
+        console.log('bmpFrame.top = ', bmpFrame.top);
+        console.log('bmpFrame.left = ', bmpFrame.left);
+        console.log('bmpFrame.image_data = ', bmpFrame.image_data);
+        this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
       }
     );
   }

@@ -229,6 +229,7 @@ function Session({
   directorySharingState,
   setDirectorySharingState,
   onPngFrame,
+  onBitmapFrame,
   onClipboardData,
   onTdpError,
   onTdpWarning,
@@ -296,6 +297,7 @@ function Session({
         tdpCli={tdpClient}
         tdpCliInit={initTdpCli}
         tdpCliOnPngFrame={onPngFrame}
+        tdpCliOnBmpFrame={onBitmapFrame}
         tdpCliOnClipboardData={onClipboardData}
         tdpCliOnTdpError={onTdpError}
         tdpCliOnTdpWarning={onTdpWarning}
