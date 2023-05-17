@@ -241,7 +241,7 @@ func (b *buildType) hasTeleportConnect() bool {
 func dockerService(v ...volumeRef) service {
 	return service{
 		Name:       "Start Docker",
-		Image:      "docker:dind",
+		Image:      "docker:23.0-dind",
 		Privileged: true,
 		Volumes:    append(v, volumeRefDocker),
 	}
