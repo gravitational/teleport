@@ -44,7 +44,7 @@ const (
 )
 
 func onGcloud(cf *CLIConf) error {
-	app, err := pickActiveGCPApp(cf)
+	app, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -67,7 +67,7 @@ func onGcloud(cf *CLIConf) error {
 }
 
 func onGsutil(cf *CLIConf) error {
-	app, err := pickActiveGCPApp(cf)
+	app, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -477,7 +477,7 @@ func matchGCPApp(app tlsca.RouteToApp) bool {
 	return app.GCPServiceAccount != ""
 }
 
-func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
-	app, err := pickActiveCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
+func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
+	app, err := pickCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
 	return app, trace.Wrap(err)
 }

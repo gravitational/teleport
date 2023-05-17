@@ -28,8 +28,9 @@ func defaultValue[t any]() t {
 	return def
 }
 
-func pickActiveCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRouteToApp func(tlsca.RouteToApp) bool, newCloudApp func(cf *CLIConf, profile *client.ProfileStatus, appRoute tlsca.RouteToApp) (cloudApp, error)) (cloudApp, error) {
-	app, needLogin, err := pickActiveCloudAppNoRetry[cloudApp](cf, cloudFriendlyName, matchRouteToApp, newCloudApp)
+// pickCloudApp will attempt to find an active cloud app, automatically logging the user to the selected application if possible.
+func pickCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRouteToApp func(tlsca.RouteToApp) bool, newCloudApp func(cf *CLIConf, profile *client.ProfileStatus, appRoute tlsca.RouteToApp) (cloudApp, error)) (cloudApp, error) {
+	app, needLogin, err := pickActiveCloudApp[cloudApp](cf, cloudFriendlyName, matchRouteToApp, newCloudApp)
 	if err != nil {
 		if !needLogin {
 			return defaultValue[cloudApp](), trace.Wrap(err)
@@ -43,13 +44,13 @@ func pickActiveCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, mat
 			return cApp, trace.NewAggregate(err, errLogin)
 		}
 		// another attempt
-		app, _, err = pickActiveCloudAppNoRetry[cloudApp](cf, cloudFriendlyName, matchRouteToApp, newCloudApp)
+		app, _, err = pickActiveCloudApp[cloudApp](cf, cloudFriendlyName, matchRouteToApp, newCloudApp)
 		return app, trace.Wrap(err)
 	}
 	return app, nil
 }
 
-func pickActiveCloudAppNoRetry[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRouteToApp func(tlsca.RouteToApp) bool, newCloudApp func(cf *CLIConf, profile *client.ProfileStatus, appRoute tlsca.RouteToApp) (cloudApp, error)) (cApp cloudApp, needLogin bool, err error) {
+func pickActiveCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRouteToApp func(tlsca.RouteToApp) bool, newCloudApp func(cf *CLIConf, profile *client.ProfileStatus, appRoute tlsca.RouteToApp) (cloudApp, error)) (cApp cloudApp, needLogin bool, err error) {
 	profile, err := cf.ProfileStatus()
 	if err != nil {
 		return defaultValue[cloudApp](), false, trace.Wrap(err)

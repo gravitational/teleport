@@ -40,7 +40,7 @@ const (
 )
 
 func onAzure(cf *CLIConf) error {
-	app, err := pickActiveAzureApp(cf)
+	app, err := pickAzureApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -387,7 +387,7 @@ func matchAzureApp(app tlsca.RouteToApp) bool {
 	return app.AzureIdentity != ""
 }
 
-func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
-	app, err := pickActiveCloudApp(cf, types.CloudAzure, matchAzureApp, newAzureApp)
+func pickAzureApp(cf *CLIConf) (*azureApp, error) {
+	app, err := pickCloudApp(cf, types.CloudAzure, matchAzureApp, newAzureApp)
 	return app, trace.Wrap(err)
 }

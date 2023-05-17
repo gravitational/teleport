@@ -41,7 +41,7 @@ const (
 )
 
 func onAWS(cf *CLIConf) error {
-	awsApp, err := pickActiveAWSApp(cf)
+	awsApp, err := pickAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -409,7 +409,7 @@ func matchAWSApp(app tlsca.RouteToApp) bool {
 	return app.AWSRoleARN != ""
 }
 
-func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	app, err := pickActiveCloudApp(cf, types.CloudAWS, matchAWSApp, newAWSApp)
+func pickAWSApp(cf *CLIConf) (*awsApp, error) {
+	app, err := pickCloudApp(cf, types.CloudAWS, matchAWSApp, newAWSApp)
 	return app, trace.Wrap(err)
 }

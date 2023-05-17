@@ -607,7 +607,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	awsApp, err := pickActiveAWSApp(cf)
+	awsApp, err := pickAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -699,7 +699,7 @@ func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 
 // onProxyCommandAzure creates local proxes for Azure apps.
 func onProxyCommandAzure(cf *CLIConf) error {
-	azApp, err := pickActiveAzureApp(cf)
+	azApp, err := pickAzureApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -730,7 +730,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 // onProxyCommandGCloud creates local proxies for GCP apps.
 func onProxyCommandGCloud(cf *CLIConf) error {
-	gcpApp, err := pickActiveGCPApp(cf)
+	gcpApp, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
