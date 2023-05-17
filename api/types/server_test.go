@@ -243,7 +243,7 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				}
 				require.Equal(t, expectedServer, s)
 			},
-    },
+		},
 		{
 			name: "OpenSSH node with unset name",
 			server: &ServerV2{
