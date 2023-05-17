@@ -92,11 +92,7 @@ export function useDocumentGateway(doc: types.DocumentGateway) {
 
   const runCliCommand = () => {
     const command = tshdGateway.getCliCommandArgv0(gateway.cliCommand);
-    let title = `${command} · ${doc.targetUser}@${doc.targetName}`;
-
-    if (doc.targetSubresourceName) {
-      title += `/${doc.targetSubresourceName}`;
-    }
+    const title = `${command} · ${doc.targetUser}@${doc.targetName}`;
 
     const cliDoc = workspaceDocumentsService.createGatewayCliDocument({
       title,
