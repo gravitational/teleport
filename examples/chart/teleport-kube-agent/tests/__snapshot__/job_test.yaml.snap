@@ -13,7 +13,7 @@ should set nodeSelector in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:13.0.1
+      image: public.ecr.aws/gravitational/teleport-distroless:13.0.2
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:
@@ -43,7 +43,7 @@ should set securityContext in post-delete hook:
             fieldPath: metadata.namespace
       - name: RELEASE_NAME
         value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:13.0.1
+      image: public.ecr.aws/gravitational/teleport-distroless:13.0.2
       imagePullPolicy: IfNotPresent
       name: post-delete-job
       securityContext:

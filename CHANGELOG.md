@@ -1,6 +1,6 @@
 # Changelog
 
-## 13.0.1 (05/16/23)
+## 13.0.2 (05/17/23)
 
 * Auth
   * Improved error message on `tsh login` when trying to authenticate with unregistered device. [#26103](https://github.com/gravitational/teleport/pull/26103)
@@ -31,6 +31,7 @@
   * Added support for TLS Routing behind ALB support for SSH and Database access. [#25899](https://github.com/gravitational/teleport/pull/25899)
 * Database Access
   * Improved initial connect auth check for Azure Cache access. [#26317](https://github.com/gravitational/teleport/pull/26317)
+  * Fixed issue with connecting to default active Cassandra database. [#26378](https://github.com/gravitational/teleport/pull/26378)
 * TLS Routing
   * Added support for `tsh kube join` in single-port mode behind ALB. [#26283](https://github.com/gravitational/teleport/pull/26283)
   * Added support for `tsh request search --kind=pod` in single-port mode behind ALB. [#26128](https://github.com/gravitational/teleport/pull/26128)
