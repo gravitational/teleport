@@ -9,39 +9,38 @@ access to their infrastructure.
 
 With Teleport Team, the Auth Service and Proxy Service are fully managed, giving
 you a scalable, fault tolerant certificate authority that you can use to
-configure access from users across the globe to infrastructure resources in
+configure access from users across the globe to your infrastructure, including
 private networks.
 
-After you start a [free trial](fixme.mdx) of Teleport Team, you can set up RBAC,
-enable single sign-on with GitHub or Teleport's own identity provider, and start
-protecting resources with Teleport.
+After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
+you can set up RBAC, enable single sign-on with GitHub or Teleport's own
+identity provider, and start protecting resources with Teleport.
 
 <Notice type="tip">
 
 For a detailed comparison of Teleport's editions, including how Teleport Team
-compares to Teleport Team, see our [Choose an
-Edition](introduction.mdx) introduction page.
+compares to Teleport Team, see the [Choose an Edition](introduction.mdx) guide.
 
 </Notice>
 
 ## Get started with Teleport Team
 
-To show you how Teleport Team protects your infrastructure without compromising
-convenience, we will walk through the process of registering a local Docker
-container with Teleport. You can then access the container through the browser
-and the terminal, and record your session so you can review it later.
+This section walks you through the process of registering a local server with a
+Teleport Team account. You can then access the server through the browser and
+the terminal, and record your session so you can review it later.
 
 ### Prerequisites
 
 - A Teleport Team account. You can sign up for a free trial at the following
   page:
 
-  {/*TODO: update this*/}
   https://goteleport.com/signup/
 
-- Docker installed on your workstation. We will use a Docker container to
-  register a server with Teleport via the Teleport SSH Service. You can find
-  installation instructions on [Docker's
+- **Optional:** Docker installed on your workstation. In this guide, we will
+  show you how to register a server with Teleport via the Teleport SSH Service.
+  If your workstation is running Windows, or you prefer a containerized setup,
+  we will show you how to run the Teleport SSH Service on a local Docker host.
+  You can find installation instructions on [Docker's
   website](https://docs.docker.com/get-docker/).
 
   <Notice type="tip">
@@ -57,10 +56,31 @@ and the terminal, and record your session so you can review it later.
   for instructions. If you want to get started quickly, you can skip this for
   now and access Teleport through your browser.
 
-### Step 1/4. Spin up your server
+### Step 1/3. Install the Teleport SSH Service
 
-Spin up a server on your workstation. In Step 2, we will register this server
-with your Teleport Team tenant:
+To install the Teleport SSH Service on your server, visit the Teleport Web UI at
+the address of your Teleport Team tenant, <Var name="tenant-url"/>`.teleport.sh`
+(e.g., `mytenant.teleport.sh`). 
+
+If this is your first time visiting the Web UI, you will see a prompt to add
+your first resource: 
+
+![Add your first
+resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
+
+Clicking **Add my first resource** will take you to the **Enroll New Resource**
+view. Enter "server" in the search box as shown below:
+
+![Select resource
+type](../../img/cloud/getting-started/choose-resource@2x.png)
+
+Select your OS. If using Windows, select "Ubuntu 14.04+" and follow the
+instructions to set up a Docker container below.
+
+<Details title="Setting up a Docker container to follow this guide">
+
+Spin up a server on your workstation so you can register this server with your
+Teleport Team tenant:
 
 ```code
 $ docker run -it ubuntu:22.10 /bin/bash
@@ -73,41 +93,25 @@ there, make sure you have `curl` and `telnet` installed. When we run a script to
 $ apt update && apt install -y curl telnet
 ```
 
-Keep this shell open in your terminal for the next step.
+The rest of the guide assumes that you will run it as a non-`root` user, but the
+shell in the container you created earlier is running as root. Alias `sudo` to
+override this:
 
-### Step 2/4. Install the Teleport SSH Service
-
-To install the Teleport SSH Service on your server, visit the Teleport Web UI at
-the address of your Teleport Team tenant, <Var name="tenant-url"/>`.teleport.sh`
-(e.g., `mytenant.teleport.sh`). 
-
-If this is your first time visiting the Web UI, you will see a prompt to add
-your first resource: 
-
-![Add your first
-resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
-
-Clicking **Add my first resource** will take you to the Teleport Discover UI:
-
-![Select resource
-type](../../img/cloud/getting-started/select-resource-type@2x.png)
-
-Leave **Server** selected and click **Next**.
-
-You will see a script that you can copy from the Teleport Web UI:
-
-![Configure resource](../../img/cloud/getting-started/configure-resource@2x.png)
-
-Copy the script and paste it into the shell you opened in the previous step.
-
-The script assumes that you will run it as a non-`root` user, but the shell in
-the container you created earlier is running as root. Remove `sudo` from the
-start of the script so you can run it on your container. It should look
-something like this:
-
-```text
-bash -c "$(curl -fsSL https://TENANT_SUBDOMAIN.teleport.sh/scripts/SCRIPT_NAME/install-node.sh)" 
+```code
+$ alias sudo=""
 ```
+
+Keep this shell open in your terminal.
+
+</Details>
+
+After selecting an OS, you will see a script that you can copy from the Teleport
+Web UI:
+
+![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
+
+Copy the script and paste it into a shell on your local workstation or the shell
+you opened earlier on your Docker container.
 
 Leave the script running in your shell. Teleport will run in the foreground. You
 will see a message in the Web UI that your new server connected successfully:
@@ -116,6 +120,8 @@ will see a message in the Web UI that your new server connected successfully:
 successfully](../../img/cloud/getting-started/successfully-connected@2x.png)
 
 Click **Next**.
+
+{/* TODO: Verify this with macOS*/}
 
 Confirm that you will authenticate as the `root` user and click **Next**:
 
@@ -148,22 +154,22 @@ end your session.
 In the **Manage Access** view, click **Finish**, then **Browse existing
 resources** to visit the main view of the Teleport Web UI.
 
-### Step 3/4. Play back your session
+### Step 2/3. Play back your session
 
-As Teleport Team proxies SSH connections to registered servers, it
-records the commands that users execute during their sessions so operators can
-play them back later to investigate issues.
+As Teleport Team proxies SSH connections to registered servers, it records the
+commands that users execute during their sessions so operators can play them
+back later to investigate issues.
 
-In the Teleport Web UI, click the **Activity** tab in the sidebar on the left of
-the screen, then click **Session Recordings**. You will see your session from
-the previous step:
+In the Teleport Web UI, set the dropdown menu on the upper left of the screen to
+**Management**, then click **Session Recordings**. You will see your session
+from the previous step:
 
 ![Session
 recordings](../../img/cloud/getting-started/session-recordings@2x.png)
 
 Click **PLAY**. You will see a full recording of your session.
 
-### Step 4/4. Access your server from the command line
+### Step 3/3. Access your server from the command line
 
 Open a new terminal window and log in to your Teleport Team tenant
 via the command line, filling in the URL of your tenant and the name of your
@@ -192,12 +198,13 @@ $ tsh ssh root@<Var name="node-name" />
 ## Next steps
 
 We have shown you how to use Teleport Team to quickly protect your
-infrastructure.
+infrastructure by registering a server with your Teleport Team cluster. From
+here, you can explore more of the documentation to see how to set up secure
+access for your infrastructure.
 
 ### Register resources
 
-Now that you have registered your first server with your Teleport Team account,
-read about how you can register resources in your infrastructure, including:
+Read about how you can register resources in your infrastructure, including:
 
   - [Additional SSH servers](../../server-access/introduction.mdx)
   - [Cloud provider tools and internal web applications](../../application-access/introduction.mdx)
@@ -215,4 +222,5 @@ Connect](../../connect-your-client/teleport-connect.mdx).
 ### Subscribe
 
 After you finish your free trial, Teleport Team will charge based on usage.
-Check the [pricing page](fixme.mdx) for detailed billing information.
+Check the [pricing page](https://goteleport.com/teleport-pricing/) for detailed
+billing information.
