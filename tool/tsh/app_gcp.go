@@ -101,8 +101,6 @@ type gcpApp struct {
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
-
-	cloudAppImpl
 }
 
 // newGCPApp creates a new GCP app.
@@ -480,21 +478,6 @@ func matchGCPApp(app tlsca.RouteToApp) bool {
 }
 
 func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
-	info := cloudAppInfo{
-		cloudFriendlyName: types.CloudGCP,
-		matchRouteToApp:   matchGCPApp,
-		newCloudApp: func(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (cloudApp, error) {
-			return newGCPApp(cf, profile, route)
-		},
-	}
-
-	app, err := info.pickActiveCloudApp(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	typedApp, ok := (app).(*gcpApp)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", app)
-	}
-	return typedApp, nil
+	app, err := pickActiveCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
+	return app, trace.Wrap(err)
 }

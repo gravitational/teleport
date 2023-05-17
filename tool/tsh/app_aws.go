@@ -81,16 +81,14 @@ type awsApp struct {
 	localForwardProxy *alpnproxy.ForwardProxy
 	credentials       *credentials.Credentials
 	credentialsOnce   sync.Once
-
-	cloudAppImpl
 }
 
 // newAWSApp creates a new AWS app.
-func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*awsApp, error) {
+func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (*awsApp, error) {
 	return &awsApp{
 		cf:      cf,
 		profile: profile,
-		appName: appName,
+		appName: route.Name,
 	}, nil
 }
 
@@ -412,21 +410,6 @@ func matchAWSApp(app tlsca.RouteToApp) bool {
 }
 
 func pickActiveAWSApp(cf *CLIConf) (*awsApp, error) {
-	info := cloudAppInfo{
-		cloudFriendlyName: types.CloudAWS,
-		matchRouteToApp:   matchAWSApp,
-		newCloudApp: func(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (cloudApp, error) {
-			return newAWSApp(cf, profile, route.Name)
-		},
-	}
-
-	app, err := info.pickActiveCloudApp(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	typedApp, ok := (app).(*awsApp)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", app)
-	}
-	return typedApp, nil
+	app, err := pickActiveCloudApp(cf, types.CloudAWS, matchAWSApp, newAWSApp)
+	return app, trace.Wrap(err)
 }

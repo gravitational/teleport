@@ -71,8 +71,6 @@ type azureApp struct {
 
 	localALPNProxy    *alpnproxy.LocalProxy
 	localForwardProxy *alpnproxy.ForwardProxy
-
-	cloudAppImpl
 }
 
 // newAzureApp creates a new Azure app.
@@ -390,21 +388,6 @@ func matchAzureApp(app tlsca.RouteToApp) bool {
 }
 
 func pickActiveAzureApp(cf *CLIConf) (*azureApp, error) {
-	info := cloudAppInfo{
-		cloudFriendlyName: types.CloudAzure,
-		matchRouteToApp:   matchAzureApp,
-		newCloudApp: func(cf *CLIConf, profile *client.ProfileStatus, route tlsca.RouteToApp) (cloudApp, error) {
-			return newAzureApp(cf, profile, route)
-		},
-	}
-
-	app, err := info.pickActiveCloudApp(cf)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	typedApp, ok := (app).(*azureApp)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T", app)
-	}
-	return typedApp, nil
+	app, err := pickActiveCloudApp(cf, types.CloudAzure, matchAzureApp, newAzureApp)
+	return app, trace.Wrap(err)
 }
