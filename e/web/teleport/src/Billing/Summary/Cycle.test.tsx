@@ -35,10 +35,10 @@ describe('cycle', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Your team plan includes a limited amount of free usage. If your team exceeds the limit for a given category, your team will be charged for the extra use. Cluster owners are notified if usage approaches or exceeds a limit./i
+        /Your team plan includes a limited amount of free usage. If your team exceeds the limit for a given category, your team will be charged for the extra use./i
       )
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Learn More' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Learn More.' })).toHaveAttribute(
       'href',
       'https://goteleport.com/teleport-pricing/'
     );
@@ -46,7 +46,7 @@ describe('cycle', () => {
 
   test('renders usage', () => {
     props.currentUsage.usageMau = 0;
-    props.currentUsage.usageTia = 80;
+    props.currentUsage.usageTia = 10000;
     props.currentUsage.usagePr = 200;
 
     renderWithElementsAndContext(<Cycle {...props} />);
@@ -55,8 +55,10 @@ describe('cycle', () => {
     expect(within(mau).getByText(/(0%)/i)).toBeInTheDocument();
 
     const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
-    expect(within(tia).getByText(/80 of 12000/i)).toBeInTheDocument();
-    expect(within(tia).getByText(/(1%)/i)).toBeInTheDocument();
+    expect(
+      within(tia).getByText(/10000 of 50000 Included/i)
+    ).toBeInTheDocument();
+    expect(within(tia).getByText(/(20%)/i)).toBeInTheDocument();
 
     const pr = screen.getByTestId(/Teleport Protected Resources/i);
     expect(within(pr).getByText(/200 of 50/i)).toBeInTheDocument();

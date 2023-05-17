@@ -91,8 +91,10 @@ export interface StatusBannerProps {
 export type CycleUsage = {
   name: string;
   total: number;
-  max: number;
+  percentageMax: number;
+  hardMax: number;
   percentage: number;
+  hasFreeTier: boolean;
 };
 
 export interface ExistingPaymentProps {

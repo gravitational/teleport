@@ -8,9 +8,15 @@ import Link from 'design/Link';
 
 import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
 
-const MAX_TIA = 12000;
-const MAX_PR = 50;
-const MAX_MAU = 30;
+// todo (michellescripts) pull usage max/included values from the subscription as part of https://github.com/gravitational/cloud/issues/3536
+const incTIA = 50000;
+const maxTIA = 300000;
+
+const incTPR = 50;
+const maxTPR = 1000;
+
+const maxMAU = 30;
+const mauRate = 15;
 
 export const Cycle = ({
   currentUsage: { periodStart, periodEnd, usageMau, usagePr, usageTia },
@@ -27,22 +33,44 @@ export const Cycle = ({
     {
       name: 'Active Users',
       total: mau,
-      max: MAX_MAU,
-      percentage: Math.round((mau / MAX_MAU) * 100),
+      percentage: Math.round((mau / maxMAU) * 100),
+      percentageMax: maxMAU,
+      hardMax: maxMAU,
+      hasFreeTier: false,
     },
     {
       name: 'Teleport Identity Authorizations',
       total: tia,
-      max: MAX_TIA,
-      percentage: Math.round((tia / MAX_TIA) * 100),
+      percentage: Math.round((tia / incTIA) * 100),
+      percentageMax: incTIA,
+      hardMax: maxTIA,
+      hasFreeTier: true,
     },
     {
       name: 'Teleport Protected Resources',
       total: pr,
-      max: MAX_PR,
-      percentage: Math.round((pr / MAX_PR) * 100),
+      percentage: Math.round((pr / incTPR) * 100),
+      percentageMax: incTPR,
+      hardMax: maxTPR,
+      hasFreeTier: true,
     },
   ];
+
+  const getColor = (total, hasFreeTier, freeTierMax, hardMax): string => {
+    // if a product has hit its hard max
+    if (total >= hardMax) {
+      return theme.colors.error.main;
+    }
+
+    // if a product does not contain a free tier, or it has exceeded its free tier
+    // then they are being charged for usage
+    if (!hasFreeTier || total > freeTierMax) {
+      return theme.colors.link;
+    }
+
+    // the default behavior is for free tier products within their free tier limits
+    return theme.colors.success;
+  };
 
   return (
     <Box
@@ -55,33 +83,39 @@ export const Cycle = ({
         Current Cycle: {start} - {end}
       </h2>
       <Text color={theme.colors.text.secondary}>
-        Your next invoice will occur on {end}
+        Your next invoice will occur on {end} at a rate of ${mauRate} per active
+        user.
       </Text>
       <Flex>
         {usage.map(u => (
           // todo (michellescripts) add info/hover for description  https://github.com/gravitational/cloud/issues/3536
           <Box key={u.name} width="30%" data-testid={u.name}>
             <h3>{u.name}</h3>
-            {u.total} of {u.max} ({u.percentage}%)
+            {u.total} of {u.percentageMax}
+            {u.hasFreeTier && ' Included'} ({u.percentage}%)
             <StyledBar
               percent={Math.min(u.percentage, 100)}
-              over={u.percentage > 100}
+              color={getColor(
+                u.total,
+                u.hasFreeTier,
+                u.percentageMax,
+                u.hardMax
+              )}
             />
           </Box>
         ))}
       </Flex>
       <Text color={theme.colors.text.secondary} mt="12px">
         <i>
-          Your team plan includes a limited amount of free usage. If your team
-          exceeds the limit for a given category, your team will be charged for
-          the extra use. Cluster owners are notified if usage approaches or
-          exceeds a limit.&nbsp;
+          Your team plan includes a limited amount of free usage. <br />
+          If your team exceeds the limit for a given category, your team will be
+          charged for the extra use.&nbsp;
           <Link
             color="text.secondary"
             href="https://goteleport.com/teleport-pricing/"
             target="_blank"
           >
-            Learn More
+            Learn More.
           </Link>
         </i>
       </Text>
@@ -89,7 +123,10 @@ export const Cycle = ({
   );
 };
 
-const StyledBar = styled.div<{ percent: number; over: boolean }>`
+const StyledBar = styled.div<{
+  percent: number;
+  color: string;
+}>`
   background: ${props => props.theme.colors.spotBackground[1]};
   border-radius: 13px;
   height: 20px;
@@ -99,8 +136,7 @@ const StyledBar = styled.div<{ percent: number; over: boolean }>`
   &:after {
     content: '';
     display: block;
-    background: ${props =>
-      props.over ? props.theme.colors.error.main : props.theme.colors.success};
+    background: ${props => props.color};
     width: ${p => p.percent}%;
     height: 100%;
     border-radius: 9px;
