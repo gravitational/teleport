@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -107,6 +108,11 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		return trace.Wrap(err)
 	}
 
+	var expiresTime time.Time
+	// leave as 0 if no lock expiration was set
+	if lock.LockExpiry() != nil {
+		expiresTime = lock.LockExpiry().UTC()
+	}
 	um := authz.ClientUserMetadata(ctx)
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.LockCreate{
 		Metadata: apievents.Metadata{
@@ -116,6 +122,7 @@ func (a *Server) UpsertLock(ctx context.Context, lock types.Lock) error {
 		UserMetadata: um,
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:      lock.GetName(),
+			Expires:   expiresTime,
 			UpdatedBy: um.User,
 		},
 		Target: lock.Target(),
