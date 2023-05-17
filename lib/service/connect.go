@@ -714,7 +714,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	ctx := process.ExitContext()
+	ctx := process.GracefulExitContext()
 	cas, err := conn.Client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -765,11 +765,8 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		// run in a go routine as process.Shutdown waits until
 		// all registered services/functions have finished and
 		// this cant finish if its waiting on this function to
-		// rrturn
-		process.Shutdown(context.Background())
-		if err := process.Close(); err != nil {
-			process.log.Errorf("Error closing process: %s", err)
-		}
+		// return
+		process.Shutdown(ctx)
 	}()
 
 	return nil
