@@ -24,6 +24,32 @@ There are two ways to configure a Teleport cluster:
 This approach makes it possible to incrementally adjust your Teleport
 configuration without redeploying Teleport instances. 
 
+```mermaid
+flowchart LR
+subgraph backend["Cluster state backend"]
+  direction LR
+  resources["Dynamic config resources"]
+end 
+
+subgraph cluster[Teleport cluster]
+  subgraph auth[Auth Service]
+    conf1["Static config"]
+  end 
+  subgraph proxy[Proxy Service]
+    conf2["Static config"]
+  end 
+end
+
+auth--"Reads, writes"-->backend
+subgraph clients["API clients"]
+  terraform["Terraform Provider"]
+  operator["Kubernetes Operator"]
+  tctl
+end
+terraform & operator & tctl-- "API calls" -->proxy
+proxy-.->auth
+```
+
 Teleport borrows the concept of a dynamic configuration resource from the REST
 programming pattern. A cluster is composed of different objects (i.e.,
 resources) and there are three common operations that can be performed on them:
