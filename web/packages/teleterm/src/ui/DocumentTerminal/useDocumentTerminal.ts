@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
@@ -43,6 +43,10 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const [attempt, startTerminal] = useAsync(async () => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'connecting' });
+    }
+
     try {
       return await startTerminalSession(
         ctx,
@@ -71,14 +75,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
     };
   }, [attempt]);
 
-  const reconnect = useCallback(() => {
-    if ('status' in doc) {
-      documentsService.update(doc.uri, { status: 'connecting' });
-    }
-    startTerminal();
-  }, [documentsService, doc.uri, startTerminal]);
-
-  return { attempt, reconnect };
+  return { attempt, reconnect: startTerminal };
 }
 
 async function startTerminalSession(

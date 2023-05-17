@@ -210,6 +210,7 @@ export class DocumentsService {
       kind: 'doc.gateway_cli_client',
       uri: routing.getDocUri({ docId: unique() }),
       title,
+      status: 'connecting',
       rootClusterId,
       leafClusterId,
       targetUri,
