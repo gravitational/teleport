@@ -22,6 +22,8 @@ describe('paymentsAndInvoicesPage', () => {
         stripeTrialEnd: 0,
         stripeDefaultSourceId: 'some-stripeDefaultSourceId',
         stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+        stripeSubscriptionCancelAt: 0,
+        stripeSubscriptionCanceledAt: 0,
       },
       reload: jest.fn(),
     };

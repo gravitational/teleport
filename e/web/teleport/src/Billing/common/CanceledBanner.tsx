@@ -1,12 +1,15 @@
 import { Box } from 'design';
 import React from 'react';
 import { useTheme } from 'styled-components';
-import Link from 'design/Link';
 
-export const CanceledBanner = () => {
+import { CancelText } from 'e-teleport/Billing/common/CancelText';
+import { CancelAtProps } from 'e-teleport/Billing/types';
+
+export const CanceledBanner = ({
+  stripeSubscriptionCancelAt,
+}: CancelAtProps) => {
   const theme = useTheme();
 
-  // todo (michellescripts) add final payment date information as part of https://github.com/gravitational/cloud/issues/3536
   return (
     <Box
       bg={theme.colors.error.main}
@@ -16,15 +19,7 @@ export const CanceledBanner = () => {
     >
       <h2>Your account is canceled</h2>
       <i>
-        Your account will be deleted once the grace period is over. To cancel
-        this process, please&nbsp;
-        <Link
-          color={theme.colors.text.primaryInverse}
-          href="https://goteleport.com/support/"
-          target="_blank"
-        >
-          contact us.
-        </Link>
+        <CancelText stripeSubscriptionCancelAt={stripeSubscriptionCancelAt} />
       </i>
     </Box>
   );

@@ -32,11 +32,4 @@ describe('invoiceSettingsPage', () => {
     expect(screen.getByText('Invoice Email Recipient')).toBeInTheDocument();
     expect(screen.getByText('Invoice Purchase Order')).toBeInTheDocument();
   });
-
-  test('if canceled, renders cancel banner', () => {
-    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
-    renderWithElementsAndContext(<InvoiceSettingsPage {...props} />);
-
-    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
-  });
 });

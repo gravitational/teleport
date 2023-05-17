@@ -279,6 +279,12 @@ export class GetBillingInformationResponse extends jspb.Message {
   getStripeSubscriptionStatus(): string;
   setStripeSubscriptionStatus(value: string): void;
 
+  getStripeSubscriptionCancelAt(): number;
+  setStripeSubscriptionCancelAt(value: number): void;
+
+  getStripeSubscriptionCanceledAt(): number;
+  setStripeSubscriptionCanceledAt(value: number): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingInformationResponse): GetBillingInformationResponse.AsObject;
@@ -304,6 +310,8 @@ export namespace GetBillingInformationResponse {
     stripeMissingPaymentMethod: boolean,
     stripeCustomerId: string,
     stripeSubscriptionStatus: string,
+    stripeSubscriptionCancelAt: number,
+    stripeSubscriptionCanceledAt: number,
   }
 }
 
@@ -957,6 +965,12 @@ export class GetBillingSummaryInformationResponse extends jspb.Message {
   getStripeSubscriptionStatus(): string;
   setStripeSubscriptionStatus(value: string): void;
 
+  getStripeSubscriptionCancelAt(): number;
+  setStripeSubscriptionCancelAt(value: number): void;
+
+  getStripeSubscriptionCanceledAt(): number;
+  setStripeSubscriptionCanceledAt(value: number): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetBillingSummaryInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetBillingSummaryInformationResponse): GetBillingSummaryInformationResponse.AsObject;
@@ -978,6 +992,8 @@ export namespace GetBillingSummaryInformationResponse {
     stripeMissingPaymentMethod: boolean,
     productName: string,
     stripeSubscriptionStatus: string,
+    stripeSubscriptionCancelAt: number,
+    stripeSubscriptionCanceledAt: number,
   }
 }
 
@@ -1016,6 +1032,12 @@ export class GetPaymentsInvoicesInformationResponse extends jspb.Message {
   getStripeSubscriptionStatus(): string;
   setStripeSubscriptionStatus(value: string): void;
 
+  getStripeSubscriptionCancelAt(): number;
+  setStripeSubscriptionCancelAt(value: number): void;
+
+  getStripeSubscriptionCanceledAt(): number;
+  setStripeSubscriptionCanceledAt(value: number): void;
+
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): GetPaymentsInvoicesInformationResponse.AsObject;
   static toObject(includeInstance: boolean, msg: GetPaymentsInvoicesInformationResponse): GetPaymentsInvoicesInformationResponse.AsObject;
@@ -1038,6 +1060,8 @@ export namespace GetPaymentsInvoicesInformationResponse {
     stripeTrialEnd: number,
     stripeDefaultSourceId: string,
     stripeSubscriptionStatus: string,
+    stripeSubscriptionCancelAt: number,
+    stripeSubscriptionCanceledAt: number,
   }
 }
 

@@ -35,6 +35,8 @@ describe('summaryPage', () => {
         productName: 'some-productName',
         stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
         stripeCurrentUsage: defaultUsage,
+        stripeSubscriptionCancelAt: 0,
+        stripeSubscriptionCanceledAt: 0,
       },
       reload: jest.fn(),
     };

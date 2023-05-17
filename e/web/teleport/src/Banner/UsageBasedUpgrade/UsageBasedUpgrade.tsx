@@ -11,12 +11,11 @@ import { Warning } from 'design/Icon';
 
 import { useTheme } from 'styled-components';
 
-import Link from 'design/Link';
-
 import { PaymentAddDialog } from 'e-teleport/Billing/Payment/PaymentAddDialog';
 
 import { UsageBasedUpgradeProps } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
+import { CancelText } from 'e-teleport/Billing/common/CancelText';
 
 export const UsageBasedUpgrade = ({
   billingInfo: {
@@ -26,6 +25,8 @@ export const UsageBasedUpgrade = ({
     stripeTrialEnd,
     usageBasedBilling,
     stripeSubscriptionStatus,
+    stripeSubscriptionCancelAt,
+    stripeSubscriptionCanceledAt,
   },
   reload,
 }: UsageBasedUpgradeProps) => {
@@ -49,7 +50,8 @@ export const UsageBasedUpgrade = ({
 
   if (
     usageBasedBilling === true &&
-    stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED
+    (stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED ||
+      stripeSubscriptionCanceledAt != 0)
   ) {
     return (
       <Box
@@ -65,17 +67,7 @@ export const UsageBasedUpgrade = ({
             role="icon"
             color={theme.colors.text.primaryInverse}
           />
-          <Text>
-            Your account has been canceled. Your account will be deleted once
-            the grace period is over. To cancel this process, please&nbsp;
-            <Link
-              color={theme.colors.text.primaryInverse}
-              href="https://goteleport.com/support/"
-              target="_blank"
-            >
-              contact us.
-            </Link>
-          </Text>
+          <CancelText stripeSubscriptionCancelAt={stripeSubscriptionCancelAt} />
         </Flex>
       </Box>
     );
@@ -87,7 +79,7 @@ export const UsageBasedUpgrade = ({
 
   return (
     <Flex
-      height="38px"
+      p={1}
       bg="levels.surfaceSecondary"
       justifyContent="center"
       data-testid="upgrade-banner"

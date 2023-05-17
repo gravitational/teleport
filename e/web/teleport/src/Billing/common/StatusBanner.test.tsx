@@ -22,6 +22,7 @@ describe('statusBanner', () => {
       stripeSubscriptionStatus: StripeSubscriptionStatus.INCOMPLETE,
       stripeMissingPaymentMethod: false,
       stripeCurrentPeriodEnd: 0,
+      stripeSubscriptionCanceled: false,
     };
   });
 

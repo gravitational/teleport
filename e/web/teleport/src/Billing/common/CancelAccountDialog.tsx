@@ -53,8 +53,7 @@ export const CancelAccountDialog = ({
     ctx.cloudService
       .cancelSubscription()
       .then(() => {
-        setOpen(false);
-        setNetworkState({ status: undefined });
+        window.location.reload();
       })
       .catch(error => {
         setNetworkState({ status: 'error', error: error });

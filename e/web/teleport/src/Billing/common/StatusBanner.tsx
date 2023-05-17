@@ -16,12 +16,16 @@ export const StatusBanner = ({
   stripeMissingPaymentMethod,
   stripeSubscriptionStatus,
   stripeTrialEnd,
+  stripeSubscriptionCanceled,
 }: StatusBannerProps) => {
   const theme = useTheme();
   const [open, setOpen] = useState<boolean>(false);
   const { clusterId } = useStickyClusterId();
 
-  if (stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED) {
+  if (
+    stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED ||
+    stripeSubscriptionCanceled
+  ) {
     return null;
   }
 

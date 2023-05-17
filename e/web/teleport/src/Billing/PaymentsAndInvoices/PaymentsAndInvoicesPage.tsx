@@ -22,12 +22,17 @@ export const PaymentsAndInvoicesPage = ({
     stripeTrialEnd,
     stripeDefaultSourceId,
     stripeSubscriptionStatus,
+    stripeSubscriptionCancelAt,
+    stripeSubscriptionCanceledAt,
   } = pageState;
 
   return (
     <>
-      {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
-        <CanceledBanner />
+      {(stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED ||
+        stripeSubscriptionCanceledAt != 0) && (
+        <CanceledBanner
+          stripeSubscriptionCancelAt={stripeSubscriptionCancelAt}
+        />
       )}
       {stripeMissingPaymentMethod && (
         <PaymentBanner

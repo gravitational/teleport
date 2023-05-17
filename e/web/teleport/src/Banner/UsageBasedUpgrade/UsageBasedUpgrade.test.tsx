@@ -42,14 +42,24 @@ describe('usageBasedUpgrade', () => {
     expect(screen.queryByTestId('upgrade-banner')).not.toBeInTheDocument();
   });
 
-  test('if canceled, renders cancel banner', () => {
+  test('if status = canceled, renders cancel banner', () => {
     props.billingInfo.usageBasedBilling = true;
     props.billingInfo.stripeSubscriptionStatus =
       StripeSubscriptionStatus.CANCELED;
     renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
 
     expect(
-      screen.getByText(/Your account has been canceled/i)
+      screen.getByText(/Your plan has been canceled effective/i)
+    ).toBeInTheDocument();
+  });
+
+  test('if canceled, renders cancel banner', () => {
+    props.billingInfo.usageBasedBilling = true;
+    props.billingInfo.stripeSubscriptionCanceledAt = 1684261356;
+    renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
+
+    expect(
+      screen.getByText(/Your plan has been canceled effective/i)
     ).toBeInTheDocument();
   });
 
@@ -162,6 +172,8 @@ const makeBillingInfo = (
       usageBasedBilling: false,
       stripeMissingPaymentMethod: false,
       stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+      stripeSubscriptionCancelAt: 0,
+      stripeSubscriptionCanceledAt: 0,
     },
     overrides
   );

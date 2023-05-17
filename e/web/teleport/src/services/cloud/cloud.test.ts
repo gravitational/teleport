@@ -106,6 +106,8 @@ const getDefaultBillingInfo = (): BillingInformation => ({
   stripeMissingPaymentMethod: false,
   stripeCustomerId: '6e5357a5-e7e9-4770-9235-aab26936b5b0',
   stripeSubscriptionStatus: StripeSubscriptionStatus.ACTIVE,
+  stripeSubscriptionCancelAt: 0,
+  stripeSubscriptionCanceledAt: 0,
 });
 
 const invoices: Invoice[] = [

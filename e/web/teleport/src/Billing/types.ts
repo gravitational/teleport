@@ -85,6 +85,7 @@ export interface StatusBannerProps {
   stripeMissingPaymentMethod: boolean;
   stripeSubscriptionStatus: string;
   stripeTrialEnd: number;
+  stripeSubscriptionCanceled: boolean;
 }
 
 export type CycleUsage = {
@@ -107,4 +108,8 @@ export interface CancelDialogProps {
   productName: string;
   stripeCurrentPeriodEnd: number;
   tenant: string;
+}
+
+export interface CancelAtProps {
+  stripeSubscriptionCancelAt: number;
 }

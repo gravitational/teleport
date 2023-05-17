@@ -14,12 +14,15 @@ export const SummaryPage = ({
     stripeMissingPaymentMethod,
     stripeSubscriptionStatus,
     stripeTrialEnd,
+    stripeSubscriptionCancelAt,
+    stripeSubscriptionCanceledAt,
   },
   reload,
 }: SummaryProps) => (
   <>
-    {stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED && (
-      <CanceledBanner />
+    {(stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED ||
+      stripeSubscriptionCanceledAt != 0) && (
+      <CanceledBanner stripeSubscriptionCancelAt={stripeSubscriptionCancelAt} />
     )}
     {stripeMissingPaymentMethod && (
       <PaymentBanner
@@ -37,6 +40,7 @@ export const SummaryPage = ({
       stripeMissingPaymentMethod={stripeMissingPaymentMethod}
       stripeSubscriptionStatus={stripeSubscriptionStatus}
       stripeTrialEnd={stripeTrialEnd}
+      stripeSubscriptionCanceled={stripeSubscriptionCanceledAt != 0}
     />
   </>
 );
