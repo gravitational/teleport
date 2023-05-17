@@ -91,6 +91,12 @@ export class UserActivityRecord extends jspb.Message {
     getSftpEvents(): number;
     setSftpEvents(value: number): UserActivityRecord;
 
+    getSshPortV2Sessions(): number;
+    setSshPortV2Sessions(value: number): UserActivityRecord;
+
+    getKubePortSessions(): number;
+    setKubePortSessions(value: number): UserActivityRecord;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserActivityRecord.AsObject;
@@ -115,6 +121,8 @@ export namespace UserActivityRecord {
         sshPortSessions: number,
         kubeRequests: number,
         sftpEvents: number,
+        sshPortV2Sessions: number,
+        kubePortSessions: number,
     }
 }
 

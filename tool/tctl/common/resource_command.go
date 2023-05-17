@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -279,7 +280,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if count == 0 {
 					return trace.BadParameter("no resources found, empty input?")
 				}

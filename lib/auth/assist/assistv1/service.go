@@ -83,5 +83,10 @@ func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssis
 
 // CreateAssistantMessage adds the message to the backend.
 func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) (*emptypb.Empty, error) {
-	return nil, trace.Wrap(a.backend.CreateAssistantMessage(ctx, req))
+	return &emptypb.Empty{}, trace.Wrap(a.backend.CreateAssistantMessage(ctx, req))
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *Service) IsAssistEnabled(ctx context.Context, req *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+	return a.backend.IsAssistEnabled(ctx)
 }

@@ -21,7 +21,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -214,13 +216,20 @@ func (g *Gateway) LocalPortInt() int {
 }
 
 // CLICommand returns a command which launches a CLI client pointed at the given gateway.
+// It needs to return a relative command as it will be executed from a terminal in Connect, so we
+// should let user's env resolve the command rather than depending on os.exec.
 func (g *Gateway) CLICommand() (string, error) {
-	cliCommand, err := g.cfg.CLICommandProvider.GetCommand(g)
+	cmd, err := g.cfg.CLICommandProvider.GetCommand(g)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	return cliCommand, nil
+	cmdString := strings.TrimSpace(
+		fmt.Sprintf("%s %s",
+			strings.Join(cmd.Env, " "),
+			strings.Join(cmd.Args, " ")))
+
+	return cmdString, nil
 }
 
 // RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
@@ -287,7 +296,7 @@ type Gateway struct {
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
-	GetCommand(gateway *Gateway) (string, error)
+	GetCommand(gateway *Gateway) (*exec.Cmd, error)
 }
 
 type TCPPortAllocator interface {

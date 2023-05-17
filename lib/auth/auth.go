@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -360,6 +361,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
 	}
 
+	if as.gcpIDTokenValidator == nil {
+		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
+			gcp.IDTokenValidatorConfig{
+				Clock: as.clock,
+			},
+		)
+	}
+
 	return &as, nil
 }
 
@@ -585,6 +594,10 @@ type Server struct {
 	// kubernetesTokenValidator allows tokens from Kubernetes to be validated
 	// by the auth server. It can be overridden for the purpose of tests.
 	kubernetesTokenValidator kubernetesTokenValidator
+
+	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
+	// server. It can be overridden for the purpose of tests.
+	gcpIDTokenValidator gcpIDTokenValidator
 
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
@@ -1175,6 +1188,12 @@ func (a *Server) Close() error {
 		errs = append(errs, err)
 	}
 
+	if a.Services.AuditLogSessionStreamer != nil {
+		if err := a.Services.AuditLogSessionStreamer.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
 			errs = append(errs, err)
@@ -1502,10 +1521,6 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return &proto.OpenSSHCert{
 		Cert: certs.SSH,
 	}, nil
-}
-
-func certRequestPinIP(pinIP bool) certRequestOption {
-	return func(r *certRequest) { r.pinIP = pinIP }
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
@@ -2749,16 +2764,16 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 2
+	const minDevices = 1
 	switch sf := authPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if knownDevices < minDevices {
+		if knownDevices <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] < minDevices {
+		if sfToCount[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}

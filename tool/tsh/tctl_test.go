@@ -80,11 +80,6 @@ func TestLoadConfigFromProfile(t *testing.T) {
 				TeleportHome: "some/dir/that/does/not/exist",
 			},
 			want: trace.NotFound("profile is not found"),
-		}, {
-			name: "teleportHome is not specified",
-			ccf:  &common.GlobalCLIFlags{},
-			cfg:  &servicecfg.Config{},
-			want: trace.NotFound("profile is not found"),
 		},
 	}
 	for _, tc := range tests {

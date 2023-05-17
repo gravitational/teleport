@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -566,11 +567,12 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		err = trail.FromGRPC(err)
 		// Older versions will NOT reply with a MFARequired response in the
 		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
 		// In this case for all protocols other than SSH fall back to reissuing
@@ -589,16 +591,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {
@@ -1662,6 +1664,15 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
 	}
 
 	return nil
+}
+
+// AddEnv add environment variable to SSH session. This method needs to be called
+// before the session is created.
+func (c *NodeClient) AddEnv(key, value string) {
+	if c.TC.extraEnvs == nil {
+		c.TC.extraEnvs = make(map[string]string)
+	}
+	c.TC.extraEnvs[key] = value
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {

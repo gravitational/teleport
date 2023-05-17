@@ -926,6 +926,34 @@ func TestJoinScript(t *testing.T) {
 	})
 
 	t.Run("using repo", func(t *testing.T) {
+		t.Run("installUpdater set to true, list of packages must include updater package", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true}, m)
+			require.NoError(t, err)
+
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if [[ \"true\" == \"true\" ]]; then\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
+				"    fi\n",
+			)
+		})
+		t.Run("installUpdater set to false, list of packages must not include updater package", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
+			require.NoError(t, err)
+
+			require.Contains(t, script, ""+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
+				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
+				"    # Disabling the warning above because expression is templated.\n"+
+				"    # shellcheck disable=SC2050\n"+
+				"    if [[ \"false\" == \"true\" ]]; then\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
+				"    fi\n",
+			)
+		})
 		t.Run("cloud and automatic upgrades", func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
 			require.NoError(t, err)
@@ -947,6 +975,44 @@ func TestJoinScript(t *testing.T) {
 		})
 	})
 
+}
+
+func TestAutomaticUpgrades(t *testing.T) {
+	t.Run("enterprise and automatic upgrades enabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: true,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.True(t, got)
+	})
+	t.Run("enterprise but automatic upgrades disabled", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: false,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
+
+	// There's no `teleport-updater` (oss) package yet, so even if automatic upgrades are enabled it must return false.
+	t.Run("automatic upgrades enabled but build is OSS", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				AutomaticUpgrades: false,
+			},
+		})
+
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
+		require.False(t, got)
+	})
 }
 
 func TestIsSameAzureRuleSet(t *testing.T) {

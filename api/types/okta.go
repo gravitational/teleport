@@ -172,7 +172,9 @@ func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
+// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users
+// to applications or groups. When modifying this object, please make sure to update
+// tool/tctl/common/oktaassignment to reflect any new fields that were added.
 type OktaAssignment interface {
 	ResourceWithLabels
 

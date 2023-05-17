@@ -18,6 +18,7 @@ package tctl
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 
 	"github.com/ghodss/yaml"
@@ -52,7 +53,7 @@ func readResourcesYAMLOrJSON(r io.Reader) ([]types.Resource, error) {
 		var res streamResource
 		err := decoder.Decode(&res)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, trace.Wrap(err)

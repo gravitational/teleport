@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/etcdbk"
 )
 
 // Conversation is a conversation entry in the backend.
@@ -211,11 +212,14 @@ func (s *AssistService) GetAssistantMessages(ctx context.Context, req *assist.Ge
 
 // CreateAssistantMessage adds the message to the backend.
 func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.CreateAssistantMessageRequest) error {
-	msg := req.GetMessage()
-	if msg.Username == "" {
+	if req.Username == "" {
 		return trace.BadParameter("missing username")
 	}
+	if req.ConversationId == "" {
+		return trace.BadParameter("missing conversation ID")
+	}
 
+	msg := req.GetMessage()
 	value, err := json.Marshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,10 +228,26 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantMessagePrefix, msg.Username, msg.ConversationId, messageID),
+		Key:   backend.Key(assistantMessagePrefix, req.Username, req.ConversationId, messageID),
 		Value: value,
 	}
 
 	_, err = s.Create(ctx, item)
 	return trace.Wrap(err)
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	reporter, ok := a.Backend.(*backend.Reporter)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	sanitizer, ok := reporter.Backend.(*backend.Sanitizer)
+	if !ok {
+		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
+	}
+
+	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
+	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
 }

@@ -30,7 +30,10 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredRoleArn,
+} from 'shared/components/Validation/rules';
 
 import {
   IntegrationKind,
@@ -83,7 +86,13 @@ export function SeventhStageInstructions() {
                 onChange={e => setRoleArn(e.target.value)}
                 value={roleArn}
                 placeholder="Role ARN"
-                rule={requiredField('Role ARN is required')}
+                rule={requiredRoleArn}
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
               />
             </Box>
             <Text mt={5}>Give this AWS integration a name</Text>
