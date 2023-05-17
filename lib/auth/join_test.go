@@ -392,8 +392,8 @@ func TestRegister_Bot(t *testing.T) {
 
 				// Check audit event
 				evts, _, err := srv.Auth().SearchEvents(ctx, events.SearchEventsRequest{
-					FromUTC:    start,
-					ToUTC:      srv.Clock().Now(),
+					From:       start,
+					To:         srv.Clock().Now(),
 					Namespace:  apidefaults.Namespace,
 					EventTypes: []string{events.BotJoinEvent},
 					Limit:      1,

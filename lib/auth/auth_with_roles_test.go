@@ -1442,8 +1442,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    srv.Clock().Now().Add(-time.Hour),
-		ToUTC:      srv.Clock().Now().Add(time.Hour),
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
 		Namespace:  defaults.Namespace,
 		EventTypes: []string{events.SessionRecordingAccessEvent},
 		Limit:      1,
@@ -1474,8 +1474,8 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    srv.Clock().Now().Add(-time.Hour),
-		ToUTC:      srv.Clock().Now().Add(time.Hour),
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
 		Namespace:  defaults.Namespace,
 		EventTypes: []string{events.SessionRecordingAccessEvent},
 		Limit:      1,
@@ -1507,8 +1507,8 @@ func TestGetSessionEvents(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	ctx := context.Background()
 	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    srv.Clock().Now().Add(-time.Hour),
-		ToUTC:      srv.Clock().Now().Add(time.Hour),
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
 		Namespace:  defaults.Namespace,
 		EventTypes: []string{events.SessionRecordingAccessEvent},
 		Limit:      1,
@@ -2806,8 +2806,8 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 				require.Eventually(t, func() bool {
 					// make sure an audit event is logged for the search
 					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-						FromUTC:    time.Time{},
-						ToUTC:      time.Now(),
+						From:       time.Time{},
+						To:         time.Now(),
 						EventTypes: []string{events.AccessRequestResourceSearch},
 						Limit:      10,
 						Order:      types.EventOrderAscending,

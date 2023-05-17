@@ -86,6 +86,6 @@ func (s *SearchEventsLimiter) SearchSessionEvents(ctx context.Context, req Searc
 	if !s.limiter.Allow() {
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
-	out, keyset, err := s.AuditLogger.SearchSessionEvents(ctx,req)
+	out, keyset, err := s.AuditLogger.SearchSessionEvents(ctx, req)
 	return out, keyset, trace.Wrap(err)
 }

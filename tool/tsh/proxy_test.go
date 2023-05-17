@@ -844,8 +844,8 @@ func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	now := time.Now()
 	ctx := context.Background()
 	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:   now.Add(-time.Hour),
-		ToUTC:     now.Add(time.Hour),
+		From:      now.Add(-time.Hour),
+		To:        now.Add(time.Hour),
 		Namespace: apidefaults.Namespace,
 		Order:     types.EventOrderDescending,
 	})

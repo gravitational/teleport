@@ -2290,8 +2290,8 @@ func TestLogin(t *testing.T) {
 
 	ctx := context.Background()
 	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    s.clock.Now().Add(-time.Hour),
-		ToUTC:      s.clock.Now().Add(time.Hour),
+		From:       s.clock.Now().Add(-time.Hour),
+		To:         s.clock.Now().Add(time.Hour),
 		Namespace:  apidefaults.Namespace,
 		EventTypes: []string{events.UserLoginEvent},
 		Limit:      1,

@@ -138,8 +138,8 @@ func TestSizeBreak(t *testing.T) {
 	ctx := context.Background()
 	for {
 		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			ToUTC:     tt.suite.Clock.Now().UTC().Add(time.Hour),
+			From:      tt.suite.Clock.Now().UTC().Add(-time.Hour),
+			To:        tt.suite.Clock.Now().UTC().Add(time.Hour),
 			Namespace: apidefaults.Namespace,
 			Limit:     eventCount,
 			Order:     types.EventOrderDescending,
@@ -216,8 +216,8 @@ func TestLargeTableRetrieve(t *testing.T) {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   tt.suite.Clock.Now().Add(-1 * time.Hour),
-			ToUTC:     tt.suite.Clock.Now().Add(time.Hour),
+			From:      tt.suite.Clock.Now().Add(-1 * time.Hour),
+			To:        tt.suite.Clock.Now().Add(time.Hour),
 			Namespace: apidefaults.Namespace,
 			Order:     types.EventOrderAscending,
 		})
@@ -273,8 +273,8 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    now.Add(-1 * time.Hour),
-		ToUTC:      now.Add(time.Hour),
+		From:       now.Add(-1 * time.Hour),
+		To:         now.Add(time.Hour),
 		Namespace:  apidefaults.Namespace,
 		EventTypes: []string{events.DatabaseSessionQueryEvent},
 		Order:      types.EventOrderAscending,

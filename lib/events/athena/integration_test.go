@@ -135,10 +135,10 @@ func TestIntegrationAthenaLargeEvents(t *testing.T) {
 	// We have batch time 10s, and 5s for upload and additional buffer for s3 download
 	err = retryutils.RetryStaticFor(time.Second*20, time.Second*2, func() error {
 		history, _, err = ac.log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC: ac.clock.Now().UTC().Add(-1 * time.Minute),
-			ToUTC:   ac.clock.Now().UTC(),
-			Limit:   10,
-			Order:   types.EventOrderDescending,
+			From:  ac.clock.Now().UTC().Add(-1 * time.Minute),
+			To:    ac.clock.Now().UTC(),
+			Limit: 10,
+			Order: types.EventOrderDescending,
 		})
 		if err != nil {
 			return err
