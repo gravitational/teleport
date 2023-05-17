@@ -1650,15 +1650,16 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		repoChannel = stableCloudChannelRepo
 	}
 
-	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
-	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
-
 	tmpl := installers.Template{
-		PublicProxyAddr:   h.PublicProxyAddr(),
-		MajorVersion:      version,
-		TeleportPackage:   teleportPackage,
-		RepoChannel:       repoChannel,
-		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
+		PublicProxyAddr: h.PublicProxyAddr(),
+		MajorVersion:    version,
+		TeleportPackage: teleportPackage,
+		RepoChannel:     repoChannel,
+		// teleport-upgrade is not available for v12.
+		// Hard coding the following value to false for compatibility purposes
+		// This ensures the Installer scripts and exposed variables stay the same as v13+.
+		// If users install v13 and then downgrade to v12, the templating won't break.
+		AutomaticUpgrades: "false",
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)

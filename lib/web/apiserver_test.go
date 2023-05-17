@@ -2351,47 +2351,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
 		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
-	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: true,
-			}})
-
-		t.Run("default-installer", func(t *testing.T) {
-			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
-			require.NoError(t, err)
-
-			responseString := string(re.Bytes())
-
-			// The repo's channel to use is stable/cloud
-			require.Contains(t, responseString, "stable/cloud")
-			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
-			)
-		})
-		t.Run("default-agentless-installer", func(t *testing.T) {
-			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
-			require.NoError(t, err)
-
-			responseString := string(re.Bytes())
-
-			// The repo's channel to use is stable/cloud
-			require.Contains(t, responseString, "stable/cloud")
-			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent\"\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
-			)
-		})
-	})
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
 			Cloud:             true,
