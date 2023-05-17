@@ -107,13 +107,17 @@ func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) erro
 		return trace.Wrap(err)
 	}
 	if c.getConnected {
-		table := asciitable.MakeTable([]string{"ServerID", "Services", "Version"})
+		table := asciitable.MakeTable([]string{"ServerID", "Services", "Version", "Upgrader"})
 		for _, h := range rsp.Connected {
 			services := make([]string, 0, len(h.Services))
 			for _, s := range h.Services {
 				services = append(services, string(s))
 			}
-			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version})
+			upgrader := h.ExternalUpgrader
+			if upgrader == "" {
+				upgrader = "none"
+			}
+			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version, upgrader})
 		}
 
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
