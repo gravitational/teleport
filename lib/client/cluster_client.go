@@ -18,17 +18,16 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ClusterClient facilitates communicating with both the
@@ -87,13 +86,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	mfaClt := c
 	if target.Cluster != rootClusterName {
-		cltConfig := c.ProxyClient.ClientConfig(ctx, rootClusterName)
-		cltConfig.DialOpts = append(cltConfig.DialOpts,
-			grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-			grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
-		)
-
-		aclt, err := auth.NewClient(cltConfig)
+		aclt, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, rootClusterName))
 		if err != nil {
 			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
@@ -277,12 +270,12 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {
@@ -312,12 +305,12 @@ func (c *ClusterClient) performMFACeremony(ctx context.Context, clt *ClusterClie
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {

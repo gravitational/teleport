@@ -5054,6 +5054,8 @@ message PluginSpecV1 {
     PluginOpsgenieAccessSettings opsgenie = 2;
     // Settings for OpenAI plugin
     PluginOpenAISettings openai = 3;
+    // Settings for the Okta plugin
+    PluginOktaSettings okta = 4;
   }
 }
 
@@ -5079,6 +5081,14 @@ message PluginOpsgenieAccessSettings {
 // Defines settings for the OpenAI plugin. Currently there are no settings.
 message PluginOpenAISettings {
   option (gogoproto.equal) = true;
+}
+
+// Defines settings for the Okta plugin.
+message PluginOktaSettings {
+  option (gogoproto.equal) = true;
+
+  // OrgUrl is the Okta organization URL to use for API communication.
+  string org_url = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -5573,4 +5583,72 @@ message ServerInfoSpecV1 {
   }
   // AWS matches an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// JamfSpecV1 is the base configuration for the Jamf MDM service.
+message JamfSpecV1 {
+  // Enabled toggles the service on or off.
+  bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
+  // Name of the service device source.
+  // See the teleport.devicetrust.v1.DeviceSource proto.
+  // Defaults to "jamf".
+  string name = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  // Initial sync delay for the service.
+  // Set to negative to perform syncs immediately on startup.
+  // Defaults to a random delay (a few minutes max).
+  int64 sync_delay = 3 [
+    (gogoproto.jsontag) = "sync_delay,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Jamf API endpoint.
+  // Example: "https://yourtenant.jamfcloud.com".
+  // Required.
+  string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
+  // Jamf API username.
+  // Username and password are used to acquire short-lived Jamf Pro API tokens.
+  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+  // Required.
+  string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
+  // Jamf API password.
+  // Username and password are used to acquire short-lived Jamf Pro API tokens.
+  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+  // Required.
+  string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
+  // Inventory sync entries.
+  // If empty a default sync configuration is used.
+  repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
+}
+
+// JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
+message JamfInventoryEntry {
+  // Jamf Pro API RSQL filter, used when querying endpoints like
+  // "/api/v1/computers-inventory".
+  // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+  string filter_rsql = 1 [(gogoproto.jsontag) = "filter_rsql,omitempty"];
+  // Sync period for PARTIAL syncs.
+  // PARTIAL syncs are scheduled in the time window between FULL syncs, so
+  // sync_period_partial must always be smaller than sync_period_full, otherwise
+  // it would never trigger.
+  // Set to negative to disable PARTIAL syncs.
+  // Defaults to 6h.
+  int64 sync_period_partial = 2 [
+    (gogoproto.jsontag) = "sync_period_partial,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // Sync period for FULL syncs.
+  // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
+  // line up perfectly.
+  // Set to negative to disable FULL syncs.
+  // Defaults to 24h.
+  int64 sync_period_full = 3 [
+    (gogoproto.jsontag) = "sync_period_full,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+  // on_missing is the trigger used on devices missing from the MDM view in a
+  // FULL sync.
+  // Only runs on successful FULL syncs.
+  // Corresponds to [teleport.devicetrust.v1.SyncInventoryDeviceAction].
+  // Must be either "NOOP" or "DELETE".
+  // Defaults to "NOOP".
+  string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
 }
