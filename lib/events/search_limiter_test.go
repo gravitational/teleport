@@ -64,10 +64,10 @@ func TestSearchEventsLimiter(t *testing.T) {
 			// rate limit is shared between both search endpoints.
 			if i%2 == 0 {
 				_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
-					FromUTC: someDate,
-					ToUTC:   someDate,
-					Limit:   100,
-					Order:   types.EventOrderAscending,
+					From:  someDate,
+					To:    someDate,
+					Limit: 100,
+					Order: types.EventOrderAscending,
 				})
 			} else {
 				_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
@@ -81,10 +81,10 @@ func TestSearchEventsLimiter(t *testing.T) {
 		}
 		// Now all tokens from rate limit should be used
 		_, _, err = s.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC: someDate,
-			ToUTC:   someDate,
-			Limit:   100,
-			Order:   types.EventOrderAscending,
+			From:  someDate,
+			To:    someDate,
+			Limit: 100,
+			Order: types.EventOrderAscending,
 		})
 		require.True(t, trace.IsLimitExceeded(err))
 		// Also on SearchSessionEvents
@@ -99,10 +99,10 @@ func TestSearchEventsLimiter(t *testing.T) {
 		// After 20ms 1 token should be added according to rate.
 		require.Eventually(t, func() bool {
 			_, _, err := s.SearchEvents(ctx, events.SearchEventsRequest{
-				FromUTC: someDate,
-				ToUTC:   someDate,
-				Limit:   100,
-				Order:   types.EventOrderAscending,
+				From:  someDate,
+				To:    someDate,
+				Limit: 100,
+				Order: types.EventOrderAscending,
 			})
 			return err == nil
 		}, 40*time.Millisecond, 5*time.Millisecond)

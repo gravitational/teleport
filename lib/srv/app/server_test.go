@@ -939,8 +939,8 @@ func TestRequestAuditEvents(t *testing.T) {
 
 	ctx := context.Background()
 	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
-		FromUTC:    time.Time{},
-		ToUTC:      time.Now().Add(time.Minute),
+		From:       time.Time{},
+		To:         time.Now().Add(time.Minute),
 		EventTypes: []string{events.AppSessionChunkEvent},
 		Limit:      10,
 		Order:      types.EventOrderDescending,

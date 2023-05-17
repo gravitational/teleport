@@ -83,8 +83,8 @@ func TestFileLogPagination(t *testing.T) {
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
 	eventArr, checkpoint, err := log.SearchEvents(ctx, SearchEventsRequest{
-		FromUTC:   from,
-		ToUTC:     to,
+		From:      from,
+		To:        to,
 		Namespace: apidefaults.Namespace,
 		Limit:     2,
 		Order:     types.EventOrderAscending,
@@ -94,8 +94,8 @@ func TestFileLogPagination(t *testing.T) {
 	require.NotEmpty(t, checkpoint)
 
 	eventArr, checkpoint, err = log.SearchEvents(ctx, SearchEventsRequest{
-		FromUTC:   from,
-		ToUTC:     to,
+		From:      from,
+		To:        to,
 		Namespace: apidefaults.Namespace,
 		Limit:     2,
 		Order:     types.EventOrderAscending,
@@ -312,10 +312,10 @@ func makeAccessRequestEvent(id string, in string) *events.AccessRequestDelete {
 func mustSearchEvent(t *testing.T, log *FileLog, start time.Time) []events.AuditEvent {
 	ctx := context.TODO()
 	result, _, err := log.SearchEvents(ctx, SearchEventsRequest{
-		FromUTC: start,
-		ToUTC:   start.Add(time.Hour),
-		Limit:   100,
-		Order:   types.EventOrderAscending,
+		From:  start,
+		To:    start.Add(time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	return result

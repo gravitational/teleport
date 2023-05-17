@@ -361,8 +361,8 @@ func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(
 	ctx := context.Background()
 	require.Eventuallyf(t, func() bool {
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:    time.Now().Add(-time.Hour),
-			ToUTC:      time.Now().Add(time.Hour),
+			From:       time.Now().Add(-time.Hour),
+			To:         time.Now().Add(time.Hour),
 			Namespace:  apidefaults.Namespace,
 			EventTypes: []string{eventType},
 			Limit:      1,

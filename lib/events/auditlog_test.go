@@ -97,8 +97,8 @@ func TestLogRotation(t *testing.T) {
 		require.Equal(t, string(bytes), string(contents))
 
 		found, _, err := alog.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   now.Add(-time.Hour),
-			ToUTC:     now.Add(time.Hour),
+			From:      now.Add(-time.Hour),
+			To:        now.Add(time.Hour),
 			Namespace: apidefaults.Namespace,
 			Order:     types.EventOrderAscending,
 		})

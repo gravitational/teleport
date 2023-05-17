@@ -211,8 +211,8 @@ type messageSizeTrimmer interface {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *FileLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", req.FromUTC, req.ToUTC, req.Namespace, req.EventTypes, req.Limit)
-	return l.searchEventsWithFilter(req.FromUTC, req.ToUTC, req.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
+	l.Debugf("SearchEvents(%v, %v, namespace=%v, eventType=%v, limit=%v)", req.From, req.To, req.Namespace, req.EventTypes, req.Limit)
+	return l.searchEventsWithFilter(req.From, req.To, req.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes})
 }
 
 func (l *FileLog) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startAfter string, filter searchEventsFilter) ([]apievents.AuditEvent, string, error) {

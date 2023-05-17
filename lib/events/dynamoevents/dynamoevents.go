@@ -493,7 +493,7 @@ type checkpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(ctx, req.FromUTC, req.ToUTC, req.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	return l.searchEventsWithFilter(ctx, req.From, req.To, req.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {

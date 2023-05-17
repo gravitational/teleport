@@ -2903,8 +2903,8 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 
 	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
-			FromUTC:    from,
-			ToUTC:      to,
+			From:       from,
+			To:         to,
 			Namespace:  apidefaults.Namespace,
 			EventTypes: eventTypes,
 			Limit:      limit,

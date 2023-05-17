@@ -842,10 +842,10 @@ type SessionStreamer interface {
 }
 
 type SearchEventsRequest struct {
-	// FromUTC is oldest date of returned events, can be zero.
-	FromUTC time.Time
-	// ToUTC is the newest date of returned events.
-	ToUTC time.Time
+	// From is oldest date of returned events, can be zero.
+	From time.Time
+	// To is the newest date of returned events.
+	To time.Time
 	// Namespace, if not set, defaults to 'default'.
 	Namespace string
 	// EventTypes is optional, if not set, returns all events.

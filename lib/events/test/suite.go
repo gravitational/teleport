@@ -114,8 +114,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     100,
 			Order:     types.EventOrderAscending,
@@ -129,8 +129,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderAscending,
@@ -144,8 +144,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderAscending,
@@ -160,8 +160,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     2,
 			Order:     types.EventOrderAscending,
@@ -178,8 +178,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderAscending,
@@ -192,8 +192,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 
 	for i := len(names) - 1; i >= 0; i-- {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderDescending,
@@ -207,8 +207,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime,
-			ToUTC:     toTime,
+			From:      baseTime,
+			To:        toTime,
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderDescending,
@@ -239,8 +239,8 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 Outer:
 	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   baseTime2,
-			ToUTC:     baseTime2.Add(time.Second),
+			From:      baseTime2,
+			To:        baseTime2.Add(time.Second),
 			Namespace: apidefaults.Namespace,
 			Limit:     1,
 			Order:     types.EventOrderAscending,
@@ -291,8 +291,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   loginTime.Add(-1 * time.Hour),
-			ToUTC:     loginTime.Add(time.Hour),
+			From:      loginTime.Add(-1 * time.Hour),
+			To:        loginTime.Add(time.Hour),
 			Namespace: apidefaults.Namespace,
 			Limit:     100,
 			Order:     types.EventOrderAscending,
@@ -348,8 +348,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// search for the session event.
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			FromUTC:   s.Clock.Now().UTC().Add(-1 * time.Hour),
-			ToUTC:     s.Clock.Now().UTC().Add(time.Hour),
+			From:      s.Clock.Now().UTC().Add(-1 * time.Hour),
+			To:        s.Clock.Now().UTC().Add(time.Hour),
 			Namespace: apidefaults.Namespace,
 			Limit:     100,
 			Order:     types.EventOrderAscending,
