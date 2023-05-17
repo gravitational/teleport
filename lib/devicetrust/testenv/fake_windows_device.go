@@ -20,8 +20,8 @@ type FakeWindowsDevice struct {
 
 func NewFakeWindowsDevice() *FakeWindowsDevice {
 	return &FakeWindowsDevice{
-		CredentialID: uuid.New().String(),
-		SerialNumber: uuid.New().String(),
+		CredentialID: uuid.NewString(),
+		SerialNumber: uuid.NewString(),
 	}
 }
 
@@ -45,7 +45,6 @@ var validAttestationParameters = &devicepb.TPMAttestationParameters{
 func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cd, _ := f.CollectDeviceData()
 	return &devicepb.EnrollDeviceInit{
-		Token:        "",
 		CredentialId: f.CredentialID,
 		DeviceData:   cd,
 		Tpm: &devicepb.TPMEnrollPayload{
@@ -78,7 +77,6 @@ func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 }
 
 func (f *FakeWindowsDevice) SignChallenge(_ []byte) (sig []byte, err error) {
-	return nil, trace.NotImplemented(
-		"windows does not implement SignChallenge",
+	return nil, trace.NotImplemented("windows does not implement SignChallenge",
 	)
 }

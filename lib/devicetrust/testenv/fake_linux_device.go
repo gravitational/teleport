@@ -7,8 +7,7 @@ import (
 
 // FakeLinuxDevice only implements GetOSType Linux OS type so we can be sure
 // this fails in a user friendly manner.
-type FakeLinuxDevice struct {
-}
+type FakeLinuxDevice struct {}
 
 func NewFakeLinuxDevice() *FakeLinuxDevice {
 	return &FakeLinuxDevice{}
