@@ -3040,7 +3040,15 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
+			FromUTC:    from,
+			ToUTC:      to,
+			Namespace:  apidefaults.Namespace,
+			EventTypes: eventTypes,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+		})
 	}
 	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchEvents)
 }
@@ -3061,7 +3069,13 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil, "")
+		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
+			FromUTC:  from,
+			ToUTC:    to,
+			Limit:    limit,
+			Order:    order,
+			StartKey: startKey,
+		})
 	}
 	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchSessionEvents)
 }

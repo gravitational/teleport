@@ -113,11 +113,11 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
+func (q *querier) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string,
 	eventTypes []string, limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: eventTypes}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   fromUTC,
 		toUTC:     toUTC,
 		limit:     limit,
@@ -129,7 +129,7 @@ func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
 	return events, keyset, trace.Wrap(err)
 }
 
-func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
+func (q *querier) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int,
 	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
 ) ([]apievents.AuditEvent, string, error) {
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
@@ -142,7 +142,7 @@ func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
 		}
 		filter.condition = condFn
 	}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   fromUTC,
 		toUTC:     toUTC,
 		limit:     limit,

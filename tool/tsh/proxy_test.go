@@ -842,14 +842,13 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 
 func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	now := time.Now()
-	events, _, err := auth.SearchEvents(
-		now.Add(-time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		nil,
-		0,
-		types.EventOrderDescending,
-		"")
+	ctx := context.Background()
+	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
+		FromUTC:   now.Add(-time.Hour),
+		ToUTC:     now.Add(time.Hour),
+		Namespace: apidefaults.Namespace,
+		Order:     types.EventOrderDescending,
+	})
 
 	require.NoError(t, err)
 	return events
@@ -1053,6 +1052,7 @@ type fakeAWSAppInfo struct {
 func (f fakeAWSAppInfo) GetAppName() string {
 	return "fake-aws-app"
 }
+
 func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	envVars := map[string]string{
 		"AWS_ACCESS_KEY_ID":     "FAKE_ID",
@@ -1064,9 +1064,11 @@ func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	}
 	return envVars, nil
 }
+
 func (f fakeAWSAppInfo) GetEndpointURL() string {
 	return "https://127.0.0.1:12345"
 }
+
 func (f fakeAWSAppInfo) GetForwardProxyAddr() string {
 	return f.forwardProxyAddr
 }
