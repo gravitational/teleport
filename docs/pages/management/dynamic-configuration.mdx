@@ -228,11 +228,19 @@ Teleport Team may see configuration resources with the
 
 ## Further reading
 
+### Configuration references
+
 - For a comprehensive reference of Teleport's static configuration options, read
   the [Configuration Reference](../reference/config.mdx).
 - To see the dynamic configuration resources available to apply, read the
-[Configuration Resource Reference](../reference/resources.mdx).
-- The Teleport Kubernetes Operator, Terraform provider, and `tctl` are all
-  clients of the Teleport Auth Service's gRPC API. To build your own API client
-  to extend Teleport for your organization's needs, read our [API
-  guides](../api/introduction.mdx).
+  [Configuration Resource Reference](../reference/resources.mdx). There are also
+  dedicated configuration resource references for
+  [applications](../application-access/reference.mdx#application-resource) and
+  [databases](../database-access/reference/configuration.mdx#database-resource).
+
+### Other ways to use the Teleport API
+
+The Teleport Kubernetes Operator, Terraform provider, and `tctl` are all clients
+of the Teleport Auth Service's gRPC API. To build your own API client to extend
+Teleport for your organization's needs, read our [API
+guides](../api/introduction.mdx).
