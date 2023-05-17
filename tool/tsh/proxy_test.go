@@ -843,9 +843,9 @@ func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	now := time.Now()
 	ctx := context.Background()
 	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
-		From:      now.Add(-time.Hour),
-		To:        now.Add(time.Hour),
-		Order:     types.EventOrderDescending,
+		From:  now.Add(-time.Hour),
+		To:    now.Add(time.Hour),
+		Order: types.EventOrderDescending,
 	})
 
 	require.NoError(t, err)
