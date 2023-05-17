@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -846,7 +845,6 @@ func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
 		From:      now.Add(-time.Hour),
 		To:        now.Add(time.Hour),
-		Namespace: apidefaults.Namespace,
 		Order:     types.EventOrderDescending,
 	})
 

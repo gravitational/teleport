@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -114,12 +113,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     100,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    100,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		return err
 	})
@@ -129,12 +127,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
@@ -144,12 +141,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
@@ -160,12 +156,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     2,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    2,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 2)
@@ -178,12 +173,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
@@ -192,12 +186,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 
 	for i := len(names) - 1; i >= 0; i-- {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderDescending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderDescending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
@@ -207,12 +200,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime,
-			To:        toTime,
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderDescending,
-			StartKey:  checkpoint,
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderDescending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 0)
@@ -239,12 +231,11 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 Outer:
 	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      baseTime2,
-			To:        baseTime2.Add(time.Second),
-			Namespace: apidefaults.Namespace,
-			Limit:     1,
-			Order:     types.EventOrderAscending,
-			StartKey:  checkpoint,
+			From:     baseTime2,
+			To:       baseTime2.Add(time.Second),
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		require.Len(t, arr, 1)
@@ -291,11 +282,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	ctx := context.Background()
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      loginTime.Add(-1 * time.Hour),
-			To:        loginTime.Add(time.Hour),
-			Namespace: apidefaults.Namespace,
-			Limit:     100,
-			Order:     types.EventOrderAscending,
+			From:  loginTime.Add(-1 * time.Hour),
+			To:    loginTime.Add(time.Hour),
+			Limit: 100,
+			Order: types.EventOrderAscending,
 		})
 		if err != nil {
 			t.Logf("Retrying searching of events because of: %v", err)
@@ -348,11 +338,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	// search for the session event.
 	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      s.Clock.Now().UTC().Add(-1 * time.Hour),
-			To:        s.Clock.Now().UTC().Add(time.Hour),
-			Namespace: apidefaults.Namespace,
-			Limit:     100,
-			Order:     types.EventOrderAscending,
+			From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+			To:    s.Clock.Now().UTC().Add(time.Hour),
+			Limit: 100,
+			Order: types.EventOrderAscending,
 		})
 		if err != nil {
 			t.Logf("Retrying searching of events because of: %v", err)

@@ -2905,7 +2905,6 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
 			From:       from,
 			To:         to,
-			Namespace:  apidefaults.Namespace,
 			EventTypes: eventTypes,
 			Limit:      limit,
 			Order:      order,

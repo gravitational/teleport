@@ -264,7 +264,6 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
 			From:       startTime,
 			To:         time.Now().Add(time.Hour),
-			Namespace:  apidefaults.Namespace,
 			EventTypes: []string{eventType},
 			Limit:      100,
 			Order:      types.EventOrderAscending,

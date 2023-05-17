@@ -2327,7 +2327,6 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 			eventsInSite, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
 				From:       now,
 				To:         now.Add(1 * time.Hour),
-				Namespace:  defaults.Namespace,
 				EventTypes: eventTypes,
 				Order:      types.EventOrderAscending,
 			})

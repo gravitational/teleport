@@ -363,7 +363,6 @@ func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(
 		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
 			From:       time.Now().Add(-time.Hour),
 			To:         time.Now().Add(time.Hour),
-			Namespace:  apidefaults.Namespace,
 			EventTypes: []string{eventType},
 			Limit:      1,
 			Order:      types.EventOrderDescending,

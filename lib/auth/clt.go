@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -290,7 +291,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, req.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

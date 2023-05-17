@@ -113,7 +113,7 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string,
+func (q *querier) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time,
 	eventTypes []string, limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: eventTypes}

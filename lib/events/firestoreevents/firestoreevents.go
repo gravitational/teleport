@@ -348,7 +348,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(req.From, req.To, req.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
