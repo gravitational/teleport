@@ -171,9 +171,9 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	switch {
 	case sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
 		e.Log.Debug("Authenticating to database using AWS IAM authentication")
-		username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
+		username, password, sessToken, authErr := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(authErr)
 		}
 
 		authenticator, err = auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{

@@ -448,11 +448,7 @@ func IsRoleARN(roleARN string) bool {
 // IsPartialRoleARN returns true if the provided role ARN only contains the
 // resource name.
 func IsPartialRoleARN(roleARN string) bool {
-	if strings.HasPrefix(roleARN, "role/") {
-		return true
-	}
-
-	return false
+	return strings.HasPrefix(roleARN, "role/")
 }
 
 // IsUserARN returns true if the provided string is a AWS user ARN.

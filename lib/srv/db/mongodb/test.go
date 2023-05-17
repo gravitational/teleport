@@ -270,7 +270,7 @@ func (s *TestServer) handleFind(message protocol.Message) (protocol.Message, err
 	return protocol.MakeOpMsg(findReply), nil
 }
 
-// handleSaslStart makes respone to the client's "saslStart" command.
+// handleSaslStart makes response to the client's "saslStart" command.
 func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message, error) {
 	opmsg, ok := message.(*protocol.MessageOpQuery)
 	if !ok {
@@ -290,7 +290,7 @@ func (s *TestServer) handleSaslStart(message protocol.Message) (protocol.Message
 }
 
 // handleSaslContinue makes response to the client's "saslContinue" command.
-// It expectes a conversion to be present at `saslConversationTracker`,
+// It expects a conversion to be present at `saslConversationTracker`,
 // otherwise it won't be able to define which authentication mechanism to use.
 func (s *TestServer) handleSaslContinue(message protocol.Message) (protocol.Message, error) {
 	opmsg, ok := message.(*protocol.MessageOpQuery)
