@@ -116,7 +116,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
-			return trace.BadParameter("settings must be set")
+			return trace.BadParameter("missing Okta settings")
 		}
 		if err := settings.Okta.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
@@ -280,7 +280,7 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CheckAndSetDefaults validates and set the default values
+// CheckAndSetDefaults validates and set the default values.
 func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 	if s.OrgUrl == "" {
 		return trace.BadParameter("org_url must be set")

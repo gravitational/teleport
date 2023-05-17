@@ -138,7 +138,7 @@ func TestPluginOktaValidation(t *testing.T) {
 			assertErr: func(t require.TestingT, err error, args ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "settings must be set")
+				require.Contains(t, err.Error(), "missing Okta settings")
 			},
 		},
 		{
