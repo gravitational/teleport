@@ -107,7 +107,7 @@ func (w *WatcherResponseWriter) Header() http.Header {
 func (w *WatcherResponseWriter) WriteHeader(code int) {
 	w.status = code
 	w.target.WriteHeader(code)
-	contentType := GetContentHeader(w.Header())
+	contentType := GetContentTypeHeader(w.Header())
 	w.group.Go(
 		func() error {
 			switch {
