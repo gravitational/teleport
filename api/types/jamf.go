@@ -40,8 +40,12 @@ var JamfOnMissingActions = []string{
 }
 
 const (
+	// JamfSyncPeriodPartialDefault is the default value for sync_period_partial
+	// in inventory entries.
 	JamfSyncPeriodPartialDefault = 6 * time.Hour
-	JamfSyncPeriodFullDefault    = 24 * time.Hour
+	// JamfSyncPeriodFullDefault is the default value for sync_period_full in
+	// inventory entries.
+	JamfSyncPeriodFullDefault = 24 * time.Hour
 )
 
 // ValidateJamfSpecV1 validates a [JamfSpecV1] instance.
