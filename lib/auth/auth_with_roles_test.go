@@ -3827,7 +3827,9 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, role := range types.LocalServiceMappings() {
-		if role == types.RoleAuth {
+		// RoleMDM services don't create events by themselves, instead they rely on
+		// Auth to issue events.
+		if role == types.RoleAuth || role == types.RoleMDM {
 			continue
 		}
 		t.Run(role.String(), func(t *testing.T) {
