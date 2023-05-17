@@ -248,13 +248,14 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 	_, err := a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})
 	switch {
 	case err == nil:
-		if a.Conf.GetRecipientsAreSchedules() {
-			// If the recipients of the access request are schedules let the bot itself figure them out.
+		// This is a new access-request, we have to broadcast it first.
+		if a.Conf.GetUsersAsRecipients() {
 			if err := a.broadcastMessages(ctx, nil, reqID, reqData); err != nil {
 				return trace.Wrap(err)
 			}
+			// If the recipients of the access request are not valid recipients
+			// grab message recipients.
 		} else if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
-			// This is a new access-request, we have to broadcast it first
 			if err := a.broadcastMessages(ctx, recipients, reqID, reqData); err != nil {
 				return trace.Wrap(err)
 			}

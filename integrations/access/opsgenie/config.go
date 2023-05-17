@@ -63,7 +63,7 @@ func LoadOpsgenieConfig(filepath string) (*Config, error) {
 	if err := conf.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conf.RecipientsAreSchedules = true
+	conf.UsersAsRecipients = true
 	return conf, nil
 
 }

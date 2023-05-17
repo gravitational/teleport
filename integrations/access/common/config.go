@@ -35,15 +35,16 @@ type PluginConfiguration interface {
 	GetTeleportClient(ctx context.Context) (teleport.Client, error)
 	GetRecipients() RawRecipientsMap
 	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
-	GetRecipientsAreSchedules() bool
+	GetUsersAsRecipients() bool
 }
 
 type BaseConfig struct {
 	Teleport   lib.TeleportConfig
 	Recipients RawRecipientsMap `toml:"role_to_recipients"`
 	Log        logger.Config
-	// RecipientsAreSchedules is used to mark wether the recipients of alerts are on-call schedules.
-	RecipientsAreSchedules bool
+	// UsersAsRecipients is set for bots where the individual assigned
+	// reviewers on the access requests should be considered valid recipients.
+	UsersAsRecipients bool
 }
 
 func (c BaseConfig) GetRecipients() RawRecipientsMap {
@@ -82,9 +83,9 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 	return clt, nil
 }
 
-// GetRecipientsAreSchedules is used to mark wether the recipients of alerts are on-call schedules.
-func (c BaseConfig) GetRecipientsAreSchedules() bool {
-	return c.RecipientsAreSchedules
+// GetUsersAsRecipients is used to mark wether the recipients of alerts are on-call schedules.
+func (c BaseConfig) GetUsersAsRecipients() bool {
+	return c.UsersAsRecipients
 }
 
 // GenericAPIConfig holds common configuration use by a messaging service.
