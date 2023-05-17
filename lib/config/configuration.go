@@ -184,6 +184,8 @@ type CommandLineFlags struct {
 	RestartOpenSSH bool
 	// RestartCommand is the command to use when restarting sshd
 	RestartCommand string
+	// CheckCommand is the command to use when checking sshd config validity
+	CheckCommand string
 	// Address is the ip address of the OpenSSH node.
 	Address string
 	// AdditionalPrincipals is a list of additional principals to include in the SSH cert.
@@ -2173,6 +2175,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.OpenSSH.SSHDConfigPath = clf.OpenSSHConfigPath
 	cfg.OpenSSH.RestartSSHD = clf.RestartOpenSSH
 	cfg.OpenSSH.RestartCommand = clf.RestartCommand
+	cfg.OpenSSH.CheckCommand = clf.CheckCommand
 	cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
 
 	hostname, err := os.Hostname()

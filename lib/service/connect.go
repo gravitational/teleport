@@ -690,7 +690,11 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 func (process *TeleportProcess) initOpenSSH() {
 	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
-	process.SSHD = openssh.NewSSHD(process.Config.OpenSSH.RestartCommand)
+	process.SSHD = openssh.NewSSHD(
+		process.Config.OpenSSH.RestartCommand,
+		process.Config.OpenSSH.CheckCommand,
+		process.Config.OpenSSH.SSHDConfigPath,
+	)
 	process.RegisterCriticalFunc("openssh.rotate", process.syncOpenSSHRotationState)
 }
 
