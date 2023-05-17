@@ -382,6 +382,7 @@ CREATE EXTERNAL TABLE %s (
 	session_id string,
 	event_type string,
 	event_time timestamp,
+	user string,
 	event_data string
   )
   PARTITIONED BY (
