@@ -1,39 +1,45 @@
 # Changelog
 
-## 13.0.1 (05/xx/23)
+## 13.0.1 (05/16/23)
 
+* Auth
+  * Improved error message on `tsh login` when trying to authenticate with unregistered device. [#26103](https://github.com/gravitational/teleport/pull/26103)
+  * Populate `locked_time` user status value when local user is locked. [#26255](https://github.com/gravitational/teleport/pull/26255)
+* Machine ID
+  * Fixed goroutine leak in `tbot`. [#26125](https://github.com/gravitational/teleport/pull/26125)
+  * Added pprof diagnostics endpoints to `tbot`. [#26117](https://github.com/gravitational/teleport/pull/26117)
+* Audit Log
+  * Added audit events for Okta integration. [#26000](https://github.com/gravitational/teleport/pull/26000)
+  * Do not include empty Windows domains in audit log for Desktop Access. [#26078](https://github.com/gravitational/teleport/pull/26078)
+* CLI
+  * Added `--format` flag to `tctl alerts ls` command and include acknowledged alerts in verbose mode. [#26040](https://github.com/gravitational/teleport/pull/26040)
+  * Added `tsh fido2 attobj` debug command that can parse attestation objects. [#25923](https://github.com/gravitational/teleport/pull/25923)
+  * Fixed issue with `tsh` version not being reflected in the macOS application bundle info. [#26314](https://github.com/gravitational/teleport/pull/26314)
+* IP Pinning
+  * Fixed issue with `tctl` commands not working when IP pinning is enabled. [#25993](https://github.com/gravitational/teleport/pull/25993)
+* Terraform
+  * Fixed issue with ACL being disabled for new buckets in non-HA terraform setup. [#25854](https://github.com/gravitational/teleport/pull/25854)
+* Performance & Scalability
+  * Added ability to enable trace logging level. [#25833](https://github.com/gravitational/teleport/pull/25833)
 * Helm Charts
-  * Fixed issue with invite token being incorrectly overridden when it was manually created. [#26055](https://github.com/gravitational/teleport/pull/26055)
-
-### Breaking Changes
-
-Please familiarize yourself with the following potentially disruptive changes in
-Teleport 13 before upgrading.
-
-#### Teleport Kubernetes Agent helm chart
-
-When upgrading to Teleport 13, users of the Teleport Kubernetes Agent Helm chart
-that manually create their own Teleport token secret (`secretName=<secretName>` and no auth token provided)
-will need to set the following values:
-
-```yaml
-# Manages the join token secret creation and its name.
-joinTokenSecret:
-  # create controls whether the Helm chart should create and manage the join token
-  # secret.
-  # If false, the chart assumes that the secret with the configured name already exists at the
-  # installation namespace.
-  create: false
-  # Name of the Secret to store the teleport join token.
-  name: <secretName>
-```
-
-The Helm chart parameter `secretName` was deprecated in Teleport 13 in favor of
-`joinTokenSecret.name`. `joinTokenSecret.create` indicates whether the Helm
-chart should create and manage the join token secret. If `create` is set to
-`false`, the chart assumes that the secret with the configured name already
-exists at the installation namespace.
-
+  * Fixed issue with invite token being incorrectly overridden when it was manually created. [#26175](https://github.com/gravitational/teleport/pull/26175)
+* HSM
+  * Added support for YubiHSM2 SDK version 2023.01. [#25816](https://github.com/gravitational/teleport/pull/25816)
+* Teleport Connect
+  * Disabled "Open new terminal" action if there's no active workspace. [#26333](https://github.com/gravitational/teleport/pull/26333)
+  * Fixed issue with cluster filter not being taken into account when listing offline clusters. [#26127](https://github.com/gravitational/teleport/pull/26127)
+  * Added support for TLS Routing behind ALB support for SSH and Database access. [#25899](https://github.com/gravitational/teleport/pull/25899)
+* Database Access
+  * Improved initial connect auth check for Azure Cache access. [#26317](https://github.com/gravitational/teleport/pull/26317)
+* TLS Routing
+  * Added support for `tsh kube join` in single-port mode behind ALB. [#26283](https://github.com/gravitational/teleport/pull/26283)
+  * Added support for `tsh request search --kind=pod` in single-port mode behind ALB. [#26128](https://github.com/gravitational/teleport/pull/26128)
+* Kubernetes Access
+  * Fixed panic when using proxy peering. [#26174](https://github.com/gravitational/teleport/pull/26174)
+* GCP
+  * Added GCP IAM joining method. [#26165](https://github.com/gravitational/teleport/pull/26165)
+* Desktop Access
+  * Fixed issue with directory sharing not working. [#26090](https://github.com/gravitational/teleport/pull/26090)
 
 ## 13.0.0 (05/08/23)
 
@@ -172,6 +178,30 @@ Quay.io registry was deprecated in Teleport 11 and starting with Teleport 13,
 Teleport container images are no longer being published to it.
 
 Users should use the public ECR registry: https://goteleport.com/docs/installation/#docker.
+
+#### Teleport Kubernetes Agent Helm chart
+
+When upgrading to Teleport 13, users of the Teleport Kubernetes Agent Helm chart
+that manually create their own Teleport token secret (`secretName=<secretName>`
+and no auth token provided) will need to set the following values:
+
+```yaml
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: false
+  # Name of the Secret to store the teleport join token.
+  name: <secretName>
+```
+
+The Helm chart parameter `secretName` was deprecated in Teleport 13 in favor of
+`joinTokenSecret.name`. `joinTokenSecret.create` indicates whether the Helm
+chart should create and manage the join token secret. If `create` is set to
+`false`, the chart assumes that the secret with the configured name already
+exists at the installation namespace.
 
 ## 12.3.0 (05/01/23)
 
