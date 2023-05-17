@@ -46,9 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
@@ -447,14 +445,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
 	defer span.End()
 
-	mfaAuth := func(ctx context.Context, ws WSConn, tc *client.TeleportClient,
-		accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator,
-	) (*client.NodeClient, error) {
-		return nil, trace.NotImplemented("MFA is not supported for command execution")
-	}
-
-	//TODO(jakule): Implement MFA support
-	nc, err := t.connectToHost(ctx, t.ws, tc, mfaAuth)
+	nc, err := t.connectToHost(ctx, t.ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)

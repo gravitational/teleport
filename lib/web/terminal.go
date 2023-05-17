@@ -467,7 +467,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 // used to access nodes which require per-session mfa. The ceremony is performed directly
 // to make use of the authProvider already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
-func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient) ([]ssh.AuthMethod, error) {
+func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
@@ -550,7 +550,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -589,7 +589,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 }
 
 func promptMFAChallenge(
-	stream *TerminalStream,
+	stream *WSStream,
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
@@ -783,7 +783,40 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc)
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, &t.stream.WSStream)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig := &ssh.ClientConfig{
+		User:            tc.HostLogin,
+		Auth:            authMethods,
+		HostKeyCallback: tc.HostKeyCallback,
+	}
+
+	// connect to the node again with the new certs
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	nc, err := client.NewNodeClient(ctx, sshConfig, conn,
+		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+		t.sessionData.ServerHostname,
+		tc, modules.GetModules().IsBoringBinary())
+	if err != nil {
+		return nil, trace.NewAggregate(err, conn.Close())
+	}
+
+	return nc, nil
+}
+
+// connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
+// host with the retrieved single use certs.
+// TODO(jakule): remove duplication between this and the above connectToNodeWithMFA
+func (t *commandHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	// perform mfa ceremony and retrieve new certs
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
