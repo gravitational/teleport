@@ -397,6 +397,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
+	warnAboutKubernetesResources(rc.config.Log, role)
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -411,6 +412,26 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
 	return nil
+}
+
+// warnAboutKubernetesResources warns about kubernetes resources
+// if kubernetes_labels are set but kubernetes_resources are not.
+func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
+	role, ok := r.(*types.RoleV6)
+	// only warn about kubernetes resources for v6 roles
+	if !ok || role.Version != types.V6 {
+		return
+	}
+	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
+		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
+	}
+	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
+		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
+
+	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
+		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
 }
 
 // createUser implements `tctl create user.yaml` command.
