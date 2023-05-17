@@ -76,9 +76,10 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
-		Target:  types.LockTarget{MFADevice: "mfa-device-id"},
-		Expires: time.Hour.UTC(),
+		Target: types.LockTarget{MFADevice: "mfa-device-id"},
 	})
+	futureTime := time.Now().UTC().Add(12 * time.Hour)
+	lock.SetLockExpiry(&futureTime)
 	require.NoError(t, err)
 
 	// Creating a lock should emit a LockCreatedEvent.
