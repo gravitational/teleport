@@ -215,9 +215,7 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
-    integrationExecutePath:
-      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
-
+    thumbprintPath: '/v1/webapi/thumbprint',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
 

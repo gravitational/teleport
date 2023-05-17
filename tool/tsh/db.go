@@ -780,7 +780,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
+	route, database, err := getDatabaseInfo(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -837,7 +837,7 @@ func onDatabaseConnect(cf *CLIConf) error {
 
 // getDatabaseInfo fetches information about the database from tsh profile is DB is active in profile. Otherwise,
 // the ListDatabases endpoint is called.
-func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tlsca.RouteToDatabase, types.Database, error) {
+func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient) (*tlsca.RouteToDatabase, types.Database, error) {
 	database, err := pickActiveDatabase(cf)
 	if err == nil {
 		switch database.Protocol {
@@ -851,20 +851,25 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
-	db, err := getDatabase(cf, tc, dbName)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 
+	dbService := cf.DatabaseService
 	username := cf.DatabaseUser
 	databaseName := cf.DatabaseName
 	if database != nil {
+		if dbService == "" {
+			dbService = database.ServiceName
+		}
 		if username == "" {
 			username = database.Username
 		}
 		if databaseName == "" {
 			databaseName = database.Database
 		}
+	}
+
+	db, err := getDatabase(cf, tc, dbService)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	return &tlsca.RouteToDatabase{
