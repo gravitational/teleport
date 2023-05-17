@@ -355,7 +355,7 @@ func maybeStartKubeLocalProxy(cf *CLIConf, applyOpts ...applyKubeLocalProxyOpts)
 	}
 
 	// Update KUBECONFIG path.
-	if err := os.Setenv("KUBECONFIG", newKubeconfigLocation); err != nil {
+	if err := opts.setEnvFunc("KUBECONFIG", newKubeconfigLocation); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	overwriteKubeconfigFlagInArgs(opts.kubectlArgs, newKubeconfigLocation)

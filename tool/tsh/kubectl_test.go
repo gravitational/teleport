@@ -109,37 +109,35 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 			}
 
 			var localProxyCreated bool
-			kubeconfigLocationForLocalProxy := path.Join(tshHome, uuid.NewString())
-
-			// Fake makeAndStartKubeLocalProxyFunc instead of making a real
-			// kube local proxy. Verify the loaded kube cluster is correct.
-			verifyKubeCluster := func(o *kubeLocalProxyOpts) {
-				o.makeAndStartKubeLocalProxyFunc = func(_ *CLIConf, _ *clientcmdapi.Config, clusters kubeconfig.LocalProxyClusters) (func(), string, error) {
-					localProxyCreated = true
-					require.True(t, test.wantLocalProxy, "makeAndStartKubeLocalProxy should only be called if local proxy is required.")
-					require.ElementsMatch(t, test.wantKubeClusters, clusters)
-					return func() {}, kubeconfigLocationForLocalProxy, nil
-				}
-			}
-			// Fake os.Setenv and verify the env value.
-			verifyEnv := func(o *kubeLocalProxyOpts) {
-				o.setEnvFunc = func(key, value string) error {
-					require.Equal(t, "KUBECONFIG", key)
-					require.Equal(t, kubeconfigLocationForLocalProxy, value)
-					return nil
-				}
-			}
+			var loadedKubeClusters kubeconfig.LocalProxyClusters
+			var loadedKubeconfigLocation string
+			wantLocalProxyKubeconfigLocation := path.Join(tshHome, uuid.NewString())
 
 			closeFn, err := maybeStartKubeLocalProxy(cf,
 				withKubectlArgs(test.inputArgs),
-				verifyKubeCluster,
-				verifyEnv,
+				func(o *kubeLocalProxyOpts) {
+					// Fake makeAndStartKubeLocalProxyFunc instead of making a
+					// real kube local proxy.
+					o.makeAndStartKubeLocalProxyFunc = func(_ *CLIConf, _ *clientcmdapi.Config, clusters kubeconfig.LocalProxyClusters) (func(), string, error) {
+						localProxyCreated = true
+						loadedKubeClusters = clusters
+						return func() {}, wantLocalProxyKubeconfigLocation, nil
+					}
+					// Fake os.Setenv.
+					o.setEnvFunc = func(key, value string) error {
+						loadedKubeconfigLocation = value
+						return nil
+					}
+				},
 			)
 			require.NoError(t, err)
 			defer closeFn()
 
-			// Make sure makeAndStartKubeLocalProxyFunc is called if local proxy is required.
 			require.Equal(t, test.wantLocalProxy, localProxyCreated)
+			if test.wantLocalProxy {
+				require.ElementsMatch(t, test.wantKubeClusters, loadedKubeClusters)
+				require.Equal(t, wantLocalProxyKubeconfigLocation, loadedKubeconfigLocation)
+			}
 		})
 	}
 }
