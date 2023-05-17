@@ -24,7 +24,7 @@ type OpenSSHConfig struct {
 	SSHDConfigPath string
 	// RestartSSHD is true if sshd should be restarted after config updates.
 	RestartSSHD bool
-	// RestartCommand is the command to use when restarting sshd
+	// RestartCommand is the command to use when restarting sshd.
 	RestartCommand string
 	// AdditionalPrincipals is a list of additional principals to be included.
 	AdditionalPrincipals []string
@@ -32,6 +32,6 @@ type OpenSSHConfig struct {
 	InstanceAddr string
 	// ProxyServer is the address of the teleport proxy.
 	ProxyServer *utils.NetAddr
-	// Labels are lebels to set on the instance.
+	// Labels are labels to set on the instance.
 	Labels map[string]string
 }
