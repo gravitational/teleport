@@ -20,6 +20,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -90,4 +91,10 @@ func (f *FakeMacOSDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 func (f *FakeMacOSDevice) SignChallenge(chal []byte) (sig []byte, err error) {
 	h := sha256.Sum256(chal)
 	return ecdsa.SignASN1(rand.Reader, f.privKey, h[:])
+}
+
+func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
+	_ *devicepb.TPMEnrollChallenge,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
 }

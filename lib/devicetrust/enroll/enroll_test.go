@@ -38,6 +38,7 @@ func TestRunCeremony(t *testing.T) {
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
 		name            string
@@ -53,6 +54,18 @@ func TestRunCeremony(t *testing.T) {
 			},
 			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
 				assert.NotNil(t, d, "RunCeremony returned nil device")
+			},
+		},
+		{
+			name: "windows device succeeds",
+			dev:  windowsDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				require.NotNil(t, d, "RunCeremony returned nil device")
+				require.NotNil(t, d.Credential)
+				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id)
 			},
 		},
 		{
@@ -75,6 +88,7 @@ func TestRunCeremony(t *testing.T) {
 			*enroll.GetOSType = test.dev.GetOSType
 			*enroll.EnrollInit = test.dev.EnrollDeviceInit
 			*enroll.SignChallenge = test.dev.SignChallenge
+			*enroll.SolveTPMEnrollChallenge = test.dev.SolveTPMEnrollChallenge
 
 			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
 			test.assertErr(t, err)
@@ -108,4 +122,5 @@ type fakeDevice interface {
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	GetOSType() devicepb.OSType
 	SignChallenge(chal []byte) (sig []byte, err error)
+	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
 }

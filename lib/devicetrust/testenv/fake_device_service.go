@@ -15,11 +15,13 @@
 package testenv
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"google.golang.org/protobuf/proto"
 	"sync"
 
 	"github.com/google/uuid"
@@ -90,12 +92,21 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	}
 
 	// OS-specific enrollment.
-	if initReq.DeviceData.OsType != devicepb.OSType_OS_TYPE_MACOS {
+	var cred *devicepb.DeviceCredential
+	var pub *ecdsa.PublicKey
+	switch initReq.DeviceData.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		cred, pub, err = enrollMacOS(stream, initReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		cred, err = enrollTPM(stream, initReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	default:
 		return trace.BadParameter("os not supported")
-	}
-	cred, pub, err := enrollMacOS(stream, initReq)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	// Prepare device.
@@ -127,6 +138,65 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 		},
 	})
 	return trace.Wrap(err)
+}
+
+func mustRandomBytes() []byte {
+	buf := make([]byte, 32)
+	_, err := rand.Read(buf)
+	if err != nil {
+		panic(err)
+	}
+	return buf
+}
+
+func enrollTPM(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *devicepb.EnrollDeviceInit) (*devicepb.DeviceCredential, error) {
+	switch {
+	case initReq.Tpm == nil:
+		return nil, trace.BadParameter("init req missing tpm message")
+	case !bytes.Equal(validEKKey, initReq.Tpm.GetEkKey()):
+		return nil, trace.BadParameter("ek key in init req did not match expected")
+	case !proto.Equal(initReq.Tpm.AttestationParameters, validAttestationParameters):
+		return nil, trace.BadParameter("init req tpm message attestation parameters mismatch")
+	}
+
+	secret := mustRandomBytes()
+	credentialBlob := mustRandomBytes()
+	expectSolution := append(secret, credentialBlob...)
+	nonce := mustRandomBytes()
+	if err := stream.Send(&devicepb.EnrollDeviceResponse{
+		Payload: &devicepb.EnrollDeviceResponse_TpmChallenge{
+			TpmChallenge: &devicepb.TPMEnrollChallenge{
+				EncryptedCredential: &devicepb.TPMEncryptedCredential{
+					CredentialBlob: credentialBlob,
+					Secret:         secret,
+				},
+				AttestationNonce: nonce,
+			},
+		},
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chalResp := resp.GetTpmChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return nil, trace.BadParameter("challenge response required")
+	case !bytes.Equal(expectSolution, chalResp.Solution):
+		return nil, trace.BadParameter("activate credential solution in challenge response did not match expected")
+	case chalResp.PlatformParameters == nil:
+		return nil, trace.BadParameter("missing platform parameters in challenge response")
+	case !bytes.Equal(nonce, chalResp.PlatformParameters.EventLog):
+		return nil, trace.BadParameter("nonce in challenge response did not match expected")
+	}
+
+	return &devicepb.DeviceCredential{
+		Id:                    initReq.CredentialId,
+		DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+	}, nil
 }
 
 func enrollMacOS(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *devicepb.EnrollDeviceInit) (*devicepb.DeviceCredential, *ecdsa.PublicKey, error) {

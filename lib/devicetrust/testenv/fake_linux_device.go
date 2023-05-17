@@ -5,7 +5,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// fakeLinuxDevice just returns the Linux OS type so we can be sure this fails.
+// FakeLinuxDevice only implements GetOSType Linux OS type so we can be sure
+// this fails in a user friendly manner.
 type FakeLinuxDevice struct {
 }
 
@@ -25,6 +26,10 @@ func (d *FakeLinuxDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
 
-func (d *FakeLinuxDevice) SignChallenge(chal []byte) (sig []byte, err error) {
+func (d *FakeLinuxDevice) SignChallenge(_ []byte) (sig []byte, err error) {
+	return nil, trace.NotImplemented("linux device fake unimplemented")
+}
+
+func (d *FakeLinuxDevice) SolveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
