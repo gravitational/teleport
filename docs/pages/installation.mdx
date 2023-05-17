@@ -54,7 +54,7 @@ All installations include `teleport`, `tsh`, `tctl`, and `tbot`.
 
 Some Teleport features have additional requirements:
 
-| Feature                                                                        | Requirement   | Debian                   | Ubuntu   | CentOS/RHEL | AmazonLinux            |
+| Feature                                                                        | Requirement   | Debian                   | Ubuntu   | CentOS/RHEL | Amazon Linux            |
 |--------------------------------------------------------------------------------|---------------|--------------------------|----------|-------------|------------------------|
 | [Enhanced Session Recording](./server-access/guides/bpf-session-recording.mdx) | Kernel  v5.8+ | 11, or 10 with backports | 20.04.2+ | 9+          | 2 (post 11/2021), 2023 |
 | Automatic Updates                                                              | systemd-based | 8+                       | 16.04+   | 7+          | 2, 2023                |
@@ -148,7 +148,7 @@ chart.
   You can also fetch an installer via the command line:
 
   ```code
-  $ curl -O https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
+  $ curl -o https://cdn.teleport.dev/teleport-(=teleport.version=).pkg
   # Installs on Macintosh HD
   $ sudo installer -pkg teleport-(=teleport.version=).pkg -target /
   # Password:

@@ -252,7 +252,7 @@ func (s *SessionTrackerV1) AddParticipant(participant Participant) {
 func (s *SessionTrackerV1) RemoveParticipant(id string) error {
 	for i, participant := range s.Spec.Participants {
 		if participant.ID == id {
-			s.Spec.Participants = append(s.Spec.Participants[:i], s.Spec.Participants[i+1:]...)
+			s.Spec.Participants[i], s.Spec.Participants = s.Spec.Participants[len(s.Spec.Participants)-1], s.Spec.Participants[:len(s.Spec.Participants)-1]
 			return nil
 		}
 	}

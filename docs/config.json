@@ -17,10 +17,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -2754,6 +2750,11 @@
     {
       "source": "/preview/upcoming-releases/",
       "destination": "/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]

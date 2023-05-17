@@ -16,6 +16,7 @@ package athena
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -348,9 +349,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	publisher    *publisher
-	querier      *querier
-	consumerStop context.CancelFunc
+	publisher      *publisher
+	querier        *querier
+	consumerCloser io.Closer
 }
 
 // New creates an instance of an Athena based audit log.
@@ -360,14 +361,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	l := &Log{
-		publisher:    newPublisher(cfg),
-		consumerStop: consumerCancel,
-	}
-
-	l.querier, err = newQuerier(querierConfig{
+	querier, err := newQuerier(querierConfig{
 		tablename:               cfg.TableName,
 		database:                cfg.Database,
 		workgroup:               cfg.Workgroup,
@@ -381,9 +375,17 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumer, err := newConsumer(cfg)
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+	consumer, err := newConsumer(cfg, consumerCancel)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	l := &Log{
+		publisher:      newPublisher(cfg),
+		querier:        querier,
+		consumerCloser: consumer,
 	}
 
 	go consumer.run(consumerCtx)
@@ -404,8 +406,7 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 }
 
 func (l *Log) Close() error {
-	l.consumerStop()
-	return nil
+	return trace.Wrap(l.consumerCloser.Close())
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
