@@ -2254,7 +2254,7 @@ app_service:
      # By default Teleport will make this application
      # available on a sub-domain of your Teleport proxy's hostname
      # internal-dashboard.teleport.example.com
-     # - thus the importance of setting up wilcard DNS.
+     # - thus the importance of setting up wildcard DNS.
      # If you want, it's possible to set up a custom public url.
      # DNS records should point to the proxy server.
      # internal-dashboard.teleport.example.com
