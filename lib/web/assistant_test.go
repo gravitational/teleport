@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -79,7 +80,8 @@ func Test_runAssistant(t *testing.T) {
 	testCases := []struct {
 		name      string
 		responses [][]byte
-		setup     func(*WebSuite)
+		cfg       webSuiteConfig
+		setup     func(*testing.T, *WebSuite)
 		act       func(*testing.T, *websocket.Conn)
 	}{
 		{
@@ -105,7 +107,16 @@ func Test_runAssistant(t *testing.T) {
 				generateTextResponse(),
 				generateTextResponse(),
 			},
-			setup: func(s *WebSuite) {
+			cfg: webSuiteConfig{
+				ClusterFeatures: &authproto.Features{
+					Cloud: true,
+				},
+			},
+			setup: func(t *testing.T, s *WebSuite) {
+				// Assert that rate limiter is set up when Cloud feature is active,
+				// before replacing with a lower capacity rate-limiter for test purposes
+				require.Equal(t, assistantLimiterRate, s.webHandler.handler.assistantLimiter.Limit())
+
 				// 101 token capacity (lookaheadTokens+1) and a slow replenish rate
 				// to let the first completion request succeed, but not the second one
 				s.webHandler.handler.assistantLimiter = rate.NewLimiter(rate.Limit(0.001), 101)
@@ -150,10 +161,11 @@ func Test_runAssistant(t *testing.T) {
 
 			openaiCfg := openai.DefaultConfig("test-token")
 			openaiCfg.BaseURL = server.URL
-			s := newWebSuiteWithConfig(t, webSuiteConfig{OpenAIConfig: &openaiCfg})
+			tc.cfg.OpenAIConfig = &openaiCfg
+			s := newWebSuiteWithConfig(t, tc.cfg)
 
 			if tc.setup != nil {
-				tc.setup(s)
+				tc.setup(t, s)
 			}
 
 			ws, err := s.makeAssistant(t, s.authPack(t, "foo"))

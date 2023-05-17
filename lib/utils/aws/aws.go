@@ -405,7 +405,7 @@ func checkRoleARN(parsed *arn.ARN) error {
 	if parts[0] != "role" || parsed.Service != iam.ServiceName {
 		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
 	}
-	if len(parts) < 2 {
+	if len(parts) < 2 || len(parts[len(parts)-1]) == 0 {
 		return trace.BadParameter("%q is missing AWS IAM role name", parsed)
 	}
 	if err := apiawsutils.IsValidAccountID(parsed.AccountID); err != nil {

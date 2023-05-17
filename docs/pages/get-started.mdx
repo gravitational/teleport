@@ -1,7 +1,7 @@
 ---
 title: Try out Teleport on a Linux Server
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
-videoBanner: 8aiVin0LvmE
+videoBanner: BJWbSqiDLeU
 ---
 
 This tutorial will show you how to install and run a demo Teleport cluster
@@ -133,7 +133,7 @@ Visit the provided URL in order to create your Teleport user.
 
   If a user does not already exist, you can create it with `adduser <login>` or
   use [host user creation](./server-access/guides/host-user-creation.mdx).
-  
+
   If you do not have the permission to create new users on the Linux host, run
   `tctl users add teleport $(whoami)` to explicitly allow Teleport to
   authenticate as the user that you have currently logged in as.
@@ -178,7 +178,7 @@ Install `tsh` on your local workstation:
 
   <TabItem label="Windows - Powershell">
     ```code
-    $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+    $ curl -o teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
     # Unzip the archive and move `tsh.exe` to your %PATH%
     ```
   </TabItem>

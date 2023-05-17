@@ -318,7 +318,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	// Check for self-hosted vs Cloud.
 	// TODO(justinas): this needs to be modified when we allow user-supplied API keys in Cloud
-	if modules.GetModules().Features().Cloud {
+	if cfg.ClusterFeatures.GetCloud() {
 		h.assistantLimiter = rate.NewLimiter(assistantLimiterRate, assistantLimiterCapacity)
 	} else {
 		// Set up a limiter with "infinite limit", the "burst" parameter is ignored
@@ -1655,6 +1655,11 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
 		RepoChannel:     repoChannel,
+		// teleport-upgrade is not available for v12.
+		// Hard coding the following value to false for compatibility purposes
+		// This ensures the Installer scripts and exposed variables stay the same as v13+.
+		// If users install v13 and then downgrade to v12, the templating won't break.
+		AutomaticUpgrades: "false",
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
