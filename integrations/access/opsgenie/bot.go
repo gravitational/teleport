@@ -44,7 +44,7 @@ type Bot struct {
 
 // CheckHealth checks if the bot can connect to its messaging service
 func (b *Bot) CheckHealth(ctx context.Context) error {
-	return trace.NotImplemented("this is not supported for opsgenie bots")
+	return trace.Wrap(b.client.CheckHealth(ctx))
 }
 
 // Broadcast creates an alert for the provided recipients (schedules)
@@ -55,7 +55,7 @@ func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string,
 	for _, recipient := range b.client.DefaultSchedules {
 		schedules = append(schedules, recipient)
 	}
-	opsgeneieReqData := RequestData{
+	opsgenieReqData := RequestData{
 		User:          reqData.User,
 		Roles:         reqData.Roles,
 		Created:       time.Now(),
@@ -69,7 +69,7 @@ func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string,
 			ReqAnnotationRespondersKey: schedules,
 		},
 	}
-	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgeneieReqData)
+	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

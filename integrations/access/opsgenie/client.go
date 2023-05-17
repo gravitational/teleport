@@ -36,6 +36,7 @@ import (
 const (
 	// alertKeyPrefix is the prefix for Alert's alias field used when creating an Alert.
 	alertKeyPrefix = "teleport-access-request"
+	heartbeatName  = "teleport-access-heartbeat"
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -59,6 +60,8 @@ type Client struct {
 	ClientConfig
 
 	client *resty.Client
+
+	heartbeatCreated bool
 }
 
 // ClientConfig is the config for the opsgenie client.
@@ -223,6 +226,24 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		return RespondersResult{}, errWrapper(resp.StatusCode())
 	}
 	return result, nil
+}
+
+// CheckHealth pings opsgenie.
+func (og Client) CheckHealth(ctx context.Context) error {
+	// The heartbeat pings will respond even if the heartbeat does not exist.
+	resp, err := og.client.NewRequest().
+		SetContext(ctx).
+		SetPathParams(map[string]string{"heartbeat": heartbeatName}).
+		Get("heartbeats/{heatbeat}/ping")
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.RawResponse.Body.Close()
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode())
+	}
+	return nil
 }
 
 func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
