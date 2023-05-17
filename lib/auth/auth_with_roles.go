@@ -1158,9 +1158,13 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		}
 	}
 
-	// admin skips rbac checks, but still obeys acks and supersessions, so
-	// we store the result of the check for use per-alert during filtering.
-	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+	// by default we only show alerts whose labels specify that a given user should see them, but users
+	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
+	// regardless of labels for management/debug purposes.
+	var resourceLevelPermit bool
+	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+		resourceLevelPermit = true
+	}
 
 	// filter alerts by acks and teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
@@ -1174,9 +1178,9 @@ Outer:
 			}
 		}
 
-		// remaining checks in this loop are access-controls, so short-circuit
-		// if caller is admin.
-		if isAdmin {
+		// remaining checks in this loop are evaluating per-alert access, so short-circuit
+		// if we are going off of resource-level permissions for this query.
+		if resourceLevelPermit {
 			filtered = append(filtered, alert)
 			continue Outer
 		}
@@ -1237,43 +1241,35 @@ Outer:
 }
 
 func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
-	// admin-only API. the expected usage of this is mostly as something the auth server itself would do
-	// internally, but it is useful to be able to create alerts via tctl for testing/debug purposes.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("cluster alert creation is admin-only")
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpsertClusterAlert(ctx, alert)
 }
 
 func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("alert ack is admin-only")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.CreateAlertAck(ctx, ack)
 }
 
 func (a *ServerWithRoles) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return nil, trace.AccessDenied("listing alert acks is admin-only")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource.
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.GetAlertAcks(ctx)
 }
 
 func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("clearing alert acks is admin-only")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.ClearAlertAcks(ctx, req)
