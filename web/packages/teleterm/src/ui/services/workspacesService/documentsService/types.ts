@@ -126,6 +126,11 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   targetUser: tsh.Gateway['targetUser'];
   targetName: tsh.Gateway['targetName'];
   targetProtocol: tsh.Gateway['protocol'];
+  // status is used merely to show a progress bar when the doc waits for the gateway to be created.
+  // It will be changed to 'connected' as soon as the CLI client prints something out. Some clients
+  // type something out immediately after starting while others only after they actually connect to
+  // a resource.
+  status: '' | 'connecting' | 'connected' | 'error';
 }
 
 export interface DocumentCluster extends DocumentBase {
