@@ -1182,6 +1182,12 @@ func (a *Server) Close() error {
 		errs = append(errs, err)
 	}
 
+	if a.Services.AuditLogSessionStreamer != nil {
+		if err := a.Services.AuditLogSessionStreamer.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
 			errs = append(errs, err)
