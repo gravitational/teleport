@@ -211,39 +211,38 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 				require.Equal(t, expectedServer, s)
 			},
 		},
-    {
-      name: "OpenSSH node with dns address",
-      server: &ServerV2{
-        Kind:    KindNode,
-        SubKind: SubKindOpenSSHNode,
-        Version: V2,
-        Metadata: Metadata{
-          Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-          Namespace: defaults.Namespace,
-        },
-        Spec: ServerSpecV2{
-          Addr:     "example:22",
-          Hostname: "openssh-node",
-        },
-      },
-      assertion: func(t *testing.T, s *ServerV2, err error) {
-        require.NoError(t, err)
-        expectedServer := &ServerV2{
-          Kind:    KindNode,
-          SubKind: SubKindOpenSSHNode,
-          Version: V2,
-          Metadata: Metadata{
-            Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
-            Namespace: defaults.Namespace,
-          },
-          Spec: ServerSpecV2{
-            Addr:     "example:22",
-            Hostname: "openssh-node",
-          },
-        }
-        require.Equal(t, expectedServer, s)
-      },
-    },
+		{
+			name: "OpenSSH node with dns address",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHNode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.NoError(t, err)
+				expectedServer := &ServerV2{
+					Kind:    KindNode,
+					SubKind: SubKindOpenSSHNode,
+					Version: V2,
+					Metadata: Metadata{
+						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Namespace: defaults.Namespace,
+					},
+					Spec: ServerSpecV2{
+						Addr:     "example:22",
+						Hostname: "openssh-node",
+					},
+				}
+				require.Equal(t, expectedServer, s)
+			},
 		{
 			name: "OpenSSH node with unset name",
 			server: &ServerV2{
