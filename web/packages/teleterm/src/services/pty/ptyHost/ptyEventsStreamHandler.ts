@@ -16,6 +16,8 @@
 
 import { ClientDuplexStream } from '@grpc/grpc-js';
 
+import Logger from 'teleterm/logger';
+
 import {
   PtyClientEvent,
   PtyEventData,
@@ -25,15 +27,22 @@ import {
 } from 'teleterm/sharedProcess/ptyHost';
 
 export class PtyEventsStreamHandler {
+  private logger: Logger;
+
   constructor(
-    private readonly stream: ClientDuplexStream<PtyClientEvent, PtyServerEvent>
-  ) {}
+    private readonly stream: ClientDuplexStream<PtyClientEvent, PtyServerEvent>,
+    ptyId: string
+  ) {
+    this.logger = new Logger(`PtyEventsStreamHandler ${ptyId}`);
+  }
 
   /**
    * Client -> Server stream events
    */
 
   start(columns: number, rows: number): void {
+    this.logger.info('Start');
+
     this.writeOrThrow(
       new PtyClientEvent().setStart(
         new PtyEventStart().setColumns(columns).setRows(rows)
@@ -56,6 +65,8 @@ export class PtyEventsStreamHandler {
   }
 
   dispose(): void {
+    this.logger.info('Dispose');
+
     this.stream.end();
     this.stream.removeAllListeners();
   }
@@ -85,6 +96,7 @@ export class PtyEventsStreamHandler {
   ): void {
     this.stream.addListener('data', (event: PtyServerEvent) => {
       if (event.hasExit()) {
+        this.logger.info('On exit', event.getExit().toObject());
         callback(event.getExit().toObject());
       }
     });
@@ -93,6 +105,10 @@ export class PtyEventsStreamHandler {
   onStartError(callback: (message: string) => void): void {
     this.stream.addListener('data', (event: PtyServerEvent) => {
       if (event.hasStartError()) {
+        this.logger.info(
+          'On start error',
+          event.getStartError().toObject().message
+        );
         callback(event.getStartError().toObject().message);
       }
     });
