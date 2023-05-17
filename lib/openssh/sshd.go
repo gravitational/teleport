@@ -31,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-const sshdBinary = "sshd"
-
 var (
 	// SSHDConfigPath is the path to write teleport specific SSHD config options
 	sshdConfigFile = "sshd.conf"
@@ -66,10 +64,12 @@ type SSHD struct {
 }
 
 // NewSSHD initializes SSHD
-func NewSSHD(restartCmd string) SSHD {
+func NewSSHD(restartCmd string, checkCmd string, sshdConfigPath string) SSHD {
 	return SSHD{
 		sshd: &sshdBackend{
-			restartCmd: restartCmd,
+			restartCmd:     restartCmd,
+			checkCmd:       checkCmd,
+			sshdConfigPath: sshdConfigPath,
 		},
 	}
 }
@@ -176,17 +176,19 @@ func WriteKeys(keysdir string, id *auth.Identity, cas []types.CertAuthority) err
 }
 
 type sshdBackend struct {
-	restartCmd string
+	restartCmd     string
+	checkCmd       string
+	sshdConfigPath string
 }
 
 var _ sshdBackendOperations = &sshdBackend{}
 
-func (*sshdBackend) checkConfig(path string) error {
-	cmd := exec.Command(sshdBinary, "-t", "-f", path)
+func (b *sshdBackend) checkConfig(path string) error {
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("%s %q", b.checkCmd, path))
 	if err := cmd.Run(); err != nil {
 		output, outErr := cmd.CombinedOutput()
 		if err != nil {
-			return trace.Wrap(trace.NewAggregate(err, outErr), "invalid sshd config file, failed to get `sshd -t` output")
+			return trace.Wrap(trace.NewAggregate(err, outErr), "invalid sshd config file, failed to get `%s %q` output", b.checkCmd, path)
 		}
 		return trace.Wrap(err, "invalid sshd config file %q, not writing", string(output))
 	}
@@ -194,16 +196,11 @@ func (*sshdBackend) checkConfig(path string) error {
 }
 
 func (b *sshdBackend) restart() error {
-	cmd := exec.Command(sshdBinary, "-t")
-	if err := cmd.Run(); err != nil {
-		output, outErr := cmd.CombinedOutput()
-		if outErr != nil {
-			return trace.Wrap(trace.NewAggregate(err, outErr), "invalid sshd config file, failed to get `sshd -t` output")
-		}
-		return trace.Wrap(err, "invalid sshd config file %q, not writing", string(output))
+	if err := b.checkConfig(b.sshdConfigPath); err != nil {
+		return trace.Wrap(err)
 	}
 
-	cmd = exec.Command("/bin/sh", "-c", b.restartCmd)
+	cmd := exec.Command("/bin/sh", "-c", b.restartCmd)
 	if err := cmd.Run(); err != nil {
 		return trace.Wrap(err, "failed to restart the sshd service")
 	}

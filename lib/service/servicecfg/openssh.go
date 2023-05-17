@@ -26,6 +26,8 @@ type OpenSSHConfig struct {
 	RestartSSHD bool
 	// RestartCommand is the command to use when restarting sshd.
 	RestartCommand string
+	// CheckCommand is the command to use when validating sshd config.
+	CheckCommand string
 	// AdditionalPrincipals is a list of additional principals to be included.
 	AdditionalPrincipals []string
 	// InstanceAddr is the connectable address of the OpenSSh instance.
