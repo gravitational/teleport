@@ -16,6 +16,28 @@ After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
 you can set up RBAC, enable single sign-on with GitHub or Teleport's own
 identity provider, and start protecting resources with Teleport.
 
+```mermaid
+flowchart LR
+subgraph team["Teleport Team tenant"]
+  direction LR
+  proxy["Teleport Proxy Service"]
+  auth["Teleport Auth Service"]
+  proxy<-.->auth
+end
+
+subgraph public["The internet"]
+  web["Teleport Web UI"]
+  tsh["tsh client"]
+end
+
+subgraph private["Private network"]
+  service["Teleport Services"]
+end 
+
+service-- Reverse tunnels -->proxy
+web & tsh--Client traffic-->proxy
+```
+
 <Notice type="tip">
 
 For a detailed comparison of Teleport's editions, including how Teleport Team
