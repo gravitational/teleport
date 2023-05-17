@@ -36,19 +36,17 @@ the terminal, and record your session so you can review it later.
 
   https://goteleport.com/signup/
 
-- **Optional:** Docker installed on your workstation. In this guide, we will
-  show you how to register a server with Teleport via the Teleport SSH Service.
-  If your workstation is running Windows, or you prefer a containerized setup,
-  we will show you how to run the Teleport SSH Service on a local Docker host.
-  You can find installation instructions on [Docker's
+- Docker installed on your workstation. We will use a Docker container to
+  register a server with Teleport via the Teleport SSH Service. You can find
+  installation instructions on [Docker's
   website](https://docs.docker.com/get-docker/).
 
   <Notice type="tip">
 
-  Docker is only required for a local demo environment. If you want to get
-  started registering your servers in your infrastructure with Teleport, view
-  our documentation on how to [register servers and configure access to
-  them](../../server-access/introduction.mdx).
+  Docker is only required for the local demo environment we use in this guide.
+  If you want to get started registering your servers in your infrastructure
+  with Teleport, view our documentation on how to [register servers and
+  configure access to them](../../server-access/introduction.mdx).
 
   </Notice>
 
@@ -56,28 +54,7 @@ the terminal, and record your session so you can review it later.
   for instructions. If you want to get started quickly, you can skip this for
   now and access Teleport through your browser.
 
-### Step 1/3. Install the Teleport SSH Service
-
-To install the Teleport SSH Service on your server, visit the Teleport Web UI at
-the address of your Teleport Team tenant, <Var name="tenant-url"/>`.teleport.sh`
-(e.g., `mytenant.teleport.sh`). 
-
-If this is your first time visiting the Web UI, you will see a prompt to add
-your first resource: 
-
-![Add your first
-resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
-
-Clicking **Add my first resource** will take you to the **Enroll New Resource**
-view. Enter "server" in the search box as shown below:
-
-![Select resource
-type](../../img/cloud/getting-started/choose-resource@2x.png)
-
-Select your OS. If using Windows, select "Ubuntu 14.04+" and follow the
-instructions to set up a Docker container below.
-
-<Details title="Setting up a Docker container to follow this guide">
+### Step 1/4. Spin up your server
 
 Spin up a server on your workstation so you can register this server with your
 Teleport Team tenant:
@@ -103,15 +80,33 @@ $ alias sudo=""
 
 Keep this shell open in your terminal.
 
-</Details>
+### Step 2/4. Install the Teleport SSH Service
+
+To install the Teleport SSH Service on your server, visit the Teleport Web UI at
+the address of your Teleport Team tenant, <Var name="tenant-url"/>`.teleport.sh`
+(e.g., `mytenant.teleport.sh`). 
+
+If this is your first time visiting the Web UI, you will see a prompt to add
+your first resource: 
+
+![Add your first
+resource](../../img/cloud/getting-started/add-my-first-resource@2x.png)
+
+Clicking **Add my first resource** will take you to the **Enroll New Resource**
+view. Enter "server" in the search box as shown below:
+
+![Select resource
+type](../../img/cloud/getting-started/choose-resource@2x.png)
+
+Select "Ubuntu 14.04+" so you can register your Docker container.
 
 After selecting an OS, you will see a script that you can copy from the Teleport
 Web UI:
 
 ![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
 
-Copy the script and paste it into a shell on your local workstation or the shell
-you opened earlier on your Docker container.
+Copy the script and paste it into the shell you opened earlier on your Docker
+container.
 
 Leave the script running in your shell. Teleport will run in the foreground. You
 will see a message in the Web UI that your new server connected successfully:
@@ -120,8 +115,6 @@ will see a message in the Web UI that your new server connected successfully:
 successfully](../../img/cloud/getting-started/successfully-connected@2x.png)
 
 Click **Next**.
-
-{/* TODO: Verify this with macOS*/}
 
 Confirm that you will authenticate as the `root` user and click **Next**:
 
@@ -154,7 +147,7 @@ end your session.
 In the **Manage Access** view, click **Finish**, then **Browse existing
 resources** to visit the main view of the Teleport Web UI.
 
-### Step 2/3. Play back your session
+### Step 3/4. Play back your session
 
 As Teleport Team proxies SSH connections to registered servers, it records the
 commands that users execute during their sessions so operators can play them
@@ -169,7 +162,7 @@ recordings](../../img/cloud/getting-started/session-recordings@2x.png)
 
 Click **PLAY**. You will see a full recording of your session.
 
-### Step 3/3. Access your server from the command line
+### Step 4/4. Access your server from the command line
 
 Open a new terminal window and log in to your Teleport Team tenant
 via the command line, filling in the URL of your tenant and the name of your
