@@ -3,6 +3,10 @@ title: Try out Teleport Assist.
 description: This tutorial will guide you through the steps needed to run Teleport Assist on your own infrastructure.
 ---
 
+<Admonition type="tip" title="Preview">
+  Teleport Assist it currently in Preview.
+</Admonition>
+
 This guide will help you understand how to set up and use Teleport Assist, a new feature that enhances your remote access experience.
 
 ## Prerequisites
@@ -12,9 +16,19 @@ Before you get started with Teleport Assist, make sure you have the following:
 1. **Teleport**: Ensure you have Teleport 12.4 or newer installed and running on your system.
 You can check out the [Teleport Installation Guide](https://goteleport.com/docs/installation/) for more details.
 
-2. **OpenAI Account**: You will need an active OpenAI account as Teleport Assist relies on OpenAI services.
+2. **OpenAI Account**: You will need an active OpenAI account with GPT-4 API access as Teleport Assist relies on OpenAI services.
 
-## Step 1/4. Generate OpenAI API Key
+<Admonition
+  type="tip"
+  title="Cloud Team plan"
+>
+If you don't have access to OpenAI GPT-4 API, you can still try out Teleport Assist by signing up for a [Teleport Team plan](https://goteleport.com/pricing/).
+</Admonition>
+
+Teleport Assist doesn't support Etcd backend. If your installation is using Etcd, you can create a new cluster
+with any other backend or sign up for Teleport Cloud Team plan.
+
+## Step 1/3. Generate OpenAI API Key
 
 Teleport uses the GPT-4 model for the Assist feature. Your account must have access to it if you want to use Teleport Assist.
 
@@ -25,17 +39,17 @@ Follow these steps to generate your OpenAI API key:
 3. Click on "Create new secret key".
 4. Give your key a descriptive name.
 5. Click "Create secret key".
-6. Your new API key will be displayed. Make sure to copy it and save it in a file on your system.
-7. Set read only permissions and change the file owner to `root` by running the following commands:
+6. Your new API key will be displayed. Make sure to copy it and save it in a file on your system, ex. `/etc/teleport/openai_key`.
+7. Set read only permissions and change the file owner to the user that Teleport Proxy uses ex. `teleport` by running the following commands:
 
 ```bash
 chmod 400 /etc/teleport/openai_key
-chown root:root /etc/teleport/openai_key
+chown teleport:teleport /etc/teleport/openai_key
 ```
 
 Remember, your API keys carry many privileges, so be sure to keep them secure! Do not share your secret API keys in publicly accessible areas.
 
-## Enable Assist
+## Step 2/3. Enable Assist
 
 To enable Teleport Assist, you need to provide your OpenAI API key. Here's how to do it:
 
@@ -55,7 +69,10 @@ proxy_service:
 
 You have now enabled Teleport Assist!
 
-## Example Use
+Make sure that your Teleport user has the `assist` permission. By default, users with `auditor` and `editor` roles
+have this permission. You can also add it to a custom role. For more details, check out the [Create a custom role](https://goteleport.com/docs/access-controls/getting-started/#step-33-create-a-custom-role).
+
+## Step 3/3. Example Use
 
 Now that you have Teleport Assist enabled, you can start using it to enhance your remote access experience.
 Here's an example of how to use it:
