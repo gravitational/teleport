@@ -22,6 +22,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -36,8 +38,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -354,6 +359,89 @@ func (m *mockReceiver) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMe
 	return m.receiveMessageRespFn()
 }
 
+func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
+	log := utils.NewLoggerForTests()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	batchInterval := 20 * time.Millisecond
+
+	c1 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	c2 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	m1 := mockEventsProcessor{interval: batchInterval}
+	m2 := mockEventsProcessor{interval: batchInterval}
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	// start two consumer with different mocks in background.
+	go c1.runContinuouslyOnSingleAuth(ctx1, m1.Run)
+	go c2.runContinuouslyOnSingleAuth(ctx2, m2.Run)
+
+	// We want wait till we processing of events starts.
+	// Check if there only single consumer is processing is below.
+	require.Eventually(t, func() bool {
+		// let's wait for at least 2 iteration.
+		return m1.getCount() >= 2 || m2.getCount() >= 2
+	}, 5*batchInterval, batchInterval/2, "events were never processed by mock")
+
+	m1Processing := m1.getCount() >= 2
+	if m1Processing {
+		require.Zero(t, m2.getCount(), "expected 0 events by mock2")
+	} else {
+		require.Zero(t, m1.getCount(), "expected 0 events by mock1")
+	}
+
+	// let's cancel ctx of single mock and verify if 2nd take over.
+	if m1Processing {
+		cancel1()
+		require.Eventually(t, func() bool {
+			return m2.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock2 hasn't started processing")
+	} else {
+		cancel2()
+		require.Eventually(t, func() bool {
+			return m1.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock1 hasn't started processing")
+	}
+}
+
+type mockEventsProcessor struct {
+	mu       sync.Mutex
+	count    int
+	interval time.Duration
+}
+
+func (m *mockEventsProcessor) Run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(m.interval):
+			m.mu.Lock()
+			m.count++
+			m.mu.Unlock()
+		}
+	}
+}
+
+func (m *mockEventsProcessor) getCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.count
+}
+
 func TestRunWithMinInterval(t *testing.T) {
 	ctx := context.Background()
 	t.Run("function returns earlier than minInterval, wait should happen", func(t *testing.T) {
@@ -499,4 +587,188 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 		require.Equal(t, maxErrorCountForLogsOnSQSReceive, strings.Count(buf.String(), "some error"), "number of error log messages does not match")
 		require.Contains(t, buf.String(), "printed only first")
 	})
+}
+
+// TestConsumerWriteToS3 is writing parquet files per date works.
+// It receives events from different dates and make sure that multiple
+// files are created and compare it against file in testdata.
+// Testdata files should be verified with "parquet tools" cli after changing.
+func TestConsumerWriteToS3(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	tmp := t.TempDir()
+	localWriter := func(ctx context.Context, date string) (source.ParquetFile, error) {
+		err := os.MkdirAll(filepath.Join(tmp, date), 0o777)
+		if err != nil {
+			return nil, err
+		}
+		localW, err := local.NewLocalFileWriter(filepath.Join(tmp, date, "test.parquet"))
+		return localW, err
+	}
+
+	april1st2023AfternoonStr := "2023-04-01T16:20:50.52Z"
+	april1st2023Afternoon, err := time.Parse(time.RFC3339, april1st2023AfternoonStr)
+	require.NoError(t, err)
+
+	makeAppCreateEventWithTime := func(t time.Time, name string) apievents.AuditEvent {
+		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
+	}
+
+	events := []eventAndAckID{
+		{receiptHandle: "r1", event: makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")},
+		{receiptHandle: "r2", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")},
+		// r3 date is next date, so it should be written as separate file.
+		{receiptHandle: "r3", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")},
+	}
+
+	eventsC := make(chan eventAndAckID, 100)
+	go func() {
+		for _, e := range events {
+			eventsC <- e
+		}
+		close(eventsC)
+	}()
+
+	c := &consumer{}
+	gotHandlesToDelete, err := c.writeToS3(ctx, eventsC, localWriter)
+	require.NoError(t, err)
+	// Make sure that all events are marked to delete.
+	require.Equal(t, []string{"r1", "r2", "r3"}, gotHandlesToDelete)
+
+	// vefiry that both files for 2023-04-01 and 2023-04-02 were written and
+	// if they are equal to test data.
+	type wantGot struct {
+		wantFilepath string
+		gotFile      string
+	}
+	toCheck := []wantGot{
+		{wantFilepath: filepath.Join("testdata/events_2023-04-01.parquet"), gotFile: filepath.Join(tmp, "2023-04-01", "test.parquet")},
+		{wantFilepath: filepath.Join("testdata/events_2023-04-02.parquet"), gotFile: filepath.Join(tmp, "2023-04-02", "test.parquet")},
+	}
+
+	for _, v := range toCheck {
+		t.Run("Checking "+filepath.Base(v.wantFilepath), func(t *testing.T) {
+			got, err := os.ReadFile(v.gotFile)
+			require.NoError(t, err)
+			want, err := os.ReadFile(v.wantFilepath)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(got, want))
+		})
+	}
+}
+
+func TestDeleteMessagesFromQueue(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	handlesGen := func(n int) []string {
+		out := make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			out = append(out, fmt.Sprintf("handle-%d", i))
+		}
+		return out
+	}
+	noOfHandles := 18
+	handles := handlesGen(noOfHandles)
+
+	tests := []struct {
+		name       string
+		mockRespFn func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
+		wantCheck  func(t *testing.T, err error, mock *mockSQSDeleter)
+	}{
+		{
+			name: "delete returns no error, expect 2 calls to delete",
+			mockRespFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				if aws.ToString(params.QueueUrl) == "" {
+					return nil, errors.New("mock called with empty QueueUrl")
+				}
+				if noOfEntries := len(params.Entries); noOfEntries > 10 || noOfEntries == 0 {
+					return nil, fmt.Errorf("mock called with invalid number of entries %d", noOfEntries)
+				}
+				return &sqs.DeleteMessageBatchOutput{}, nil
+			},
+			wantCheck: func(t *testing.T, err error, mock *mockSQSDeleter) {
+				require.NoError(t, err)
+				require.Equal(t, 2, mock.calls)
+				require.Equal(t, noOfHandles, mock.noOfEntries)
+			},
+		},
+		{
+			name: "delete returns top level error, make sure it's returned",
+			mockRespFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				if aws.ToString(params.QueueUrl) == "" {
+					return nil, errors.New("mock called with empty QueueUrl")
+				}
+				if noOfEntries := len(params.Entries); noOfEntries > 10 || noOfEntries == 0 {
+					return nil, fmt.Errorf("mock called with invalid number of entries %d", noOfEntries)
+				}
+				return nil, errors.New("AWS API err")
+			},
+			wantCheck: func(t *testing.T, err error, _ *mockSQSDeleter) {
+				require.ErrorContains(t, err, "AWS API err")
+			},
+		},
+		{
+			name: "half of entries returns error",
+			mockRespFn: func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error) {
+				success := make([]sqsTypes.DeleteMessageBatchResultEntry, 0)
+				failed := make([]sqsTypes.BatchResultErrorEntry, 0)
+				for i, e := range params.Entries {
+					if i%2 == 0 {
+						success = append(success, sqsTypes.DeleteMessageBatchResultEntry{
+							Id: e.Id,
+						})
+					} else {
+						failed = append(failed, sqsTypes.BatchResultErrorEntry{
+							Id:      e.Id,
+							Message: aws.String("entry failed"),
+						})
+					}
+				}
+				return &sqs.DeleteMessageBatchOutput{
+					Failed:     failed,
+					Successful: success,
+				}, nil
+			},
+			wantCheck: func(t *testing.T, err error, mock *mockSQSDeleter) {
+				require.Error(t, err)
+				agg, ok := trace.Unwrap(err).(trace.Aggregate)
+				require.True(t, ok)
+				for _, errFromAgg := range agg.Errors() {
+					require.ErrorContains(t, errFromAgg, "entry failed")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockSQSDeleter{
+				respFn: tt.mockRespFn,
+			}
+			c := consumer{
+				sqsDeleter: mock,
+				queueURL:   "queue-url",
+			}
+			err := c.deleteMessagesFromQueue(ctx, handles)
+			tt.wantCheck(t, err, mock)
+		})
+	}
+}
+
+type mockSQSDeleter struct {
+	respFn func(ctx context.Context, params *sqs.DeleteMessageBatchInput) (*sqs.DeleteMessageBatchOutput, error)
+
+	// mu protects fields below
+	mu          sync.Mutex
+	calls       int
+	noOfEntries int
+}
+
+func (m *mockSQSDeleter) DeleteMessageBatch(ctx context.Context, params *sqs.DeleteMessageBatchInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	m.noOfEntries += len(params.Entries)
+	return m.respFn(ctx, params)
 }
