@@ -88,7 +88,7 @@ func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	require.Equal(t, events.LockCreatedEvent, p.mockEmitter.LastEvent().GetType())
 	require.Equal(t, lock.GetName(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Name)
 	require.Equal(t, lock.Target(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Target)
-	require.Equal(t, lock.LockExpiry(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Expires)
+	require.Equal(t, lock.LockExpiry().UTC(), p.mockEmitter.LastEvent().(*apievents.LockCreate).Expires)
 	p.mockEmitter.Reset()
 
 	// When a lock update results in an error, no event should be emitted.
