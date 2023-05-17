@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -138,12 +137,11 @@ func TestSizeBreak(t *testing.T) {
 	ctx := context.Background()
 	for {
 		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			To:        tt.suite.Clock.Now().UTC().Add(time.Hour),
-			Namespace: apidefaults.Namespace,
-			Limit:     eventCount,
-			Order:     types.EventOrderDescending,
-			StartKey:  checkpoint,
+			From:     tt.suite.Clock.Now().UTC().Add(-time.Hour),
+			To:       tt.suite.Clock.Now().UTC().Add(time.Hour),
+			Limit:    eventCount,
+			Order:    types.EventOrderDescending,
+			StartKey: checkpoint,
 		})
 		require.NoError(t, err)
 		checkpoint = lCheckpoint
@@ -216,10 +214,9 @@ func TestLargeTableRetrieve(t *testing.T) {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
-			From:      tt.suite.Clock.Now().Add(-1 * time.Hour),
-			To:        tt.suite.Clock.Now().Add(time.Hour),
-			Namespace: apidefaults.Namespace,
-			Order:     types.EventOrderAscending,
+			From:  tt.suite.Clock.Now().Add(-1 * time.Hour),
+			To:    tt.suite.Clock.Now().Add(time.Hour),
+			Order: types.EventOrderAscending,
 		})
 		require.NoError(t, err)
 
@@ -275,7 +272,6 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 	result, _, err := tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       now.Add(-1 * time.Hour),
 		To:         now.Add(time.Hour),
-		Namespace:  apidefaults.Namespace,
 		EventTypes: []string{events.DatabaseSessionQueryEvent},
 		Order:      types.EventOrderAscending,
 	})

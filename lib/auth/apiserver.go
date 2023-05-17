@@ -827,7 +827,6 @@ func (s *APIServer) searchEvents(auth ClientI, w http.ResponseWriter, r *http.Re
 	eventsList, _, err := auth.SearchEvents(r.Context(), events.SearchEventsRequest{
 		From:       from,
 		To:         to,
-		Namespace:  apidefaults.Namespace,
 		EventTypes: eventTypes,
 		Limit:      limit,
 		Order:      types.EventOrderDescending,

@@ -897,7 +897,7 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 }
 
 func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	g := l.log.WithFields(log.Fields{"namespace": req.Namespace, "eventType": req.EventTypes, "limit": req.Limit})
+	g := l.log.WithFields(log.Fields{"eventType": req.EventTypes, "limit": req.Limit})
 	g.Debugf("SearchEvents(%v, %v)", req.From, req.To)
 	limit := req.Limit
 	if limit <= 0 {

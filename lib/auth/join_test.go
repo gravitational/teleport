@@ -28,7 +28,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -394,7 +393,6 @@ func TestRegister_Bot(t *testing.T) {
 				evts, _, err := srv.Auth().SearchEvents(ctx, events.SearchEventsRequest{
 					From:       start,
 					To:         srv.Clock().Now(),
-					Namespace:  apidefaults.Namespace,
 					EventTypes: []string{events.BotJoinEvent},
 					Limit:      1,
 					Order:      types.EventOrderDescending,

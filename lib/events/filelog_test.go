@@ -28,7 +28,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 )
@@ -83,23 +82,21 @@ func TestFileLogPagination(t *testing.T) {
 	from := clock.Now().Add(-time.Hour).UTC()
 	to := clock.Now().Add(time.Hour).UTC()
 	eventArr, checkpoint, err := log.SearchEvents(ctx, SearchEventsRequest{
-		From:      from,
-		To:        to,
-		Namespace: apidefaults.Namespace,
-		Limit:     2,
-		Order:     types.EventOrderAscending,
+		From:  from,
+		To:    to,
+		Limit: 2,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, eventArr, 2)
 	require.NotEmpty(t, checkpoint)
 
 	eventArr, checkpoint, err = log.SearchEvents(ctx, SearchEventsRequest{
-		From:      from,
-		To:        to,
-		Namespace: apidefaults.Namespace,
-		Limit:     2,
-		Order:     types.EventOrderAscending,
-		StartKey:  checkpoint,
+		From:     from,
+		To:       to,
+		Limit:    2,
+		Order:    types.EventOrderAscending,
+		StartKey: checkpoint,
 	})
 	require.Nil(t, err)
 	require.Len(t, eventArr, 1)

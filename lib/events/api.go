@@ -846,8 +846,6 @@ type SearchEventsRequest struct {
 	From time.Time
 	// To is the newest date of returned events.
 	To time.Time
-	// Namespace, if not set, defaults to 'default'.
-	Namespace string
 	// EventTypes is optional, if not set, returns all events.
 	EventTypes []string
 	// Limit is the maximum amount of events returned.

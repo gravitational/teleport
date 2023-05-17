@@ -3432,7 +3432,6 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
 		From:       req.StartDate,
 		To:         req.EndDate,
-		Namespace:  req.Namespace,
 		EventTypes: req.EventTypes,
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
