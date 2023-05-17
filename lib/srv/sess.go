@@ -1065,11 +1065,11 @@ func (s *session) launch() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
-			ticker := time.NewTicker(PresenceVerifyInterval)
+			ticker := s.registry.clock.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
 			for {
 				select {
-				case <-ticker.C:
+				case <-ticker.Chan():
 					err := s.checkPresence(s.serverCtx)
 					if err != nil {
 						s.log.WithError(err).Error("Failed to check presence, terminating session as a security measure")
@@ -1562,7 +1562,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Warnf("Participant %v is not active, kicking.", participant.ID)
 			if party := s.parties[rsession.ID(participant.ID)]; party != nil {
 				if err := party.closeUnderSessionLock(); err != nil {
@@ -1977,13 +1977,13 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		HostUser:     teleportUser,
 		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,
-		Created:      s.registry.clock.Now(),
+		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
 			{
 				ID:         p.id.String(),
 				User:       p.user,
 				Mode:       string(p.mode),
-				LastActive: time.Now().UTC(),
+				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
 		HostID: s.registry.Srv.ID(),

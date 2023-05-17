@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
 )
@@ -32,12 +33,38 @@ type PresenceMaintainer interface {
 	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 }
 
+const mfaChallengeInterval = time.Second * 30
+
+// PresenceOptions allows passing optional overrides
+// to RunPresenceTask. Mainly used by tests.
+type PresenceOptions struct {
+	Clock clockwork.Clock
+}
+
+// PresenceOption a functional option for RunPresenceTask.
+type PresenceOption func(p *PresenceOptions)
+
+// WithPresenceClock sets the clock to be used by RunPresenceTask.
+func WithPresenceClock(clock clockwork.Clock) PresenceOption {
+	return func(p *PresenceOptions) {
+		p.Clock = clock
+	}
+}
+
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
-func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFAChallenge PromptMFAChallengeHandler) error {
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFAChallenge PromptMFAChallengeHandler, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
-	ticker := time.NewTicker(mfaChallengeInterval)
+	o := &PresenceOptions{
+		Clock: clockwork.NewRealClock(),
+	}
+
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	ticker := o.Clock.NewTicker(mfaChallengeInterval)
 	defer ticker.Stop()
 
 	stream, err := maintainer.MaintainSessionPresence(ctx)
@@ -48,7 +75,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
 					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: sessionID},

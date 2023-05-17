@@ -95,7 +95,7 @@ type SessionTracker interface {
 	RemoveParticipant(string) error
 
 	// UpdatePresence updates presence timestamp of a participant.
-	UpdatePresence(string) error
+	UpdatePresence(string, time.Time) error
 
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
@@ -303,7 +303,7 @@ func (s *SessionTrackerV1) GetHostUser() string {
 }
 
 // UpdatePresence updates presence timestamp of a participant.
-func (s *SessionTrackerV1) UpdatePresence(user string) error {
+func (s *SessionTrackerV1) UpdatePresence(user string, t time.Time) error {
 	idx := slices.IndexFunc(s.Spec.Participants, func(participant Participant) bool {
 		return participant.User == user
 	})
@@ -312,7 +312,7 @@ func (s *SessionTrackerV1) UpdatePresence(user string) error {
 		return trace.NotFound("participant %v not found", user)
 	}
 
-	s.Spec.Participants[idx].LastActive = time.Now().UTC()
+	s.Spec.Participants[idx].LastActive = t
 	return nil
 }
 

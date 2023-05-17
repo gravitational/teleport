@@ -288,7 +288,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
 		}
 
-		resp, err := codec.decode(buf, defaults.WebsocketWebauthnChallenge)
+		resp, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
 		return resp, trace.Wrap(err)
 	})
 	if err != nil {

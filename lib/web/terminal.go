@@ -31,6 +31,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -132,6 +133,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		proxySigner:     cfg.PROXYSigner,
 		participantMode: cfg.ParticipantMode,
 		tracker:         cfg.Tracker,
+		clock:           cfg.Clock,
 	}, nil
 }
 
@@ -174,6 +176,8 @@ type TerminalHandlerConfig struct {
 	// Tracker is the session tracker of the session being joined. May be nil
 	// if the user is not joining a session.
 	Tracker types.SessionTracker
+	// Clock used for presence checking.
+	Clock clockwork.Clock
 }
 
 func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
@@ -275,6 +279,9 @@ type TerminalHandler struct {
 	// tracker is the session tracker of the session being joined. May be nil
 	// if the user is not joining a session.
 	tracker types.SessionTracker
+
+	// clock to use for presence checking
+	clock clockwork.Clock
 }
 
 // ServeHTTP builds a connection to the remote node and then pumps back two types of
@@ -595,7 +602,7 @@ func promptMFAChallenge(
 			return nil, trace.Wrap(err)
 		}
 
-		resp, err := stream.readChallenge(codec)
+		resp, err := stream.readChallengeResponse(codec)
 		return resp, trace.Wrap(err)
 	}
 }
@@ -717,10 +724,14 @@ func (t *TerminalHandler) streamTerminal(tc *client.TeleportClient) {
 	if t.participantMode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+				prompt := func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
 					resp, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, proxyAddr, c)
 					return resp, trace.Wrap(err)
-				})
+				}
+				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), prompt, client.WithPresenceClock(t.clock)); err != nil {
+					t.log.WithError(err).Warn("Unable to stream terminal - failure performing presence checks")
+					return
+				}
 			}
 		}
 	}
@@ -1021,11 +1032,15 @@ func (t *WSStream) processMessages() {
 					return
 				}
 
+				msg := err.Error()
+				if len(bytes) > 0 {
+					msg = string(bytes)
+				}
 				select {
 				case <-t.ctx.Done():
 					return
-				case t.rawC <- Envelope{Payload: string(bytes)}:
-					continue
+				case t.rawC <- Envelope{Payload: msg}:
+					return
 				}
 			}
 
@@ -1207,13 +1222,25 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 
 // readChallenge reads and decodes the challenge response from the
 // websocket in the correct format.
-func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
+func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	select {
 	case <-t.ctx.Done():
 		return nil, trace.Wrap(t.ctx.Err())
 	case envelope := <-t.challengeC:
-		resp, err := codec.decode([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 		return resp, trace.Wrap(err)
+	}
+}
+
+// readChallenge reads and decodes the challenge response from the
+// websocket in the correct format.
+func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
+	select {
+	case <-t.ctx.Done():
+		return nil, trace.Wrap(t.ctx.Err())
+	case envelope := <-t.challengeC:
+		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+		return challenge, trace.Wrap(err)
 	}
 }
 

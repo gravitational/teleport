@@ -2706,6 +2706,7 @@ func (h *Handler) siteNodeConnect(
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
 		Tracker:            tracker,
+		Clock:              h.clock,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
