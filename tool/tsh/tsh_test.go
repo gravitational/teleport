@@ -3134,7 +3134,8 @@ func TestSerializeDatabases(t *testing.T) {
       "ad": {
         "domain": "",
         "spn": ""
-      }
+      },
+      "mongo_atlas": {}
     },
     "status": {
       "mysql": {},
