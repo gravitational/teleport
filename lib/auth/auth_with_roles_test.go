@@ -4791,3 +4791,243 @@ func TestUnimplementedClients(t *testing.T) {
 		require.True(t, trace.IsNotImplemented(err), err)
 	})
 }
+
+func TestCreateSnowflakeSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as db service": {
+			identity:  TestBuiltin(types.RoleDatabase),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			_, err = client.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     alice,
+				TokenTTL:     time.Minute * 15,
+				SessionToken: "test-token-123",
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestGetSnowflakeSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	dbClient, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	// setup a session to get, for user "alice".
+	sess, err := dbClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+		Username:     alice,
+		TokenTTL:     time.Minute * 15,
+		SessionToken: "abc123",
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as db service": {
+			identity:  TestBuiltin(types.RoleDatabase),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, err = client.GetSnowflakeSession(ctx, types.GetSnowflakeSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestGetSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as db service": {
+			identity:  TestBuiltin(types.RoleDatabase),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, err = client.GetSnowflakeSessions(ctx)
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteSnowflakeSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as db service": {
+			identity:  TestBuiltin(types.RoleDatabase),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	dbClient, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
+	require.NoError(t, err)
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			sess, err := dbClient.CreateSnowflakeSession(ctx, types.CreateSnowflakeSessionRequest{
+				Username:     alice,
+				TokenTTL:     time.Minute * 15,
+				SessionToken: "abc123",
+			})
+			require.NoError(t, err)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			err = client.DeleteSnowflakeSession(ctx, types.DeleteSnowflakeSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteAllSnowflakeSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as db service": {
+			identity:  TestBuiltin(types.RoleDatabase),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			err = client.DeleteAllSnowflakeSessions(ctx)
+			test.assertErr(t, err)
+		})
+	}
+}
+
+// Create test users for snowflake web session CRUD authz tests.
+func createSnowflakeSessionTestUsers(t *testing.T, authServer *Server) (string, string, string) {
+	t.Helper()
+	// create alice and bob who have no permissions.
+	_, _, err := CreateUserAndRole(authServer, "alice", nil, []types.Rule{})
+	require.NoError(t, err)
+	_, _, err = CreateUserAndRole(authServer, "bob", nil, []types.Rule{})
+	require.NoError(t, err)
+	// create "admin" who has read/write on users and web sessions.
+	_, _, err = CreateUserAndRole(authServer, "admin", nil, []types.Rule{
+		types.NewRule(types.KindUser, services.RW()),
+		types.NewRule(types.KindWebSession, services.RW()),
+	})
+	require.NoError(t, err)
+	return "alice", "bob", "admin"
+}
