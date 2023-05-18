@@ -60,7 +60,7 @@ type RequestData struct {
 	RequestReason      string
 	ReviewsCount       int
 	Resolution         Resolution
-	RequestAnnotations map[string][]string
+	ResolveAnnotations map[string][]string
 }
 
 // OpsgenieData stores the notification alert info.

@@ -240,9 +240,10 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 
 	reqID := req.GetName()
 	reqData := pd.AccessRequestData{
-		User:          req.GetUser(),
-		Roles:         req.GetRoles(),
-		RequestReason: req.GetRequestReason(),
+		User:               req.GetUser(),
+		Roles:              req.GetRoles(),
+		RequestReason:      req.GetRequestReason(),
+		ResolveAnnotations: req.GetResolveAnnotations(),
 	}
 
 	_, err := a.pluginData.Create(ctx, reqID, GenericPluginData{AccessRequestData: reqData})

@@ -53,7 +53,7 @@ func TestCreateAlert(t *testing.T) {
 		User:          "someUser",
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
-		RequestAnnotations: map[string][]string{
+		ResolveAnnotations: map[string][]string{
 			ReqAnnotationRespondersKey: {"responder@teleport.com"},
 		},
 	})
