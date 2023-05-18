@@ -914,7 +914,7 @@ func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([
 }
 
 func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.FromUTC, req.ToUTC, req.Limit)
+	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.From, req.To, req.Limit)
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}

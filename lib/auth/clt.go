@@ -301,7 +301,7 @@ func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsReques
 
 // SearchSessionEvents returns session related events to find completed sessions.
 func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(ctx, req.FromUTC, req.ToUTC, req.Limit, req.Order, req.StartKey)
+	events, lastKey, err := c.APIClient.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

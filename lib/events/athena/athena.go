@@ -402,7 +402,7 @@ func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) 
 }
 
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(ctx, req.FromUTC, req.ToUTC, req.Limit, req.Order, req.StartKey, req.Cond, req.SessionID)
+	return l.querier.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, req.Cond, req.SessionID)
 }
 
 func (l *Log) Close() error {

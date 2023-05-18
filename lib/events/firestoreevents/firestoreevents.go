@@ -481,7 +481,7 @@ func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionE
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(req.FromUTC, req.ToUTC, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {

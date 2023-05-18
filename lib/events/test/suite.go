@@ -355,10 +355,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
-		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit:   100,
-		Order:   types.EventOrderAscending,
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
@@ -371,30 +371,30 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	}
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
-		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit:   100,
-		Order:   types.EventOrderAscending,
-		Cond:    withParticipant("alice"),
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond:  withParticipant("alice"),
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
-		ToUTC:   s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit:   100,
-		Order:   types.EventOrderAscending,
-		Cond:    withParticipant("cecile"),
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond:  withParticipant("cecile"),
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 0)
 
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		FromUTC: s.Clock.Now().UTC().Add(-1 * time.Hour),
-		ToUTC:   sessionEndTime.Add(-time.Second),
-		Limit:   100,
-		Order:   types.EventOrderAscending,
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    sessionEndTime.Add(-time.Second),
+		Limit: 100,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 0)
@@ -430,8 +430,8 @@ func (s *EventsSuite) SearchSessionEventsBySessionID(t *testing.T) {
 		defer close(done)
 		ctx := context.Background()
 		events, _, err := s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-			FromUTC:   from,
-			ToUTC:     to,
+			From:      from,
+			To:        to,
 			Limit:     1000,
 			Order:     types.EventOrderDescending,
 			SessionID: secondID,

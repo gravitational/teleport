@@ -361,7 +361,7 @@ func getCheckpointFromEvent(event apievents.AuditEvent) (string, error) {
 }
 
 func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.FromUTC, req.ToUTC, req.Order, req.Limit, req.Cond)
+	l.Debugf("SearchSessionEvents(%v, %v, order=%v, limit=%v, cond=%q)", req.From, req.To, req.Order, req.Limit, req.Cond)
 	filter := searchEventsFilter{eventTypes: []string{SessionEndEvent, WindowsDesktopSessionEndEvent}}
 	if req.Cond != nil {
 		condFn, err := utils.ToFieldsCondition(req.Cond)
@@ -370,7 +370,7 @@ func (l *FileLog) SearchSessionEvents(ctx context.Context, req SearchSessionEven
 		}
 		filter.condition = condFn
 	}
-	events, lastKey, err := l.searchEventsWithFilter(req.FromUTC, req.ToUTC, req.Limit, req.Order, req.StartKey, filter)
+	events, lastKey, err := l.searchEventsWithFilter(req.From, req.To, req.Limit, req.Order, req.StartKey, filter)
 	return events, lastKey, trace.Wrap(err)
 }
 

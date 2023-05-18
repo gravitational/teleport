@@ -3566,10 +3566,10 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
 	sessionEvents, _, err := a.alog.SearchSessionEvents(context.TODO(), events.SearchSessionEventsRequest{
-		FromUTC: time.Time{},
-		ToUTC:   a.authServer.clock.Now().UTC(),
-		Limit:   defaults.EventsIterationLimit,
-		Order:   types.EventOrderAscending,
+		From:  time.Time{},
+		To:    a.authServer.clock.Now().UTC(),
+		Limit: defaults.EventsIterationLimit,
+		Order: types.EventOrderAscending,
 		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
 			L: &types.WhereExpr{Field: events.SessionEventID},
 			R: &types.WhereExpr{Literal: sid.String()},
