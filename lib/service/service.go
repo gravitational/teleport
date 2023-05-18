@@ -2590,6 +2590,7 @@ func (process *TeleportProcess) initUploaderService() error {
 	if conn == nil {
 		for _, localService := range types.LocalServiceMappings() {
 			if localService != types.RoleAuth && localService != types.RoleMDM && process.instanceRoleExpected(localService) {
+				log.Warn("This process will not run an upload completer")
 				return trace.BadParameter("no connectors found")
 			}
 		}
