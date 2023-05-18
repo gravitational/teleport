@@ -162,15 +162,17 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 }
 
 func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+	isAtlasDB := sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas
+
 	// Currently, the MongoDB Atlas IAM Authentication doesn't work with IAM
 	// users. Here we provide a better error message to the users.
-	if sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas && awsutils.IsUserARN(sessionCtx.DatabaseUser) {
+	if isAtlasDB && awsutils.IsUserARN(sessionCtx.DatabaseUser) {
 		return nil, trace.BadParameter("MongoDB Atlas AWS IAM Authentication with IAM users is not supported.")
 	}
 
 	switch {
-	case sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
-		e.Log.Debug("Authenticating to database using AWS IAM authentication")
+	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
+		e.Log.Debug("Authenticating to database using AWS IAM authentication.")
 		username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -190,7 +192,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 		return authenticator, nil
 	default:
-		e.Log.Debug("Authenticating to database using certificates")
+		e.Log.Debug("Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
 			// MongoDB uses full certificate Subject field as a username.
 			Username: "CN=" + sessionCtx.DatabaseUser,
