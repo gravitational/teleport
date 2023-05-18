@@ -196,7 +196,11 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private handleStartError(error: Error) {
-    this.emit(TermEventEnum.StartError, error.message);
+    const command = `${this.options.path} ${this.options.args.join(' ')}`;
+    this.emit(
+      TermEventEnum.StartError,
+      `Cannot execute ${command}: ${error.message}`
+    );
   }
 
   private _setStatus(value: Status) {

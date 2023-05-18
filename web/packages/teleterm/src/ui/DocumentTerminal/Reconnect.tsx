@@ -31,12 +31,29 @@ export function Reconnect(props: {
   const { message, buttonText } = getReconnectCopy(props.docKind);
 
   return (
-    <Flex gap={4} flexDirection="column" mx="auto" alignItems="center" mt={100}>
+    <Flex
+      gap={4}
+      flexDirection="column"
+      mx="auto"
+      alignItems="center"
+      mt={100}
+      px="2"
+    >
       <Text typography="h5" color="text.main">
         {message}
       </Text>
       <Flex flexDirection="column" alignItems="center" mx="auto">
-        <Danger mb={3}>{props.attempt.statusText}</Danger>
+        <Danger mb={3}>
+          <Text
+            textAlign="center"
+            // pre-wrap to make sure that newlines from any errors are preserved.
+            css={`
+              white-space: pre-wrap;
+            `}
+          >
+            {props.attempt.statusText}
+          </Text>
+        </Danger>
         <ButtonPrimary width="100px" onClick={props.reconnect}>
           {buttonText}
         </ButtonPrimary>
