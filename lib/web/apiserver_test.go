@@ -8140,6 +8140,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
+	// wait for the watcher to init or it may race with test cleanup.
+	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)
