@@ -27,6 +27,7 @@ import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
 import cfg from 'teleport/config';
+import {makeMfaAuthenticateChallenge} from "teleport/services/auth";
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -135,6 +136,17 @@ export function RunCommand(props: RunCommandProps) {
 
               return s;
             });
+
+            break;
+          case MessageTypeEnum.ERROR:
+            console.error(msg.payload);
+            break;
+          case MessageTypeEnum.WEBAUTHN_CHALLENGE:
+            //TODO: handle webauthn challenge
+            console.log(msg.payload);
+            const challengeJson = msg.payload;
+            const challenge = JSON.parse(challengeJson);
+            const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
 
             break;
         }
