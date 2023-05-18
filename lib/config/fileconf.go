@@ -2405,7 +2405,7 @@ type JamfService struct {
 	Name string `yaml:"name,omitempty"`
 	// SyncDelay is the initial sync delay.
 	// Zero means "server default", negative means "immediate".
-	SyncDelay *time.Duration `yaml:"sync_delay,omitempty"`
+	SyncDelay time.Duration `yaml:"sync_delay,omitempty"`
 	// ExitOnSync tells the service to exit immediately after the first sync.
 	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
 	// APIEndpoint is the Jamf Pro API endpoint.
@@ -2428,10 +2428,10 @@ type JamfInventoryEntry struct {
 	FilterRSQL string `yaml:"filter_rsql,omitempty"`
 	// SyncPeriodPartial is the period for PARTIAL syncs.
 	// Zero means "server default", negative means "disabled".
-	SyncPeriodPartial *time.Duration `yaml:"sync_period_partial,omitempty"`
+	SyncPeriodPartial time.Duration `yaml:"sync_period_partial,omitempty"`
 	// SyncPeriodFull is the period for FULL syncs.
 	// Zero means "server default", negative means "disabled".
-	SyncPeriodFull *time.Duration `yaml:"sync_period_full,omitempty"`
+	SyncPeriodFull time.Duration `yaml:"sync_period_full,omitempty"`
 	// OnMissing is the trigger for devices missing from the MDM inventory view.
 	// See [types.JamfInventoryEntry.OnMissing].
 	OnMissing string `yaml:"on_missing,omitempty"`
@@ -2462,25 +2462,19 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	}
 
 	// Assemble spec.
-	fromNilDuration := func(d *time.Duration) types.Duration {
-		if d == nil {
-			return 0
-		}
-		return types.Duration(*d)
-	}
 	inventory := make([]*types.JamfInventoryEntry, len(j.Inventory))
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: fromNilDuration(e.SyncPeriodPartial),
-			SyncPeriodFull:    fromNilDuration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 		}
 	}
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   fromNilDuration(j.SyncDelay),
+		SyncDelay:   types.Duration(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Username:    j.Username,
 		Password:    pwd,
