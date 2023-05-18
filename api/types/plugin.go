@@ -42,16 +42,6 @@ const (
 	PluginTypeJamf = "jamf"
 )
 
-// PluginCredentialType represents the type of plugin credential
-type PluginCredentialType string
-
-const (
-	PluginCredentialTypeUnknown     PluginCredentialType = ""
-	PluginCredentialTypeOAuth                            = "oauth"
-	PluginCredentialTypeBasicAuth                        = "basicauth"
-	PluginCredentialTypeBearerToken                      = "bearertoken"
-)
-
 // Plugin represents a plugin instance
 type Plugin interface {
 	// ResourceWithSecrets provides common resource methods.
