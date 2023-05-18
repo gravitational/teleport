@@ -474,7 +474,7 @@ guide for a more in depth explanation of the language.
 
 Teleport provides several template variables and functions to enable more robust access control:
 
-<Details title="Internal Variables and Functions">
+### Internal Variables and Functions
 
 #### `{{email.local(variable)}}`
 
@@ -554,10 +554,8 @@ Teleport provides several template variables and functions to enable more robust
 - **Description**: List of allowed Windows logins.
 - **Example**: `{{internal.windows_logins}}` -> ["user1", "user2"]
 
-</Details>
+### External Variables
 
-<Details title="External Variables"
->
 These variables provide context from an Identity Provider or other external data source. We can't predict every variable an external data source will provide, but these are common values expected from SAML and OIDC identity providers.
 
 #### `{{external.logins}}`
@@ -624,8 +622,6 @@ These variables provide context from an Identity Provider or other external data
 - **Provider**: OIDC/SAML
 
 Please note that the `{{external.*}}` values and the `{{external["abcxyz"]}}` syntax are provider-dependent, as they rely on information from the SSO provider such as OIDC or SAML. Make sure to refer to your specific provider's documentation for the complete list of available variables and attributes.
-
-</Details>
 
 [(1)]: ../../application-access/cloud-apis/azure/#denying-access-to-azure-identities
 [(2)]: ../../database-access/rbac/#template-variables
