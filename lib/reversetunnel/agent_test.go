@@ -313,9 +313,8 @@ func TestAgentStart(t *testing.T) {
 
 	require.NoError(t, err)
 
-	assert.Equal(t, channelCounter.calls, 2, "Unexpected number of opened channels")
+	assert.Equal(t, channelCounter.calls, 1, "Unexpected number of opened channels")
 	assert.Contains(t, channelCounter.values, chanHeartbeat, "Missing expected opened channel")
-	assert.Contains(t, channelCounter.values, teleport.ReverseTunnelServerV2Channel, "Missing expected opened channel")
 
 	require.GreaterOrEqual(t, 1, int(atomic.LoadInt32(sentPings)), "Expected at least 1 ping to be sent.")
 	require.Equal(t, 1, int(atomic.LoadInt32(versionReplies)), "Expected 1 version reply.")

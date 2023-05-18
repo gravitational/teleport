@@ -650,8 +650,6 @@ func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetwo
 		return nil, trace.Errorf("%s request rejected: %s", teleport.NetconfigRequest, string(payload))
 	}
 
-	// Failing to unmarshal most likely indicates a server side network failure
-	// that can be retried.
 	config, err := services.UnmarshalClusterNetworkingConfig(payload)
 	if err != nil {
 		return nil, trace.Wrap(err)
