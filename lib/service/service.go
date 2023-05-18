@@ -2573,12 +2573,12 @@ func (process *TeleportProcess) initUploaderService() error {
 	for _, c := range connectors {
 		// Skip types.RoleMDM, MDM services don't have the necessary permissions to
 		// run the uploader.
-		if c.ServerIdentity != nil && c.ServerIdentity.ID.Role == types.RoleMDM {
+		if c.ClientIdentity != nil && c.ClientIdentity.ID.Role == types.RoleMDM {
 			continue
 		}
 		if c.Client != nil {
 			conn = c
-			log.Debugf("upload completer will use role %v", c.ServerIdentity.ID.Role)
+			log.Debugf("upload completer will use role %v", c.ClientIdentity.ID.Role)
 			break
 		}
 	}
