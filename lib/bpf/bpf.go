@@ -200,7 +200,7 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 // Close will stop any running BPF programs. Note this is only for a graceful
 // shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
 // by the user process and automatically unloaded when the process exits."
-func (s *Service) Close() error {
+func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
@@ -209,7 +209,7 @@ func (s *Service) Close() error {
 	}
 
 	// Close cgroup service.
-	if err := s.cgroup.Close(); err != nil {
+	if err := s.cgroup.Close(restarting); err != nil {
 		log.WithError(err).Warn("Failed to close cgroup")
 	}
 

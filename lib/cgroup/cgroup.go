@@ -93,10 +93,15 @@ func New(config *Config) (*Service, error) {
 }
 
 // Close will unmount the cgroup filesystem.
-func (s *Service) Close() error {
+func (s *Service) Close(skipUnmount bool) error {
 	err := s.cleanupHierarchy()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if skipUnmount {
+		log.Debugf("Cleaned up Teleport session hierarchy at: %v.", s.teleportRoot)
+		return nil
 	}
 
 	err = s.unmount()
@@ -367,10 +372,8 @@ func (s *Service) ID(sessionID string) (uint64, error) {
 	return fh.CgroupID, nil
 }
 
-var (
-	// pattern matches cgroup process files.
-	pattern = regexp.MustCompile(`cgroup\.procs$`)
-)
+// pattern matches cgroup process files.
+var pattern = regexp.MustCompile(`cgroup\.procs$`)
 
 const (
 	// fileMode is the mode files and directories are created in within the
