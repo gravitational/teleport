@@ -480,45 +480,60 @@ Teleport provides several template variables and functions to enable more robust
 
 - **Type**: Function
 - **Description**: Extracts the local part of an email address.
-- **Example**: `{{email.local(alice@example.com)}}` -> alice
+- **Example**: `{{email.local(alice@example.com)}}` -> `alice`
+
+This function is often paired with an external variable, for example:
+`{{email.local(external.username)}}` for IdPs using email addresses as the username.
 
 #### `{{regexp.match(expression, variable)}}`
 
 - **Type**: Function
-- **Description**: Returns true if the provided string matches the specified pattern.
-- **Example**: `{{regexp.match("^Email: (.*)$", external.raw_email)}}` -> true for matching input
+- **Description**: Returns true if the provided string matches the specified
+  pattern.
+- **Example**: `{{regexp.match("^Email: (.*)$", external.raw_email)}}` -> `true`
+  for matching input.
 
 #### `{{regexp.not_match(expression, variable)}}`
 
 - **Type**: Function
-- **Description**: Returns true if the provided string does not match the specified pattern.
-- **Example**: `{{regexp.not_match("^Email: (.*)$", external.raw_email)}}` -> true for non-matching input
+- **Description**: Returns true if the provided string does not match the
+  specified pattern.
+- **Example**: `{{regexp.not_match("^Email: (.*)$", external.raw_email)}}` ->
+  `true` for non-matching input.
 
 #### `{{regexp.replace(variable, expression, replacement)}}`
 
 - **Type**: Function
-- **Description**: Finds all matches of the expression and replaces them with the replacement. Supports expansion.
-- **Example**: `{{regexp.replace(external.email, "^(.*)@example.com$", "$1")}}` -> alice (when input is alice@example.com)
+- **Description**: Finds all matches of the expression and replaces them with
+  the replacement. Supports expansion.
+- **Example**: `{{regexp.replace(external.email, "^(.*)@example.com$", "$1")}}`
+  -> `alice` (when input is `alice@example.com`)
 
 #### `{{internal.azure_identities}}`
 
 - **Type**: Variable
+- **Description**: Returns the Azure identities defined in Teleport available to
+  the user. Azure identities can set for a specific user or defined in a role [(1)].
+- **Example**: `{{internal.azure_identities}}` -> `"/subscriptions/0000.../.../id1"`
 
 #### `{{internal.db_names}}`
 
 - **Type**: Variable
 - **Description**: List of all allowed database names.
-- **Example**: `{{internal.db_names}}` -> ["db_name_1", "db_name_2"]
+- **Example**: `{{internal.db_names}}` -> `["db_name_1", "db_name_2"]`
 
 #### `{{internal.db_users}}`
 
 - **Type**: Variable
 - **Description**: List of all allowed database users.
-- **Example**: `{{internal.db_users}}` -> ["db_user_1", "db_user_2"]
+- **Example**: `{{internal.db_users}}` -> `["db_user_1", "db_user_2"]`
 
 #### `{{internal.gcp_service_accounts}}`
 
 - **Type**: Variable
+- **Description**: List of GCP service accounts defined in Teleport available
+  to the user.
+- **Example**: `internal.gcp_service_accounts}}` -> `"user@google-cloud-project.iam.gserviceaccount.com"`
 
 #### `{{internal.jwt}}`
 
@@ -526,33 +541,38 @@ Teleport provides several template variables and functions to enable more robust
 - **Description**: A JWT token signed by Teleport that contains user identity information.
 - **Example**: `"Authorization: Bearer {{internal.jwt}}"` -> `"Authorization": "Bearer eyJhbGci...`
 
+**Note**: This variable is used when defining application access, and is not
+available when defining roles.
+
 #### `{{internal.kube_username}}`
 
 - **Type**: Variable
+- **Description**: Kubernetes usernames available to the user.
+- **Example**: `{{internal.kube_username}}` -> `["myuser", "kube-admin"]`.
 
 #### `{{internal.kubernetes_groups}}`
 
 - **Type**: Variable
 - **Description**: List of allowed Kubernetes groups.
-- **Example**: `{{internal.kubernetes_groups}}` -> ["group1", "group2"]
+- **Example**: `{{internal.kubernetes_groups}}` -> `["group1", "group2"]`
 
 #### `{{internal.kubernetes_users}}`
 
 - **Type**: Variable
 - **Description**: List of allowed Kubernetes users.
-- **Example**: `{{internal.kubernetes_users}}` -> ["user1", "user2"]
+- **Example**: `{{internal.kubernetes_users}}` -> `["user1", "user2"]`
 
 #### `{{internal.logins}}`
 
 - **Type**: Variable
 - **Description**: List of allowed SSH logins.
-- **Example**: `{{internal.logins}}` -> ["user1", "user2"]
+- **Example**: `{{internal.logins}}` -> `["user1", "user2"]`
 
 #### `{{internal.windows_logins}}`
 
 - **Type**: Variable
 - **Description**: List of allowed Windows logins.
-- **Example**: `{{internal.windows_logins}}` -> ["user1", "user2"]
+- **Example**: `{{internal.windows_logins}}` -> `["user1", "user2"]`
 
 ### External Variables
 
@@ -561,18 +581,22 @@ These variables provide context from an Identity Provider or other external data
 #### `{{external.logins}}`
 
 - **Type**: Variable
+- **Provider**: Common across several IdPs
 
 #### `{{external.username}}`
 
 - **Type**: Variable
+- **Provider**: Common across several IdPs
 
 #### `{{external.access["label"]}}`
 
 - **Type**: Variable
+- **Provider**: Common across several IdPs
 
 #### `{{external.env}}`
 
 - **Type**: Variable
+- **Provider**: Common across several IdPs
 
 #### `{{external.first_name}}`
 
@@ -581,12 +605,16 @@ These variables provide context from an Identity Provider or other external data
 - **Example**: `{{external.first_name}}` -> `"Alice"`
 - **Provider**: OIDC/SAML
 
+**Note**: Per OIDC specifications this value may be given as `given_name`.
+
 #### `{{external.last_name}}`
 
 - **Type**: Variable
 - **Description**: Fetches the user's last name from the SSO provider.
 - **Example**: `{{external.last_name}}` -> `"Smith"`
 - **Provider**: OIDC/SAML
+
+**Note**: Per OIDC specifications this value may be given as `family_name`.
 
 #### `{{external.email}}`
 
@@ -605,14 +633,14 @@ These variables provide context from an Identity Provider or other external data
 #### `{{external.azure_identities}}`
 
 - **Type**: Variable
-- **Description**: Fetches the user's Azure identities from the SSO provider [(1)].
+- **Description**: Fetches the user's Azure identities from the SSO provider [(2)].
 - **Example**: `{{external.azure_identities}}` -> `["identity1"]`
 - **Provider**: OIDC/SAML
 
 #### `{{external.databases}}`
 
 - **Type**: Variable
-- **Description**: Fetches the user's allowed database names from the SSO provider [(2)].
+- **Description**: Fetches the user's allowed database names from the SSO provider [(3)].
 - **Example**: `{{external.databases}}` -> `["db1", "db2"]`
 - **Provider**: OIDC/SAML
 
@@ -623,5 +651,6 @@ These variables provide context from an Identity Provider or other external data
 
 Please note that the `{{external.*}}` values and the `{{external["abcxyz"]}}` syntax are provider-dependent, as they rely on information from the SSO provider such as OIDC or SAML. Make sure to refer to your specific provider's documentation for the complete list of available variables and attributes.
 
-[(1)]: ../../application-access/cloud-apis/azure/#denying-access-to-azure-identities
-[(2)]: ../../database-access/rbac/#template-variables
+[(1)]: ../../application-access/controls/#enabling-a-user-to-access-azure-managed-identities
+[(2)]: ../../application-access/cloud-apis/azure/#denying-access-to-azure-identities
+[(3)]: ../../database-access/rbac/#template-variables
