@@ -193,7 +193,7 @@ spec:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ .Values.secretName }}
+          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}

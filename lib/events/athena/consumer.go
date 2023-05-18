@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -60,7 +61,7 @@ const (
 // consumer is responsible for receiving messages from SQS, batching them up to
 // certain size or interval, and writes to s3 as parquet file.
 type consumer struct {
-	logger              *log.Entry
+	logger              log.FieldLogger
 	backend             backend.Backend
 	storeLocationPrefix string
 	storeLocationBucket string
@@ -75,6 +76,13 @@ type consumer struct {
 
 	sqsDeleter sqsDeleter
 	queueURL   string
+
+	// cancelRun is used to cancel consumer.Run
+	cancelRun context.CancelFunc
+
+	// finished is used to communicate that run (executed in background) has finished.
+	// It will be closed when run has finished.
+	finished chan struct{}
 }
 
 type sqsReceiver interface {
@@ -89,7 +97,7 @@ type s3downloader interface {
 	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
 }
 
-func newConsumer(cfg Config) (*consumer, error) {
+func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 	s3client := s3.NewFromConfig(*cfg.AWSConfig)
 	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
 
@@ -107,6 +115,10 @@ func newConsumer(cfg Config) (*consumer, error) {
 	err := collectCfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cancelFn == nil {
+		return nil, trace.BadParameter("cancelFn must be passed to consumer")
 	}
 
 	return &consumer{
@@ -129,18 +141,43 @@ func newConsumer(cfg Config) (*consumer, error) {
 			}
 			return fw, nil
 		},
+		cancelRun: cancelFn,
+		finished:  make(chan struct{}),
 	}, nil
 }
 
 // run continuously runs batching job. It is blocking operation.
 // It is stopped via canceling context.
 func (c *consumer) run(ctx context.Context) {
+	defer func() {
+		close(c.finished)
+		c.logger.Debug("Consumer finished")
+	}()
+	c.runContinuouslyOnSingleAuth(ctx, c.processEventsContinuously)
+}
+
+// Close terminates the goroutine which is running [c.run]
+func (c *consumer) Close() error {
+	c.cancelRun()
+	select {
+	case <-c.finished:
+		return nil
+	case <-time.After(1 * time.Second):
+		// ctx is use through all calls within consumer.Run so it should finished
+		// very fast, within miliseconds.
+		return errors.New("consumer not finished in time, returning earlier")
+	}
+}
+
+// processEventsContinuously runs processBatchOfEvents continuously in a loop.
+// It makes sure that the CPU won't be spammed with too many requests if something goes
+// wrong with calls to the AWS API.
+func (c *consumer) processEventsContinuously(ctx context.Context) {
 	processBatchOfEventsWithLogging := func(context.Context) (reachedMaxBatch bool) {
 		reachedMaxBatch, err := c.processBatchOfEvents(ctx)
 		if err != nil {
 			// Ctx.Cancel is used to stop batcher
 			if ctx.Err() != nil {
-				c.logger.Debug("Batcher has been stopped")
 				return false
 			}
 			c.logger.Errorf("Batcher single run failed: %v", err)
@@ -148,6 +185,9 @@ func (c *consumer) run(ctx context.Context) {
 		}
 		return reachedMaxBatch
 	}
+
+	c.logger.Debug("Processing of events started on this instance")
+	defer c.logger.Debug("Processing of events finished on this instance")
 
 	// If batch took 90% of specified interval, we don't want to wait just little bit.
 	// It's mainly to avoid cases when we will wait like 10ms.
@@ -162,6 +202,51 @@ func (c *consumer) run(ctx context.Context) {
 		stop = runWithMinInterval(ctx, processBatchOfEventsWithLogging, minInterval)
 		if stop {
 			return
+		}
+	}
+}
+
+// runContinuouslyOnSingleAuth runs eventsProcessorFn continuously on single auth instance.
+// Backend locking is used to make sure that only single auth is running consumer.
+func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProcessorFn func(context.Context)) {
+	// for 1 minute it will be 5s sleep before retry which seems like reasonable value.
+	waitTimeAfterLockingError := retryutils.NewSeventhJitter()(c.batchMaxInterval / 12)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:  c.backend,
+					LockName: "athena_lock",
+					// TTL is higher then batchMaxInterval because we want to optimize
+					// for low backend writes.
+					TTL: 5 * c.batchMaxInterval,
+					// RetryInterval means how often instance without lock will check
+					// backend if lock if ready for grab. We are fine with batchMaxInterval.
+					RetryInterval: c.batchMaxInterval,
+				},
+			}, func(ctx context.Context) error {
+				eventsProcessorFn(ctx)
+				return nil
+			})
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				// Ending up here means something went wrong in the backend while locking/waiting
+				// for lock. What we can do is log and retry whole operation.
+				c.logger.WithError(err).Warn("Could not get consumer to run with lock")
+				select {
+				// Use wait to make sure we won't spam CPU with a lot requests
+				// if something goes wrong during acquire lock.
+				case <-time.After(waitTimeAfterLockingError):
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
 		}
 	}
 }
@@ -526,11 +611,16 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 
 	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
 
+	var versionIDPtr *string
+	if versionID != "" {
+		versionIDPtr = aws.String(versionID)
+	}
+
 	buf := manager.NewWriteAtBuffer([]byte{})
 	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket:    aws.String(s.cfg.payloadBucket),
 		Key:       aws.String(path),
-		VersionId: aws.String(versionID),
+		VersionId: versionIDPtr,
 	})
 	if err != nil {
 		return nil, awsutils.ConvertS3Error(err)
