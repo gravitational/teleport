@@ -31,15 +31,13 @@ Example use cases include:
 
 ## Details
 
-### Security
-
 #### Teleport Command implementation design principles
 
 The implementation of SansShell should fulfil the following design principles
 to ensure maximum security and efficiency:
 
 1. **Non-interactive:** SansShell is primarily a non-interactive agent,
-   meaning it should not prompt for user input during its operation.
+   meaning it should not prompt for user input during its operation or accept stdin.
    This reduces the chances of exploitation through user input.
 
 2. **Per command MFA:** Teleport Command will allow to make access even
@@ -63,10 +61,39 @@ and the capabilities of SansShell.
 ### Implementation
 
 The implementation will re-use the existing Teleport SSH and Assist infrastructure.
+
+
+### Command execution flow
+```mermaid
+sequenceDiagram
+    
+participant tsh
+participant proxy
+participant node1
+participant node2
+
+tsh ->> proxy: tsh command exec
+proxy ->> node1: execute command
+proxy ->> node2: execute command
+node1 ->> proxy: command output
+proxy ->> tsh: command output
+node2 ->> proxy: command output
+proxy ->> tsh: command output
+```
 Teleport Proxy will be used as the main command execution engine.
 
+* It will allow parallel execution of commands on multiple nodes (configurable execution pool size).
+* It will allow to stream output from multiple nodes to the client.
+* Nodes will record the session and upload in the same way as interactive session are recorded.
+* It will ensure that even in case of a network failure the command will continue to run on the node.
+  (all commands should be one shot. If an initial connection to the node fails, the proxy will retry.
+  If the connection is lost during the command execution, the command will continue to run on the node
+  and proxy will not re-try it as we have no guarantee that the command is idempotent).
+* (Optional) It will allow to specify a timeout for the command execution. If the command execution takes longer
+  than the specified timeout, the command will be terminated on the node and the output will be streamed
+  to the client.
 
-#### Command resource
+### Command resource
 
 We will introduce a new resource type `command` that will allow to define
 commands that can be executed by Teleport Command. The resource will have
@@ -93,12 +120,21 @@ spec:
     ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
 ```
 
-Interpreter is an optional field. It should allow to specify the interpreter
+Interpreter is an optional field. It should allow specifying the interpreter
 allowing to not only execute a shell command but also a short Python or JS script.
+
+#### Picking up the OS user
+
+When a command is executed on multiple nodes, an OS user has to be picked up for 
+every node.
+The user will be provided as a command argument. If the user doesn't exist on the node,
+the command execution will fail. If one set of nodes requires a different user, 
+command needs to be executed multiple times.
+
 
 ## Roles
 
-Role will be extended to allow to define access to commands. The following
+RoleS will be extended to allow defining access to commands. The following
 example shows how to allow to execute `cpu-usage` command on all nodes
 
 ```yaml
@@ -121,11 +157,12 @@ spec:
 
 ## tsh extensions
 
-`tsh` will learn two new commands
+`tsh` will learn new commands:
 
 1. `tsh command ls` - allowing to list all available commands.
-2. `tsh command exec` - allowing to execute commands on one or multiple nodes.
-
+2. `tsh command exec` - allowing to execute commands on one or multiple nodes. TODO: add a node query and mandatory user.
+3. `tsh command cancel` - (optional) allowing to cancel a command execution.
+4. `tsh command logs` - (optional) allowing to display output from a command execution.
 
 ### Display output from multiple nodes
 
@@ -134,3 +171,16 @@ $ tsh command exec cat-log
 node1: Detected long output. Redirecting to node1.log file
 node2: Detected long output. Redirecting to node2.log file
 ```
+
+### Security
+
+Teleport Command will be protected by the same security mechanisms as Teleport SSH.
+
+Notes: 
+* Commands should take no user input - this will reduce the risk of exploitation
+  through user input and to make sure that each invocation is the same.
+* If per-session MFA is enabled, Command should ask for "the tap" only once before
+  executing all commands.
+* If a user is missing permissions to execute a command, an access request should be created.
+* (Optional) On supported nodes, commands should be executed inside a cgroup
+  created by Teleport to better control permissions (enhanced session recording).
