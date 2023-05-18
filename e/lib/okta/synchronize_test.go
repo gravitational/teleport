@@ -18,6 +18,7 @@ package okta
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -26,20 +27,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestSynchronizeGroups(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, client := newTestService(t, ap)
+	svc, client, emitter := newTestService(t, ap)
 
 	// Add a few groups to ignore since they don't have an origin of Okta.
 	addGroup(t, "ignored1", types.OriginConfigFile, "", ap)
 	addGroup(t, "ignored2", types.OriginConfigFile, "", ap)
 
-	// Add a group to be ignored because it's from a different Okta org..
+	// Add a group to be ignored because it's from a different Okta org.
 	addGroup(t, "diff-group", types.OriginOkta, "https://different-okta-org.com", ap)
 
 	// Add a few groups that should be deleted since they're not present in the client.
@@ -105,12 +108,20 @@ func TestSynchronizeGroups(t *testing.T) {
 	// This should have never been created.
 	_, err = ap.GetUserGroup(ctx, "group5")
 	require.True(t, trace.IsNotFound(err))
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
+		require.Equal(t, int32(1), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(2), event.Deleted)
+	})
 }
 
 func TestSynchronizeApplications(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, client := newTestService(t, ap)
+	svc, client, emitter := newTestService(t, ap)
 	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
 
 	// Add a few apps that should be deleted since they're not present in the client.
@@ -200,6 +211,60 @@ func TestSynchronizeApplications(t *testing.T) {
 	require.NoError(t, err)
 	app4Link2 := apps[app4Link2Name]
 	require.Equal(t, "https://www.link2.com", app4Link2.GetURI())
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(2), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(2), event.Deleted)
+	})
+}
+
+func TestEmitSyncEventsInBatches(t *testing.T) {
+	ctx := context.Background()
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	svc, _, emitter := newTestService(t, ap)
+	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
+
+	added := genEventResources(50, "added")
+	updated := genEventResources(100, "updated")
+	deleted := genEventResources(100, "deleted")
+
+	go svc.emitSyncEventsInBatches(ctx, events.OktaApplicationsUpdateEvent, events.OktaApplicationsUpdateCode, added, updated, deleted)
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(50), event.Added)
+		require.Equal(t, int32(50), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
+		verifyEventResources(t, event.AddedResources, 0, 50, "added")
+		verifyEventResources(t, event.UpdatedResources, 0, 50, "updated")
+		verifyEventResources(t, event.DeletedResources, 0, 0, "deleted")
+	})
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(50), event.Updated)
+		require.Equal(t, int32(50), event.Deleted)
+		verifyEventResources(t, event.AddedResources, 0, 0, "added")
+		verifyEventResources(t, event.UpdatedResources, 50, 50, "updated")
+		verifyEventResources(t, event.DeletedResources, 0, 50, "deleted")
+	})
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(0), event.Updated)
+		require.Equal(t, int32(50), event.Deleted)
+		verifyEventResources(t, event.AddedResources, 0, 0, "added")
+		verifyEventResources(t, event.UpdatedResources, 0, 0, "updated")
+		verifyEventResources(t, event.DeletedResources, 50, 50, "deleted")
+	})
 }
 
 func addApp(t *testing.T, name, origin, orgURL string, svc *Service) {
@@ -250,4 +315,29 @@ func mapOfAllApps(t *testing.T, svc *Service) map[string]*types.AppV3 {
 	}
 
 	return appMap
+}
+
+func genEventResources(numResources int, descPrefix string) []*apievents.OktaResource {
+	resources := make([]*apievents.OktaResource, numResources)
+
+	for i := 0; i < numResources; i++ {
+		resources[i] = &apievents.OktaResource{
+			ID:          fmt.Sprintf("%d", i),
+			Description: fmt.Sprintf("%s %d", descPrefix, i),
+		}
+	}
+
+	return resources
+}
+
+func verifyEventResources(t *testing.T, resources []*apievents.OktaResource, offset, numResources int, descPrefix string) []*apievents.OktaResource {
+	require.Len(t, resources, numResources)
+
+	for i := 0; i < numResources; i++ {
+		index := offset + i
+		require.Equal(t, fmt.Sprintf("%d", index), resources[i].ID)
+		require.Equal(t, fmt.Sprintf("%s %d", descPrefix, index), resources[i].Description)
+	}
+
+	return resources
 }

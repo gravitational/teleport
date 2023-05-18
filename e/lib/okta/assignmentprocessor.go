@@ -30,6 +30,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 const (
@@ -71,6 +74,8 @@ type assignmentProcessor struct {
 	log                *logrus.Entry
 	clock              clockwork.Clock
 	oktaOrgURL         string
+	hostID             string
+	emitter            apievents.Emitter
 	accessPoint        assignmentProcessorAccessPoint
 	assignmentGetter   func() types.OktaAssignments
 	rateLimiter        *rate.Limiter
@@ -93,6 +98,8 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		log:               svc.log,
 		clock:             svc.clock,
 		oktaOrgURL:        svc.orgURL,
+		hostID:            svc.hostID,
+		emitter:           svc.emitter,
 		accessPoint:       svc.accessPoint,
 		assignmentGetter:  assignmentGetter,
 		rateLimiter:       rateLimiter,
@@ -214,7 +221,9 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 
 	sinceTransition := a.clock.Since(assignment.GetLastTransition())
 
-	switch assignment.GetStatus() {
+	startStatus := assignment.GetStatus()
+
+	switch startStatus {
 	case constants.OktaAssignmentStatusPending:
 	case constants.OktaAssignmentStatusSuccessful:
 		// We should only retry successful objects if the time between loops has passes since
@@ -284,6 +293,13 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 			return trace.NewAggregate(trace.Wrap(updateErr), err)
 		}
 	}
+
+	// If the starting status and ending status are both successful and this doesn't need a cleanup, we won't emit anything.
+	if startStatus == nextStatus && startStatus == constants.OktaAssignmentStatusSuccessful && !needsCleanup {
+		return nil
+	}
+
+	a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, err)
 
 	return trace.Wrap(err)
 }
@@ -470,6 +486,69 @@ func (a *assignmentProcessor) getAssignmentClient() *assignmentClient {
 	defer a.assignmentClientMu.RUnlock()
 
 	return a.assignmentClient
+}
+
+// emitAuditEvent will emit an audit event after an assignment is processed.
+func (a *assignmentProcessor) emitAuditEvent(ctx context.Context, assignment types.OktaAssignment, startStatus, nextStatus string, needsCleanup bool, err error) {
+	var eventType string
+	var eventCode string
+	var success bool
+	var errMsg string
+
+	if needsCleanup {
+		eventType = events.OktaAssignmentCleanupEvent
+		eventCode = events.OktaAssignmentCleanupSuccessCode
+		success = true
+
+		if err != nil {
+			eventCode = events.OktaAssignmentCleanupFailureCode
+			success = false
+			errMsg = err.Error()
+		}
+	} else {
+		eventType = events.OktaAssignmentProcessEvent
+		eventCode = events.OktaAssignmentProcessSuccessCode
+		success = true
+
+		if err != nil {
+			eventCode = events.OktaAssignmentProcessFailureCode
+			success = false
+			errMsg = err.Error()
+		}
+	}
+
+	// Get the source (i.e. creator) of this Okta Assignment.
+	// The source of this Okta assignment is expected to be present, but even if it isn't
+	// we'd rather emit the event with the empty source label than skip creating the audit
+	// trail for this assignment.
+	source, _ := assignment.GetLabel(teleport.OktaAssignmentSourceLabel)
+
+	event := &apievents.OktaAssignmentResult{
+		Metadata: apievents.Metadata{
+			Type: eventType,
+			Code: eventCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID: a.hostID,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: assignment.GetName(),
+		},
+		Status: apievents.Status{
+			Success: success,
+			Error:   errMsg,
+		},
+		OktaAssignmentMetadata: apievents.OktaAssignmentMetadata{
+			Source:         source,
+			User:           assignment.GetUser(),
+			StartingStatus: startStatus,
+			EndingStatus:   nextStatus,
+		},
+	}
+
+	if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+		a.log.WithError(emitErr).Warnf("Failed to emit Okta assignment result: %v", event)
+	}
 }
 
 // userTargetName returns a target name for a user target.

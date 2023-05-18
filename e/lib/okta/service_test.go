@@ -39,7 +39,7 @@ import (
 func TestHandleConnection(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	svc, _ := newTestService(t, ap)
+	svc, _, _ := newTestService(t, ap)
 
 	// Create the test application.
 	publicAddr := "https://public-addr"

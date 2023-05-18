@@ -234,6 +234,11 @@ type Service struct {
 	newGroupsMu sync.RWMutex
 	newGroups   map[string]types.UserGroup
 
+	// group stats for the audit even for a particular reconcile.
+	groupsAdded   []*apievents.OktaResource
+	groupsUpdated []*apievents.OktaResource
+	groupsDeleted []*apievents.OktaResource
+
 	// appsReconciler will reconcile applications discovered in Okta.
 	appsReconciler *services.Reconciler
 
@@ -245,6 +250,11 @@ type Service struct {
 	// to the apps reconciler.
 	newAppsMu sync.RWMutex
 	newApps   map[string]*types.AppV3
+
+	// app stats for the audit even for a particular reconcile.
+	appsAdded   []*apievents.OktaResource
+	appsUpdated []*apievents.OktaResource
+	appsDeleted []*apievents.OktaResource
 
 	// Import Rule mapping for the Okta objects.
 	groupIRMappingMu sync.RWMutex

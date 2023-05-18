@@ -31,7 +31,9 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestProcessAssignments(t *testing.T) {
@@ -48,6 +50,14 @@ func TestProcessAssignments(t *testing.T) {
 	testUser := "test-user@test.user"
 	oktaUserID := "okta-user-id"
 
+	type auditEventInfo struct {
+		name           string
+		event          string
+		code           string
+		startingStatus string
+		endingStatus   string
+	}
+
 	tests := []struct {
 		name                   string
 		groups                 types.UserGroups
@@ -61,6 +71,7 @@ func TestProcessAssignments(t *testing.T) {
 		skipAssignmentCreation bool
 		oktaClientGroupMapping map[string]map[string]bool
 		oktaClientAppMapping   map[string]map[string]bool
+		expectedAuditEvents    []auditEventInfo
 		errAssertionFunc       require.ErrorAssertionFunc
 	}{
 		{
@@ -101,6 +112,15 @@ func TestProcessAssignments(t *testing.T) {
 				},
 			},
 			oktaClientAppMapping: map[string]map[string]bool{},
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentProcessEvent,
+					code:           events.OktaAssignmentProcessFailureCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusFailed,
+				},
+			},
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, fmt.Sprintf(`app_server %q does not have an Okta App ID`, appName("app1")))
 			},
@@ -135,6 +155,15 @@ func TestProcessAssignments(t *testing.T) {
 					oktaUserID: true,
 				},
 			},
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentProcessEvent,
+					code:           events.OktaAssignmentProcessFailureCode,
+					startingStatus: constants.OktaAssignmentStatusFailed,
+					endingStatus:   constants.OktaAssignmentStatusFailed,
+				},
+			},
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "assignments for group group1 not found")
 			},
@@ -157,7 +186,16 @@ func TestProcessAssignments(t *testing.T) {
 				},
 			},
 			oktaClientAppMapping: map[string]map[string]bool{},
-			errAssertionFunc:     require.NoError,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentProcessEvent,
+					code:           events.OktaAssignmentProcessSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "fail to process group due to no assignment in backend",
@@ -199,6 +237,15 @@ func TestProcessAssignments(t *testing.T) {
 			incrementTimeDuration:  time.Minute,
 			oktaClientGroupMapping: map[string]map[string]bool{},
 			oktaClientAppMapping:   map[string]map[string]bool{},
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupFailureCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusFailed,
+				},
+			},
 			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `assignments for app app1 not found`)
 				require.ErrorContains(t, err, `assignments for group group1 not found`)
@@ -226,6 +273,15 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			oktaClientAppMapping: map[string]map[string]bool{
 				"app1": {},
+			},
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
 			},
 			errAssertionFunc: require.NoError,
 		},
@@ -281,6 +337,15 @@ func TestProcessAssignments(t *testing.T) {
 					oktaUserID: true,
 				},
 			},
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentProcessEvent,
+					code:           events.OktaAssignmentProcessSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusProcessing,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
 			errAssertionFunc: require.NoError,
 		},
 		{
@@ -306,7 +371,16 @@ func TestProcessAssignments(t *testing.T) {
 				"app1": {},
 			},
 			incrementTimeDuration: 10 * time.Minute,
-			errAssertionFunc:      require.NoError,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusPending,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "still assigned because two assignments refer to the same target",
@@ -334,7 +408,16 @@ func TestProcessAssignments(t *testing.T) {
 				},
 			},
 			incrementTimeDuration: 10 * time.Minute,
-			errAssertionFunc:      require.NoError,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment2",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusSuccessful,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
 		},
 		{
 			name: "still assigned because two assignments refer to the same target (reverse order)",
@@ -362,7 +445,16 @@ func TestProcessAssignments(t *testing.T) {
 				},
 			},
 			incrementTimeDuration: 10 * time.Minute,
-			errAssertionFunc:      require.NoError,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentCleanupEvent,
+					code:           events.OktaAssignmentCleanupSuccessCode,
+					startingStatus: constants.OktaAssignmentStatusSuccessful,
+					endingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: require.NoError,
 		},
 	}
 
@@ -371,7 +463,7 @@ func TestProcessAssignments(t *testing.T) {
 			clock := clockwork.NewFakeClockAt(startTime)
 			ctx := context.Background()
 			ap := newTestAccessPoint(t, clock)
-			svc, oktaClient := newTestService(t, ap)
+			svc, oktaClient, emitter := newTestService(t, ap)
 			svc.clock = clock
 			a := newAssignmentProcessor(svc, func() types.OktaAssignments {
 				return test.assignments
@@ -428,6 +520,16 @@ func TestProcessAssignments(t *testing.T) {
 
 			require.Empty(t, cmp.Diff(test.oktaClientGroupMapping, oktaClient.groupsToUsers))
 			require.Empty(t, cmp.Diff(test.oktaClientAppMapping, oktaClient.appsToUsers))
+
+			for _, expectedEvent := range test.expectedAuditEvents {
+				expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
+					require.Equal(t, expectedEvent.name, event.Name)
+					require.Equal(t, expectedEvent.event, event.GetType())
+					require.Equal(t, expectedEvent.code, event.GetCode())
+					require.Equal(t, expectedEvent.startingStatus, event.StartingStatus)
+					require.Equal(t, expectedEvent.endingStatus, event.EndingStatus)
+				})
+			}
 		})
 	}
 }

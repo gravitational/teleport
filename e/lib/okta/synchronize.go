@@ -25,9 +25,16 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// emit synchronize events in batches of 100
+	syncEventBatches = 100
 )
 
 // synchronizeLoop will synchronize Okta with the backend periodically until the
@@ -37,11 +44,31 @@ func (s *Service) synchronizeLoop(ctx context.Context) {
 	ticker := s.clock.NewTicker(s.timeBetweenSyncs + utils.RandomDuration(10000*time.Millisecond))
 	defer ticker.Stop()
 
+	s.log.Infof("Synchronizer started with a refresh period of %s.", s.timeBetweenSyncs)
+
 Loop:
 	for {
 		timeoutCtx, cancel := context.WithTimeout(ctx, s.timeBetweenSyncs)
 		if err := s.synchronize(timeoutCtx); err != nil {
 			s.log.Errorf("Error while synchronizing Okta resources with Teleport: %v", err)
+
+			event := &apievents.OktaSyncFailure{
+				Metadata: apievents.Metadata{
+					Type: events.OktaSyncFailureEvent,
+					Code: events.OktaSyncFailureCode,
+				},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerID: s.hostID,
+				},
+				Status: apievents.Status{
+					Success: false,
+					Error:   err.Error(),
+				},
+			}
+
+			if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+				s.log.WithError(emitErr).Warnf("Failed to emit Okta synchronization failure event: %v", event)
+			}
 		}
 		cancel()
 
@@ -54,6 +81,8 @@ Loop:
 		}
 	}
 
+	s.log.Infof("Synchronizer stopped.")
+
 	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 }
 
@@ -63,15 +92,19 @@ func (s *Service) synchronize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	var errs []error
+
 	if err := s.synchronizeGroups(ctx); err != nil {
+		errs = append(errs, err)
 		s.log.Warnf("Error when synchronizing groups: %v", err)
 	}
 
 	if err := s.synchronizeApplications(ctx); err != nil {
+		errs = append(errs, err)
 		s.log.Warnf("Error when synchronizing applications: %v", err)
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // synchronizeGroups will synchronize Okta groups with the backend.
@@ -98,9 +131,20 @@ func (s *Service) synchronizeGroups(ctx context.Context) error {
 	s.newGroups = newGroups
 	s.newGroupsMu.Unlock()
 
+	s.groupsAdded = nil
+	s.groupsUpdated = nil
+	s.groupsDeleted = nil
+
 	if err := s.groupsReconciler.Reconcile(ctx); err != nil {
 		return trace.Wrap(err, "error during group reconciliation")
 	}
+
+	// If all of the group stats are 0, skip the emit. We only want to emit on changes.
+	if s.groupsAdded == nil && s.groupsUpdated == nil && s.groupsDeleted == nil {
+		return nil
+	}
+
+	s.emitSyncEventsInBatches(ctx, events.OktaGroupsUpdateEvent, events.OktaGroupsUpdateCode, s.groupsAdded, s.groupsUpdated, s.groupsDeleted)
 
 	return nil
 }
@@ -143,9 +187,20 @@ func (s *Service) synchronizeApplications(ctx context.Context) error {
 	s.newApps = newApps
 	s.newAppsMu.Unlock()
 
+	s.appsAdded = nil
+	s.appsUpdated = nil
+	s.appsDeleted = nil
+
 	if err := s.appsReconciler.Reconcile(ctx); err != nil {
 		return trace.Wrap(err, "error during application reconciliation")
 	}
+
+	// If all of the app stats are 0, skip the emit. We only want to emit on changes.
+	if s.appsAdded == nil && s.appsUpdated == nil && s.appsDeleted == nil {
+		return nil
+	}
+
+	s.emitSyncEventsInBatches(ctx, events.OktaApplicationsUpdateEvent, events.OktaApplicationsUpdateCode, s.appsAdded, s.appsUpdated, s.appsDeleted)
 
 	return nil
 }
@@ -267,6 +322,8 @@ func (s *Service) onCreateGroup(ctx context.Context, resource types.ResourceWith
 	s.groups[group.GetName()] = group
 	s.groupsMu.Unlock()
 
+	s.addGroupOktaResource(&s.groupsAdded, group)
+
 	return nil
 }
 
@@ -289,6 +346,8 @@ func (s *Service) onUpdateGroup(ctx context.Context, resource types.ResourceWith
 	s.groups[group.GetName()] = group
 	s.groupsMu.Unlock()
 
+	s.addGroupOktaResource(&s.groupsUpdated, group)
+
 	return nil
 }
 
@@ -298,13 +357,20 @@ func (s *Service) onDeleteGroup(ctx context.Context, resource types.ResourceWith
 		return trace.Wrap(err)
 	}
 
-	if err := s.accessPoint.DeleteUserGroup(ctx, resource.GetName()); err != nil {
+	group, ok := resource.(types.UserGroup)
+	if !ok {
+		return trace.BadParameter("expected type types.UserGroup, got %T", resource)
+	}
+
+	if err := s.accessPoint.DeleteUserGroup(ctx, group.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	s.groupsMu.Lock()
-	delete(s.groups, resource.GetName())
+	delete(s.groups, group.GetName())
 	s.groupsMu.Unlock()
+
+	s.addGroupOktaResource(&s.groupsDeleted, group)
 
 	return nil
 }
@@ -360,6 +426,8 @@ func (s *Service) onCreateApp(ctx context.Context, resource types.ResourceWithLa
 		return trace.Wrap(err, "error starting heartbeat for new app %v", app)
 	}
 
+	s.addAppOktaResource(&s.appsAdded, app)
+
 	return nil
 }
 
@@ -377,6 +445,8 @@ func (s *Service) onUpdateApp(ctx context.Context, resource types.ResourceWithLa
 	s.appsMu.Lock()
 	s.apps[app.GetName()] = app
 	s.appsMu.Unlock()
+
+	s.addAppOktaResource(&s.appsUpdated, app)
 
 	return nil
 }
@@ -405,5 +475,89 @@ func (s *Service) onDeleteApp(ctx context.Context, resource types.ResourceWithLa
 	delete(s.apps, app.GetName())
 	s.appsMu.Unlock()
 
+	s.addAppOktaResource(&s.appsDeleted, app)
+
 	return nil
+}
+
+// addGroupOktaResources adds the group to the list of Okta resources.
+func (s *Service) addGroupOktaResource(target *[]*apievents.OktaResource, group types.UserGroup) {
+	*target = append(*target, &apievents.OktaResource{
+		ID:          group.GetName(),
+		Description: group.GetMetadata().Description,
+	})
+}
+
+// addAppOktaResource adds the app to the list of Okta resources.
+func (s *Service) addAppOktaResource(target *[]*apievents.OktaResource, app types.Application) {
+	oktaID, ok := app.GetLabel(teleport.OktaAppIDLabel)
+	if !ok {
+		s.log.Warnf("app ID label is missing for app %s, using the app name instead", app.GetName())
+		oktaID = app.GetName()
+	}
+
+	*target = append(*target, &apievents.OktaResource{
+		ID:          oktaID,
+		Description: app.GetMetadata().Description,
+	})
+}
+
+// emitSyncEventsInBatches will emit synchronize events in batches so that they're not too large.
+func (s *Service) emitSyncEventsInBatches(ctx context.Context, eventName, eventCode string,
+	added []*apievents.OktaResource, updated []*apievents.OktaResource, deleted []*apievents.OktaResource) {
+	numResourcesAdded := len(added)
+	numResourcesUpdated := len(updated)
+	numResourcesDeleted := len(deleted)
+	total := numResourcesAdded + numResourcesUpdated + numResourcesDeleted
+
+	type batch struct {
+		added   []*apievents.OktaResource
+		updated []*apievents.OktaResource
+		deleted []*apievents.OktaResource
+	}
+
+	var batches []*batch
+	var currentBatch *batch
+
+	updatedOffset := numResourcesAdded
+	deletedOffset := numResourcesAdded + numResourcesUpdated
+
+	for i := 0; i < total; i++ {
+		if i%syncEventBatches == 0 {
+			currentBatch = &batch{}
+			batches = append(batches, currentBatch)
+		}
+
+		if i < updatedOffset {
+			currentBatch.added = append(currentBatch.added, added[i])
+		} else if i >= updatedOffset && i < deletedOffset {
+			currentBatch.updated = append(currentBatch.updated, updated[i-updatedOffset])
+		} else {
+			currentBatch.deleted = append(currentBatch.deleted, deleted[i-deletedOffset])
+		}
+	}
+
+	for _, batch := range batches {
+		event := &apievents.OktaResourcesUpdate{
+			Metadata: apievents.Metadata{
+				Type: eventName,
+				Code: eventCode,
+			},
+			ServerMetadata: apievents.ServerMetadata{
+				ServerID: s.hostID,
+			},
+			OktaResourcesUpdatedMetadata: apievents.OktaResourcesUpdatedMetadata{
+				Added:            int32(len(batch.added)),
+				Updated:          int32(len(batch.updated)),
+				Deleted:          int32(len(batch.deleted)),
+				AddedResources:   batch.added,
+				UpdatedResources: batch.updated,
+				DeletedResources: batch.deleted,
+			},
+		}
+
+		if emitErr := s.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
+			s.log.WithError(emitErr).Warnf("Failed to emit %s event: %v", eventName, event)
+		}
+	}
 }

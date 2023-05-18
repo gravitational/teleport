@@ -164,10 +164,10 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 }
 
 // newTestService creates a new test Okta service.
-func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaClient) {
+func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
 	ctx := context.Background()
 
-	emitter := eventstest.NewCountingEmitter()
+	emitter := eventstest.NewChannelEmitter(1)
 	client := newTestClient()
 	services.NewLockWatcher(ctx, services.LockWatcherConfig{})
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -209,7 +209,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 	require.NoError(t, err)
 	require.NoError(t, ap.UpsertProxy(proxyServer))
 
-	return svc, client
+	return svc, client, emitter
 }
 
 // testOktaClient is a testing Okta client that is backed by fixed values.
@@ -518,4 +518,15 @@ func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.T
 
 func assignmentLess(a1, a2 types.OktaAssignment) bool {
 	return a1.GetName() < a2.GetName()
+}
+
+func expectAuditEvent[T any](t *testing.T, emitter *eventstest.ChannelEmitter, fn func(T)) {
+	select {
+	case event := <-emitter.C():
+		auditEvent, ok := event.(T)
+		require.Equal(t, true, ok)
+		fn(auditEvent)
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "timed out waiting for event")
+	}
 }

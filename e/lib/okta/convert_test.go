@@ -46,7 +46,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 	}
 
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
-	service, _ := newTestService(t, ap)
+	service, _, _ := newTestService(t, ap)
 	_, err := service.oktaGroupToUserGroup(oktaGroup)
 	require.ErrorIs(t, trace.BadParameter("the okta group okta-group-id has no profile"), err)
 
@@ -236,7 +236,7 @@ func TestOktaAppToApplications(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
-			service, _ := newTestService(t, ap)
+			service, _, _ := newTestService(t, ap)
 			apps, err := service.oktaAppToApp(test.oktaApp)
 			test.errAssertionFunc(t, err)
 			require.Equal(t, test.expected, apps)

@@ -30,6 +30,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 func TestAssignmentReconciler(t *testing.T) {
@@ -37,7 +39,7 @@ func TestAssignmentReconciler(t *testing.T) {
 	ctx := context.Background()
 	hash := crypto.SHA256
 	ap := newTestAccessPoint(t, clock)
-	svc, oktaClient := newTestService(t, ap)
+	svc, oktaClient, emitter := newTestService(t, ap)
 	svc.clock = clock
 	onReconcileCh := make(chan struct{}, 1)
 	testUser := "test-user@test.user"
@@ -119,6 +121,13 @@ func TestAssignmentReconciler(t *testing.T) {
 	// assignment -> SUCCESSFUL
 	waitForResult(t, onReconcileCh, struct{}{}, 3)
 
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
+		require.Equal(t, events.OktaAssignmentProcessEvent, event.GetType())
+		require.Equal(t, events.OktaAssignmentProcessSuccessCode, event.GetCode())
+		require.Equal(t, constants.OktaAssignmentStatusPending, event.StartingStatus)
+		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
+	})
+
 	assignment1 = assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusSuccessful, clock.Now(), false,
 		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 		target(types.OktaAssignmentTargetV1_GROUP, "group1"),
@@ -151,6 +160,13 @@ func TestAssignmentReconciler(t *testing.T) {
 	// app1 -> PROCESSING
 	// app1 -> SUCCESSFUL (cleaned up)
 	waitForResult(t, onReconcileCh, struct{}{}, 3)
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaAssignmentResult) {
+		require.Equal(t, events.OktaAssignmentCleanupEvent, event.GetType())
+		require.Equal(t, events.OktaAssignmentCleanupSuccessCode, event.GetCode())
+		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.StartingStatus)
+		require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
+	})
 
 	assignment1 = assignment(t, "assignment1", testUser, cleanupTime, constants.OktaAssignmentStatusSuccessful, clock.Now(), true,
 		target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
