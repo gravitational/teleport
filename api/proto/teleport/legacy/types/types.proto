@@ -5091,20 +5091,11 @@ message PluginOpenAISettings {
   option (gogoproto.equal) = true;
 }
 
+// Defines settings for Jamf plugin.
 message PluginMDMJamfSettings {
   option (gogoproto.equal) = true;
-  // apiEndpoint is the address of Jamf Cloud API.
-  string apiEndpoint = 1;
-  Inventory inventory = 5;
-}
-
-message Inventory {
-  option (gogoproto.equal) = true;
-
-  string filter_rsql = 1;
-  string sync_period_partial = 2;
-  string sync_period_full = 3;
-  string on_missing = 4;
+  // Jamf service spec
+  JamfSpecV1 jamf_spec = 1;
 }
 
 // Defines settings for the Okta plugin.
@@ -5123,8 +5114,7 @@ message PluginBootstrapCredentialsV1 {
   }
 }
 
-// PluginIdSecretCredential is customer owned credential which is to be used to fetch Bearer Token
-// id and secret can be OAuth 2 like client ID and Client Secret or generic username and password.
+// PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
 message PluginIdSecretCredential {
   string id = 1;
   string secret = 2;
@@ -5620,6 +5610,7 @@ message ServerInfoSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
+  option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Name of the service device source.
@@ -5654,6 +5645,7 @@ message JamfSpecV1 {
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
 message JamfInventoryEntry {
+  option (gogoproto.equal) = true;
   // Jamf Pro API RSQL filter, used when querying endpoints like
   // "/api/v1/computers-inventory".
   // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.

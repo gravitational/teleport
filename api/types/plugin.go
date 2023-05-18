@@ -36,11 +36,13 @@ const (
 	PluginTypeOpenAI = "openai"
 	// PluginTypeOkta is the Okta plugin
 	PluginTypeOkta = "okta"
-	PluginTypeMDM  = "mdm"
+	// PluginTypeMDM represents MDM plugin type collectively
+	PluginTypeMDM = "mdm"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
 )
 
+// PluginCredentialType represents the type of plugin credential
 type PluginCredentialType string
 
 const (
@@ -126,11 +128,14 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
 		}
 	case *PluginSpecV1_Jamf:
+		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
+			return trace.BadParameter("api endpoint must be set")
+		}
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
 		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
-			return trace.BadParameter("jamf plugin require jamf username and passowrd to query jamf API")
+			return trace.BadParameter("Jamf plugin requires Jamf account username and password")
 		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
@@ -285,6 +290,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOpenAI
 	case *PluginSpecV1_Okta:
 		return PluginTypeOkta
+	case *PluginSpecV1_Jamf:
+		return PluginTypeJamf
 	default:
 		return PluginTypeUnknown
 	}
