@@ -18,8 +18,8 @@ package okta
 
 import (
 	"crypto"
-	"encoding/base64"
 	"fmt"
+	"math/big"
 
 	"github.com/gravitational/trace"
 	"github.com/mitchellh/mapstructure"
@@ -152,9 +152,22 @@ func appName(hash crypto.Hash, id, appLinkName string) (string, error) {
 	}
 	hashedID := hasher.Sum(nil)
 
-	// Take only the first 12 characters of the resulting base64 encoded hash.
-	// Otherwise, the links for the apps in the UI are far too long.
-	return base64.RawURLEncoding.EncodeToString(hashedID)[:12], nil
+	// Take up to the first 14 characters of the resulting base36 encoded hash.
+	// Otherwise, the links for the apps in the UI are far too long. We choose
+	// 14 characters as 36^14 is greater than the original choice of base64's
+	// 64^12.
+	return shortenedEncodedID(hashedID, 14), nil
+}
+
+// shortenedEncodedID takes a raw hashed ID and returns an encoded, shortened version up to
+// the given length.
+func shortenedEncodedID(hashedID []byte, length int) string {
+	encodedID := base36Encode(hashedID)
+	prefixLen := len(encodedID)
+	if prefixLen > length {
+		prefixLen = length
+	}
+	return encodedID[:prefixLen]
 }
 
 // isGroupValid will return an error if the group shouldn't be synced with the list of user groups.
@@ -190,4 +203,15 @@ func isAppValid(app *okta.Application) error {
 	}
 
 	return nil
+}
+
+// base36Encode will take input and encode in in base36. In this case,
+// the base36 will include all lower case alphabetic characters, numbers,
+// and no others. This is necessary because base64 URL will include the _
+// character, which is not accepted by many cert providers, and additionally
+// will include upper case characters.
+func base36Encode(data []byte) string {
+	hashInt := big.NewInt(0)
+	hashInt = hashInt.SetBytes(data)
+	return hashInt.Text(36)
 }

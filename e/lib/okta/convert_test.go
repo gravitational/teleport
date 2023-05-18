@@ -18,6 +18,7 @@ package okta
 
 import (
 	"fmt"
+	"math/big"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/teleport"
 )
+
+func TestBase36Encode(t *testing.T) {
+	charset := "0123456789abcdefghijklmnopqrstuvwxyz"
+
+	for i := 0; i < 36; i++ {
+		require.Equal(t, string(charset[i]), base36Encode([]byte{byte(i)}))
+	}
+
+	require.Equal(t, "1z", base36Encode(big.NewInt(int64(36+35)).Bytes()))
+}
 
 func TestOktaGroupToUserGroup(t *testing.T) {
 	oktaGroup := &okta.Group{
@@ -146,7 +157,7 @@ func TestOktaAppToApplications(t *testing.T) {
 			expected: []*types.AppV3{
 				newApp(t,
 					types.Metadata{
-						Name:        "hleAaWyYRHhA",
+						Name:        "3cjffnnvq17sgg",
 						Description: "app label",
 						Labels: map[string]string{
 							types.OriginLabel:        types.OriginOkta,
@@ -156,12 +167,12 @@ func TestOktaAppToApplications(t *testing.T) {
 					},
 					types.AppSpecV3{
 						URI:        "https://www.link1.com",
-						PublicAddr: fmt.Sprintf("hleAaWyYRHhA.%s", testClusterName),
+						PublicAddr: fmt.Sprintf("3cjffnnvq17sgg.%s", testClusterName),
 					},
 				),
 				newApp(t,
 					types.Metadata{
-						Name:        "utGMAFLgNkBj",
+						Name:        "4nmi1dlgr9wc9z",
 						Description: "app label",
 						Labels: map[string]string{
 							types.OriginLabel:        types.OriginOkta,
@@ -171,7 +182,7 @@ func TestOktaAppToApplications(t *testing.T) {
 					},
 					types.AppSpecV3{
 						URI:        "https://www.link2.com",
-						PublicAddr: fmt.Sprintf("utGMAFLgNkBj.%s", testClusterName),
+						PublicAddr: fmt.Sprintf("4nmi1dlgr9wc9z.%s", testClusterName),
 					},
 				),
 			},
@@ -308,6 +319,35 @@ func TestIsAppValid(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.errAssertionFunc(t, isAppValid(test.app))
+		})
+	}
+}
+
+func TestShortenedEncodedID(t *testing.T) {
+	t.Parallel()
+
+	length := 14
+
+	tests := []struct {
+		name     string
+		id       []byte
+		expected string
+	}{
+		{
+			name:     "greater than 14",
+			id:       []byte{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+			expected: "47zbadltmrac8p",
+		},
+		{
+			name:     "less than than 14",
+			id:       []byte{1, 1, 1, 1, 1, 1},
+			expected: "e337z3sx",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, shortenedEncodedID(test.id, length))
 		})
 	}
 }
