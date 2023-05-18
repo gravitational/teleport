@@ -32,6 +32,8 @@ import (
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	glueTypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
@@ -51,15 +53,17 @@ import (
 )
 
 type athenaContext struct {
-	log               *Log
-	clock             clockwork.Clock
-	testID            string
-	database          string
-	tablename         string
-	s3eventsLocation  string
-	s3resultsLocation string
-	s3largePayloads   string
-	batcherInterval   time.Duration
+	log                *Log
+	clock              clockwork.Clock
+	testID             string
+	database           string
+	bucketForEvents    string
+	bucketForTempFiles string
+	tablename          string
+	s3eventsLocation   string
+	s3resultsLocation  string
+	s3largePayloads    string
+	batcherInterval    time.Duration
 }
 
 func TestIntegrationAthenaSearchSessionEventsBySessionID(t *testing.T) {
@@ -168,16 +172,19 @@ func setupAthenaContext(t *testing.T, ctx context.Context, cfg athenaContextConf
 	t.Cleanup(func() {
 		assert.NoError(t, backend.Close())
 	})
-
+	bucketWithLocking := "auditlogs-integrationtests-locking"
+	bucketForTemporaryFiles := "auditlogs-integrationtests"
 	ac := &athenaContext{
-		clock:             clock,
-		testID:            testID,
-		database:          "auditlogs_integrationtests",
-		s3eventsLocation:  fmt.Sprintf("%s/%s/events", "s3://auditlogs-integrationtests", testID),
-		s3resultsLocation: fmt.Sprintf("%s/%s/results", "s3://auditlogs-integrationtests", testID),
-		s3largePayloads:   fmt.Sprintf("%s/%s/large_payloads", "s3://auditlogs-integrationtests", testID),
-		tablename:         strings.ReplaceAll(testID, "-", "_"),
-		batcherInterval:   10 * time.Second,
+		clock:              clock,
+		testID:             testID,
+		database:           "auditlogs_integrationtests",
+		bucketForEvents:    bucketWithLocking,
+		bucketForTempFiles: bucketForTemporaryFiles,
+		s3eventsLocation:   fmt.Sprintf("s3://%s/%s/events", bucketWithLocking, testID),
+		s3resultsLocation:  fmt.Sprintf("s3://%s/%s/results", bucketForTemporaryFiles, testID),
+		s3largePayloads:    fmt.Sprintf("s3://%s/%s/large_payloads", bucketForTemporaryFiles, testID),
+		tablename:          strings.ReplaceAll(testID, "-", "_"),
+		batcherInterval:    10 * time.Second,
 	}
 	infraOut := ac.setupInfraWithCleanup(t, ctx)
 
@@ -307,6 +314,78 @@ func (ac *athenaContext) setupInfraWithCleanup(t *testing.T, ctx context.Context
 			"RawMessageDelivery": "true",
 		},
 		Endpoint: aws.String(queueArn),
+	})
+	require.NoError(t, err)
+
+	// Create bucket for long term storage if not exists. Bucket will have object locking which
+	// prevents from deleting objects, that's why it can exists before.
+	// Retention period will take care of cleanup of files.
+	s3Client := s3.NewFromConfig(awsCfg)
+	_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(ac.bucketForEvents),
+	})
+	if err != nil {
+		var notFound *s3Types.NotFound
+		if errors.As(err, &notFound) {
+			_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+				Bucket:                     aws.String(ac.bucketForEvents),
+				ObjectLockEnabledForBucket: true,
+				CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
+					LocationConstraint: s3Types.BucketLocationConstraint(awsCfg.Region),
+				},
+			})
+			require.NoError(t, err)
+			_, err = s3Client.PutObjectLockConfiguration(ctx, &s3.PutObjectLockConfigurationInput{
+				Bucket: aws.String(ac.bucketForEvents),
+				ObjectLockConfiguration: &s3Types.ObjectLockConfiguration{
+					ObjectLockEnabled: s3Types.ObjectLockEnabledEnabled,
+					Rule: &s3Types.ObjectLockRule{
+						DefaultRetention: &s3Types.DefaultRetention{
+							Days: 1,
+							Mode: s3Types.ObjectLockRetentionModeGovernance,
+						},
+					},
+				},
+			})
+			require.NoError(t, err)
+		} else {
+			assert.Fail(t, "unexpected err", err)
+		}
+	}
+
+	// Create bucket if not exists for temporary files (large payloads and query results).
+	// Retention period will take care of cleanup of files.
+	_, err = s3Client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(ac.bucketForTempFiles),
+	})
+	if err != nil {
+		var notFound *s3Types.NotFound
+		if errors.As(err, &notFound) {
+			_, createErr := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+				Bucket: aws.String(ac.bucketForTempFiles),
+				CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
+					LocationConstraint: s3Types.BucketLocationConstraint(awsCfg.Region),
+				},
+			})
+			require.NoError(t, createErr)
+		} else {
+			assert.Fail(t, "unexpected err", err)
+		}
+	}
+	_, err = s3Client.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
+		Bucket: aws.String(ac.bucketForTempFiles),
+		LifecycleConfiguration: &s3Types.BucketLifecycleConfiguration{
+			Rules: []s3Types.LifecycleRule{
+				{
+					Status: s3Types.ExpirationStatusEnabled,
+					Expiration: &s3Types.LifecycleExpiration{
+						Days: 1,
+					},
+					// Prefix is required field, empty means set to whole bucket.
+					Prefix: aws.String(""),
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
