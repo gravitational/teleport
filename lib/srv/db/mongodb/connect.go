@@ -161,7 +161,7 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 	}, nil
 }
 
-func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (authenticator auth.Authenticator, err error) {
+func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
 	// Currently, the MongoDB Atlas IAM Authentication doesn't work with IAM
 	// users. Here we provide a better error message to the users.
 	if sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas && awsutils.IsUserARN(sessionCtx.DatabaseUser) {
@@ -171,12 +171,12 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 	switch {
 	case sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
 		e.Log.Debug("Authenticating to database using AWS IAM authentication")
-		username, password, sessToken, authErr := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
+		username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
 		if err != nil {
-			return nil, trace.Wrap(authErr)
+			return nil, trace.Wrap(err)
 		}
 
-		authenticator, err = auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
+		authenticator, err := auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
 			Source:   awsIAMSource,
 			Username: username,
 			Password: password,
@@ -184,18 +184,23 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 				awsSecretTokenKey: sessToken,
 			},
 		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return authenticator, nil
 	default:
 		e.Log.Debug("Authenticating to database using certificates")
-		authenticator, err = auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
+		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
 			// MongoDB uses full certificate Subject field as a username.
 			Username: "CN=" + sessionCtx.DatabaseUser,
 		})
-	}
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	return
+		return authenticator, nil
+	}
 }
 
 // getConnectionString returns connection string for the server.
