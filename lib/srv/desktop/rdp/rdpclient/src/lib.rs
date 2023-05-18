@@ -396,7 +396,7 @@ fn connect_rdp_inner(
             graphics: None,
             bitmap: Some(ironrdp::connector::BitmapConfig {
                 lossy_compression: true,
-                color_depth: 16, // todo(isaiah): try 32
+                color_depth: 32, // todo(isaiah): changing this to 16 gets us uncompressed bitmaps
             }),
             dig_product_id: "".to_string(),
             client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
@@ -444,6 +444,8 @@ fn connect_rdp_inner(
                     )));
                 }
             };
+
+        debug!("connection_result: {:?}", connection_result);
 
         let x224_processor = x224::Processor::new(
             swap_hashmap_kv(connection_result.static_channels),

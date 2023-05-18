@@ -165,8 +165,8 @@ impl FastPathProcessor {
     pub fn new() -> Self {
         Self {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
-                io_channel_id: 0,   // todo(isaiah)
-                user_channel_id: 0, // todo(isaiah)
+                io_channel_id: 1003,   // todo(isaiah)
+                user_channel_id: 1004, // todo(isaiah)
             }
             .build(),
             image: DecodedImage::new(
