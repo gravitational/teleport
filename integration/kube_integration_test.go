@@ -165,10 +165,10 @@ func TestKube(t *testing.T) {
 	t.Run("Disconnect", suite.bind(testKubeDisconnect))
 	t.Run("Join", suite.bind(testKubeJoin))
 	t.Run("IPPinning", suite.bind(testIPPinning))
-	// ExecWithNoAuth tests that a user can get the pod and exec into a pod
-	// if he does not require any moderated session.
-	// If moderated session is required, he is only allowed to get the pod but
-	// not exec into it.
+	// ExecWithNoAuth tests that a user can get the pod and exec into it when
+	// moderated session is not enforced.
+	// Users under moderated session should only be able to get the pod and shouldn't
+	// be able to exec into a pod
 	t.Run("ExecWithNoAuth", suite.bind(testExecNoAuth))
 }
 
