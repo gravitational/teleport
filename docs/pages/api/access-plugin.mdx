@@ -221,26 +221,10 @@ The plugin imports the following third-party code:
 
 ### Initial declarations
 
-After the `import` block, you can find some globally scoped declarations:
+First, we make some globally scoped declarations:
 
 ```go
-const (
-	proxyAddr     string = ""
-	initTimeout          = time.Duration(30) * time.Second
-	spreadSheetID string = ""
-)
-
-var requestStates = map[types.RequestState]string{
-	types.RequestState_APPROVED: "APPROVED",
-	types.RequestState_DENIED:   "DENIED",
-	types.RequestState_PENDING:  "PENDING",
-	types.RequestState_NONE:     "NONE",
-}
-
-type googleSheetsPlugin struct {
-	sheetsClient   *sheets.SpreadsheetsService
-	teleportClient *client.Client
-}
+(!examples/access-plugin-minimal/types.go!)
 ```
 
 `proxyAddr` indicates the hostname and port of your Teleport Proxy Service or
@@ -274,57 +258,7 @@ need a way to extract data from an Access Request in order to provide it to
 Google Sheets. We achieve this with the `makeRowData` method:
 
 ```go
-func stringPtr(s string) *string { return &s }
-
-func (g *googleSheetsPlugin) makeRowData(ar types.AccessRequest) *sheets.RowData {
-	requestState, ok := requestStates[ar.GetState()]
-
-	// Could not find a state, but this is still a valid Access Request
-	if !ok {
-		requestState = requestStates[types.RequestState_NONE]
-	}
-
-	viewLink := fmt.Sprintf(
-		`=HYPERLINK("%v", "%v")`,
-		"https://"+proxyAddr+"/web/requests/"+ar.GetName(),
-		"View Access Request",
-	)
-
-	return &sheets.RowData{
-		Values: []*sheets.CellData{
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: stringPtr(ar.GetName()),
-				},
-			},
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: stringPtr(ar.GetCreationTime().String()),
-				},
-			},
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: stringPtr(ar.GetUser()),
-				},
-			},
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: stringPtr(strings.Join(ar.GetRoles(), ",")),
-				},
-			},
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					StringValue: &requestState,
-				},
-			},
-			&sheets.CellData{
-				UserEnteredValue: &sheets.ExtendedValue{
-					FormulaValue: &viewLink,
-				},
-			},
-		},
-	}
-}
+(!examples/access-plugin-minimal/makerowdata.go!)
 ```
 
 The `sheets.RowData` type makes extensive use of pointers to strings, so we
@@ -356,40 +290,7 @@ new row based on an incoming Access Request, using the data returned by
 `makeRowData`. It returns an error if the attempt to create a row failed:
 
 ```go
-func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
-	row := g.makeRowData(ar)
-
-	req := sheets.BatchUpdateSpreadsheetRequest{
-		Requests: []*sheets.Request{
-			{
-				AppendCells: &sheets.AppendCellsRequest{
-
-					Fields: "*",
-					Rows: []*sheets.RowData{
-						row,
-					},
-				},
-			},
-		},
-	}
-
-	resp, err := g.sheetsClient.BatchUpdate(spreadSheetID, &req).Do()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if resp.HTTPStatusCode == 201 || resp.HTTPStatusCode == 200 {
-		fmt.Println("Successfully created a row")
-	} else {
-		fmt.Printf(
-			"Unexpected response code creating a row: %v\n",
-			resp.HTTPStatusCode,
-		)
-	}
-
-	return nil
-
-}
+(!examples/access-plugin-minimal/createrow.go!)
 ```
 
 `createRow` assembles a `sheets.BatchUpdateSpreadsheetRequest` and sends it to
@@ -406,43 +307,7 @@ can retry it later.
 The code for updating a row is similar to the code for creating a new row: 
 
 ```go
-func (g *googleSheetsPlugin) updateRow(ar types.AccessRequest, rowNum int64) error {
-	row := g.makeRowData(ar)
-
-	req := sheets.BatchUpdateSpreadsheetRequest{
-		Requests: []*sheets.Request{
-			{
-				UpdateCells: &sheets.UpdateCellsRequest{
-
-					Fields: "*",
-					Start: &sheets.GridCoordinate{
-						RowIndex: rowNum,
-					},
-					Rows: []*sheets.RowData{
-						row,
-					},
-				},
-			},
-		},
-	}
-
-	resp, err := g.sheetsClient.BatchUpdate(spreadSheetID, &req).Do()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if resp.HTTPStatusCode == 201 || resp.HTTPStatusCode == 200 {
-		fmt.Println("Successfully updated a row")
-	} else {
-		fmt.Printf(
-			"Unexpected response code updating a row: %v\n",
-			resp.HTTPStatusCode,
-		)
-	}
-
-	return nil
-
-}
+(!examples/access-plugin-minimal/updaterow.go!)
 ```
 
 The only difference between `updateRow` and `createRow` is that we send a
@@ -457,33 +322,7 @@ way to look up the row in the spreadsheet that corresponds to the Access Request
 so it can update the row:
 
 ```go
-func (g *googleSheetsPlugin) updateSpreadsheet(ar types.AccessRequest) error {
-	s, err := g.sheetsClient.Get(spreadSheetID).IncludeGridData(true).Do()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if len(s.Sheets) != 1 {
-		return trace.Wrap(
-	        errors.New("the spreadsheet must have a single sheet"),
-		)
-	}
-
-	for _, d := range s.Sheets[0].Data {
-		for i, r := range d.RowData {
-			if r.Values[0] != nil &&
-				r.Values[0].UserEnteredValue != nil &&
-				r.Values[0].UserEnteredValue.StringValue != nil &&
-				*r.Values[0].UserEnteredValue.StringValue == ar.GetName() {
-				if err := g.updateRow(ar, int64(i)); err != nil {
-					return trace.Wrap(err)
-				}
-				fmt.Println("Updated a spreadsheet row.")
-			}
-		}
-	}
-	return nil
-}
+(!examples/access-plugin-minimal/updatespreadsheet.go!)
 ```
 
 `updateSpreadSheet` takes a `types.AccessRequest`, gets the latest data from
@@ -494,25 +333,14 @@ It then calls `updateRow` with the Access Request and the row's number.
 
 ### Handle incoming Access Requests
 
-Our plugin determines whether to call `updateSpreadsheet` or `createRow`
-depending on whether an incoming Access Request event is a new Access Request or
-an update to an existing one:
+The plugin will call a handler function when it receives an event. To set this
+up, we use the `run` method below with a `handleEvent` function that determines
+whether to call `updateSpreadsheet` or `createRow` depending on whether an
+incoming Access Request event is a new Access Request or an update to an
+existing one:
 
 ```go
-func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event) error {
-
-	if event.Resource == nil {
-		return nil
-	}
-
-	r := event.Resource.(types.AccessRequest)
-
-	if r.GetState() == types.RequestState_PENDING {
-		return g.createRow(r)
-	}
-
-	return g.updateSpreadsheet(r)
-}
+(!examples/access-plugin-minimal/watcherjob.go!)
 ```
 
 `handleEvent` checks whether an Access Request is in a pending state, i.e.,
@@ -523,35 +351,6 @@ It is worth noting that the function takes any `types.Event`, which includes
 Access Requests but also other audit events, such as the creation of a
 certificate. We will explain in the next section why we are using this function
 signature for `handleEvent`.
-
-### Run a watcher job
-
-The plugin will call our handler function when it receives an event. To set this
-up, we use the `run` method below: 
-
-```go
-func (g *googleSheetsPlugin) run() error {
-	ctx := context.Background()
-	proc := lib.NewProcess(ctx)
-	watcherJob := watcherjob.NewJob(
-		g.teleportClient,
-		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
-		},
-		g.handleEvent,
-	)
-
-	proc.SpawnCriticalJob(watcherJob)
-
-	fmt.Println("Started the watcher job")
-
-	<-watcherJob.Done()
-
-	fmt.Println("The watcher job is finished")
-
-	return nil
-}
-```
 
 The `run` method starts a new background routine using `lib.NewProcess(ctx)`.
 This returns an implementation of the `lib.Process` interface, which Access
@@ -595,38 +394,7 @@ spreadsheet. The final step is to start our program by initializing the API
 clients:
 
 ```go
-func main() {
-	ctx := context.Background()
-	svc, err := sheets.NewService(ctx, option.WithCredentialsFile("credentials.json"))
-	if err != nil {
-		panic(err)
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
-	defer cancel()
-
-	creds := client.LoadIdentityFile("auth.pem")
-
-	teleport, err := client.New(ctx, client.Config{
-		Addrs:       []string{proxyAddr},
-		Credentials: []client.Credentials{creds},
-		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
-		},
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	gs := googleSheetsPlugin{
-		sheetsClient:   sheets.NewSpreadsheetsService(svc),
-		teleportClient: teleport,
-	}
-
-	if err := gs.run(); err != nil {
-		panic(err)
-	}
-}
+(!examples/access-plugin-minimal/main.go!)
 ```
 
 The `main` function, the entrypoint to our program, initializes a
@@ -660,11 +428,11 @@ Make sure that:
 ## Step 7/7. Test your plugin
 
 Run the plugin to forward Access Requests from your Teleport cluster to Google
-Sheets. Execute the following commands from within
+Sheets. Execute the following command from within
 `examples/access-plugin-minimal`:
 
 ```code
-$ go run main.go
+$ go run teleport-sheets
 ```
 
 Now that the plugin is running, create an Access Request:
