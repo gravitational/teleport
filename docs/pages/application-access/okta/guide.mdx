@@ -34,7 +34,7 @@ provisioned earlier.
 
 To get group IDs:
 
-```
+```code
 $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-endpoint-url" />/api/v1/groups | jq '[.[] |  {"id": .id, "label": .profile.name}]'
 ...
 [
@@ -58,7 +58,7 @@ $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-en
 ]
 ```
 
-```
+```code
 $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-endpoint-url" />/api/v1/apps | jq '[.[] |  {"id": .id, "label": .label}]'
 ...
 [
