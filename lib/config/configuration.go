@@ -2167,7 +2167,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 		cfg.SetToken(clf.AuthToken)
 	}
 
-	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport openssh join` command")
+	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
 	servicecfg.DisableLongRunningServices(cfg)
 
 	cfg.DataDir = clf.DataDir
