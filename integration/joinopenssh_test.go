@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -80,13 +81,13 @@ func TestJoinOpenSSH(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 	restartPath := filepath.Join(testDir, "restarted")
-	teleportOpenSSHCfgPath := filepath.Join(testDir, "teleport_openssh")
+	teleportDataDir := filepath.Join(testDir, "teleport_openssh")
 
 	openSSHCfg := servicecfg.MakeDefaultConfig()
 
 	openSSHCfg.OpenSSH.Enabled = true
 	err = config.ConfigureOpenSSH(&config.CommandLineFlags{
-		DataDir:           teleportOpenSSHCfgPath,
+		DataDir:           teleportDataDir,
 		ProxyServer:       rc.Web,
 		AuthToken:         "token",
 		JoinMethod:        string(types.JoinMethodToken),
@@ -108,14 +109,14 @@ func TestJoinOpenSSH(t *testing.T) {
 
 	sshdConf, err := os.ReadFile(opensshConfigPath)
 	require.NoError(t, err)
-	require.Contains(t, string(sshdConf), fmt.Sprintf("Include %s", filepath.Join(teleportOpenSSHCfgPath, "sshd.conf")))
+	require.Contains(t, string(sshdConf), fmt.Sprintf("Include %s", filepath.Join(teleportDataDir, "sshd.conf")))
 
 	// check a node with the flags specified exists
 	require.Eventually(t, findNodeWithLabel(t, ctx, client, "hello"), time.Second*2, time.Millisecond*50)
-	// check the ssh command was in fact called
+	// check the mock sshd RestartCommand command was in fact called
 	require.FileExists(t, restartPath)
 
-	keysDir := filepath.Join(teleportOpenSSHCfgPath, "openssh")
+	keysDir := filepath.Join(teleportDataDir, "openssh")
 	// check all the appropriate key files were made
 	require.DirExists(t, keysDir)
 	cabytes, err := os.ReadFile(filepath.Join(keysDir, openssh.TeleportOpenSSHCA))
@@ -143,13 +144,13 @@ func getOpenSSHCAs(t *testing.T, ctx context.Context, cl auth.ClientI) [][]byte 
 func findNodeWithLabel(t *testing.T, ctx context.Context, cl auth.ClientI, key string) func() bool {
 	t.Helper()
 	return func() bool {
-		servers, err := cl.GetNodes(ctx, defaults.Namespace)
+		servers, err := cl.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    defaults.Namespace,
+			Labels:       map[string]string{key: ""},
+			Limit:        1,
+		})
 		require.NoError(t, err)
-		for _, n := range servers {
-			if _, ok := n.GetAllLabels()[key]; ok {
-				return true
-			}
-		}
-		return false
+		return len(servers.Resources) >= 1
 	}
 }
