@@ -16,10 +16,9 @@
 
 import React from 'react';
 
-import { AwsRdsDatabase } from 'teleport/services/integrations';
-
 import { AwsRegionSelector } from './AwsRegionSelector';
 import { DatabaseList } from './RdsDatabaseList';
+import { CheckedAwsRdsDatabase } from './EnrollRdsDatabase';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
@@ -85,7 +84,7 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures: AwsRdsDatabase[] = [
+const fixtures: CheckedAwsRdsDatabase[] = [
   {
     name: 'postgres-name',
     engine: 'postgres',
@@ -103,6 +102,7 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'available',
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
   },
   {
     name: 'alpaca',
@@ -137,6 +137,7 @@ const fixtures: AwsRdsDatabase[] = [
     status: 'Unknown' as any,
     accountId: '',
     resourceId: '',
+    dbServerExists: true,
   },
   {
     name: 'llama',

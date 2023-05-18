@@ -22,10 +22,11 @@ import { createPortal } from 'react-dom';
 import { useParams } from 'react-router';
 
 import { MessagesContextProvider } from 'teleport/Assist/contexts/messages';
-import { Chat } from 'teleport/Assist/Chat';
 import { ConversationsContextProvider } from 'teleport/Assist/contexts/conversations';
-import { NewChat } from 'teleport/Assist/Chat/Chat';
-import Sidebar from 'teleport/Assist/Sidebar';
+import { ConversationTitle } from 'teleport/Assist/ConversationTitle';
+import { LandingPage } from 'teleport/Assist/LandingPage';
+import { Chat } from 'teleport/Assist/Chat';
+import { Sidebar } from 'teleport/Assist/Sidebar';
 
 const Container = styled.div`
   display: flex;
@@ -55,10 +56,14 @@ export function Assist() {
           </Container>
         </MessagesContextProvider>
       ) : (
-        <NewChat />
+        <LandingPage />
       )}
 
       {createPortal(<Sidebar />, document.getElementById('assist-sidebar'))}
+      {createPortal(
+        <ConversationTitle />,
+        document.getElementById('topbar-portal')
+      )}
     </ConversationsContextProvider>
   );
 }

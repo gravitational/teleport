@@ -68,6 +68,7 @@ message DeviceCredential {
   bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der"];
   string device_attestation_type = 3 [(gogoproto.jsontag) = "device_attestation_type"];
   string tpm_ekcert_serial = 4 [(gogoproto.jsontag) = "tpm_ekcert_serial"];
+  bytes tpm_ak_public = 5 [(gogoproto.jsontag) = "tpm_ak_public"];
 }
 
 // DeviceCollectedData is the resource representation of

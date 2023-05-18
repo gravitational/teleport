@@ -26,6 +26,20 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/vulcand/predicate
       - dependency-name: golang.org/x/crypto
+      # kubernetes-sigs/controller-runtime is holding the k8s deps upgrade because it requires
+      # a new API version v0.27.2 which includes some required fixes.
+      # Until released, we must hold k8s deps upgrade otherwise we break operators.
+      # TODO(tigrato): remove once https://github.com/gravitational/teleport/pull/25136
+      # merges.
+      - dependency-name: k8s.io/api
+      - dependency-name: k8s.io/apiextensions-apiserver
+      - dependency-name: k8s.io/apimachinery
+      - dependency-name: k8s.io/apiserver
+      - dependency-name: k8s.io/cli-runtime
+      - dependency-name: k8s.io/client-go
+      - dependency-name: k8s.io/component-base
+      - dependency-name: k8s.io/kubectl
+      - dependency-name: k8s.io/utils
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
