@@ -1,5 +1,5 @@
 import React from 'react';
-import { screen } from 'design/utils/testing';
+import { fireEvent, screen, theme } from 'design/utils/testing';
 
 import { CancelDialogProps } from 'e-teleport/Billing/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
@@ -77,6 +77,38 @@ describe('cancelAccountDialog', () => {
       screen.getByRole('button', { name: 'Cancel Plan and Close Account' })
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('show error state', () => {
+    renderWithElementsAndContext(<CancelAccountDialog {...props} />);
+
+    const labelConfirmed = screen.getByTestId('label-confirmed');
+    const inputConfirmed = screen.getByTestId('input-confirmed');
+    const labelSubdomain = screen.getByTestId('label-subdomain');
+    const inputSubdomain = screen.getByTestId('input-subdomain');
+
+    // no error when inputs are empty
+    expect(labelConfirmed).not.toHaveStyle(`color: ${theme.colors.error.main}`);
+    expect(inputConfirmed).not.toHaveStyle(
+      `border: 2px solid ${theme.colors.error.main}`
+    );
+    expect(labelSubdomain).not.toHaveStyle(`color: ${theme.colors.error.main}`);
+    expect(inputSubdomain).not.toHaveStyle(
+      `border: 2px solid ${theme.colors.error.main}`
+    );
+
+    // add incorrect text to inputs
+    fireEvent.change(inputConfirmed, { target: { value: 'something' } });
+    fireEvent.change(inputSubdomain, { target: { value: 'something' } });
+
+    expect(labelConfirmed).toHaveStyle(`color: ${theme.colors.error.main}`);
+    expect(inputConfirmed).toHaveStyle(
+      `border: 2px solid ${theme.colors.error.main}`
+    );
+    expect(labelSubdomain).toHaveStyle(`color: ${theme.colors.error.main}`);
+    expect(inputSubdomain).toHaveStyle(
+      `border: 2px solid ${theme.colors.error.main}`
+    );
   });
 
   test('does not render zero date', () => {

@@ -19,6 +19,8 @@ import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { CancelDialogProps } from 'e-teleport/Billing/types';
 import useTeleport from 'e-teleport/useTeleportE';
 
+const CONFIRM_TEXT = 'close my account';
+
 export const CancelAccountDialog = ({
   open,
   setOpen,
@@ -32,6 +34,11 @@ export const CancelAccountDialog = ({
   const [networkState, setNetworkState] = useState<NetworkState>({});
   const [confirmed, setConfirmed] = useState<string>('');
   const [subdomain, setSubdomain] = useState<string>('');
+
+  const hasErrorSubdomainInput =
+    subdomain && subdomain.toLowerCase() !== tenant;
+  const hasErrorConfirmInput =
+    confirmed && confirmed.toLowerCase() !== CONFIRM_TEXT;
 
   const dialogText: React.ReactNode =
     stripeCurrentPeriodEnd != 0 ? (
@@ -75,7 +82,13 @@ export const CancelAccountDialog = ({
         <Text mb={4} color={theme.colors.text.slightlyMuted} bold>
           Once deleted, your Teleport account cannot be recovered.
         </Text>
-        <label htmlFor="subdomain">
+        <label
+          htmlFor="subdomain"
+          style={
+            hasErrorSubdomainInput ? { color: theme.colors.error.main } : {}
+          }
+          data-testid="label-subdomain"
+        >
           Please confirm your cluster's subdomain, <b>{tenant}</b> below:
         </label>
         <Input
@@ -88,9 +101,15 @@ export const CancelAccountDialog = ({
           onChange={e => {
             setSubdomain(e.target.value);
           }}
+          hasError={hasErrorSubdomainInput}
+          data-testid="input-subdomain"
         />
-        <label htmlFor="confirmed">
-          Please confirm your choice by typing <b>close my account</b> below:
+        <label
+          htmlFor="confirmed"
+          style={hasErrorConfirmInput ? { color: theme.colors.error.main } : {}}
+          data-testid="label-confirmed"
+        >
+          Please confirm your choice by typing <b>{CONFIRM_TEXT}</b> below:
         </label>
         <Input
           aria-label="confirmed"
@@ -102,6 +121,8 @@ export const CancelAccountDialog = ({
           onChange={e => {
             setConfirmed(e.target.value);
           }}
+          hasError={hasErrorConfirmInput}
+          data-testid="input-confirmed"
         />
       </DialogContent>
       {networkState.error != undefined && (
@@ -114,7 +135,7 @@ export const CancelAccountDialog = ({
             !stripe ||
             networkState.status == 'loading' ||
             subdomain.toLowerCase() !== tenant ||
-            confirmed.toLowerCase() !== 'close my account'
+            confirmed.toLowerCase() !== CONFIRM_TEXT
           }
           onClick={handleDelete}
         >
