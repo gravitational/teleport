@@ -17,6 +17,8 @@ commands, debug and navigate through your infrastructure.
 Teleport Assist is available starting from Teleport `v12.4`.
 </Details>
 
+![Teleport Assist Example](../img/assist/assist-example.png)
+
 ## Prerequisites
 
 Before you get started with Teleport Assist, make sure you have the following:
@@ -38,12 +40,13 @@ Teleport Assist uses the GPT-4 model. Your account must have access to it if you
 
 Follow these steps to generate your OpenAI API key:
 
-1. Sign in to your OpenAI account.
+1. Sign in to your OpenAI account or [sign up](https://platform.openai.com/signup) if you don't have one.
 2. Navigate to the [API section](https://platform.openai.com/account/api-keys) in your OpenAI dashboard.
 3. Click on "Create new secret key".
 4. Give your key a descriptive name.
 5. Click "Create secret key".
-6. Your new API key will be displayed. Make sure to copy it and save it in a file on your system, e.g., `/etc/teleport/openai_key`.
+6. Your new API key will be displayed. Make sure to copy it and save it in a file on the system where Teleport Proxy is running, e.g., `/etc/teleport/openai_key`.
+If you have multiple instances of Teleport Proxy, you must copy the file to all of them.
 7. Set read-only permissions and change the file owner to the user that Teleport Proxy uses ex. `teleport` by running the following commands:
 
 ```bash
@@ -111,4 +114,9 @@ Remember, Teleport Assist is powered by OpenAI, so the more specific your query,
 
 And that's it! You have now learned how to set up and use Teleport Assist. For more details and advanced configuration options, check out the other pages in our documentation.
 
-If you encounter any issues, don't hesitate to reach out to our support team. Happy teleporting!
+## Next steps
+
+- [Server Access](server-access/introduction.mdx)
+- [Access controls](access-controls/getting-started.mdx)
+- [Resource filtering](reference/predicate-language.mdx)
+- [Access request plugins](access-controls/access-request-plugins.mdx)
