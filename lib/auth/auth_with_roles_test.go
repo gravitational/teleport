@@ -5019,15 +5019,27 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 func createSnowflakeSessionTestUsers(t *testing.T, authServer *Server) (string, string, string) {
 	t.Helper()
 	// create alice and bob who have no permissions.
-	_, _, err := CreateUserAndRole(authServer, "alice", nil, []types.Rule{})
+	noAuthRole, err := types.NewRole("no-auth", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{},
+		},
+	})
 	require.NoError(t, err)
-	_, _, err = CreateUserAndRole(authServer, "bob", nil, []types.Rule{})
+	_, err = CreateUser(authServer, "alice", noAuthRole)
+	require.NoError(t, err)
+	_, err = CreateUser(authServer, "bob", noAuthRole)
 	require.NoError(t, err)
 	// create "admin" who has read/write on users and web sessions.
-	_, _, err = CreateUserAndRole(authServer, "admin", nil, []types.Rule{
-		types.NewRule(types.KindUser, services.RW()),
-		types.NewRule(types.KindWebSession, services.RW()),
+	userWebAdmin, err := types.NewRole("user-and-web-admin", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindUser, services.RW()),
+				types.NewRule(types.KindWebSession, services.RW()),
+			},
+		},
 	})
+	require.NoError(t, err)
+	_, err = CreateUser(authServer, "admin", userWebAdmin)
 	require.NoError(t, err)
 	return "alice", "bob", "admin"
 }
