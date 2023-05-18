@@ -49,22 +49,20 @@ export function createPtyProcess(
      * Server -> Client stream events
      */
 
-    onData(callback: (data: string) => void): void {
-      exchangeEventsStream.onData(callback);
+    onData(callback: (data: string) => void) {
+      return exchangeEventsStream.onData(callback);
     },
 
-    onOpen(callback: () => void): void {
-      exchangeEventsStream.onOpen(callback);
+    onOpen(callback: () => void) {
+      return exchangeEventsStream.onOpen(callback);
     },
 
-    onExit(
-      callback: (reason: { exitCode: number; signal?: number }) => void
-    ): void {
-      exchangeEventsStream.onExit(callback);
+    onExit(callback: (reason: { exitCode: number; signal?: number }) => void) {
+      return exchangeEventsStream.onExit(callback);
     },
 
-    onStartError(callback: (message: string) => void): void {
-      exchangeEventsStream.onStartError(callback);
+    onStartError(callback: (message: string) => void) {
+      return exchangeEventsStream.onStartError(callback);
     },
 
     /**

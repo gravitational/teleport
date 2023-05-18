@@ -70,7 +70,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
 
     this._setStatus('open');
-    this.emit(TermEventEnum.OPEN);
+    this.emit(TermEventEnum.Open);
 
     this._process.onData(data => this._handleData(data));
     this._process.onExit(ev => this._handleExit(ev));
@@ -120,19 +120,35 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   onData(cb: (data: string) => void) {
-    this.addListener(TermEventEnum.DATA, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Data, cb);
   }
 
   onOpen(cb: () => void) {
-    this.addListener(TermEventEnum.OPEN, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Open, cb);
   }
 
   onExit(cb: (ev: { exitCode: number; signal?: number }) => void) {
-    this.addListener(TermEventEnum.EXIT, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Exit, cb);
   }
 
   onStartError(cb: (message: string) => void) {
-    this.addListener(TermEventEnum.START_ERROR, cb);
+    return this.addListenerAndReturnRemovalFunction(
+      TermEventEnum.StartError,
+      cb
+    );
+  }
+
+  private addListenerAndReturnRemovalFunction(
+    eventName: TermEventEnum,
+    listener: (...args: any[]) => void
+  ) {
+    this.addListener(eventName, listener);
+
+    // The removal function is not used from within the shared process code, it is returned only to
+    // comply with the IPtyProcess interface.
+    return () => {
+      this.removeListener(eventName, listener);
+    };
   }
 
   private getPid() {
@@ -140,7 +156,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _flushBuffer() {
-    this.emit(TermEventEnum.DATA, this._attachedBuffer);
+    this.emit(TermEventEnum.Data, this._attachedBuffer);
     this._attachedBuffer = null;
     clearTimeout(this._attachedBufferTimer);
     this._attachedBufferTimer = null;
@@ -156,7 +172,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _handleExit(e: { exitCode: number; signal?: number }) {
-    this.emit(TermEventEnum.EXIT, e);
+    this.emit(TermEventEnum.Exit, e);
     this._logger.info(`pty has been terminated with exit code: ${e.exitCode}`);
     this._setStatus('terminated');
   }
@@ -166,7 +182,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       if (this._buffered) {
         this._pushToBuffer(data);
       } else {
-        this.emit(TermEventEnum.DATA, data);
+        this.emit(TermEventEnum.Data, data);
       }
     } catch (err) {
       this._logger.error('failed to parse incoming message.', err);
@@ -174,7 +190,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private handleStartError(error: Error) {
-    this.emit(TermEventEnum.START_ERROR, error.message);
+    this.emit(TermEventEnum.StartError, error.message);
   }
 
   private _setStatus(value: Status) {
@@ -183,14 +199,14 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 }
 
-export const TermEventEnum = {
-  CLOSE: 'terminal.close',
-  RESET: 'terminal.reset',
-  DATA: 'terminal.data',
-  OPEN: 'terminal.open',
-  EXIT: 'terminal.exit',
-  START_ERROR: 'terminal.start_error',
-};
+export enum TermEventEnum {
+  Close = 'terminal.close',
+  Reset = 'terminal.reset',
+  Data = 'terminal.data',
+  Open = 'terminal.open',
+  Exit = 'terminal.exit',
+  StartError = 'terminal.start_error',
+}
 
 async function getWorkingDirectory(pid: number): Promise<string> {
   switch (process.platform) {
