@@ -5,10 +5,12 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   lint:
