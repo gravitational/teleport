@@ -7,7 +7,8 @@ description: This tutorial will guide you through the steps needed to run Telepo
   Teleport Assist it currently in Preview.
 </Admonition>
 
-This guide will help you understand how to set up and use Teleport Assist, a new feature that enhances your remote access experience.
+This guide will help you understand how to set up and use Teleport Assist, an AI-powered assistant that helps you run
+commands, debug and navigate through your infrastructure.
 <Details
   title="Version warning"
   opened={true}
@@ -24,12 +25,9 @@ Before you get started with Teleport Assist, make sure you have the following:
 
 - **OpenAI Account**: You will need an active OpenAI account with GPT-4 API access as Teleport Assist relies on OpenAI services.
 
-<Admonition
-  type="tip"
-  title="Cloud Team plan"
->
+<Notice type="note">
 If you don't have access to OpenAI GPT-4 API, you can still try out Teleport Assist by signing up for a [Teleport Team plan](https://goteleport.com/pricing/).
-</Admonition>
+</Notice>
 
 Teleport Assist doesn't support Etcd backend or per-session MFA. If your installation is using Etcd or requires per-session MFA,
 you can create a new cluster with any other backend without per-session MFA or sign up for Teleport Cloud Team plan.
@@ -53,15 +51,16 @@ chmod 400 /etc/teleport/openai_key
 chown teleport:teleport /etc/teleport/openai_key
 ```
 
+<Notice type="warning">
 Remember, your API keys carry many privileges, so be sure to keep them secure! Do not share your secret API keys in publicly accessible areas.
+</Notice>
 
 ## Step 2/3. Enable Assist
 
 To enable Teleport Assist, you need to provide your OpenAI API key:
 
 1. Open your Teleport configuration file. This is typically located at `/etc/teleport.yaml`.
-2. Locate the `assist` section in the file. If it doesn't exist, create it in a Teleport Proxy section.
-3. Add your OpenAI API key to the `assist` section:
+2. Add your OpenAI API key to the `assist` section:
 
  ```yaml
 proxy_service:
@@ -70,8 +69,8 @@ proxy_service:
       api_token_path: /etc/teleport/openai_key
 ```
 
-4. Save the changes and close the file.
-5. Restart your Teleport Proxy Service for the changes to take effect.
+3. Save the changes and close the file.
+4. Restart your Teleport Proxy Service for the changes to take effect.
 
 
 Make sure that your Teleport user has the `assist` permission. By default, users with built-in `auditor` and `editor` roles
