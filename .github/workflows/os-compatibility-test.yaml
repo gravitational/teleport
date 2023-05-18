@@ -6,11 +6,13 @@ on:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   build:
