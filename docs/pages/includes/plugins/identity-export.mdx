@@ -26,8 +26,9 @@ You will refer to this file later when configuring the plugin.
 >
 
   By default, `tctl auth sign` produces certificates with a relatively short
-  lifetime. For production deployments, you can use the `--ttl` flag to ensure a
-  more practical certificate lifetime, e.g., `--ttl=8760h` to export a one-year
-  certificate.
+  lifetime. For production deployments, we suggest using [Machine
+  ID](../../machine-id/introduction.mdx) to programmatically issue and renew
+  certificates for your plugin. See our Machine ID [getting started
+  guide](../../machine-id/getting-started.mdx) to learn more.
 
 </Admonition>
