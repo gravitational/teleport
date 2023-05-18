@@ -28,10 +28,10 @@ import { integrationService } from 'teleport/services/integrations';
 
 import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
-import { DeleteIntegrationDialog } from './DeleteIntegrationDialog';
-import { useIntegrationOperation } from './useIntegrationOperation';
+import { useIntegrationOperation, IntegrationOperations } from './Operations';
 
 import type { Integration } from 'teleport/services/integrations';
+import type { EditableIntegrationFields } from './Operations/useIntegrationOperation';
 
 export function Integrations() {
   const integrationOps = useIntegrationOperation();
@@ -49,11 +49,24 @@ export function Integrations() {
     );
   }, []);
 
-  function deleteIntegration() {
+  function removeIntegration() {
     return integrationOps.remove().then(() => {
       const updatedItems = items.filter(
         i => i.name !== integrationOps.item.name
       );
+      setItems(updatedItems);
+      integrationOps.clear();
+    });
+  }
+
+  function editIntegration(req: EditableIntegrationFields) {
+    return integrationOps.edit(req).then(updatedIntegration => {
+      const updatedItems = items.map(item => {
+        if (item.name == integrationOps.item.name) {
+          return updatedIntegration;
+        }
+        return item;
+      });
       setItems(updatedItems);
       integrationOps.clear();
     });
@@ -75,17 +88,20 @@ export function Integrations() {
         {attempt.status === 'success' && (
           <IntegrationList
             list={items}
-            onDeleteIntegration={integrationOps.onRemove}
+            integrationOps={{
+              onDeleteIntegration: integrationOps.onRemove,
+              onEditIntegration: integrationOps.onEdit,
+            }}
           />
         )}
       </FeatureBox>
-      {integrationOps.type === 'delete' && (
-        <DeleteIntegrationDialog
-          name={integrationOps.item.name}
-          onClose={integrationOps.clear}
-          onDelete={deleteIntegration}
-        />
-      )}
+      <IntegrationOperations
+        operation={integrationOps.type}
+        integration={integrationOps.item as Integration}
+        close={integrationOps.clear}
+        remove={removeIntegration}
+        edit={editIntegration}
+      />
     </>
   );
 }

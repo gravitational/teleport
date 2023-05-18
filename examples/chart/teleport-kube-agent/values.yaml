@@ -250,7 +250,18 @@ rbac:
   create: true
 
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:

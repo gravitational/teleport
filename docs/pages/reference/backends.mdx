@@ -406,6 +406,9 @@ High Availability. DynamoDB backend supports two types of Teleport data:
 - Cluster state
 - Audit log events
 
+Teleport uses DynamoDB and DynamoDB Streams endpoints for its storage
+back-end management.
+
 DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
 that as shown above. 
 
@@ -421,28 +424,10 @@ policies specified in the next section.
 
 ### IAM policies
 
-Make sure that the IAM role assigned to the Teleport Auth Service is configured
-with sufficient access to DynamoDB. Below is the example of the IAM policy you
-can use: 
+Make sure that the IAM role assigned to Teleport is configured with sufficient
+access to DynamoDB.
 
-```js
-{
-    "Version": "2012-10-17",
-    "Statement": [{
-            "Sid": "AllAPIActionsOnTeleportAuth",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportStreams",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
-        }
-    ]
-}
-```
+(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### Configuring the DynamoDB backend
 
@@ -450,6 +435,7 @@ To configure Teleport to use DynamoDB:
 
 - Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
   section of `teleport.yaml` as shown below.
+- Auth servers must be able to reach DynamoDB and DynamoDB Streams endpoints.
 - Deploy several auth servers connected to DynamoDB storage back-end.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
@@ -498,13 +484,6 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 - `region=us-east-1` - set the Amazon region to use.
 - `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
 - `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
-
-### Assigning permissions to the Teleport Auth Service
-
-Make sure that the IAM role assigned to Teleport is configured with sufficient
-access to DynamoDB. Below is an example of the IAM policy we recommend.
-
-(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### DynamoDB autoscaling
 

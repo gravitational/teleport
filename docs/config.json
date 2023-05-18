@@ -17,10 +17,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -935,7 +931,11 @@
               "slug": "/application-access/guides/dynamic-registration/"
             },
             {
-              "title": "AWS DynamoDB",
+              "title": "Amazon Athena",
+              "slug": "/application-access/guides/amazon-athena/"
+            },
+            {
+              "title": "Amazon DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
             },
             {
@@ -955,6 +955,24 @@
             {
               "title": "ElasticSearch",
               "slug": "/application-access/jwt/elasticsearch/"
+            }
+          ]
+        },
+        {
+          "title": "Protect Okta Applications and Groups with Teleport",
+          "slug": "/application-access/okta/",
+          "entries": [
+            {
+              "title": "Guide",
+              "slug": "/application-access/okta/guide/"
+            },
+            {
+              "title": "Architecture",
+              "slug": "/application-access/okta/architecture/"
+            },
+            {
+              "title": "Reference",
+              "slug": "/application-access/okta/reference/"
             }
           ]
         },
@@ -1133,8 +1151,12 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/aws-dynamodb/"
+               "title": "AWS Cross-Account",
+               "slug": "/database-access/guides/aws-cross-account/"
+            },
+            {
+               "title": "AWS DynamoDB",
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
               "title": "AWS ElastiCache & MemoryDB",
@@ -1159,6 +1181,10 @@
             {
               "title": "AWS Redshift Serverless",
               "slug": "/database-access/guides/redshift-serverless/"
+            },
+            {
+              "title": "AWS OpenSearch",
+              "slug": "/database-access/guides/aws-opensearch/"
             },
             {
               "title": "Azure Cache for Redis",
@@ -1639,7 +1665,6 @@
     }
   ],
   "variables": {
-    "version": "7.0",
     "ansible": {
       "min_version": "2.9.6"
     },
@@ -1648,7 +1673,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.2.4",
+      "version": "12.4.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1694,9 +1719,9 @@
       "last_report": "August 9th, 2022"
     },
     "teleport": {
-      "major_version": "12",
-      "version": "12.1.1",
-      "golang": "1.19",
+      "major_version": "14",
+      "version": "14.0.0-dev",
+      "golang": "1.20",
       "plugin": {
         "version": "12.1.1"
       },
@@ -2729,6 +2754,11 @@
     {
       "source": "/preview/upcoming-releases/",
       "destination": "/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]

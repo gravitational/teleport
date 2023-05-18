@@ -442,7 +442,7 @@ func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
 		_, err := termiantefd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
 		} else {

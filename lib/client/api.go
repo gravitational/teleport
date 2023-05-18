@@ -312,6 +312,10 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
+	// extraEnvs contains additional environment variables that will be added
+	// to SSH session.
+	extraEnvs map[string]string
+
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
 	InteractiveCommand bool
@@ -2673,6 +2677,10 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
+
+	for key, val := range tc.extraEnvs {
+		env[key] = val
+	}
 	return env
 }
 
@@ -2825,12 +2833,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		cluster = connected
 	}
 
-	cltConfig := pclt.ClientConfig(ctx, cluster)
-	cltConfig.DialOpts = append(cltConfig.DialOpts,
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
-	)
-	aclt, err := auth.NewClient(cltConfig)
+	aclt, err := auth.NewClient(pclt.ClientConfig(ctx, cluster))
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
@@ -4738,6 +4741,8 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery: tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

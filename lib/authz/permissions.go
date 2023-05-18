@@ -574,6 +574,16 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
 				types.NewRule(types.KindIntegration, services.RO()),
+				// this rule allows cloud proxies to read
+				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
+				{
+					Resources: []string{types.KindPlugin},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.Equals(
+						builder.Identifier(`resource.metadata.labels["type"]`),
+						builder.String("openai"),
+					).String(),
+				},
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -588,18 +598,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
-						),
-					).String(),
-				},
-				// this rule allows the local proxy to read the local SAML IdP CA.
-				{
-					Resources: []string{types.KindCertAuthority},
-					Verbs:     []string{types.VerbRead},
-					Where: builder.And(
-						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
-						builder.Equals(
-							services.ResourceNameExpr,
-							builder.String(clusterName),
 						),
 					).String(),
 				},
@@ -692,7 +690,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindAppServer, services.RW()),
-						types.NewRule(types.KindApp, services.RW()),
+						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindWebSession, services.RO()),
 						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
@@ -724,7 +722,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
 						types.NewRule(types.KindDatabaseService, services.RW()),
-						types.NewRule(types.KindDatabase, services.RW()),
+						types.NewRule(types.KindDatabase, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
@@ -875,6 +873,17 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+					},
+				},
+			})
+	case types.RoleMDM:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindDevice, services.RW()),
 					},
 				},
 			})

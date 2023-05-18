@@ -57,6 +57,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -175,6 +176,12 @@ type webSuiteConfig struct {
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
+
+	// OpenAIConfig is a custom OpenAI config for the test.
+	OpenAIConfig *openai.ClientConfig
+
+	// ClusterFeatures allows overriding default auth server features
+	ClusterFeatures *authproto.Features
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -427,8 +434,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
+	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
+	if cfg.ClusterFeatures != nil {
+		features = *cfg.ClusterFeatures
+	}
 	handlerConfig := Config{
-		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
+		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -445,6 +456,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
 		UI:                              cfg.uiConfig,
+		OpenAIConfig:                    cfg.OpenAIConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -2432,20 +2444,22 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		authPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOn,
+			Webauthn:     &types.Webauthn{RPID: "localhost"},
+		},
+	})
+
+	wc := s.client(t)
 	t.Run("documented variables are injected", func(t *testing.T) {
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
 		// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 		err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
 echo Repository Channel: {{ .RepoChannel }}
+echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		`))
 		require.NoError(t, err)
 
@@ -2457,21 +2471,15 @@ echo Repository Channel: {{ .RepoChannel }}
 		// Variables must be injected
 		require.Contains(t, responseString, "echo Teleport-v")
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
+		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: true,
-		}})
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			}})
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -2482,6 +2490,12 @@ echo Repository Channel: {{ .RepoChannel }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
+				"  if [[ \"true\" == \"true\" ]]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
+				"  fi\n",
+			)
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2492,6 +2506,12 @@ echo Repository Channel: {{ .RepoChannel }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"teleport-ent\"\n"+
+				"  if [[ \"true\" == \"true\" ]]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
+				"  fi\n",
+			)
 		})
 	})
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
@@ -2499,15 +2519,6 @@ echo Repository Channel: {{ .RepoChannel }}
 			Cloud:             true,
 			AutomaticUpgrades: false,
 		}})
-
-		s := newWebSuiteWithConfig(t, webSuiteConfig{
-			authPreferenceSpec: &types.AuthPreferenceSpecV2{
-				Type:         constants.Local,
-				SecondFactor: constants.SecondFactorOn,
-				Webauthn:     &types.Webauthn{RPID: "localhost"},
-			},
-		})
-		wc := s.client(t)
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -3094,7 +3105,7 @@ func TestSignMTLS(t *testing.T) {
 	tarContentFileNames := []string{}
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -7705,6 +7716,11 @@ type mockProxySettings struct{}
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
 	return &webclient.ProxySettings{}, nil
+}
+
+// GetOpenAIAPIKey returns a dummy OpenAI API key.
+func (mock *mockProxySettings) GetOpenAIAPIKey() string {
+	return "test-key"
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the

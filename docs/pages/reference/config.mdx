@@ -66,6 +66,7 @@ Teleport supports the following services:
 |Proxy Service|`proxy_service`|✅|
 |SSH Service|`ssh_service`|✅|
 |Desktop Service|`windows_desktop_service`|❌|
+|Okta Service|`okta_service`|❌|
 
 Teleport Cloud manages the Auth Service and Proxy Service for you. Instances of
 Teleport services (e.g., the Application Service and Database Service) should
@@ -166,6 +167,14 @@ These settings apply to the Windows Desktop Service:
 
 ```yaml
 (!docs/pages/includes/config-reference/desktop-config.yaml!)
+```
+
+### Okta Service
+
+These settings apply to the Okta Service:
+
+```yaml
+(!docs/pages/includes/config-reference/okta-service.yaml!)
 ```
 
 ## Configuration versions

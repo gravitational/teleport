@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,7 +37,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -48,11 +46,13 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/breaker"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -423,7 +423,7 @@ func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
 			}
 			require.NotNil(t, options.trustedCluster)
 
-			albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+			albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 			options.trustedCluster.SetProxyAddress(albProxy.Addr().String())
 			options.trustedCluster.SetReverseTunnelAddress(albProxy.Addr().String())
 		}
@@ -441,23 +441,28 @@ func mustClosePostgresClient(t *testing.T, client *pgconn.PgConn) {
 	require.NoError(t, err)
 }
 
+const (
+	kubeClusterName             = "gke_project_europecentral2a_cluster1"
+	kubeClusterDefaultNamespace = "default"
+	kubePodName                 = "firstcontainer-66b6c48dd-bqmwk"
+)
+
 func k8ClientConfig(serverAddr, sni string) clientcmdapi.Config {
-	const clusterName = "gke_project_europecentral2a_cluster1"
 	return clientcmdapi.Config{
 		Clusters: map[string]*clientcmdapi.Cluster{
-			clusterName: {
+			kubeClusterName: {
 				Server:                serverAddr,
 				InsecureSkipTLSVerify: true,
 				TLSServerName:         sni,
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
-			clusterName: {
-				Cluster:  clusterName,
-				AuthInfo: clusterName,
+			kubeClusterName: {
+				Cluster:  kubeClusterName,
+				AuthInfo: kubeClusterName,
 			},
 		},
-		CurrentContext: clusterName,
+		CurrentContext: kubeClusterName,
 	}
 }
 
@@ -470,7 +475,8 @@ func mkPodList() *v1.PodList {
 		Items: []v1.Pod{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "firstcontainer-66b6c48dd-bqmwk",
+					Name:      kubePodName,
+					Namespace: kubeClusterDefaultNamespace,
 				},
 			},
 		},
@@ -503,18 +509,6 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 	return configPath
 }
 
-func mustCreateListener(t *testing.T) net.Listener {
-	t.Helper()
-
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		listener.Close()
-	})
-	return listener
-}
-
 func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCert, caKey []byte) net.Listener {
 	t.Helper()
 
@@ -542,7 +536,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	t.Helper()
 
 	if config.Listener == nil {
-		config.Listener = mustCreateListener(t)
+		config.Listener = helpers.MustCreateListener(t)
 	}
 	if config.ParentContext == nil {
 		config.ParentContext = context.TODO()
@@ -605,90 +599,6 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 	nodeConfig.SSH.Enabled = true
 	nodeConfig.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	return nodeConfig
-}
-
-func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
-	t.Helper()
-
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName: "localhost",
-	}, []string{"localhost"}, defaults.CATTL)
-	require.NoError(t, err)
-
-	cert, err := tls.X509KeyPair(caCert, caKey)
-	require.NoError(t, err)
-	return cert
-}
-
-// mockAWSALBProxy is a mock proxy server that simulates an AWS application
-// load balancer where ALPN is not supported. Note that this mock does not
-// actually balance traffic.
-type mockAWSALBProxy struct {
-	net.Listener
-	proxyAddr string
-	cert      tls.Certificate
-}
-
-func (m *mockAWSALBProxy) serve(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		conn, err := m.Accept()
-		if err != nil {
-			if utils.IsUseOfClosedNetworkError(err) {
-				continue
-			}
-
-			logrus.WithError(err).Debugf("Failed to accept conn.")
-			return
-		}
-
-		go func() {
-			defer conn.Close()
-
-			// Handshake with incoming client and drops ALPN.
-			downstreamConn := tls.Server(conn, &tls.Config{
-				Certificates: []tls.Certificate{m.cert},
-				ClientAuth:   tls.NoClientCert,
-			})
-
-			// api.Client may try different connection methods. Just close the
-			// connection when something goes wrong.
-			if err := downstreamConn.HandshakeContext(ctx); err != nil {
-				logrus.WithError(err).Debugf("Failed to handshake.")
-				return
-			}
-
-			// Make a connection to the proxy server with ALPN protos.
-			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
-				InsecureSkipVerify: true,
-			})
-			if err != nil {
-				logrus.WithError(err).Debugf("Failed to dial upstream.")
-				return
-			}
-			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
-		}()
-	}
-}
-
-func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
-	t.Helper()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	m := &mockAWSALBProxy{
-		proxyAddr: proxyAddr,
-		Listener:  mustCreateListener(t),
-		cert:      mustCreateSelfSignedCert(t),
-	}
-	go m.serve(ctx)
-	return m
 }
 
 // waitForActivePeerProxyConnections waits for remote cluster to report a minimum number of active proxy peer connections
@@ -780,4 +690,22 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		PublicSSHKey: []byte(fixtures.SSHCAPublicKey),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
+}
+
+func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
+	t.Helper()
+
+	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
+	require.NoError(t, err)
+
+	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
+		ResourceType:        types.KindKubePod,
+		KubernetesCluster:   kubeClusterName,
+		KubernetesNamespace: kubeClusterDefaultNamespace,
+		TeleportCluster:     tc.SiteName,
+	})
+	require.NoError(t, err)
+	require.Len(t, response.Resources, 1)
+	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
+	require.Equal(t, kubePodName, response.Resources[0].GetName())
 }
