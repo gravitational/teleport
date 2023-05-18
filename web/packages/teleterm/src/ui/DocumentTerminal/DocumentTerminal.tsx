@@ -15,21 +15,18 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Flex, Text, ButtonPrimary } from 'design';
-import { Danger } from 'design/Alert';
 import {
   FileTransferActionBar,
   FileTransfer,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
-import { Attempt } from 'shared/hooks/useAsync';
 
 import Document from 'teleterm/ui/Document';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
 
 import { Terminal } from './Terminal';
+import { Reconnect } from './Reconnect';
 import { useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
@@ -57,12 +54,13 @@ export function DocumentTerminal(props: {
   // * The PTY service has failed to create a new PTY process.
   if (attempt.status === 'error') {
     return (
-      <DocumentReconnect
-        visible={visible}
-        doc={doc}
-        attempt={attempt}
-        reconnect={reconnect}
-      />
+      <Document visible={props.visible}>
+        <Reconnect
+          docKind={doc.kind}
+          attempt={attempt}
+          reconnect={initializePtyProcess}
+        />
+      </Document>
     );
   }
 
@@ -131,56 +129,4 @@ export function DocumentTerminal(props: {
       )}
     </Document>
   );
-}
-
-function DocumentReconnect(props: {
-  visible: boolean;
-  doc: types.DocumentTerminal;
-  attempt: Attempt<unknown>;
-  reconnect: () => void;
-}) {
-  const { message, buttonText } = getReconnectCopy(props.doc);
-
-  return (
-    <Document visible={props.visible} flexDirection="column" pl={2}>
-      <Flex
-        gap={4}
-        flexDirection="column"
-        mx="auto"
-        alignItems="center"
-        mt={100}
-      >
-        <Text typography="h5" color="text.main">
-          {message}
-        </Text>
-        <Flex flexDirection="column" alignItems="center" mx="auto">
-          <Danger mb={3}>{props.attempt.statusText}</Danger>
-          <ButtonPrimary width="100px" onClick={props.reconnect}>
-            {buttonText}
-          </ButtonPrimary>
-        </Flex>
-      </Flex>
-    </Document>
-  );
-}
-
-function getReconnectCopy(doc: types.DocumentTerminal) {
-  switch (doc.kind) {
-    case 'doc.terminal_tsh_node': {
-      return {
-        message: 'This SSH connection is currently offline.',
-        buttonText: 'Reconnect',
-      };
-    }
-    case 'doc.gateway_cli_client':
-    case 'doc.terminal_shell':
-    case 'doc.terminal_tsh_kube': {
-      return {
-        message: 'Ran into an error when starting the terminal session.',
-        buttonText: 'Retry',
-      };
-    }
-    default:
-      assertUnreachable(doc);
-  }
 }
