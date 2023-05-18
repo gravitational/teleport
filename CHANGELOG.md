@@ -1,5 +1,18 @@
 # Changelog
 
+## 12.4.3 (05/18/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Audit Log
+  * Updated login event to include the list of applied login rules. [#26475](https://github.com/gravitational/teleport/pull/26475)
+  * Updated Okta audit events to include extra apps and groups fields. [#26371](https://github.com/gravitational/teleport/pull/26371)
+* Database Access
+  * Fixed issue with connecting to active Cassandra database. [#26379](https://github.com/gravitational/teleport/pull/26379)
+* Web UI
+  * Improved error reporting in the RDS flow for some scenarios. [#26400](https://github.com/gravitational/teleport/pull/26400)
+  * Fixed issue with install script always installing latest instead of cluster version. [#26323](https://github.com/gravitational/teleport/pull/26323)
+
 ## 12.4.2 (05/16/23)
 
 ### Teleport Assist
