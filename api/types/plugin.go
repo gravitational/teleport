@@ -34,7 +34,9 @@ const (
 	PluginTypeSlack = "slack"
 	// PluginTypeOpenAI is the OpenAI plugin
 	PluginTypeOpenAI = "openai"
-	PluginTypeMDM    = "mdm"
+	// PluginTypeOkta is the Okta plugin
+	PluginTypeOkta = "okta"
+	PluginTypeMDM  = "mdm"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
 )
@@ -129,6 +131,25 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
 			return trace.BadParameter("jamf plugin require jamf username and passowrd to query jamf API")
+		}
+	case *PluginSpecV1_Okta:
+		// Check settings.
+		if settings.Okta == nil {
+			return trace.BadParameter("missing Okta settings")
+		}
+		if err := settings.Okta.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
+		}
+		if (bearer.Token == "") == (bearer.TokenFile == "") {
+			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -262,6 +283,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSlack
 	case *PluginSpecV1_Openai:
 		return PluginTypeOpenAI
+	case *PluginSpecV1_Okta:
+		return PluginTypeOkta
 	default:
 		return PluginTypeUnknown
 	}
@@ -271,6 +294,15 @@ func (p *PluginV1) GetType() PluginType {
 func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 	if s.FallbackChannel == "" {
 		return trace.BadParameter("fallback_channel must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values.
+func (s *PluginOktaSettings) CheckAndSetDefaults() error {
+	if s.OrgUrl == "" {
+		return trace.BadParameter("org_url must be set")
 	}
 
 	return nil

@@ -161,26 +161,52 @@ func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
 	return nil
 }
 
+// RunWhileLockedConfig is configuration for RunWhileLocked function.
+type RunWhileLockedConfig struct {
+	// LockConfiguration is configuration for acquire lock.
+	LockConfiguration
+
+	// ReleaseCtxTimeout defines timeout used for calling lock.Release method (optional).
+	ReleaseCtxTimeout time.Duration
+	// RefreshLockInterval defines interval at which lock will be refreshed
+	// if fn is still running (optional).
+	RefreshLockInterval time.Duration
+}
+
+func (c *RunWhileLockedConfig) CheckAndSetDefaults() error {
+	if err := c.LockConfiguration.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if c.ReleaseCtxTimeout <= 0 {
+		c.ReleaseCtxTimeout = 300 * time.Millisecond
+	}
+	if c.RefreshLockInterval <= 0 {
+		c.RefreshLockInterval = c.LockConfiguration.TTL / 2
+	}
+	return nil
+}
+
 // RunWhileLocked allows you to run a function while a lock is held.
-func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func(context.Context) error) error {
-	lock, err := AcquireLock(ctx, LockConfiguration{
-		Backend:  backend,
-		LockName: lockName,
-		TTL:      ttl,
-	})
+func RunWhileLocked(ctx context.Context, cfg RunWhileLockedConfig, fn func(context.Context) error) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	lock, err := AcquireLock(ctx, cfg.LockConfiguration)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	subContext, cancelFunction := context.WithCancel(ctx)
+	defer cancelFunction()
 
 	stopRefresh := make(chan struct{})
 	go func() {
-		refreshAfter := ttl / 2
+		refreshAfter := cfg.RefreshLockInterval
 		for {
 			select {
-			case <-backend.Clock().After(refreshAfter):
-				if err := lock.resetTTL(ctx, backend); err != nil {
+			case <-cfg.Backend.Clock().After(refreshAfter):
+				if err := lock.resetTTL(ctx, cfg.Backend); err != nil {
 					cancelFunction()
 					log.Errorf("%v", err)
 					return
@@ -194,7 +220,11 @@ func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl t
 	fnErr := fn(subContext)
 	close(stopRefresh)
 
-	if err := lock.Release(ctx, backend); err != nil {
+	// lock.Release should be called with separate ctx. If someone cancels via ctx
+	// RunWhileLocked method, we want to at least try releasing lock.
+	releaseLockCtx, releaseLockCancel := context.WithTimeout(context.Background(), cfg.ReleaseCtxTimeout)
+	defer releaseLockCancel()
+	if err := lock.Release(releaseLockCtx, cfg.Backend); err != nil {
 		return trace.NewAggregate(fnErr, err)
 	}
 

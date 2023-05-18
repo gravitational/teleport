@@ -1298,35 +1298,37 @@ version switcher.
   - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
 
 - [ ] Verify getting started instructions are accurate:
-  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
-  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
-  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
-  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
+  - [ ] OSS: https://goteleport.com/docs/get-started
+  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/introduction
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/
+  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/
 
 - [ ] Verify upcoming releases page is accurate:
-  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
+  - [ ] https://goteleport.com/docs/upcoming-releases/
   - [ ] Only exists for the default docs version.
 
-- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
+- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release. Check `docs/config.json` for this.
 
-- [ ] Verify that all necessary documentation for the release was backported to release branch:
-  - [ ] Diff between master and release branch and make sure there are no missed PRs
-
-- [ ] Verify deprecated Teleport versions are added to the older versions page
-  - [ ] https://goteleport.com/docs/older-versions/
+- [ ] Verify that all necessary documentation for the release was backported to
+  the release branch:
+  - [ ] Diff between master and release branch and make sure there are no missed
+    PRs
+  - [ ] Ensure that the release branch's documentation content reflects all
+    changes introduced by the release. If not, plan to update the docs ASAP and
+    notify all relevant teams of the delay.
 
 - [ ] Verify `gravitational/docs` version configuration:
   - [ ] Verify latest version in `gravitational/docs/config.json`
   - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+  - [ ] Ensure that submodule directories in `gravitational/docs` correspond to
+    those in `.gitmodules` (remove the directory of the EOL release and create
+    one for the next release)
 
-- [ ] Verify changelog is up-to-date and complete for the default docs version:
-  - [ ] https://goteleport.com/docs/changelog/
+- [ ] Verify changelog is up-to-date and complete for the default docs version
+  (`CHANGELOG.md`). If one release branch has a more complete changelog than
+  others, copy that `CHANGELOG.md` to our other support release branches.
 
-- [ ] Verify supported versions table in FAQ:
-  - [ ] https://goteleport.com/docs/faq/#supported-versions
+- [ ] Verify supported versions table in FAQ (https://goteleport.com/docs/faq/#supported-versions)
 
 ## Resources
 
