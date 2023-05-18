@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -19,10 +22,28 @@ import (
 
 type testClient struct {
 	cloud.MockedClient
+	mu              sync.Mutex
+	mockGetFeatures func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
+}
+
+func (t *testClient) GetFeatures(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetFeaturesResponse, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.mockGetFeatures != nil {
+		return t.mockGetFeatures(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("MockGetFeatures is not implemented")
+}
+
+func (t *testClient) setMockGetFeatures(f func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.mockGetFeatures = f
 }
 
 // Implement cloud.Client interface for mocked client
-func (tc testClient) Close() error { return nil }
+func (t *testClient) Close() error { return nil }
 
 func TestNewService(t *testing.T) {
 	client := &testClient{}
@@ -113,11 +134,13 @@ func TestRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mockCloudClient.MockGetFeatures = func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-		return &v1.GetFeaturesResponse{
-			Kubernetes: true,
-		}, nil
-	}
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+			return &v1.GetFeaturesResponse{
+				Kubernetes: true,
+			}, nil
+		},
+	)
 
 	// Run the service.
 	go service.Run(ctx)
@@ -144,12 +167,14 @@ func TestRun(t *testing.T) {
 	}, time.Second, time.Millisecond*100)
 
 	// update features again and see if they are stored in the backend
-	mockCloudClient.MockGetFeatures = func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-		return &v1.GetFeaturesResponse{
-			Kubernetes: false,
-			App:        true,
-		}, nil
-	}
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+			return &v1.GetFeaturesResponse{
+				Kubernetes: false,
+				App:        true,
+			}, nil
+		},
+	)
 	// Wait for the service to fetch and store the features.
 	fakeClock.Advance(1 * time.Second)
 	// check backend again
@@ -173,9 +198,11 @@ func TestRun(t *testing.T) {
 	}, time.Second, time.Millisecond*100)
 
 	// Test that the service wont crash if it receives an error
-	mockCloudClient.MockGetFeatures = func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-		return nil, errors.New("err fetching features")
-	}
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+			return nil, errors.New("err fetching features")
+		},
+	)
 	fakeClock.Advance(1 * time.Second)
 
 	require.Eventually(t, func() bool {
@@ -198,11 +225,13 @@ func TestRun(t *testing.T) {
 	}, time.Second, time.Millisecond*100)
 
 	// Make sure it can recover after a failed request
-	mockCloudClient.MockGetFeatures = func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
-		return &v1.GetFeaturesResponse{
-			Db: true,
-		}, nil
-	}
+	mockCloudClient.setMockGetFeatures(
+		func(ctx context.Context, r *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+			return &v1.GetFeaturesResponse{
+				Db: true,
+			}, nil
+		},
+	)
 	fakeClock.Advance(1 * time.Second)
 	require.Eventually(t, func() bool {
 		item, err := backend.Get(ctx, featuresBackendKey)

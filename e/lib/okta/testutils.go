@@ -54,9 +54,7 @@ const (
 	testClusterName = "test-cluster-name"
 )
 
-var (
-	testProxyIDs = []string{"proxy-ids"}
-)
+var testProxyIDs = []string{"proxy-ids"}
 
 // testAccessPoint is a test access point for the Okta service.
 type testAccessPoint struct {
@@ -76,6 +74,7 @@ type testAccessPoint struct {
 	types.Events
 
 	serviceCounts map[types.SystemRole]uint64
+	mu            sync.Mutex
 }
 
 var _ auth.OktaAccessPoint = (*testAccessPoint)(nil)
@@ -88,7 +87,15 @@ func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuth
 
 // GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
 func (t *testAccessPoint) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.serviceCounts[service]
+}
+
+func (t *testAccessPoint) setServiceCounts(m map[types.SystemRole]uint64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.serviceCounts = m
 }
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
@@ -487,7 +494,8 @@ func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id
 }
 
 func assignment(t *testing.T, accessRequestName, user string, cleanupTime time.Time, status string, lastTransition time.Time,
-	finalized bool, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
+	finalized bool, targets ...*types.OktaAssignmentTargetV1,
+) types.OktaAssignment {
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: accessRequestName,
 		Labels: map[string]string{

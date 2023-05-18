@@ -115,7 +115,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
 	// This access request should create an Okta assignment, but the Okta service is not connected.
-	ap.serviceCounts = map[types.SystemRole]uint64{}
+	ap.setServiceCounts(map[types.SystemRole]uint64{})
 
 	// This will stop the reconciler.
 	for i := 0; i < maxOktaServiceConnectionFailures; i++ {
@@ -134,9 +134,7 @@ func TestAccessRequestReconciler(t *testing.T) {
 	require.Empty(t, reconciler.getNewAccessRequests())
 
 	// We'll reconnect the Okta service and the assignment should be created.
-	ap.serviceCounts = map[types.SystemRole]uint64{
-		types.RoleOkta: 1,
-	}
+	ap.setServiceCounts(map[types.SystemRole]uint64{types.RoleOkta: 1})
 	clock.Advance(10 * time.Minute) // This will restart the reconciler.
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 	require.Equal(t, types.ResourcesWithLabelsMap{accessRequest.GetName(): accessRequest}, reconciler.getAccessRequests())

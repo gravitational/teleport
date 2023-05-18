@@ -187,7 +187,10 @@ func (a *AccessRequestReconciler) Start(ctx context.Context) error {
 
 func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context) {
 	ticker := a.clock.NewTicker(checkInventoryWait)
-	var cancel context.CancelFunc
+	var (
+		cancel           context.CancelFunc
+		resourcesCleaned chan struct{}
+	)
 	defer ticker.Stop()
 	serviceStarted := false
 	var serviceConnectionFailures int
@@ -201,7 +204,7 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 				a.log.Infof("Okta service connected to the auth server, starting the Okta access request reconciler.")
 
 				var err error
-				cancel, err = a.start(ctx)
+				cancel, resourcesCleaned, err = a.start(ctx)
 				if err != nil {
 					a.log.Errorf("Error starting access request reconciler: %v", err)
 					continue
@@ -214,6 +217,10 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 			if serviceConnectionFailures >= maxOktaServiceConnectionFailures {
 				a.log.Infof("Okta service has disconnected, stopping the access request reconciler.")
 				cancel()
+				// wait for the resources to be cleaned up otherwise we can end up with
+				// multiple reconcilers running at the same time for short periods of time
+				// which cause tests to fail when both invoke retryer.Reset() at the same time.
+				<-resourcesCleaned
 				serviceStarted = false
 				a.log.Infof("Okta access request reconciler has stopped.")
 			} else {
@@ -236,7 +243,7 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 }
 
 // start the reconciler.
-func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc, error) {
+func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc, chan struct{}, error) {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig{
 		Matcher: func(resource types.ResourceWithLabels) bool {
 			return a.matcher(ctx, resource)
@@ -249,22 +256,26 @@ func (a *AccessRequestReconciler) start(ctx context.Context) (context.CancelFunc
 		Log:                 a.log,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	watcher, err := a.startResourceWatcher(ctx)
 	if err != nil {
 		cancel()
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	a.watcherMu.Lock()
 	a.watcher = watcher
 	a.watcherMu.Unlock()
+	resourcesCleaned := make(chan struct{})
 
-	go a.reconcile(ctx, reconciler)
+	go func() {
+		defer close(resourcesCleaned)
+		a.reconcile(ctx, reconciler)
+	}()
 
-	return cancel, nil
+	return cancel, resourcesCleaned, nil
 }
 
 // reconciler will reconcile access requests and transform them into OktaAssignments.
