@@ -2584,10 +2584,9 @@ func (process *TeleportProcess) initUploaderService() error {
 	}
 
 	// The auth service's upload completer is initialized separately.
-	// The only circumstance in which we would expect not to have found
-	// a connector is if the auth service is the only service running in
-	// this process. In that case, there's nothing to do here and we can
-	// safely return.
+	// The only circumstance in which we would expect not to have found a
+	// connector is if the Auth or MDM service is the only service running in this
+	// process. In that case, there's nothing to do here and we can safely return.
 	if conn == nil {
 		for _, localService := range types.LocalServiceMappings() {
 			if localService != types.RoleAuth && localService != types.RoleMDM && process.instanceRoleExpected(localService) {
