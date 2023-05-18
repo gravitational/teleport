@@ -140,6 +140,12 @@ spec:
   aws:
     # Region the database is deployed in.
     region: "us-east-1"
+    # Optional AWS role that the Database Service will assume to access
+    # this database.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
     # Redshift specific configuration.
     redshift:
       # Redshift cluster identifier.
