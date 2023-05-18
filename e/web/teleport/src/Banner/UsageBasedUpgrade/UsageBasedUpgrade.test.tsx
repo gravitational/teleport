@@ -49,7 +49,9 @@ describe('usageBasedUpgrade', () => {
     renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
 
     expect(
-      screen.getByText(/Your plan has been canceled effective/i)
+      screen.getByText(
+        /Your Teleport Super Pro Product account has been canceled./i
+      )
     ).toBeInTheDocument();
   });
 
@@ -59,7 +61,9 @@ describe('usageBasedUpgrade', () => {
     renderWithElementsAndContext(<UsageBasedUpgrade {...props} />);
 
     expect(
-      screen.getByText(/Your plan has been canceled effective/i)
+      screen.getByText(
+        /Your Teleport Super Pro Product account has been canceled./i
+      )
     ).toBeInTheDocument();
   });
 
@@ -73,7 +77,9 @@ describe('usageBasedUpgrade', () => {
     expect(screen.getByTestId('upgrade-banner')).toBeInTheDocument();
     expect(screen.queryByTestId('dialog')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Upgrade/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Add Payment Method/i })
+    );
     expect(screen.getByTestId('Modal')).toBeInTheDocument();
   });
 
@@ -89,9 +95,11 @@ describe('usageBasedUpgrade', () => {
 
     expect(screen.getByTestId('upgrade-banner')).toBeInTheDocument();
     expect(screen.getByTestId('message')).toHaveTextContent(
-      /To maintain access Upgrade Test Trial to Test Plan./
+      /To maintain access, add a payment method now./
     );
-    expect(screen.getByRole('button', { name: 'Upgrade' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Add Payment Method' })
+    ).toBeInTheDocument();
   });
 
   it('sets display message for trial period after adding payment with billing cycle date', () => {
@@ -162,7 +170,7 @@ const makeBillingInfo = (
       cardsList: [],
       bankAccountsList: [],
       stripePublicKey: '',
-      productName: '',
+      productName: 'Super Pro Product',
       trial: false,
       selfEnrolled: false,
       upsellAlert: false,

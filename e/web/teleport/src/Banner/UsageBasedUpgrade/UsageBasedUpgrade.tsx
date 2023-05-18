@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { ButtonPrimary, Flex, Text } from 'design';
 
 import { displayShortDate } from 'shared/services/loc/loc';
 
@@ -54,22 +54,25 @@ export const UsageBasedUpgrade = ({
       stripeSubscriptionCanceledAt != 0)
   ) {
     return (
-      <Box
+      <Flex
+        p={2}
+        justifyContent="center"
+        alignItems="center"
+        data-testid="canceled-banner"
         bg={theme.colors.error.main}
         color={theme.colors.text.primaryInverse}
-        p={1}
-        pl={2}
       >
-        <Flex alignItems="center">
-          <Warning
-            mr={3}
-            fontSize="3"
-            role="icon"
-            color={theme.colors.text.primaryInverse}
-          />
-          <CancelText stripeSubscriptionCancelAt={stripeSubscriptionCancelAt} />
-        </Flex>
-      </Box>
+        <Warning
+          mr={3}
+          fontSize="3"
+          role="icon"
+          color={theme.colors.text.primaryInverse}
+        />
+        <CancelText
+          productName={productName}
+          stripeSubscriptionCancelAt={stripeSubscriptionCancelAt}
+        />
+      </Flex>
     );
   }
 
@@ -79,18 +82,19 @@ export const UsageBasedUpgrade = ({
 
   return (
     <Flex
-      p={1}
-      bg="levels.surfaceSecondary"
+      p={2}
+      bg={theme.colors.spotBackground[1]}
       justifyContent="center"
       data-testid="upgrade-banner"
     >
       {stripeMissingPaymentMethod ? (
         <Flex alignItems="center" gap="20px">
           <Text mr={1} data-testid="message">
-            {remainingDaysText}. To maintain access Upgrade{' '}
-            <b>{productName} Trial</b> to <b>{productName} Plan</b>.
+            {remainingDaysText}. To maintain access, add a payment method now.
           </Text>
-          <ButtonPrimary onClick={handleClick}>Upgrade</ButtonPrimary>
+          <ButtonPrimary onClick={handleClick}>
+            Add Payment Method
+          </ButtonPrimary>
         </Flex>
       ) : (
         <Text mr={1} data-testid="message">

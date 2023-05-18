@@ -6,8 +6,6 @@ import { CardList } from 'e-teleport/Billing/PaymentsAndInvoices/CardList';
 import { InvoiceEmptyState } from 'e-teleport/Billing/PaymentsAndInvoices/InvoiceEmptyState';
 import { InvoiceList } from 'e-teleport/Billing/PaymentsAndInvoices/InvoiceList';
 import { PaymentsInvoicesInformation } from 'e-teleport/services/cloud';
-import { CanceledBanner } from 'e-teleport/Billing/common/CanceledBanner';
-import { StripeSubscriptionStatus } from 'e-teleport/Billing/StripeLoader/types';
 
 export const PaymentsAndInvoicesPage = ({
   data,
@@ -21,19 +19,10 @@ export const PaymentsAndInvoicesPage = ({
     productName,
     stripeTrialEnd,
     stripeDefaultSourceId,
-    stripeSubscriptionStatus,
-    stripeSubscriptionCancelAt,
-    stripeSubscriptionCanceledAt,
   } = pageState;
 
   return (
     <>
-      {(stripeSubscriptionStatus === StripeSubscriptionStatus.CANCELED ||
-        stripeSubscriptionCanceledAt != 0) && (
-        <CanceledBanner
-          stripeSubscriptionCancelAt={stripeSubscriptionCancelAt}
-        />
-      )}
       {stripeMissingPaymentMethod && (
         <PaymentBanner
           productName={productName}

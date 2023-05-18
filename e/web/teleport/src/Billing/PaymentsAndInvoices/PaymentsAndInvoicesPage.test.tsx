@@ -29,13 +29,6 @@ describe('paymentsAndInvoicesPage', () => {
     };
   });
 
-  test('if canceled, renders cancel banner', () => {
-    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
-    renderWithElementsAndContext(<PaymentsAndInvoicesPage {...props} />);
-
-    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
-  });
-
   test('renders payment CTA if missing payment method', () => {
     props.data.stripeMissingPaymentMethod = true;
     renderWithElementsAndContext(<PaymentsAndInvoicesPage {...props} />);

@@ -42,13 +42,6 @@ describe('summaryPage', () => {
     };
   });
 
-  test('if canceled, renders cancel banner', () => {
-    props.data.stripeSubscriptionStatus = StripeSubscriptionStatus.CANCELED;
-    renderWithElementsAndContext(<SummaryPage {...props} />);
-
-    expect(screen.getByText('Your account is canceled')).toBeInTheDocument();
-  });
-
   test('renders payment CTA if missing payment method', () => {
     props.data.stripeMissingPaymentMethod = true;
     renderWithElementsAndContext(<SummaryPage {...props} />);

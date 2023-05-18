@@ -112,6 +112,7 @@ export interface CancelDialogProps {
   tenant: string;
 }
 
-export interface CancelAtProps {
+export interface CancelTextProps {
+  productName: string;
   stripeSubscriptionCancelAt: number;
 }
