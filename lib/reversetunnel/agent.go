@@ -623,8 +623,9 @@ func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetwo
 			return nil, trace.Wrap(err)
 		}
 
-		v2Chan.Close()
 		go ssh.DiscardRequests(v2Reqs)
+		v2Chan.Close()
+
 		a.checkedServerVersion = true
 		a.serverHandlesGlobalRequests = true
 	}
