@@ -10,29 +10,26 @@ extern crate js_sys;
 extern crate wasm_bindgen;
 extern crate web_sys;
 
-use std::io::Cursor;
-
-use byteorder::{LittleEndian, ReadBytesExt};
-use bytes::{BufMut, Bytes, BytesMut};
 use ironrdp::graphics::image_processing::PixelFormat;
-use ironrdp::pdu::fast_path::{EncryptionFlags, FastPathHeader};
 use ironrdp::pdu::geometry::Rectangle;
 use ironrdp::session::image::DecodedImage;
 use ironrdp::session::{
-    active_session::fast_path::Processor as IronRdpFastPathProcessor,
-    active_session::fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
-    ActiveStageOutput, ActiveStageProcessor, ConnectionSequenceResult, DesktopSize, ErasedWriter,
-    FramedReader, InputConfig, RdpError,
+    fast_path::Processor as IronRdpFastPathProcessor,
+    fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder, ActiveStageOutput,
 };
-use js_sys::{ArrayBuffer, Uint8Array};
+use js_sys::Uint8Array;
 use std::convert::TryFrom;
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
+    error!("log_level: {}", log_level);
     if let Ok(level) = log_level.parse::<log::Level>() {
+        error!("level: {}", level);
         console_log::init_with_level(level).unwrap();
+    } else {
+        error!("invalid log level: {}", log_level);
     }
 }
 
@@ -143,8 +140,8 @@ impl FastPathProcessor {
     pub fn new() -> Self {
         Self {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
-                global_channel_id: 0, // todo(isaiah)
-                initiator_id: 0,      // todo(isaiah)
+                io_channel_id: 0,   // todo(isaiah)
+                user_channel_id: 0, // todo(isaiah)
             }
             .build(),
             image: DecodedImage::new(
@@ -162,24 +159,13 @@ impl FastPathProcessor {
         callback_context: &JsValue,
         callback: &js_sys::Function,
     ) -> Result<(), JsValue> {
-        let mut output_writer = BytesMut::new().writer();
+        let mut output = Vec::new();
         let tdp_fast_path_frame: RustFastPathFrame = tdp_fast_path_frame.into();
 
         let graphics_update_region = self
             .fast_path_processor
-            .process(
-                &mut self.image,
-                // TODO(isaiah): junk values here as this is only logged in fast_path_processor.process. should be refactored not to require this
-                &FastPathHeader {
-                    flags: EncryptionFlags::SECURE_CHECKSUM,
-                    data_length: 0,
-                    forced_long_length: false,
-                },
-                &tdp_fast_path_frame.data, // &frame[header.buffer_length()..], // TODO(isaiah): make sure this is all that's being passed on the backend
-                &mut output_writer,
-            )
+            .process(&mut self.image, &tdp_fast_path_frame.data, &mut output)
             .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
-        let output = output_writer.into_inner();
 
         let mut fast_path_outputs = Vec::new();
 
@@ -300,7 +286,7 @@ fn extract_whole_rows(image: &DecodedImage, region: Rectangle) -> (Rectangle, Ve
     let wider_region = Rectangle {
         left: 0,
         top: region.top,
-        right: u16::try_from(image.width() - 1).unwrap(),
+        right: image.width() - 1,
         bottom: region.bottom,
     };
 

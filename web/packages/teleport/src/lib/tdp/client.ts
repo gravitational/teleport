@@ -100,7 +100,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.DEBUG;
+      wasmLogLevel = LogType.TRACE;
     }
 
     // init initializes the wasm module into memory

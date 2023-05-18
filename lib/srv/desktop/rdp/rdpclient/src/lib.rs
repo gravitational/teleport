@@ -49,47 +49,33 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use errors::try_error;
-use futures_util::io::{AsyncWrite, AsyncWriteExt};
 use futures_util::Future;
-use ironrdp::input::fast_path::{FastPathInput, FastPathInputEvent};
-use ironrdp::input::mouse::PointerFlags;
-use ironrdp::input::MousePdu;
 use ironrdp::pdu::geometry::Rectangle;
-use ironrdp::pdu::{DataHeader, PduParsing};
-use ironrdp::session::active_session::x224;
-use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
+use ironrdp::pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+use ironrdp::pdu::input::mouse::PointerFlags;
+use ironrdp::pdu::input::MousePdu;
+use ironrdp::pdu::PduParsing;
 use ironrdp::session::image::DecodedImage;
 use ironrdp::session::utils::swap_hashmap_kv;
-use ironrdp::session::{
-    process_header, ActiveStageOutput, ErasedWriter, FramedReader, InputConfig,
-    RdpError as IronRdpError,
-};
+use ironrdp::session::{x224, ActiveStageOutput, SessionError, SessionErrorKind, SessionResult};
 use rdp::core::event::*;
-use rdp::core::global;
-use rdp::core::mcs;
-use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
+use rdp::model::error::{Error as RdpError, RdpResult};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use sspi::{AuthIdentity, Secret};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::ffi::{CStr, CString, NulError};
 use std::fmt::Debug;
-use std::io::Error as IoError;
-use std::io::{Cursor, Read, Write};
+use std::io::Cursor;
+use std::io::{self, Error as IoError};
+use std::net::ToSocketAddrs;
 use std::os::raw::c_char;
 use std::pin::Pin;
 use std::{mem, ptr, slice, time};
-use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio_util::compat::TokioAsyncReadCompatExt as _;
-use x509_parser::prelude::{FromDer as _, X509Certificate};
-
-pub fn test() {}
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -97,16 +83,14 @@ pub extern "C" fn init() {
 }
 
 pub struct IronRDPClient {
-    reader: FramedReader,
-    writer: ErasedWriter,
+    framed: UpgradedFramed,
     x224_processor: x224::Processor,
 }
 
 impl IronRDPClient {
-    fn new(reader: FramedReader, writer: ErasedWriter, x224_processor: x224::Processor) -> Self {
+    fn new(upgraded_framed: UpgradedFramed, x224_processor: x224::Processor) -> Self {
         Self {
-            reader,
-            writer,
+            framed: upgraded_framed,
             x224_processor,
         }
     }
@@ -120,10 +104,7 @@ type Fut<T> = Pin<Box<dyn Future<Output = T>>>;
 type AsyncFn<Args, Return> = Box<dyn Fn(Args) -> Fut<Return>>;
 type AsyncFnCache<Key, Args, Return> = HashMap<Key, AsyncFn<Args, Return>>;
 
-type FastPathResponseArgs = (
-    &'static mut Client,
-    Result<Vec<ActiveStageOutput>, IronRdpError>,
-);
+type FastPathResponseArgs = (&'static mut Client, SessionResult<Vec<ActiveStageOutput>>);
 type FastPathResponseReturn = Option<ReadRdpOutputReturns>;
 type FastPathResponseCache = AsyncFnCache<RpcId, FastPathResponseArgs, FastPathResponseReturn>;
 
@@ -175,42 +156,36 @@ impl Client {
         drop(Box::from_raw(ptr))
     }
 
-    fn read_frame(
-        &mut self,
-    ) -> impl std::future::Future<Output = Result<Option<BytesMut>, ironrdp::pdu::RdpError>> + '_
-    {
-        self.iron_rdp_client.reader.read_frame()
+    async fn read_pdu(&mut self) -> io::Result<(ironrdp::pdu::Action, BytesMut)> {
+        self.iron_rdp_client.framed.read_pdu().await
     }
 
-    fn process_x224_frame(
-        &mut self,
-        _header: DataHeader,
-        frame: Bytes,
-    ) -> Result<Vec<ActiveStageOutput>, IronRdpError> {
-        match self.iron_rdp_client.x224_processor.process(frame) {
-            Ok(output) => Ok(vec![ActiveStageOutput::ResponseFrame(output)]),
-            Err(IronRdpError::UnexpectedDisconnection(message)) => {
-                warn!("User-Initiated disconnection on Server: {}", message);
-                Ok(vec![ActiveStageOutput::Terminate])
-            }
-            Err(IronRdpError::UnexpectedChannel(channel_id)) => {
-                warn!("Got message on a channel with {} ID", channel_id);
-                Ok(vec![ActiveStageOutput::Terminate])
-            }
-            Err(err) => Err(err),
+    async fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.iron_rdp_client.framed.write_all(buf).await
+    }
+
+    fn process_x224_frame(&mut self, frame: &[u8]) -> SessionResult<Vec<ActiveStageOutput>> {
+        let output = self.iron_rdp_client.x224_processor.process(frame)?;
+        let mut stage_outputs = Vec::new();
+        if !output.is_empty() {
+            stage_outputs.push(ActiveStageOutput::ResponseFrame(output));
         }
+        Ok(stage_outputs)
     }
 
+    // Iterates through any response frames in result, sending them to the RDP server.
+    // Typically returns None if everything goes as expected and the session should continue.
+    // TODO(isaiah): this api is weird, should probably return a Result instead of an Option.
     async fn process_active_stage_result(
         &mut self,
-        result: Result<Vec<ActiveStageOutput>, IronRdpError>,
+        result: SessionResult<Vec<ActiveStageOutput>>,
     ) -> Option<ReadRdpOutputReturns> {
         match result {
             Ok(outputs) => {
                 for output in outputs {
                     match output {
                         ActiveStageOutput::ResponseFrame(response) => {
-                            match self.write_frame(&response).await {
+                            match self.write_all(&response).await {
                                 Ok(_) => continue,
                                 Err(e) => {
                                     return Some(ReadRdpOutputReturns {
@@ -251,13 +226,6 @@ impl Client {
 
         // All outputs were response frames, return None to indicate that the client should continue
         None
-    }
-
-    fn write_frame<'a>(
-        &'a mut self,
-        frame: &'a [u8],
-    ) -> futures_util::io::WriteAll<Pin<Box<(dyn AsyncWrite + Send + 'static)>>> {
-        self.iron_rdp_client.writer.write_all(frame)
     }
 
     fn next_id(&mut self) -> u32 {
@@ -341,7 +309,7 @@ enum ConnectError {
     Tcp(IoError),
     Rdp(RdpError),
     InvalidAddr(),
-    IronRdpError(IronRdpError),
+    IronRdpError(SessionError),
 }
 
 impl From<IoError> for ConnectError {
@@ -387,146 +355,113 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
+type UpgradedFramed = ironrdp::tokio::TokioFramed<ironrdp::tls::TlsStream<TokioTcpStream>>;
+
 fn connect_rdp_inner(
     go_ref: usize,
     tokio_rt: tokio::runtime::Runtime,
     params: ConnectParams,
 ) -> Result<*mut Client, ConnectError> {
     match tokio_rt.block_on(async {
-        let addr =
-            ironrdp::session::connection_sequence::Address::lookup_addr("54.144.205.187:3389")?; //todo(isaiah): hardcoded
+        let server_addr = ("54.144.205.187", 3389).to_socket_addrs()?.next().unwrap(); //todo(isaiah): hardcoded
 
-        let stream = match TokioTcpStream::connect(addr.sock)
-            .await
-            .map_err(IronRdpError::Connection)
-        {
+        let stream = match TokioTcpStream::connect(&server_addr).await {
             Ok(it) => it,
-            Err(err) => return Err(ConnectError::IronRdpError(err)),
+            Err(err) => {
+                error!("tcp connect error: {:?}", err);
+                return Err(ConnectError::IronRdpError(SessionError::new(
+                    "tcp connect error",
+                    SessionErrorKind::General,
+                )));
+            }
         };
 
-        let pass = std::env::var("RDP_PASSWORD").unwrap();
+        let mut framed = ironrdp::tokio::TokioFramed::new(stream);
 
-        let input = InputConfig {
-            credentials: AuthIdentity {
-                username: "Administrator".to_string(),
-                password: Secret::new(pass), //todo(isaiah): hardcoded
-                domain: None,
+        let connector_config = ironrdp::connector::Config {
+            desktop_size: ironrdp::connector::DesktopSize {
+                width: 1728, //todo(isaiah): hardcoded
+                height: 932, //todo(isaiah): hardcoded
             },
-            security_protocol: ironrdp::pdu::SecurityProtocol::HYBRID_EX,
+            security_protocol: ironrdp::pdu::nego::SecurityProtocol::HYBRID_EX,
+            username: "Administrator".to_string(),
+            password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
+            domain: None,
+            client_build: 0, //todo(isaiah)
+            client_name: "Teleport".to_string(),
             keyboard_type: ironrdp::pdu::gcc::KeyboardType::IbmEnhanced,
             keyboard_subtype: 0,
             keyboard_functional_keys_count: 12,
             ime_file_name: "".to_string(),
+            graphics: None,
+            bitmap: Some(ironrdp::connector::BitmapConfig {
+                lossy_compression: true,
+                color_depth: 16, // todo(isaiah): try 32
+            }),
             dig_product_id: "".to_string(),
-            width: 1728, //todo(isaiah): hardcoded
-            height: 932, //todo(isaiah): hardcoded
-            global_channel_name: "GLOBAL".to_string(),
-            user_channel_name: "USER".to_string(),
-            graphics_config: None,
+            client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
+            platform: ironrdp::pdu::rdp::capability_sets::MajorPlatformType::Unspecified,
         };
 
-        let (connection_sequence_result, reader, writer) = match process_connection_sequence(
-            stream.compat(),
-            &addr,
-            &input,
-            establish_tls,
-            Box::new(RequestClientFactory),
-        )
-        .await
+        let mut connector = ironrdp::connector::ClientConnector::new(connector_config)
+            .with_server_addr(server_addr)
+            .with_server_name("54.144.205.187:3389".to_string()) // todo(isaiah): hardcoded
+            .with_credssp_client_factory(Box::new(RequestClientFactory));
+
+        let should_upgrade = match ironrdp::tokio::connect_begin(&mut framed, &mut connector).await
         {
             Ok(it) => it,
-            Err(err) => return Err(ConnectError::IronRdpError(err)),
+            Err(e) => {
+                error!("connect_begin error: {:?}", e);
+                return Err(ConnectError::IronRdpError(SessionError::new(
+                    "connect_begin error",
+                    SessionErrorKind::General,
+                )));
+            }
         };
 
+        debug!("TLS upgrade");
+
+        // Ensure there is no leftover
+        let initial_stream = framed.into_inner_no_leftover();
+        let (upgraded_stream, server_public_key) =
+            ironrdp::tls::upgrade(initial_stream, "54.144.205.187").await?;
+
+        let upgraded =
+            ironrdp::tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
+
+        let mut upgraded_framed = ironrdp::tokio::TokioFramed::new(upgraded_stream);
+
+        let connection_result =
+            match ironrdp::tokio::connect_finalize(upgraded, &mut upgraded_framed, connector).await
+            {
+                Ok(it) => it,
+                Err(e) => {
+                    error!("connect_finalize error: {:?}", e);
+                    return Err(ConnectError::IronRdpError(SessionError::new(
+                        "connect_finalize error",
+                        SessionErrorKind::General,
+                    )));
+                }
+            };
+
         let x224_processor = x224::Processor::new(
-            swap_hashmap_kv(connection_sequence_result.joined_static_channels),
-            connection_sequence_result.initiator_id,
-            connection_sequence_result.global_channel_id,
-            input.graphics_config,
+            swap_hashmap_kv(connection_result.static_channels),
+            connection_result.user_channel_id,
+            connection_result.io_channel_id,
+            None,
             None,
         );
 
-        Ok((reader, writer, x224_processor))
+        Ok((upgraded_framed, x224_processor))
     }) {
-        Ok((reader, writer, x224_processor)) => Ok(Client::new(
-            IronRDPClient::new(reader, writer, x224_processor),
+        Ok((upgraded_framed, x224_processor)) => Ok(Client::new(
+            IronRDPClient::new(upgraded_framed, x224_processor),
             go_ref,
             tokio_rt,
         )),
         Err(err) => Err(err),
     }
-}
-
-type TlsStream = tokio_util::compat::Compat<tokio_rustls::client::TlsStream<TokioTcpStream>>;
-mod danger {
-    use std::time::SystemTime;
-
-    use tokio_rustls::rustls::client::ServerCertVerified;
-    use tokio_rustls::rustls::{Certificate, Error, ServerName};
-
-    pub struct NoCertificateVerification;
-
-    impl tokio_rustls::rustls::client::ServerCertVerifier for NoCertificateVerification {
-        fn verify_server_cert(
-            &self,
-            _end_entity: &Certificate,
-            _intermediates: &[Certificate],
-            _server_name: &ServerName,
-            _scts: &mut dyn Iterator<Item = &[u8]>,
-            _ocsp_response: &[u8],
-            _now: SystemTime,
-        ) -> Result<ServerCertVerified, Error> {
-            Ok(tokio_rustls::rustls::client::ServerCertVerified::assertion())
-        }
-    }
-}
-
-// TODO: this can be refactored into a separate `ironrdp-tls` crate (all native clients will do the same TLS dance)
-pub async fn establish_tls(
-    stream: tokio_util::compat::Compat<TokioTcpStream>,
-) -> Result<UpgradedStream<TlsStream>, IronRdpError> {
-    let stream = stream.into_inner();
-
-    let mut tls_stream = {
-        let mut client_config = tokio_rustls::rustls::client::ClientConfig::builder()
-            .with_safe_defaults()
-            .with_custom_certificate_verifier(std::sync::Arc::new(
-                danger::NoCertificateVerification,
-            ))
-            .with_no_client_auth();
-        // This adds support for the SSLKEYLOGFILE env variable (https://wiki.wireshark.org/TLS#using-the-pre-master-secret)
-        client_config.key_log = std::sync::Arc::new(tokio_rustls::rustls::KeyLogFile::new());
-        let rc_config = std::sync::Arc::new(client_config);
-        let example_com = "stub_string".try_into().unwrap();
-        let connector = tokio_rustls::TlsConnector::from(rc_config);
-        connector.connect(example_com, stream).await?
-    };
-
-    tls_stream.flush().await?;
-
-    let server_public_key = {
-        let cert = tls_stream
-            .get_ref()
-            .1
-            .peer_certificates()
-            .ok_or(IronRdpError::MissingPeerCertificate)?[0]
-            .as_ref();
-        get_tls_peer_pubkey(cert.to_vec())?
-    };
-
-    Ok(UpgradedStream {
-        stream: tls_stream.compat(),
-        server_public_key,
-    })
-}
-
-fn get_tls_peer_pubkey(cert: Vec<u8>) -> std::io::Result<Vec<u8>> {
-    let res = X509Certificate::from_der(&cert[..]).map_err(|_| {
-        std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid der certificate.")
-    })?;
-    let public_key = res.1.tbs_certificate.subject_pki.subject_public_key;
-
-    Ok(public_key.data.to_vec())
 }
 
 /// CGOPNG is a CGO-compatible version of PNG that we pass back to Go.
@@ -828,120 +763,59 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
 
 async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
     loop {
-        let mut frame = match client.read_frame().await {
-            Ok(it) => match it {
-                Some(frame) => frame,
-                None => {
-                    // IronRDP returns RdpError::AccessDenied here.
-                    error!("access denied");
-                    return ReadRdpOutputReturns {
-                        user_message: "Access denied".to_string(),
-                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                        err_code: CGOErrCode::ErrCodeFailure,
-                    };
-                }
-            },
-            Err(err) => {
-                error!("failed to read frame: {}", err);
+        let (action, mut frame) = match client.read_pdu().await {
+            Ok(it) => it,
+            Err(e) => {
                 return ReadRdpOutputReturns {
-                    user_message: "Failed to read frame".to_string(),
+                    user_message: "error reading PDU".to_string(),
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
-                };
+                }
             }
         };
+        trace!(
+            "Frame received, action = {:?}, frame_len = {:?}",
+            action,
+            frame.len()
+        );
 
-        // TODO(isaiah): get rid of this clone
-        let frozen = frame.clone().freeze();
-        match process_header(&frozen) {
-            Ok(header) => {
-                match header {
-                    ironrdp::pdu::PduHeader::X224(_header) => {
-                        let result = client.process_x224_frame(_header, frame.into());
-                        if let Some(return_value) = client.process_active_stage_result(result).await
-                        {
-                            return return_value;
-                        }
-                    }
-                    ironrdp::pdu::PduHeader::FastPath(header) => {
-                        let go_ref = client.go_ref;
-                        let id = client.next_id();
-                        match unsafe {
-                            handle_remote_fx_frame(
-                                go_ref,
-                                id,
-                                // frame.as_mut_ptr(),
-                                frame[header.buffer_length()..].as_mut_ptr(), // todo(isaiah): note this removal of the header in the handle_remote_fx_frame api
-                                frame.len() as u32,
-                            )
-                        } {
-                            CGOErrCode::ErrCodeSuccess => {
-                                client.pending_fp_resp_handlers.insert(
-                                    id,
-                                    Box::new(|(cli, resp)| {
-                                        Box::pin(async move {
-                                            {
-                                                cli.process_active_stage_result(resp).await
-                                            }
-                                        })
-                                    }),
-                                );
-                            }
-                            err => {
-                                error!("failed to process fastpath frame: {:?}", err);
-                                return ReadRdpOutputReturns {
-                                    user_message: "Failed to process fastpath frame".to_string(),
-                                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                    err_code: err,
-                                };
-                            }
-                        }
-                    }
-                };
+        match action {
+            ironrdp::pdu::Action::X224 => {
+                let result = client.process_x224_frame(&frame);
+                if let Some(return_value) = client.process_active_stage_result(result).await {
+                    return return_value;
+                }
             }
-            Err(err) => {
-                error!("failed to process header: {}", err);
-                return ReadRdpOutputReturns {
-                    user_message: "Failed to process header".to_string(),
-                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                    err_code: CGOErrCode::ErrCodeFailure,
-                };
+            ironrdp::pdu::Action::FastPath => {
+                let go_ref = client.go_ref;
+                let id = client.next_id();
+                match unsafe {
+                    handle_remote_fx_frame(go_ref, id, frame.as_mut_ptr(), frame.len() as u32)
+                } {
+                    CGOErrCode::ErrCodeSuccess => {
+                        client.pending_fp_resp_handlers.insert(
+                            id,
+                            Box::new(|(cli, resp)| {
+                                Box::pin(async move {
+                                    {
+                                        cli.process_active_stage_result(resp).await
+                                    }
+                                })
+                            }),
+                        );
+                    }
+                    err => {
+                        error!("failed to process fastpath frame: {:?}", err);
+                        return ReadRdpOutputReturns {
+                            user_message: "Failed to process fastpath frame".to_string(),
+                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                            err_code: err,
+                        };
+                    }
+                }
             }
-        }
+        };
     }
-}
-
-fn extract_partial_image(image: &DecodedImage, region: &Rectangle) -> Vec<u8> {
-    let pixel_size = usize::from(image.pixel_format().bytes_per_pixel());
-
-    let image_width = usize::try_from(image.width()).unwrap();
-
-    let region_top = usize::from(region.top);
-    let region_left = usize::from(region.left);
-    let region_width = usize::from(region.width());
-    let region_height = usize::from(region.height());
-
-    let dst_buf_size = region_width * region_height * pixel_size;
-    let mut dst = vec![0; dst_buf_size];
-
-    let src = image.data();
-
-    let image_stride = image_width * pixel_size;
-    let region_stride = region_width * pixel_size;
-
-    for row in 0..region_height {
-        let src_begin = image_stride * (region_top + row) + region_left * pixel_size;
-        let src_end = src_begin + region_stride;
-        let src_slice = &src[src_begin..src_end];
-
-        let target_begin = region_stride * row;
-        let target_end = target_begin + region_stride;
-        let target_slice = &mut dst[target_begin..target_end];
-
-        target_slice.copy_from_slice(src_slice);
-    }
-
-    dst
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -1029,7 +903,7 @@ impl From<CGOActiveStageOutput> for ActiveStageOutput {
             match cgo.ouput_type {
                 CGOActiveStageOutputType::ResponseFrame => {
                     let frame = from_go_array(cgo.response_frame, cgo.response_frame_len);
-                    ActiveStageOutput::ResponseFrame(BytesMut::from(frame.as_slice()))
+                    ActiveStageOutput::ResponseFrame(frame)
                 }
                 CGOActiveStageOutputType::Terminate => ActiveStageOutput::Terminate,
             }
@@ -1168,8 +1042,7 @@ pub unsafe extern "C" fn write_rdp_pointer(
 
     client.tokio_rt.handle().clone().block_on(async {
         // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
-        client.write_frame(data.as_slice()).await.unwrap(); // todo(isaiah): handle error
-                                                            // todo(isaiah): need to flush here?
+        client.write_all(&data).await.unwrap(); // todo(isaiah): handle error
     });
 
     CGOErrCode::ErrCodeSuccess
