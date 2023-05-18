@@ -51,7 +51,7 @@ func TestExecuteCommand(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewWStream(context.Background(), ws, utils.NewLoggerForTests().WithField(trace.Component, "test"))
+	stream := NewWStream(context.Background(), ws, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 }

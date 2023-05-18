@@ -1220,7 +1220,7 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, msg))
 }
 
-// readChallenge reads and decodes the challenge response from the
+// readChallengeResponse reads and decodes the challenge response from the
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	select {
@@ -1232,7 +1232,7 @@ func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenti
 	}
 }
 
-// readChallenge reads and decodes the challenge response from the
+// readChallenge reads and decodes the challenge from the
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
 	select {
@@ -1298,8 +1298,9 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 	return len(data), nil
 }
 
-// Read unwraps the envelope and either fills out the passed in bytes or
-// performs an action on the connection (sending window-change request).
+// Read provides data received from [defaults.WebsocketRaw] envelopes. If
+// the previous envelope was not consumed in the last read any remaining data
+// is returned prior to processing the next envelope.
 func (t *WSStream) Read(out []byte) (n int, err error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)

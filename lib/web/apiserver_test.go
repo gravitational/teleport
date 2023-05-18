@@ -7147,10 +7147,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 func waitForOutput(stream *TerminalStream, substr string) error {
 	timeoutCh := time.After(100 * time.Second)
 
-	size := 100
-	if len(substr)*2 > size {
-		size = len(substr) * 2
-	}
+	size := len(substr) * 2
 	for {
 		select {
 		case <-timeoutCh:
@@ -7219,25 +7216,29 @@ func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequ
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		data, err := json.Marshal(reqData)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "begin"), bytes.NewBuffer(data))
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		return clt.HTTPClient().Do(req)
+		resp, err := clt.HTTPClient().Do(req)
+		return resp, trace.Wrap(err)
 	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var challenge client.MFAAuthenticateChallenge
 	err = json.Unmarshal(resp.Bytes(), &challenge)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	car, err := device.SignAssertion("https://localhost", challenge.WebauthnChallenge)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
@@ -7247,14 +7248,15 @@ func (s *WebSuite) loginMFA(clt *TestWebClient, reqData *client.MFAChallengeRequ
 		}
 		data, err := json.Marshal(respData)
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "mfa", "login", "finishsession"), bytes.NewBuffer(data))
 		if err != nil {
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 		req.Header.Set("Content-Type", "application/json")
-		return clt.HTTPClient().Do(req)
+		resp, err := clt.HTTPClient().Do(req)
+		return resp, trace.Wrap(err)
 	}))
 }
 

@@ -16,9 +16,11 @@ package types
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,20 +47,21 @@ func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 	require.NoError(t, err)
 
 	// Presence cannot be updated for a non-existent user
-	err = s.UpdatePresence("alpaca")
+	err = s.UpdatePresence("alpaca", clock.Now().UTC().Add(time.Hour))
 	require.ErrorIs(t, err, trace.NotFound("participant alpaca not found"))
 
 	// Update presence for just the user fish
-	require.NoError(t, s.UpdatePresence("fish"))
+	require.NoError(t, s.UpdatePresence("fish", clock.Now().UTC().Add(time.Hour)))
 
 	// Verify that user llama still has a LastActive time matching the
 	// fake clock used by the test but that user fish has their LastActive
 	// time modified
 	for _, participant := range s.GetParticipants() {
+		lastActive := clock.Now().UTC()
 		if participant.User == "fish" {
-			require.NotEqual(t, clock.Now().UTC(), participant.LastActive)
-		} else {
-			require.Equal(t, clock.Now().UTC(), participant.LastActive)
+			lastActive = clock.Now().UTC().Add(time.Hour)
 		}
+
+		assert.Equal(t, lastActive, participant.LastActive)
 	}
 }
