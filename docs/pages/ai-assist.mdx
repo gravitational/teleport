@@ -74,7 +74,27 @@ proxy_service:
 
 
 Make sure that your Teleport user has the `assist` permission. By default, users with built-in `auditor` and `editor` roles
-have this permission. You can also add it to a custom role. For more details, check out the [Create a custom role](https://goteleport.com/docs/access-controls/getting-started/#step-33-create-a-custom-role).
+have this permission. You can also add it to a custom role. Here is an example:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: assist
+spec:
+  allow:
+    rules:
+    - resources:
+      - assistant
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+```
+
+For more details, check out the [Create a custom role](https://goteleport.com/docs/access-controls/getting-started/#step-33-create-a-custom-role).
 
 ## Step 3/3. Example use
 
