@@ -5063,7 +5063,7 @@ message PluginSpecV1 {
     // Settings for the Okta plugin
     PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
-    PluginMDMJamfSettings jamf = 5;
+    PluginJamfSettings jamf = 5;
   }
 }
 
@@ -5092,7 +5092,7 @@ message PluginOpenAISettings {
 }
 
 // Defines settings for Jamf plugin.
-message PluginMDMJamfSettings {
+message PluginJamfSettings {
   option (gogoproto.equal) = true;
   // Jamf service spec
   JamfSpecV1 jamf_spec = 1;
