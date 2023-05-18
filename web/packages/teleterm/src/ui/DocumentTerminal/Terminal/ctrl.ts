@@ -105,7 +105,6 @@ export default class TtyTerminal {
   }
 
   destroy(): void {
-    this.ptyProcess?.dispose();
     this.term?.dispose();
     this.fitAddon.dispose();
     this.resizeHandler?.dispose();

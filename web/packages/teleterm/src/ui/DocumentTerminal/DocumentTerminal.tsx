@@ -39,15 +39,14 @@ export function DocumentTerminal(props: {
   const ctx = useAppContext();
   const { configService } = ctx.mainProcessClient;
   const { visible, doc } = props;
-  const { attempt, reconnect } = useDocumentTerminal(doc);
-  const ptyProcess = attempt.data?.ptyProcess;
+  const { attempt, initializePtyProcess } = useDocumentTerminal(doc);
   const { upload, download } = useTshFileTransferHandlers();
   const unsanitizedTerminalFontFamily = configService.get(
     'terminal.fontFamily'
   ).value;
   const terminalFontSize = configService.get('terminal.fontSize').value;
 
-  // Creating a new terminal might fail for multiple reasons, for example:
+  // Initializing a new terminal might fail for multiple reasons, for example:
   //
   // * The user tried to execute `tsh ssh user@host` from the command bar and the request which
   // tries to resolve `host` to a server object failed due to a network or cluster error.
@@ -118,9 +117,16 @@ export function DocumentTerminal(props: {
       autoFocusDisabled={true}
     >
       {$fileTransfer}
-      {ptyProcess && (
+      {attempt.status === 'success' && (
         <Terminal
-          ptyProcess={ptyProcess}
+          // The key prop makes sure that we render Terminal only once for each PTY process.
+          //
+          // When startError occurs and the user initializes a new PTY process, we want to reset all
+          // state in <Terminal> and re-run all hooks for the new PTY process.
+          key={attempt.data.ptyProcess.getPtyId()}
+          docKind={doc.kind}
+          ptyProcess={attempt.data.ptyProcess}
+          reconnect={initializePtyProcess}
           visible={props.visible}
           unsanitizedFontFamily={unsanitizedTerminalFontFamily}
           fontSize={terminalFontSize}
