@@ -637,7 +637,7 @@ func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetwo
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if !ok {
-		return nil, trace.NotImplemented("the proxy server does not support netconfig requests")
+		return nil, trace.Errorf("%s request rejected: %s", teleport.NetconfigRequest, string(payload))
 	}
 
 	// Failing to unmarshal most likely indicates a server side network failure

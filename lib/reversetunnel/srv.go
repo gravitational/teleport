@@ -574,11 +574,11 @@ func (s *server) handleNetConfigRequest(ctx context.Context, req *ssh.Request) {
 	// that does not support the request and a transient error.
 	netconfig, err := s.localAccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		req.Reply(true, []byte(fmt.Sprintf("failed to get cluster networking config: %v", err)))
+		req.Reply(false, []byte(fmt.Sprintf("failed to get cluster networking config: %v", err)))
 	}
 	payload, err := json.Marshal(netconfig)
 	if err != nil {
-		req.Reply(true, []byte(fmt.Sprintf("failed to marshal cluster networking config: %v", err)))
+		req.Reply(false, []byte(fmt.Sprintf("failed to marshal cluster networking config: %v", err)))
 	}
 
 	err = req.Reply(true, payload)
