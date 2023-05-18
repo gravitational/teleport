@@ -987,6 +987,14 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
 		DataDir:      s.cfg.DataDir,
+		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
+			return &common.UserProvisioner{
+				AuthClient: s.cfg.AuthClient,
+				Backend:    aub,
+				Log:        sessionCtx.Log,
+				Clock:      s.cfg.Clock,
+			}
+		},
 	})
 }
 
@@ -1023,17 +1031,26 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.NotFound("%q not found among registered databases: %v",
 			identity.RouteToDatabase.ServiceName, registeredDatabases)
 	}
+
+	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
+
 	id := uuid.New().String()
-	return &common.Session{
+	sessionCtx := &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
 		HostID:            s.cfg.HostID,
 		Database:          database,
 		Identity:          identity,
+		AutoCreateUser:    autoCreate,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
+		DatabaseRoles:     databaseRoles,
 		AuthContext:       authContext,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
@@ -1042,7 +1059,10 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 			"db": database.GetName(),
 		}),
 		LockTargets: authContext.LockTargets(),
-	}, nil
+	}
+
+	s.log.Debugf("Session context: %+v.", sessionCtx)
+	return sessionCtx, nil
 }
 
 // fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
