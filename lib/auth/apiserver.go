@@ -871,10 +871,10 @@ func (s *APIServer) searchSessionEvents(auth ClientI, w http.ResponseWriter, r *
 	}
 	// only pull back start and end events to build list of completed sessions
 	eventsList, _, err := auth.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-		FromUTC: from,
-		ToUTC:   to,
-		Limit:   limit,
-		Order:   types.EventOrderDescending,
+		From:  from,
+		To:    to,
+		Limit: limit,
+		Order: types.EventOrderDescending,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -1979,8 +1979,8 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 			pageSize = remaining
 		}
 		nextEvents, eventKey, err := authClient.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-			FromUTC:  fromUTC,
-			ToUTC:    toUTC,
+			From:     fromUTC,
+			To:       toUTC,
 			Limit:    pageSize,
 			Order:    order,
 			StartKey: prevEventKey,

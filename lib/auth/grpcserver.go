@@ -3519,8 +3519,8 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 	}
 
 	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		FromUTC:  req.StartDate,
-		ToUTC:    req.EndDate,
+		From:     req.StartDate,
+		To:       req.EndDate,
 		Limit:    int(req.Limit),
 		Order:    types.EventOrder(req.Order),
 		StartKey: req.StartKey,

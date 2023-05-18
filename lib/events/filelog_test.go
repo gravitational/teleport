@@ -126,10 +126,10 @@ func TestSearchSessionEvents(t *testing.T) {
 	clock.Advance(1 * time.Minute)
 
 	result, _, err := log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
-		FromUTC: start,
-		ToUTC:   clock.Now(),
-		Limit:   10,
-		Order:   types.EventOrderAscending,
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
@@ -147,10 +147,10 @@ func TestSearchSessionEvents(t *testing.T) {
 	clock.Advance(1 * time.Minute)
 
 	result, _, err = log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
-		FromUTC: start,
-		ToUTC:   clock.Now(),
-		Limit:   10,
-		Order:   types.EventOrderAscending,
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 1)
@@ -168,10 +168,10 @@ func TestSearchSessionEvents(t *testing.T) {
 	clock.Advance(1 * time.Minute)
 
 	result, _, err = log.SearchSessionEvents(ctx, SearchSessionEventsRequest{
-		FromUTC: start,
-		ToUTC:   clock.Now(),
-		Limit:   10,
-		Order:   types.EventOrderAscending,
+		From:  start,
+		To:    clock.Now(),
+		Limit: 10,
+		Order: types.EventOrderAscending,
 	})
 	require.NoError(t, err)
 	require.Len(t, result, 2)

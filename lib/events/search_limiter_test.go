@@ -71,10 +71,10 @@ func TestSearchEventsLimiter(t *testing.T) {
 				})
 			} else {
 				_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-					FromUTC: someDate,
-					ToUTC:   someDate,
-					Limit:   100,
-					Order:   types.EventOrderAscending,
+					From:  someDate,
+					To:    someDate,
+					Limit: 100,
+					Order: types.EventOrderAscending,
 				})
 			}
 			require.NoError(t, err)
@@ -89,10 +89,10 @@ func TestSearchEventsLimiter(t *testing.T) {
 		require.True(t, trace.IsLimitExceeded(err))
 		// Also on SearchSessionEvents
 		_, _, err = s.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-			FromUTC: someDate,
-			ToUTC:   someDate,
-			Limit:   100,
-			Order:   types.EventOrderAscending,
+			From:  someDate,
+			To:    someDate,
+			Limit: 100,
+			Order: types.EventOrderAscending,
 		})
 		require.True(t, trace.IsLimitExceeded(err))
 

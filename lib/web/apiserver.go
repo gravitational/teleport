@@ -2931,8 +2931,8 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
-			FromUTC:  from,
-			ToUTC:    to,
+			From:     from,
+			To:       to,
 			Limit:    limit,
 			Order:    order,
 			StartKey: startKey,
