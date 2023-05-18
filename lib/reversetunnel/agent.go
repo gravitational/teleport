@@ -195,9 +195,9 @@ type agent struct {
 	drainWG sync.WaitGroup
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
-	// serverHandlesGlobalRequests indicates the ssh server the agent is connected to
+	// isV2Server indicates the ssh server the agent is connected to
 	// can handle global requests properly.
-	serverHandlesGlobalRequests bool
+	isV2Server bool
 	// checkServerVersion indicates whether the server version has been successfully checked.
 	checkedServerVersion bool
 	// serverVersionMu ensures that a single server version check happens at a time.
@@ -603,12 +603,12 @@ func (a *agent) handleDrainChannels() error {
 	}
 }
 
-// GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
-// trace.NotImplemented is returned when the proxy rejects the request.
-func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+// handlesGlobalRequests attempts to open a server version channel on the first call.
+// The channel being rejected indicates the server does not properly handle global requests.
+// Subsequent calls returns a cached result.
+func (a *agent) handlesGlobalRequests() (bool, error) {
 	a.serverVersionMu.Lock()
 	defer a.serverVersionMu.Unlock()
-	notHandledErr := trace.NotImplemented("the proxy server does not support global requests")
 
 	if !a.checkedServerVersion {
 		// Check to see if client -> server global requests are handled properly.
@@ -617,21 +617,30 @@ func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetwo
 		v2Chan, v2Reqs, err := a.client.OpenChannel(a.ctx, teleport.ReverseTunnelServerV2Channel, nil)
 		if errors.Is(err, &ssh.OpenChannelError{}) {
 			a.checkedServerVersion = true
-			return nil, notHandledErr
+			a.isV2Server = false
+			return a.isV2Server, nil
 
 		} else if err != nil {
-			return nil, trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
 
 		go ssh.DiscardRequests(v2Reqs)
 		v2Chan.Close()
 
 		a.checkedServerVersion = true
-		a.serverHandlesGlobalRequests = true
+		a.isV2Server = true
+		return a.isV2Server, nil
 	}
+	return a.isV2Server, nil
+}
 
-	if !a.serverHandlesGlobalRequests {
-		return nil, notHandledErr
+// GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
+// trace.NotImplemented is returned when the proxy rejects the request.
+func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	if ok, err := a.handlesGlobalRequests(); err != nil {
+		return nil, trace.Wrap(err)
+	} else if !ok {
+		return nil, trace.NotImplemented("the proxy server does not support global requests")
 	}
 
 	ok, payload, err := a.client.SendRequest(ctx, teleport.NetconfigRequest, true, nil)
