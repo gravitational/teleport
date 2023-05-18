@@ -49,6 +49,10 @@ export class MockPtyProcess implements IPtyProcess {
     return 0;
   }
 
+  getPtyId() {
+    return '1234';
+  }
+
   async getCwd() {
     return '';
   }

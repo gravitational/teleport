@@ -28,6 +28,7 @@ export type IPtyProcess = {
   resize(cols: number, rows: number): void;
   dispose(): void;
   getCwd(): Promise<string>;
+  getPtyId(): string;
   // The listener removal functions are used only on the frontend app side from the renderer process.
   // They're not used in the shared process. However, IPtyProcess is a type shared between both, so
   // both sides need to return them. In the future we should consider defining two separate types

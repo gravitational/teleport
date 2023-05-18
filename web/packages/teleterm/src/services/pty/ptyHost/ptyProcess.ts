@@ -25,6 +25,10 @@ export function createPtyProcess(
   const exchangeEventsStream = ptyHostClient.exchangeEvents(ptyId);
 
   return {
+    getPtyId() {
+      return ptyId;
+    },
+
     /**
      * Client -> Server stream events
      */

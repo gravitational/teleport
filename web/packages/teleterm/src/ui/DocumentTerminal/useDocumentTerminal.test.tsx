@@ -33,6 +33,7 @@ import {
   ResourcesService,
   AmbiguousHostnameError,
 } from 'teleterm/ui/services/resources';
+import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 
 import { WorkspaceContextProvider } from '../Documents';
 
@@ -88,7 +89,7 @@ const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
   };
 };
 
-const getPtyProcessMock = () => ({
+const getPtyProcessMock = (): IPtyProcess => ({
   onOpen: jest.fn(),
   write: jest.fn(),
   resize: jest.fn(),
@@ -98,6 +99,7 @@ const getPtyProcessMock = () => ({
   onStartError: jest.fn(),
   onExit: jest.fn(),
   getCwd: jest.fn(),
+  getPtyId: jest.fn(),
 });
 
 test('useDocumentTerminal calls TerminalsService during init', async () => {
