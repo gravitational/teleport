@@ -148,23 +148,23 @@ If you changed the agent user to run as non-root, create
 Else, you can skip this step:
 
 ```code
-$ mkdir -p /etc/teleport-upgrade.d/
-$ touch /etc/teleport-upgrade.d/schedule
-$ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+$ sudo mkdir -p /etc/teleport-upgrade.d/
+$ sudo touch /etc/teleport-upgrade.d/schedule
+$ sudo chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
 ```
 
 Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
 
 ```code
-$ apt install teleport-ent-updater
+$ sudo apt install teleport-ent-updater
 # or
-$ yum install teleport-ent-updater
+$ sudo yum install teleport-ent-updater
 ```
 
 Finally, verify that the updater can see your version endpoint:
 
 ```code
-$ teleport-upgrade dry-run
+$ sudo teleport-upgrade dry-run
 ```
 
 You should see one of the following messages, depending on the target version
@@ -215,6 +215,8 @@ $ kubectl logs <your-agent-release>-updater
 </Tabs>
 
 ## Troubleshooting
+  
+### Manually running an update
 
 If the agent is not automatically updated, you can:
 
@@ -224,7 +226,7 @@ If the agent is not automatically updated, you can:
 Invoke manually the updater and look at its logs.
 
 ```code
-$ teleport-upgrade
+$ sudo teleport-upgrade run
 ```
 
 </TabItem>
@@ -237,9 +239,9 @@ $ kubectl logs <your-agent-release>-updater
 ```
 
 <Admonition type="note">
-The kubernetes updater responds to events, or is woken up every 30 minutes.
+The Kubernetes updater responds to events, or is woken up every 30 minutes.
 If you don't want to wait until the next reconciliation, you can trigger an
-event. Any deployment update will sends an event, so the updater can be
+event. Any deployment update will send an event, so the updater can be
 triggered by annotating the resource:
 
 ```code
@@ -249,9 +251,9 @@ kubectl annotate statefulset/<your-agent-release> 'debug.teleport.dev/trigger-ev
 </TabItem>
 </Tabs>
 
-## Next steps
+### Suspending automatic updates
 
-You can temporarily suspend automatic updates for an agent:
+You can suspend automatic updates for an agent:
 
 <Tabs>
 <TabItem label="systemd">
@@ -259,9 +261,14 @@ You can temporarily suspend automatic updates for an agent:
 Disable the systemd timer:
 
 ```code
-$ systemctl disable --now teleport-upgrade.timer
+$ sudo systemctl disable --now teleport-upgrade.timer
 ```
+  
+To enable and start the systemd timer after suspending:
 
+```code
+$ sudo systemctl enable --now teleport-upgrade.timer
+```
 </TabItem>
 <TabItem label="teleport-kube-agent chart">
 Annotate the agent deployment with `teleport.dev/skipreconcile: "true"`.
@@ -269,3 +276,4 @@ Either by setting the `annotations.deployment` value in Helm, or by patching
 the deployment directly with `kubectl`.
 </TabItem>
 </Tabs>
+ 

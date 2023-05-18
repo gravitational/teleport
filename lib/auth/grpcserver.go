@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -2591,15 +2590,13 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
+	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
+	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
-	}
-
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		opts = append(opts, certRequestPinIP(true)) // We always want to pin single use certs to client's IP, regardless of roles)
 	}
 
 	// Generate the cert.

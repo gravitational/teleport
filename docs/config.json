@@ -17,10 +17,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -935,7 +931,11 @@
               "slug": "/application-access/guides/dynamic-registration/"
             },
             {
-              "title": "AWS DynamoDB",
+              "title": "Amazon Athena",
+              "slug": "/application-access/guides/amazon-athena/"
+            },
+            {
+              "title": "Amazon DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
             },
             {
@@ -1151,8 +1151,12 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/aws-dynamodb/"
+               "title": "AWS Cross-Account",
+               "slug": "/database-access/guides/aws-cross-account/"
+            },
+            {
+               "title": "AWS DynamoDB",
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
               "title": "AWS ElastiCache & MemoryDB",
@@ -1669,7 +1673,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.3.3",
+      "version": "12.4.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2750,6 +2754,11 @@
     {
       "source": "/preview/upcoming-releases/",
       "destination": "/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]

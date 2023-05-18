@@ -58,7 +58,7 @@ var (
 
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
-		"TestProxySSH", "TestList",
+		"TestProxySSH", "TestList", "TestForwardingTraces", "TestExportingTraces",
 	}
 )
 
