@@ -49,7 +49,6 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 
 // Broadcast creates an alert for the provided recipients (schedules)
 func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
-
 	schedules := []string{}
 
 	for _, recipient := range b.client.DefaultSchedules {
