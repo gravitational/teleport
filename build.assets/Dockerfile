@@ -272,19 +272,22 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
+ARG NODE_GRPC_TOOLS_VERSION
+ARG NODE_PROTOC_TS_VERSION
+RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-# Install protobuf and grpc build tools.
+# Install protoc.
 ARG PROTOC_VER
-ARG GOGO_PROTO_TAG
+RUN VERSION="$PROTOC_VER" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  cd /tmp && \
+  curl -fsSLO "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(uname -m).zip"  && \
+  unzip protoc*.zip -d /usr/local && \
+  rm -f protoc*.zip
 
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
+# Install protoc-gen-gogofast.
+ARG GOGO_PROTO_TAG
+RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -297,12 +300,11 @@ RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.52.2
     sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.19.0" && \
-      curl -fsSL \
-        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-        -o "${BIN}/buf" && \
-      chmod +x "${BIN}/buf"
+ARG BUF_VERSION
+RUN BIN='/usr/local/bin' && \
+  VERSION="$BUF_VERSION" && \
+  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
+  chmod +x "$BIN/buf"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION
