@@ -1118,6 +1118,9 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/babybox
+enter/babybox:
+	make -C build.assets enter/babybox
 
 BUF := buf
 
