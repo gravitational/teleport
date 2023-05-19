@@ -1283,7 +1283,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{}, c.callOpts...)
+	_, err := c.grpc.DeleteAllSnowflakeSessions(ctx, &emptypb.Empty{})
 	return trail.FromGRPC(err)
 }
 
