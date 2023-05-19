@@ -281,7 +281,7 @@ ARG PROTOC_VER
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   cd /tmp && \
-  curl -fsSLO "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(uname -m).zip"  && \
+  curl -fsSLO "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
   unzip protoc*.zip -d /usr/local && \
   rm -f protoc*.zip
 
