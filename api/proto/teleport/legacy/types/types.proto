@@ -5396,6 +5396,10 @@ message OktaImportRuleMatchV1 {
   repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
   // GroupIDs is a list of group IDs to match against.
   repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+  // AppNameRegex is a regex to match against app names.
+  string AppNameRegex = 3 [(gogoproto.jsontag) = "app_name_regex,omitempty"];
+  // GroupNameRegex is a regex to match against group names.
+  string GroupNameRegex = 4 [(gogoproto.jsontag) = "group_name_regex,omitempty"];
 }
 
 // OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.

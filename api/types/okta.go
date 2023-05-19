@@ -151,6 +151,10 @@ type OktaImportRuleMatch interface {
 	GetAppIDs() (bool, []string)
 	// GetGroupIDs returns whether or not this match contains a Group ID match and, if so, the list of app IDs.
 	GetGroupIDs() (bool, []string)
+	// GetAppNameRegex returns whether or not this match contains an app name regex and, if so, the regex.
+	GetAppNameRegex() (bool, string)
+	// GetGroupNameRegex returns whether or not this match contains an group name regex and, if so, the regex.
+	GetGroupNameRegex() (bool, string)
 }
 
 // GetAppIDs returns whether or not this match contains an App ID match and, if so, the list of app IDs.
@@ -161,6 +165,16 @@ func (o *OktaImportRuleMatchV1) GetAppIDs() (bool, []string) {
 // GetGroupIDs returns whether or not this match contains a Group ID match and, if so, the list of app IDs.
 func (o *OktaImportRuleMatchV1) GetGroupIDs() (bool, []string) {
 	return len(o.GroupIDs) > 0, o.GroupIDs
+}
+
+// GetAppNameRegex returns whether or not this match contains an app name regex and, if so, the regex.
+func (o *OktaImportRuleMatchV1) GetAppNameRegex() (bool, string) {
+	return o.AppNameRegex != "", o.AppNameRegex
+}
+
+// GetGroupNameRegex returns whether or not this match contains an group name regex and, if so, the regex.
+func (o *OktaImportRuleMatchV1) GetGroupNameRegex() (bool, string) {
+	return o.GroupNameRegex != "", o.GroupNameRegex
 }
 
 // CheckAndSetDefaults checks and sets default values

@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"regexp"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -91,11 +92,17 @@ func (o *OktaService) GetOktaImportRule(ctx context.Context, name string) (types
 
 // CreateOktaImportRule creates a new Okta import rule resource.
 func (o *OktaService) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	if err := validateOktaImportRuleRegexes(importRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return importRule, o.importRuleSvc.CreateResource(ctx, importRule)
 }
 
 // UpdateOktaImportRule updates an existing Okta import rule resource.
 func (o *OktaService) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	if err := validateOktaImportRuleRegexes(importRule); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return importRule, o.importRuleSvc.UpdateResource(ctx, importRule)
 }
 
@@ -107,6 +114,28 @@ func (o *OktaService) DeleteOktaImportRule(ctx context.Context, name string) err
 // DeleteAllOktaImportRules removes all Okta import rules.
 func (o *OktaService) DeleteAllOktaImportRules(ctx context.Context) error {
 	return o.importRuleSvc.DeleteAllResources(ctx)
+}
+
+// validateOktaImportRuleRegexes will validate all of the regexes present in an import rule.
+func validateOktaImportRuleRegexes(importRule types.OktaImportRule) error {
+	var errs []error
+	for _, mapping := range importRule.GetMappings() {
+		for _, match := range mapping.GetMatches() {
+			if ok, regex := match.GetAppNameRegex(); ok {
+				if _, err := regexp.Compile(regex); err != nil {
+					errs = append(errs, err)
+				}
+			}
+
+			if ok, regex := match.GetGroupNameRegex(); ok {
+				if _, err := regexp.Compile(regex); err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+
+	return trace.Wrap(trace.NewAggregate(errs...), "error compiling regexes for Okta import rule %s", importRule.GetName())
 }
 
 // ListOktaAssignments returns a paginated list of all Okta assignment resources.
