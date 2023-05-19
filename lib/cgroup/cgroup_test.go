@@ -114,6 +114,40 @@ func TestRootCleanup(t *testing.T) {
 	require.NoDirExists(t, cgroupPath)
 }
 
+// TestRootSkipUnmount checks that closing the service with skipUnmount set to
+// true works correctly; i.e. it cleans up the cgroups we're responsible for but
+// doesn't unmount the cgroup2 file system.
+func TestRootSkipUnmount(t *testing.T) {
+	// This test must be run as root. Only root can create cgroups.
+	if !isRoot() {
+		t.Skip("Tests for package cgroup can only be run as root.")
+	}
+
+	t.Parallel()
+
+	// Start a cgroup service with a temporary directory as the mount path.
+	service, err := New(&Config{
+		MountPath: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	sessionID := uuid.NewString()
+	sessionPath := path.Join(service.teleportRoot, sessionID)
+	require.NoError(t, service.Create(sessionID))
+
+	require.DirExists(t, sessionPath)
+
+	const skipUnmount = true
+	require.NoError(t, service.Close(skipUnmount))
+
+	require.DirExists(t, service.teleportRoot)
+	require.NoDirExists(t, path.Join(service.teleportRoot, sessionID))
+
+	require.NoError(t, service.unmount())
+
+	require.NoDirExists(t, service.teleportRoot)
+}
+
 // isRoot returns a boolean if the test is being run as root or not. Tests
 // for this package must be run as root.
 func isRoot() bool {
