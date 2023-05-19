@@ -34,7 +34,10 @@
         },
         {
           "title": "Teleport Assist",
-          "slug": "/ai-assist/"
+          "slug": "/ai-assist/",
+          "forScopes": [
+            "oss"
+          ]
         }
       ]
     },
