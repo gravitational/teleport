@@ -1,13 +1,7 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $configTemplate := printf "teleport-cluster.proxy.config.%s" $proxy.chartMode -}}
 {{- if (contains ":" $proxy.clusterName) -}}
-  {{- $split := split ":" $proxy.clusterName -}}
-  {{- $maybePort := int $split._1 -}}
-  {{- /* Technically helm-example:test could be a valid cluster name, but strings convert to 0 */ -}}
-  {{- /* Only fail when numbers are explicitly used */ -}}
-  {{- if or (gt $maybePort 0) (hasSuffix ":0" $proxy.clusterName) -}}
-    {{- fail "clusterName must not contain a port" -}}
-  {{- end -}}
+  {{- fail "clusterName must not contain a colon, you can override the cluster's public address with publicAddr" -}}
 {{- end -}}
 apiVersion: v1
 kind: ConfigMap
