@@ -2,6 +2,8 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import history from 'teleport/services/history';
 
+import 'teleport/lib/polyfillRandomUuid';
+
 import cfg from 'e-teleport/config';
 
 import TeleportE from './TeleportE';
