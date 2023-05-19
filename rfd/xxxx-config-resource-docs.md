@@ -1,7 +1,13 @@
 ---
 authors: Paul Gottschling (paul.gottschling@goteleport.com)
 state: draft
+title: NNN - Automatically Generate the Configuration Resource Reference
 ---
+
+## Required Approvers
+
+- Engineering: @codingllama
+- Product: (@alexfornuto || @xinding33)
 
 ## What
 
@@ -11,8 +17,9 @@ resources you can apply via `tctl`, from the Teleport source code.
 
 To do this, write a program that we can run as a new Make target in a clone of
 `gravitational/teleport`. When we make changes to Teleport's dynamic
-configuration resources, we can run the program, generate a new iteration of the
-reference, and manually open a pull request with the new content.
+configuration resources, we can run the program manually, generate a new
+iteration of the reference, and manually open a pull request with the new
+content.
 
 ## Why
 
@@ -339,7 +346,8 @@ fields within [`ast.StructType`](https://pkg.go.dev/go/ast#StructType) to fields
 in a new `Resource`.
 
 Each `StructType` has a [`*FieldList`](https://pkg.go.dev/go/ast#FieldList) that
-we can use to obtain field data, including comments and tags.
+we can use to obtain field data, including comments and tags. The generator
+ignores fields that are not exported.
 
 |`Resource` Field|How to generate|
 |---|---|
@@ -347,7 +355,7 @@ we can use to obtain field data, including comments and tags.
 |`Resource.Description`|`GenDecl.Doc`|
 |`Resource.SectionName`|`TypeSpec.Name.Name`, with camelcase converted to separate words.|
 |`Fields[*].Name`|Process the `Field.Tag` in the `FieldList`, extracting the value of the `json` tag.|
-|`Fields[*].Description`|Each [`Field`](https://pkg.go.dev/go/ast#Field) in a `FieldList` has a `*CommentGroup` that we can use to extract the field's GoDoc. If a comment begins with the name of the field, we can remove the field name.|
+|`Fields[*].Description`|Each [`Field`](https://pkg.go.dev/go/ast#Field) in a `FieldList` has a `*CommentGroup` that we can use to extract the field's GoDoc. If a comment begins with the name of the field, we can remove the field name (and "is" if it follows the field name) and capitalize the new first letter of the GoDoc (e.g., `MyField is a field` becomes `A field`). If there is no GoDoc for the field, exit with a descriptive error so we can manually add one.|
 |`Fields[*].Type`|We can use `Field.Type` within the `FieldList` for this. Follow the rules for processing field types [below](#processing-field-types) |
 |`YAMLExample`|Follow the rules for processing field types [below](#processing-field-types).|
 
@@ -552,3 +560,9 @@ table above the example YAML) to see an example YAML document for this type.
 If the type of the field is an embedded struct, the generator will act as if the
 fields of the embedded struct are fields within the outer struct. Otherwise, the
 generator will follow the rules above.
+
+## Test plan
+
+We can add an item to the "Documentation" section of the test plan ensuring that
+we run the generator (in addition to other docs generators) when we release a
+new version of Teleport.
