@@ -48,7 +48,7 @@ export type NavButtonProps = {
 const StyledNavButton = styled.button(props => {
   return {
     color: props.active
-      ? props.theme.colors.light
+      ? props.theme.colors.text.main
       : props.theme.colors.text.slightlyMuted,
     cursor: 'pointer',
     fontFamily: 'inherit',
