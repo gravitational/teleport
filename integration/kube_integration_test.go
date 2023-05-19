@@ -1779,8 +1779,8 @@ func kubeJoinObserverWithSNISet(t *testing.T, tc *client.TeleportClient, telepor
 }
 
 // testExecNoAuth tests that a user can get the pod and exec into a pod
-// if he does not require any moderated session.
-// If moderated session is required, he is only allowed to get the pod but
+// if they do not require any moderated session, if the auth server is not available.
+// If moderated session is required, they are only allowed to get the pod but
 // not exec into it.
 func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
