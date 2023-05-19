@@ -607,6 +607,9 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	// force the auth client to return an error when trying to create a session.
 	close(testCtx.closeSessionTrackers)
 
+	require.Eventually(t, func() bool {
+		return testCtx.lockWatcher.IsStale()
+	}, 3*time.Second, time.Millisecond*100, "lock watcher should be stale")
 	tests := []struct {
 		name      string
 		config    *rest.Config
