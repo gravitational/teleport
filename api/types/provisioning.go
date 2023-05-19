@@ -87,7 +87,7 @@ func ValidateJoinMethod(method JoinMethod) error {
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
-	Resource
+	ResourceWithOrigin
 	// SetMetadata sets resource metatada
 	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
@@ -375,6 +375,16 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
+}
+
+// Origin returns the origin value of the resource.
+func (p *ProvisionTokenV2) Origin() string {
+	return p.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (p *ProvisionTokenV2) SetOrigin(origin string) {
+	p.Metadata.SetOrigin(origin)
 }
 
 // GetSuggestedLabels returns the labels the resource should set when using this token
