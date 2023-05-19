@@ -51,7 +51,7 @@ Follow these steps to generate your OpenAI API key:
 5. Click "Create secret key".
 6. Your new API key will be displayed. Make sure to copy it and save it in a file on the system where the Teleport Proxy Service is running, e.g., `/etc/teleport/openai_key`.
 If you have multiple instances of Teleport Proxy, you must copy the file to all of them.
-7. Set read-only permissions and change the file owner to the user that Teleport Proxy uses ex. `teleport` by running the following commands:
+7. Set read-only permissions and change the file owner to the user that the Teleport Proxy Service uses by running the following commands:
 
 ```bash
 chmod 400 /etc/teleport/openai_key
