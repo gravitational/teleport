@@ -134,7 +134,7 @@ $ tctl --config fresh.yaml get all
 # <your state here>
 ```
 <Notice>
-The `tctl get all` requires using on the Auth service machine 
+The `tctl get all` requires using on a Teleport Auth Service host 
 or existing User records will cause a permission error.  This is due
 to User secrets only being available from a a direct `tctl` connection
 on a Teleport Auth Service machine. As a workaround, retrieve resources
@@ -211,7 +211,7 @@ $ tctl --config fresh.yaml get all
 ```
 
 <Notice>
-The `tctl get all` requires using on the Auth service machine 
+The `tctl get all` requires using on a Teleport Auth Service host 
 or existing User records will cause a permission error.  This is due
 to User secrets only being available from a a direct `tctl` connection
 on a Teleport Auth Service machine. As a workaround, retrieve resources
