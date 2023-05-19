@@ -95,10 +95,6 @@ If you're running Teleport at scale, your teams need to have an automated way to
 <Tabs>
 <TabItem scope={["enterprise"]} label="Teleport Enterprise">
 
-As of version v4.1, you can now quickly export a collection of resources from
-Teleport. This feature was designed to help customers migrate from local storage
-to etcd.
-
 Using `tctl get all` will retrieve the below items:
 
 - Users
@@ -138,13 +134,16 @@ $ tctl --config fresh.yaml get all
 # <your state here>
 ```
 <Notice>
-The `tctl get all` is not fully supported remotely as retrieving user
-resources with secrets is not allowed. As a workaround, retrieve resources
-individually. Local user secrets including passwords would need resetting
-after creating without secrets.
+The `tctl get all` requires using on the Auth service machine 
+or existing User records will cause a permission error.  This is due
+to User secrets only being available from a a direct `tctl` connection
+on a Teleport Auth Service machine. As a workaround, retrieve resources
+individually with the `--with-secrets` parameter except for users. Local user secrets
+including passwords would need resetting after creating without secrets.
 
 All trusted cluster certificate resources should be removed for use
-in a bootstrap or you will receive an error.
+in a bootstrap or you will receive an error.  These are the `kind: cert_authority`
+records identifable with `cluster_name` that match to the leaf cluster names.
 </Notice>
 
 The `--bootstrap` flag has no effect, except when the Auth Service initializes
