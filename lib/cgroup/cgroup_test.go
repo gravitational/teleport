@@ -71,7 +71,8 @@ func TestRootCreate(t *testing.T) {
 	require.NoDirExists(t, cgroupPath)
 
 	// Close the cgroup service, this should unmound the cgroup filesystem.
-	err = service.Close()
+	const skipUnmount = false
+	err = service.Close(skipUnmount)
 	require.NoError(t, err)
 
 	// Make sure the cgroup filesystem has been unmounted.
@@ -96,7 +97,8 @@ func TestRootCleanup(t *testing.T) {
 		MountPath: dir,
 	})
 	require.NoError(t, err)
-	defer service.Close()
+	const skipUnmount = false
+	defer service.Close(skipUnmount)
 
 	// Create fake session ID and cgroup.
 	sessionID := uuid.New().String()
