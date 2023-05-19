@@ -187,10 +187,17 @@ func (h *Handler) executeCommand(
 
 	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
+	// Create a synchronization channel to limit the number of concurrent commands.
+	// The maximum number of concurrent commands is 30 - it is arbitrary.
+	syncChan := make(chan struct{}, 30)
+	// WaiteGroup to wait for all commands to finish.
+	wg := sync.WaitGroup{}
+
 	mfaCacheFn := getMFACacheFn()
 
 	for _, host := range hosts {
-		err := func() error {
+		host := host
+		runCmd := func() error {
 			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
 			if err != nil {
 				h.log.WithError(err).Debug("Unable to generate new ssh session.")
@@ -251,13 +258,28 @@ func (h *Handler) executeCommand(
 			})
 
 			return trace.Wrap(err)
-		}()
-
-		if err != nil {
-			h.log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			continue
 		}
+
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// Limit the number of concurrent commands.
+			syncChan <- struct{}{}
+			defer func() {
+				// Release the command slot.
+				<-syncChan
+			}()
+
+			if err := runCmd(); err != nil {
+				h.log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
+			}
+		}()
 	}
+
+	// Wait for all commands to finish.
+	wg.Wait()
 
 	return nil, nil
 }
