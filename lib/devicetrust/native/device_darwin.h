@@ -44,6 +44,13 @@ int32_t DeviceKeySign(Digest digest, Signature *sigOut);
 // DeviceData contains collected data for the device in use.
 typedef struct _DeviceData {
   const char *serial_number;
+  const char *model;
+  // OS version "string", as acquired from NSProcessInfo.
+  // Example: "Version 13.4 (Build 22F66)".
+  const char *os_version_string;
+  int64_t os_major;
+  int64_t os_minor;
+  int64_t os_patch;
 } DeviceData;
 
 // DeviceCollectData collects data for the device in use.
