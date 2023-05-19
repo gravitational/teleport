@@ -28,7 +28,6 @@ babybox:
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
-		--platform linux/$(RUNTIME_ARCH) \
 		-f Dockerfile-babybox \
 		-t "$(BABYBOX)" \
 		../
