@@ -31,6 +31,7 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
+	reviewConditions := defaultEditorRoleAllowAccessReviewConditions()
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -90,6 +91,8 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
+				// By default, allow editors to approve any user group access requests.
+				ReviewRequests: &reviewConditions,
 			},
 		},
 	}
@@ -99,6 +102,7 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
+	requestConditions := defaultAccessRoleAllowAccessRequestConditions()
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -143,6 +147,8 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
+				// By default, allow users with the access role to request any user group.
+				Request: &requestConditions,
 			},
 		},
 	}
@@ -192,6 +198,34 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
+// NewPresetGroupAccessRole returns a new pre-defined role for group access -
+// a role used for requesting and reviewing user group access.
+func NewPresetGroupAccessRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetGroupAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Have access to all user groups",
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				GroupLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUserGroup, RO()),
+					// Please see defaultAllowRules when adding a new rule.
+				},
+			},
+		},
+	}
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
+	return role
+}
+
 // defaultAllowRules has the Allow rules that should be set as default when
 // they were not explicitly defined. This is used to update the current cluster
 // roles when deploying a new resource. It will also update all existing roles
@@ -220,7 +254,7 @@ func defaultAllowRules() map[string][]types.Rule {
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
-// This is used to update exiting builtin preset roles with new permissions during cluster upgrades.
+// This is used to update existing builtin preset roles with new permissions during cluster upgrades.
 // The following Labels are supported:
 // - DatabaseServiceLabels (db_service_labels)
 func defaultAllowLabels() map[string]types.RoleConditions {
@@ -231,9 +265,34 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 	}
 }
 
-// AddDefaultAllowConditions adds default allow Role Conditions to a preset role.
-// Only rules/labels whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
+// defaultAccessRoleAllowAccessRequestConditions has the access request conditions that should be set as default when they were
+// not explicitly defined. This is used to update existing access preset role with new permissions during cluster
+// upgrades.
+func defaultAccessRoleAllowAccessRequestConditions() types.AccessRequestConditions {
+	return types.AccessRequestConditions{
+		SearchAsRoles: []string{
+			teleport.PresetGroupAccessRoleName,
+		},
+	}
+}
+
+// defaultEditorRoleAllowAccessReviewConditions has the access review conditions that should be set as default when they were
+// not explicitly defined. This is used to update existing editor preset role with new permissions during cluster
+// upgrades.
+func defaultEditorRoleAllowAccessReviewConditions() types.AccessReviewConditions {
+	return types.AccessReviewConditions{
+		PreviewAsRoles: []string{
+			teleport.PresetGroupAccessRoleName,
+		},
+		Roles: []string{
+			teleport.PresetGroupAccessRoleName,
+		},
+	}
+}
+
+// AddRoleDefaults adds default role attributes to a preset role.
+// Only attributes whose resources are not already defined (either allowing or denying) are added.
+func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
 	// Resource Rules
@@ -259,6 +318,30 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	if ok {
 		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
 			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
+	}
+
+	if role.GetName() == teleport.PresetAccessRoleName {
+		allowARC := role.GetAccessRequestConditions(types.Allow)
+		if len(allowARC.Annotations) == 0 &&
+			len(allowARC.ClaimsToRoles) == 0 &&
+			len(allowARC.Roles) == 0 &&
+			len(allowARC.SearchAsRoles) == 0 &&
+			len(allowARC.SuggestedReviewers) == 0 &&
+			len(allowARC.Thresholds) == 0 {
+			role.SetAccessRequestConditions(types.Allow, defaultAccessRoleAllowAccessRequestConditions())
+			changed = true
+		}
+	}
+
+	if role.GetName() == teleport.PresetEditorRoleName {
+		allowARC := role.GetAccessReviewConditions(types.Allow)
+		if len(allowARC.ClaimsToRoles) == 0 &&
+			len(allowARC.PreviewAsRoles) == 0 &&
+			len(allowARC.Roles) == 0 &&
+			len(allowARC.Where) == 0 {
+			role.SetAccessReviewConditions(types.Allow, defaultEditorRoleAllowAccessReviewConditions())
 			changed = true
 		}
 	}
