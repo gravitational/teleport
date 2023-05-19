@@ -405,6 +405,17 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
+		// We can not know how many tokens we will consume in advance.
+		// Try to consume a small amount of tokens first.
+		const lookaheadTokens = 100
+		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
+			err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
 		//TODO(jakule): Should we sanitize the payload?
 		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
 			return trace.Wrap(err)
@@ -415,14 +426,22 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			return trace.Wrap(err)
 		}
 
+		// Once we know how many tokens were consumed for prompt+completion,
+		// consume the remaining tokens from the rate limiter bucket.
+		extraTokens := usedTokens.Prompt + usedTokens.Completion - lookaheadTokens
+		if extraTokens < 0 {
+			extraTokens = 0
+		}
+		h.assistantLimiter.ReserveN(time.Now(), extraTokens)
+
 		usageEventReq := &proto.SubmitUsageEventRequest{
 			Event: &usageeventsv1.UsageEventOneOf{
 				Event: &usageeventsv1.UsageEventOneOf_AssistCompletion{
 					AssistCompletion: &usageeventsv1.AssistCompletionEvent{
 						ConversationId:   conversationID,
-						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Competition),
+						TotalTokens:      int64(usedTokens.Prompt + usedTokens.Completion),
 						PromptTokens:     int64(usedTokens.Prompt),
-						CompletionTokens: int64(usedTokens.Competition),
+						CompletionTokens: int64(usedTokens.Completion),
 					},
 				},
 			},

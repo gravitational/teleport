@@ -378,7 +378,8 @@ type mockLoginRuleEvaluator struct {
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
-		Traits: m.outputTraits,
+		Traits:       m.outputTraits,
+		AppliedRules: []string{"mock"},
 	}, nil
 }
 
