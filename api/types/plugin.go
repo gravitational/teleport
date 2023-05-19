@@ -36,10 +36,20 @@ const (
 	PluginTypeOpenAI = "openai"
 	// PluginTypeOkta is the Okta plugin
 	PluginTypeOkta = "okta"
-	// PluginTypeMDM represents MDM plugin type collectively
-	PluginTypeMDM = "mdm"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+)
+
+// PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
+type PluginSubkind string
+
+const (
+	// PluginSubkindUnknown is returned when no plugin subkind matches.
+	PluginSubkindUnknown PluginSubkind = ""
+	// PluginSubkindMDM represents MDM plugins collectively
+	PluginSubkindMDM = "mdm"
+	// PluginSubkindAccess represents access request plugins collectively
+	PluginSubkindAccess = "access"
 )
 
 // Plugin represents a plugin instance
