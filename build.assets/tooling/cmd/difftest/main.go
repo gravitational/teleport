@@ -36,6 +36,7 @@ var (
 	exclude  = kingpin.Flag("exclude", "Comma-separated list of exclude paths").Short('e').Strings()
 	include  = kingpin.Flag("include", "Comma-separated list of include paths").Short('i').Strings()
 	relative = kingpin.Flag("relative", "Returns paths relative to specified folder").String()
+	skip     = kingpin.Flag("skip", "A space-delimited list of test names to skip").String()
 
 	_ = kingpin.Command("diff", "Print diff in human-readable format")
 
@@ -64,6 +65,11 @@ var (
 
 func main() {
 	command := kingpin.Parse()
+
+	if *skip != "" {
+		extraSkip := strings.Fields(*skip)
+		testsToSkip = append(testsToSkip, extraSkip...)
+	}
 
 	// Set default git directory to cwd
 	if repoPath == nil {
