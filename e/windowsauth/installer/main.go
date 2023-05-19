@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ncruces/zenity"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"

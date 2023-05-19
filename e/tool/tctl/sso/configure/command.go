@@ -3,7 +3,7 @@ package configure
 import (
 	"context"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
