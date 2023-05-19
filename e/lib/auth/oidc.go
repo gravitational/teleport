@@ -345,6 +345,8 @@ func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.
 
 	diagCtx.WriteToBackend(ctx)
 
+	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
+
 	claims := diagCtx.Info.OIDCClaims
 	if claims != nil {
 		attributes, err := apievents.EncodeMap(claims)
@@ -671,6 +673,7 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 		return nil, trace.Wrap(err)
 	}
 	p.Traits = evaluationOutput.Traits
+	diagCtx.Info.AppliedLoginRules = truncateAppliedLoginRules(evaluationOutput.AppliedRules)
 
 	diagCtx.Info.OIDCTraitsFromClaims = p.Traits
 	diagCtx.Info.OIDCConnectorTraitMapping = connector.GetTraitMappings()
@@ -702,6 +705,18 @@ func (oas *OIDCAuthService) calculateOIDCUser(ctx context.Context, diagCtx *auth
 	p.SessionTTL = utils.MinTTL(roleTTL, request.CertTTL)
 
 	return &p, nil
+}
+
+// truncateAppliedLoginRules truncates a list of login rule names to a maximum
+// length of 200. I doubt anyone will have that many rules, but this is to avoid
+// the off-chance of too many rules ending up in the UserLogin event such that
+// it can't be emitted.
+func truncateAppliedLoginRules(rules []string) []string {
+	const maxRules = 200
+	if len(rules) <= maxRules {
+		return rules
+	}
+	return rules[:maxRules]
 }
 
 func (oas *OIDCAuthService) createOIDCUser(ctx context.Context, p *auth.CreateUserParams, dryRun bool) (types.User, error) {

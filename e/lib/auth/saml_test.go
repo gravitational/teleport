@@ -687,6 +687,7 @@ V115UGOwvjOOxmOFbYBn865SHgMndFtr</ds:X509Certificate></ds:X509Data></ds:KeyInfo>
 				Roles: []string{"access"},
 			},
 		},
+		AppliedLoginRules: []string{"testrule"},
 	}, diagCtx.Info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 	require.Empty(t, diff, "diagnostic info does not match expected")
 

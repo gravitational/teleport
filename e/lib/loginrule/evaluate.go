@@ -56,8 +56,10 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	}
 	sortLoginRules(rules)
 
+	appliedRules := make([]string, 0, len(rules))
 	traits := dictFromStringSliceMap(input.Traits)
 	for _, rule := range rules {
+		appliedRules = append(appliedRules, rule.Metadata.Name)
 		// Every rule gets the output of the previous rule as input.
 		env := &evaluationEnv{
 			external: traits,
@@ -81,7 +83,8 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		}
 	}
 	return &oss.EvaluationOutput{
-		Traits: stringSliceMapFromDict(traits),
+		Traits:       stringSliceMapFromDict(traits),
+		AppliedRules: appliedRules,
 	}, nil
 }
 

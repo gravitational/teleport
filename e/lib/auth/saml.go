@@ -221,6 +221,7 @@ func (sas *SAMLAuthService) calculateSAMLUser(ctx context.Context, diagCtx *auth
 		return nil, trace.Wrap(err)
 	}
 	p.Traits = evaluationOutput.Traits
+	diagCtx.Info.AppliedLoginRules = truncateAppliedLoginRules(evaluationOutput.AppliedRules)
 
 	diagCtx.Info.SAMLTraitsFromAssertions = p.Traits
 	diagCtx.Info.SAMLConnectorTraitMapping = connector.GetTraitMappings()
@@ -396,6 +397,8 @@ func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlRespon
 	diagCtx.Info.Error = trace.UserMessage(err)
 
 	diagCtx.WriteToBackend(ctx)
+
+	event.AppliedLoginRules = diagCtx.Info.AppliedLoginRules
 
 	attributeStatements := diagCtx.Info.SAMLAttributeStatements
 	if attributeStatements != nil {

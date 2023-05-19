@@ -319,7 +319,11 @@ func TestSSODiagnostic(t *testing.T) {
 				s.a.RegisterLoginHook(hook)
 			}
 
-			installLoginRule(ctx, t, s.a, s.b, tc.traitsMap)
+			var expectLoginRules []string
+			if len(tc.traitsMap) > 0 {
+				installLoginRule(ctx, t, s.a, s.b, tc.traitsMap)
+				expectLoginRules = append(expectLoginRules, "testrule")
+			}
 
 			// Create configurable IdP to use in tests.
 			idp := newFakeIDP(t, false /* tls */)
@@ -429,6 +433,7 @@ func TestSSODiagnostic(t *testing.T) {
 						Roles: tc.claimsToRoles[0].Roles,
 					},
 				},
+				AppliedLoginRules: expectLoginRules,
 			}, diagCtx.Info, cmpopts.SortSlices(func(a, b string) bool { return a < b }))
 			require.Empty(t, diff, "diagnostic info does not match expected")
 

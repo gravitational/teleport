@@ -3,6 +3,8 @@ package loginrule
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -474,11 +476,16 @@ func TestEvaluate(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			require.Len(t, result.Traits, len(tc.expectedTraits), "length of output traits does not match length of expected traits")
-			for key, values := range tc.expectedTraits {
-				require.Contains(t, result.Traits, key, "output traits does not contain expected key")
-				require.ElementsMatch(t, values, result.Traits[key], "values for output traits at key %s do not match the expected", key)
+
+			var ruleNames []string
+			for _, rule := range tc.rules {
+				ruleNames = append(ruleNames, rule.Metadata.Name)
 			}
+
+			require.Empty(t, cmp.Diff(&oss.EvaluationOutput{
+				Traits:       tc.expectedTraits,
+				AppliedRules: ruleNames,
+			}, result, cmpopts.SortSlices(func(a, b string) bool { return a < b })))
 		})
 	}
 }
