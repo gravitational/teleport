@@ -630,12 +630,7 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 // handleServerV2 accepts a channel from a client to indicate global requests
 // are handled by the server properly.
 func (s *server) handleServerV2(nch ssh.NewChannel) error {
-	ch, reqs, err := nch.Accept()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go ssh.DiscardRequests(reqs)
-	return trace.Wrap(ch.Close())
+	return trace.Wrap(nch.Reject(ssh.RejectionReason(sshAckAndClose), ""))
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
@@ -1280,4 +1275,12 @@ const (
 	extCertRole  = "role"
 
 	versionRequest = "x-teleport-version"
+
+	// sshAckAndClose is a channel connection failure reason code used to acknowledge
+	// a channel through the reason code where no requests are expected from the client
+	// rather than accepting the channel and closing it immediately.
+	// Per https://www.rfc-editor.org/rfc/rfc4254.html#section-5.1
+	// The IANA will not assign Channel Connection Failure 'reason code'
+	// values in the range of 0xFE000000 to 0xFFFFFFFF.
+	sshAckAndClose = 0xFEED0000
 )
