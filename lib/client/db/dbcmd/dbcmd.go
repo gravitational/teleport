@@ -110,7 +110,7 @@ type CLICommandBuilder struct {
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
+	db tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *CLICommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -118,7 +118,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(*db)
+	host, port := tc.DatabaseProxyHostPort(db)
 	if options.localProxyPort != 0 && options.localProxyHost != "" {
 		host = options.localProxyHost
 		port = options.localProxyPort
@@ -135,7 +135,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
-		db:          db,
+		db:          &db,
 		host:        host,
 		port:        port,
 		options:     options,
