@@ -91,16 +91,18 @@ const (
 	ClassContainer = "container"
 	// ClassGMSA is the object class for group managed service accounts in Active Directory.
 	ClassGMSA = "msDS-GroupManagedServiceAccount"
-	// ClassUser is the object class for users in Active Directory
-	ClassUser = "user"
 
-	// CategoryPerson is object category for persons in Active Directory
-	CategoryPerson = "person"
+	// AccountTypeUser is the SAM account type for user accounts.
+	// See https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype
+	// (SAM_USER_OBJECT)
+	AccountTypeUser = "805306368"
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
 	// AttrSAMAccountName is the SAM Account name of an LDAP object
 	AttrSAMAccountName = "sAMAccountName"
+	// AttrSAMAccountType is the SAM Account type for an LDAP object
+	AttrSAMAccountType = "sAMAccountType"
 	// AttrCommonName is the common name of an LDAP object, or "CN"
 	AttrCommonName = "cn"
 	// AttrDistinguishedName is the distinguished name of an LDAP object, or "DN"
