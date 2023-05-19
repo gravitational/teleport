@@ -1,6 +1,6 @@
 ---
 authors: Michael Wilson (mike@goteleport.com)
-state: draft
+state: implemented (13.0)
 ---
 
 # RFD 3E - Application Access Okta Integration
