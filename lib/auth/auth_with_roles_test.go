@@ -4145,7 +4145,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 				// RoleInstance needs AdditionalSystemRoles, otherwise the setup is the
 				// same.
 				identity = TestIdentity{
-					I: authz.BuiltinRole{
+					I: BuiltinRole{
 						Role: role,
 						AdditionalSystemRoles: []types.SystemRole{
 							types.RoleNode, // Arbitrary, could be any role.
@@ -4157,7 +4157,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 				identity = TestBuiltin(role)
 			}
 
-			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
+			authContext, err := srv.Authorizer.Authorize(context.WithValue(ctx, ContextUser, identity.I))
 			require.NoError(t, err)
 
 			s := &ServerWithRoles{
