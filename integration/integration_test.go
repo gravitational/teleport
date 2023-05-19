@@ -2324,7 +2324,12 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		eventTypes := []string{events.ExecEvent}
 
 		return func() bool {
-			eventsInSite, _, err := site.SearchEvents(now, now.Add(1*time.Hour), defaults.Namespace, eventTypes, 0, types.EventOrderAscending, "")
+			eventsInSite, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+				From:       now,
+				To:         now.Add(1 * time.Hour),
+				EventTypes: eventTypes,
+				Order:      types.EventOrderAscending,
+			})
 			require.NoError(t, err)
 			return len(eventsInSite) == count
 		}

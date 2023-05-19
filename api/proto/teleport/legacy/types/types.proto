@@ -346,6 +346,15 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mysql,omitempty"
   ];
+  // AdminUser is the database admin user for automatic user provisioning.
+  DatabaseAdminUser AdminUser = 11 [(gogoproto.jsontag) = "admin_user,omitempty"];
+}
+
+// DatabaseAdminUser contains information about privileged database user used
+// for automatic user provisioning.
+message DatabaseAdminUser {
+  // Name is the username of the privileged database user.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -585,7 +594,7 @@ message InstanceSpecV1 {
   // Services is the list of active services this instance most recently advertised.
   repeated string Services = 2 [
     (gogoproto.casttype) = "SystemRole",
-    (gogoproto.jsontag) = "services,omitemtpy"
+    (gogoproto.jsontag) = "services,omitempty"
   ];
 
   // Hostname is the hostname this instance most recently advertised.
@@ -2409,6 +2418,13 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_desktop_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateDatabaseUser enabled automatic database user creation.
+  BoolValue CreateDatabaseUser = 27 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_db_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2587,6 +2603,9 @@ message RoleConditions {
 
   // DesktopGroups is a list of groups for created desktop users to be added to
   repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
+
+  // DatabaseRoles is a list of databases roles for automatic user creation.
+  repeated string DatabaseRoles = 29 [(gogoproto.jsontag) = "db_roles,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
