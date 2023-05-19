@@ -959,11 +959,11 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups with Teleport",
+          "title": "Protect Okta Applications and Groups (Preview)",
           "slug": "/application-access/okta/",
           "entries": [
             {
-              "title": "Guide",
+              "title": "Okta Service",
               "slug": "/application-access/okta/guide/"
             },
             {
