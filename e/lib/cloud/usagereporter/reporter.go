@@ -187,15 +187,13 @@ func (r *UsageReporter) tryCreateBuyTeleportAlert(ctx context.Context) error {
 		events.KubeRequestEvent,
 		events.WindowsDesktopSessionStartEvent,
 	}
-	accessEvents, _, err := r.ResourceGetter.SearchEvents(
-		time.Now().Add(-2*r.Interval),
-		time.Now(),
-		defaults.Namespace,
-		accessEventTypes,
-		1,
-		types.EventOrderAscending,
-		"",
-	)
+	accessEvents, _, err := r.ResourceGetter.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       time.Now().Add(-2 * r.Interval),
+		To:         time.Now(),
+		EventTypes: accessEventTypes,
+		Limit:      1,
+		Order:      types.EventOrderAscending,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

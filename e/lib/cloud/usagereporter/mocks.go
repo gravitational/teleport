@@ -2,14 +2,14 @@ package usagereporter
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -48,7 +48,7 @@ type MockedResourceGetter struct {
 	MockedGetKubeServers        func() ([]types.KubeServer, error)
 	MockedGetApplicationServers func() ([]types.AppServer, error)
 	MockedGetRoles              func() ([]types.Role, error)
-	MockedSearchEvents          func() ([]events.AuditEvent, string, error)
+	MockedSearchEvents          func() ([]apievents.AuditEvent, string, error)
 	MockedGetClusterAlerts      func() ([]types.ClusterAlert, error)
 	MockedUpsertClusterAlert    func(ctx context.Context, alert types.ClusterAlert) error
 	MockedDeleteClusterAlert    func(ctx context.Context, alertID string) error
@@ -105,7 +105,7 @@ func (g *MockedResourceGetter) GetRoles(context.Context) ([]types.Role, error) {
 	return nil, trace.NotImplemented("GetRoles is not implemented")
 }
 
-func (g *MockedResourceGetter) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
+func (g *MockedResourceGetter) SearchEvents(context.Context, events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if g.MockedSearchEvents != nil {
 		return g.MockedSearchEvents()
 	}

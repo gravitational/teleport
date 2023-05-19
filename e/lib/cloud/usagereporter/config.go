@@ -9,9 +9,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -85,7 +86,7 @@ type ResourceAPIGetter interface {
 	// GetRoles retrieves roles
 	GetRoles(context.Context) ([]types.Role, error)
 	// SearchEvents allows searching for events with a full pagination support.
-	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error)
+	SearchEvents(context.Context, events.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
 
 	// GetClusterAlerts loads matching cluster alerts.
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
