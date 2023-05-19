@@ -137,8 +137,6 @@ Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 | - | - | - |
 | 443 | Proxy Service | In TLS Routing mode, the Proxy handles all protocols, including Web UI, HTTPS, Kubernetes, SSH, and all databases on a single port. |
 | 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3022 | SSH Service | SSH port. This is Teleport's equivalent of port `#22` for SSH. Only used when Teleport agent is replacing SSH.|
-| 3028 | Desktop Service | When using Desktop Service `windows_desktop_service.listen_addr` |
 
 #### Ports without TLS routing
 
@@ -148,14 +146,9 @@ In those cases, they can set up separate listeners in the config file.
 | Port | Downstream Service | Description |
 | - | - | - |
 | 3021 | Proxy Service | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
-| 3022 | SSH Service | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
 | 3023 | All clients | SSH port clients connect to. The Proxy Service will forward this connection to port `3022` on the destination service. |
 | 3024 | Auth Service | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted Proxy Service instance. |
 | 3080 or 443 | Proxy Service | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
-| 3026 | Kubernetes Service | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr` |
-| 3027 | Kubernetes Service | Kubernetes Service `kubernetes_service.listen_addr` |
-| 3028 | Desktop Service | Desktop Service `windows_desktop_service.listen_addr` |
-| 3036 | MySQL | MySQL port `proxy_service.mysql_addr` |
 
 ### Auth Service ports
 
@@ -218,17 +211,20 @@ Read more in our [TLS Routing](../architecture/tls-routing.mdx) guide.
 
 ### Agent ports
 
-For Teleport processes running agents, e.g., instances of the SSH Service,
-Kubernetes Service, and other services that protect resources in your
-infrastructure, there is no need to open ports on the instance to the public
-internet. 
-
 Teleport agents dial the Teleport Proxy Service to establish a reverse tunnel.
 Client traffic flows via the Proxy Service to the agent, and the agent forwards
 traffic to resources in your infrastructure.
 
+As a result, for Teleport processes running agents, e.g., instances of the SSH
+Service, Kubernetes Service, and other services that protect resources in your
+infrastructure, there is no need to open ports on the machines running the
+agents to the public internet. 
+
 Some Teleport services listen for traffic to one of their proxied resources,
 meaning that you can expose ports on that service's host directly to clients.
+This is useful when you need to connect to resources directly if the Proxy
+Service becomes unavailable.
+
 The table below describes the ports that each Teleport Service opens for proxied
 traffic:
 
