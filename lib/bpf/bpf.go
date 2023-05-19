@@ -198,9 +198,12 @@ func New(config *Config, restrictedSession *RestrictedSessionConfig) (BPF, error
 }
 
 // Close will stop any running BPF programs. Note this is only for a graceful
-// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded
-// by the user process and automatically unloaded when the process exits."
-func (s *Service) Close() error {
+// shutdown, from the man page for BPF: "Generally, eBPF programs are loaded by
+// the user process and automatically unloaded when the process exits". The
+// restarting parameter indicates that Teleport is shutting down because of a
+// restart, and thus we should skip any deinitialization that would interfere
+// with the new Teleport instance.
+func (s *Service) Close(restarting bool) error {
 	// Unload the BPF programs.
 	s.exec.close()
 	s.open.close()
@@ -208,8 +211,10 @@ func (s *Service) Close() error {
 		s.conn.close()
 	}
 
-	// Close cgroup service.
-	if err := s.cgroup.Close(); err != nil {
+	// Close cgroup service. We should not unmount the cgroup filesystem if
+	// we're restarting.
+	skipCgroupUnmount := restarting
+	if err := s.cgroup.Close(skipCgroupUnmount); err != nil {
 		log.WithError(err).Warn("Failed to close cgroup")
 	}
 
