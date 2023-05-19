@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
 	corev1 "k8s.io/api/core/v1"

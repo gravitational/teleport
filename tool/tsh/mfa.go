@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"

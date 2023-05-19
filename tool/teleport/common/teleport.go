@@ -27,7 +27,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
