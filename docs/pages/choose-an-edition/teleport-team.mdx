@@ -4,15 +4,15 @@ description: "Teleport Team makes it quick and easy for small organizations set 
 tocDepth: 3
 ---
 
-Teleport Team helps small organizations get started quickly with enabling secure
+Teleport Team helps small organizations get started quickly enabling secure
 access to their infrastructure. 
 
 With Teleport Team, the Auth Service and Proxy Service are fully managed, giving
-you a scalable, fault tolerant certificate authority that you can use to
-configure access from users across the globe to your infrastructure, including
-private networks.
+you a scalable, fault tolerant certificate authority and reverse proxy that you
+can use to configure access from users across the globe to your infrastructure,
+including private networks.
 
-After you start a [free trial](https://goteleport.com/signup) of Teleport Team,
+After starting a [free trial](https://goteleport.com/signup) of Teleport Team,
 you can set up RBAC, enable single sign-on with GitHub or Teleport's own
 identity provider, and start protecting resources with Teleport.
 
@@ -25,10 +25,8 @@ subgraph team["Teleport Team tenant"]
   proxy<-.->auth
 end
 
-subgraph public["The internet"]
-  web["Teleport Web UI"]
-  tsh["tsh client"]
-end
+web["Teleport Web UI"]
+tsh["tsh client"]
 
 subgraph private["Private network"]
   service["Teleport Services"]
@@ -47,7 +45,7 @@ compares to Teleport Team, see the [Choose an Edition](introduction.mdx) guide.
 
 ## Get started with Teleport Team
 
-This section walks you through the process of registering a local server with a
+This guide walks you through the process of registering a local server with a
 Teleport Team account. You can then access the server through the browser and
 the terminal, and record your session so you can review it later.
 
@@ -78,7 +76,7 @@ the terminal, and record your session so you can review it later.
 
 ### Step 1/4. Spin up your server
 
-Spin up a server on your workstation so you can register this server with your
+Start a Docker container on your workstation to register as a server in your
 Teleport Team tenant:
 
 ```code
@@ -86,18 +84,12 @@ $ docker run -it ubuntu:22.10 /bin/bash
 ```
 
 Your terminal will begin a shell session in the `ubuntu:22.10` container. From
-there, make sure you have `curl` and `telnet` installed. When we run a script to install Teleport later in this guide, the script will require both of these tools.
+there, make sure you have `curl` and `telnet` installed. When we run a script to
+install Teleport later in this guide, the script will require both of these
+tools:
 
 ```code
 $ apt update && apt install -y curl telnet
-```
-
-The rest of the guide assumes that you will run it as a non-`root` user, but the
-shell in the container you created earlier is running as root. Alias `sudo` to
-override this:
-
-```code
-$ alias sudo=""
 ```
 
 Keep this shell open in your terminal.
@@ -127,6 +119,13 @@ Web UI:
 
 ![Configure resource](../../img/cloud/getting-started/paste-script@2x.png)
 
+The Teleport installation script uses `sudo`, which is not installed on your
+Docker container. Alias `sudo` in your container terminal to override this:
+
+```code
+$ alias sudo=""
+```
+
 Copy the script and paste it into the shell you opened earlier on your Docker
 container.
 
@@ -155,7 +154,7 @@ restart the process.
 
 </Notice>
 
-You should see a terminal prompt in your browser. Your Teleport Team
+You should see a terminal prompt in a new browser window. Your Teleport Team
 account routes your SSH connection through the Teleport Proxy Service, which
 connects to your container via a reverse tunnel. 
 
@@ -166,8 +165,9 @@ private networks.
 Execute some commands in your terminal. When you have finished, run `exit` to
 end your session.
 
-In the **Manage Access** view, click **Finish**, then **Browse existing
-resources** to visit the main view of the Teleport Web UI.
+Return to your original browser window. In the **Manage Access** view, click
+**Finish**, then **Browse existing resources** to visit the main view of the
+Teleport Web UI.
 
 ### Step 3/4. Play back your session
 
