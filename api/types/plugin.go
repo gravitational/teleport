@@ -342,7 +342,7 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 
 // CheckAndSetDefaults validates and set the default values
 func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
-	if s.Addr == "" {
+	if s.APIEndpoint == "" {
 		return trace.BadParameter("opsgenie api endpoint url must be set")
 	}
 	return nil
