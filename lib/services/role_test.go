@@ -3448,7 +3448,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
-func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3472,10 +3472,12 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
+				DatabaseNames:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 		},
 	}
@@ -3486,6 +3488,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
+				DatabaseNames:  []string{"dev"},
 			},
 		},
 	}
@@ -3506,11 +3509,13 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 		},
 	}
@@ -3526,17 +3531,17 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleAllowDenySame},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"superuser": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
 		},
 		{
-			name:   "developer allowed any username in stage database except superuser",
+			name:   "developer allowed any username in stage database except root",
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
@@ -3546,7 +3551,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
@@ -3556,7 +3561,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": false, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   true,
 			},
@@ -3565,6 +3570,8 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
+			enumResult = tc.roles.EnumerateDatabaseNames(tc.server)
 			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}
