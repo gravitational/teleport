@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,54 +18,26 @@ package opsgenie
 
 import (
 	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/pelletier/go-toml"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
-	"github.com/gravitational/teleport/integrations/lib"
 )
 
 // Config stores the full configuration for the teleport-opsgenie plugin to run.
 type Config struct {
 	common.BaseConfig
-	Opsgenie            common.GenericAPIConfig
-	ClientConfig        ClientConfig
+	// Opsgenie contains the opsgenie specific configuration.
+	Opsgenie common.GenericAPIConfig
+	// ClientConfig contains the config for the opsgenie client.
+	ClientConfig ClientConfig
+	// AccessTokenProvider provides a method to get the bearer token
+	// for use when authorizing to a 3rd-party provider API.
 	AccessTokenProvider auth.AccessTokenProvider
-	StatusSink          common.StatusSink
-}
-
-// LoadOpsgenieConfig reads the config file, initializes a new OpsgenieConfig struct object, and returns it.
-// Optionally returns an error if the file is not readable, or if file format is invalid.
-func LoadOpsgenieConfig(filepath string) (*Config, error) {
-	t, err := toml.LoadFile(filepath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conf := &Config{}
-	if err := t.Unmarshal(conf); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if strings.HasPrefix(conf.Opsgenie.Token, "/") {
-		conf.Opsgenie.Token, err = lib.ReadPassword(conf.Opsgenie.Token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	conf.ClientConfig.APIKey = conf.Opsgenie.Token
-
-	if err := conf.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conf.UsersAsRecipients = true
-	return conf, nil
-
+	// StatusSink defines a destination for PluginStatus
+	StatusSink common.StatusSink
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
@@ -105,7 +77,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // NewBot initializes the new Opsgenie message generator (OpsgenieBot)
 func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
-
 	webProxyURL, err := url.Parse(webProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
