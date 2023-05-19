@@ -1399,6 +1399,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ServerName: database.TLS.ServerName,
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
+			AdminUser: servicecfg.DatabaseAdminUser{
+				Name: database.AdminUser.Name,
+			},
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,

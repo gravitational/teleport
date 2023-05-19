@@ -130,8 +130,7 @@ type suiteConfig struct {
 	RoleAppLabels types.Labels
 }
 
-type fakeConnMonitor struct {
-}
+type fakeConnMonitor struct{}
 
 func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
 	return ctx, nil
@@ -938,7 +937,14 @@ func TestRequestAuditEvents(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
-	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+	ctx := context.Background()
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       time.Time{},
+		To:         time.Now().Add(time.Minute),
+		EventTypes: []string{events.AppSessionChunkEvent},
+		Limit:      10,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 	require.Len(t, searchEvents, 1)
 

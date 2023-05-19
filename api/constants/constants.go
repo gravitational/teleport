@@ -369,6 +369,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitDBRoles is the name of the role variable used to store
+	// allowed database roles.
+	TraitDBRoles = "db_roles"
+
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
