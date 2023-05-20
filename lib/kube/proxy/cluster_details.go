@@ -89,22 +89,25 @@ func getKubeClusterCredentials(ctx context.Context, cloudClients cloud.Clients, 
 	case cluster.IsKubeconfig():
 		return getStaticCredentialsFromKubeconfig(ctx, cluster, log, checker)
 	case cluster.IsAzure():
-		return getAzureCredentials(ctx, cloudClients, cluster, log, checker)
+		return getAzureCredentials(ctx, cloudClients, dynamicCredsConfig{kubeCluster: cluster, log: log, checker: checker})
 	case cluster.IsAWS():
-		return getAWSCredentials(ctx, cloudClients, cluster, log, checker)
+		return getAWSCredentials(ctx, cloudClients, dynamicCredsConfig{kubeCluster: cluster, log: log, checker: checker})
 	case cluster.IsGCP():
-		return getGCPCredentials(ctx, cloudClients, cluster, log, checker)
+		return getGCPCredentials(ctx, cloudClients, dynamicCredsConfig{kubeCluster: cluster, log: log, checker: checker})
 	default:
 		return nil, trace.BadParameter("authentication method provided for cluster %q not supported", cluster.GetName())
 	}
 }
 
 // getAzureCredentials creates a dynamicCreds that generates and updates the access credentials to a AKS Kubernetes cluster.
-func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func getAzureCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	client := azureRestConfigClient(cloudClients)
+	cfg.client = azureRestConfigClient(cloudClients)
 
-	creds, err := newDynamicKubeCreds(ctx, cluster, log, client, checker)
+	creds, err := newDynamicKubeCreds(
+		ctx,
+		cfg,
+	)
 	return creds, trace.Wrap(err)
 }
 
@@ -126,10 +129,10 @@ func azureRestConfigClient(cloudClients cloud.Clients) dynamicCredsClient {
 }
 
 // getAWSCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a EKS kubernetes cluster.
-func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func getAWSCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	client := getAWSClientRestConfig(cloudClients)
-	creds, err := newDynamicKubeCreds(ctx, cluster, log, client, checker)
+	cfg.client = getAWSClientRestConfig(cloudClients)
+	creds, err := newDynamicKubeCreds(ctx, cfg)
 	return creds, trace.Wrap(err)
 }
 
@@ -237,10 +240,10 @@ func getStaticCredentialsFromKubeconfig(ctx context.Context, cluster types.KubeC
 }
 
 // getGCPCredentials creates a dynamicKubeCreds that generates and updates the access credentials to a GKE kubernetes cluster.
-func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cluster types.KubeCluster, log *logrus.Entry, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func getGCPCredentials(ctx context.Context, cloudClients cloud.Clients, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
 	// create a client that returns the credentials for kubeCluster
-	client := gcpRestConfigClient(cloudClients)
-	creds, err := newDynamicKubeCreds(ctx, cluster, log, client, checker)
+	cfg.client = gcpRestConfigClient(cloudClients)
+	creds, err := newDynamicKubeCreds(ctx, cfg)
 	return creds, trace.Wrap(err)
 }
 

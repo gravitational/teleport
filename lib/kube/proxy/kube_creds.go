@@ -24,7 +24,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
@@ -151,7 +153,7 @@ type dynamicCredsClient func(ctx context.Context, cluster types.KubeCluster) (cf
 // function and renews them whenever they are about to expire.
 type dynamicKubeCreds struct {
 	ctx         context.Context
-	renewTicker *time.Ticker
+	renewTicker clockwork.Ticker
 	staticCreds *staticKubeCreds
 	log         logrus.FieldLogger
 	closeC      chan struct{}
@@ -160,19 +162,50 @@ type dynamicKubeCreds struct {
 	sync.RWMutex
 }
 
+// dynamicCredsConfig contains configuration for dynamicKubeCreds.
+type dynamicCredsConfig struct {
+	kubeCluster types.KubeCluster
+	log         logrus.FieldLogger
+	client      dynamicCredsClient
+	checker     servicecfg.ImpersonationPermissionsChecker
+	clock       clockwork.Clock
+}
+
+func (d *dynamicCredsConfig) checkAndSetDefaults() error {
+	if d.kubeCluster == nil {
+		return trace.BadParameter("missing kubeCluster")
+	}
+	if d.log == nil {
+		return trace.BadParameter("missing log")
+	}
+	if d.client == nil {
+		return trace.BadParameter("missing client")
+	}
+	if d.checker == nil {
+		return trace.BadParameter("missing checker")
+	}
+	if d.clock == nil {
+		d.clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
 // newDynamicKubeCreds creates a new dynamicKubeCreds refresher and starts the
 // credentials refresher mechanism to renew them once they are about to expire.
-func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
-		log:         log,
+		log:         cfg.log,
 		closeC:      make(chan struct{}),
-		client:      client,
-		renewTicker: time.NewTicker(time.Hour),
-		checker:     checker,
+		client:      cfg.client,
+		renewTicker: cfg.clock.NewTicker(time.Hour),
+		checker:     cfg.checker,
 	}
 
-	if err := dyn.renewClientset(kubeCluster); err != nil {
+	if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -181,9 +214,9 @@ func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log
 			select {
 			case <-dyn.closeC:
 				return
-			case <-dyn.renewTicker.C:
-				if err := dyn.renewClientset(kubeCluster); err != nil {
-					log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+			case <-dyn.renewTicker.Chan():
+				if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
+					log.WithError(err).Warnf("Unable to renew cluster %q credentials.", cfg.kubeCluster.GetName())
 				}
 			}
 		}
