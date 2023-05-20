@@ -125,8 +125,8 @@ export function DownloadScript(props: AgentStepProps) {
         </Text>
 
         <Text mb={3}>
-          - The Teleport Service could not join this Teleport cluster. Check
-          the logs for errors by running <Mark>journalctl -fu teleport</Mark>.
+          - The Teleport Service could not join this Teleport cluster. Check the
+          logs for errors by running <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
