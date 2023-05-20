@@ -611,7 +611,7 @@ else
 fi
 
 # Check whether this is a cloud tenant or not
-if [[ "${TARGET_HOSTNAME} == *.teleportdemo.com ]]; then
+if [[ "${TARGET_HOSTNAME} == *.teleport.sh ]]; then
   log "Teleport Cloud tenant host"
   TELEPORT_PROXY_ISCLOUDTENANT="true"
 else
