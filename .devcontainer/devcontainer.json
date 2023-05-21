@@ -1,0 +1,15 @@
+{
+  "name": "Teleport Dev Container",
+  "image": "docker.io/library/ubuntu:latest",
+  "extensions": ["ms-vscode.go"],
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "forwardPorts": [3080, 5080],
+  "postCreateCommand": "cd $GOPATH/github.com/gravitational/teleport && make docker && cd docker && make build",
+  "appPort": [3080, 5080],
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "workspaceMount": "source=teleport-workspace,target=/workspace,type=volume"
+}
