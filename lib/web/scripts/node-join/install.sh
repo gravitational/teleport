@@ -21,7 +21,6 @@ TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
 TELEPORT_FORMAT=""
-TELEPORT_PROXY_ISCLOUDTENANT="false"
 
 # initialise variables (because set -u disallows unbound variables)
 f=""
@@ -610,15 +609,6 @@ else
     fi
 fi
 
-# Check whether this is a cloud tenant or not
-if [[ "${TARGET_HOSTNAME}" == *.teleport.sh ]]; then
-  log "Teleport Cloud tenant host"
-  TELEPORT_PROXY_ISCLOUDTENANT="true"
-else
-  log "Not a Teleport Cloud tenant host"
-fi
-
-
 # use OSTYPE variable to figure out host type/arch
 if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
     # linux host, now detect arch
@@ -854,16 +844,9 @@ install_from_file() {
 }
 
 install_from_repo() {
-    # Check to see if the repo channel was set
-    # If not set confirm if this is a cloud tenant which should use the 
-    # cloud repo.  Otherwise use the Teleport major version repo
     if [[ "${REPO_CHANNEL}" == "" ]]; then
-        if [ "${TELEPORT_PROXY_ISCLOUDTENANT}" == "true" ]; then
-          REPO_CHANNEL=stable/cloud
-        else 
-          # By default, use the current version's channel.
-         REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
-        fi
+        # By default, use the current version's channel.
+        REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
     fi
 
     # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
