@@ -474,5 +474,5 @@ func solveTPMEnrollChallenge(
 // signChallenge is not implemented on windows as TPM platform attestation
 // is used instead.
 func signChallenge(_ []byte) (sig []byte, err error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return nil, trace.BadParameter("called signChallenge on windows")
 }
