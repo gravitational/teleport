@@ -17,7 +17,10 @@ func TestLoginRuleController(t *testing.T) {
 		t.Skip("skipping operator test because KUBEBUILDER_ASSETS env var is missing")
 	}
 
-	t.Parallel()
+	// These tests can't be parallelized because testlib.SetupTestEnv modifies
+	// the global scheme causing a data race.
+	// t.Parallel()
+
 	clt := startAuthServer(t)
 
 	for _, tc := range []struct {
@@ -39,7 +42,6 @@ func TestLoginRuleController(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
 			tc.test(t, clt)
 		})
 	}

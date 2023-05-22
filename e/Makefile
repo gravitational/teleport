@@ -393,7 +393,9 @@ endif
 # test runs teleport enterprise tests
 #
 .PHONY: test
-test: test-operator
+test: test-go test-operator
+
+test-go:
 	go test -v ./... -race
 
 # test-operator runs tests for the k8s operator with enterprise-only resource

@@ -58,4 +58,4 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 40
-        run: make -C ${GITHUB_WORKSPACE}/e/ test
+        run: make -C ${GITHUB_WORKSPACE}/e/ -j test
