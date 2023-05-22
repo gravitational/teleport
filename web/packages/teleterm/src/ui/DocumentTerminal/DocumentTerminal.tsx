@@ -30,12 +30,15 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 import { isDocumentTshNodeWithServerId } from 'teleterm/ui/services/workspacesService';
 
 import { Terminal } from './Terminal';
-import { Props, useDocumentTerminal } from './useDocumentTerminal';
+import { useDocumentTerminal } from './useDocumentTerminal';
 import { useTshFileTransferHandlers } from './useTshFileTransferHandlers';
 
 import type * as types from 'teleterm/ui/services/workspacesService';
 
-export function DocumentTerminal(props: Props & { visible: boolean }) {
+export function DocumentTerminal(props: {
+  doc: types.DocumentTerminal;
+  visible: boolean;
+}) {
   const ctx = useAppContext();
   const { configService } = ctx.mainProcessClient;
   const { visible, doc } = props;
@@ -169,6 +172,7 @@ function getReconnectCopy(doc: types.DocumentTerminal) {
         buttonText: 'Reconnect',
       };
     }
+    case 'doc.gateway_cli_client':
     case 'doc.terminal_shell':
     case 'doc.terminal_tsh_kube': {
       return {

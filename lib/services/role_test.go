@@ -299,13 +299,6 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
-						KubernetesResources: []types.KubernetesResource{
-							{
-								Kind:      types.KindKubePod,
-								Namespace: types.Wildcard,
-								Name:      types.Wildcard,
-							},
-						},
 					},
 					Deny: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -314,7 +307,109 @@ func TestRoleParse(t *testing.T) {
 			},
 			error: nil,
 		},
-
+		{
+			name: "full valid role v6",
+			in: `{
+					"kind": "role",
+					"version": "v6",
+					"metadata": {"name": "name1", "labels": {"a-b": "c"}},
+					"spec": {
+						"options": {
+							"cert_format": "standard",
+							"max_session_ttl": "20h",
+							"port_forwarding": true,
+							"client_idle_timeout": "17m",
+							"disconnect_expired_cert": "yes",
+							"enhanced_recording": ["command", "network"],
+							"desktop_clipboard": true,
+							"desktop_directory_sharing": true,
+							"ssh_file_copy" : false
+						},
+						"allow": {
+							"node_labels": {"a": "b", "c-d": "e"},
+							"app_labels": {"a": "b", "c-d": "e"},
+							"group_labels": {"a": "b", "c-d": "e"},
+							"kubernetes_labels": {"a": "b", "c-d": "e"},
+							"db_labels": {"a": "b", "c-d": "e"},
+							"db_names": ["postgres"],
+							"db_users": ["postgres"],
+							"namespaces": ["default"],
+							"rules": [
+								{
+									"resources": ["role"],
+									"verbs": ["read", "list"],
+									"where": "contains(user.spec.traits[\"groups\"], \"prod\")",
+									"actions": [
+										"log(\"info\", \"log entry\")"
+									]
+								}
+							]
+						},
+						"deny": {
+							"logins": ["c"]
+						}
+					}
+				}`,
+			role: types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V6,
+				Metadata: types.Metadata{
+					Name:      "name1",
+					Namespace: apidefaults.Namespace,
+					Labels:    map[string]string{"a-b": "c"},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(20 * time.Hour),
+						PortForwarding:    types.NewBoolOption(true),
+						RecordSession: &types.RecordSession{
+							Default: constants.SessionRecordingModeBestEffort,
+							Desktop: types.NewBoolOption(true),
+						},
+						ClientIdleTimeout:       types.NewDuration(17 * time.Minute),
+						DisconnectExpiredCert:   types.NewBool(true),
+						BPF:                     apidefaults.EnhancedEvents(),
+						DesktopClipboard:        types.NewBoolOption(true),
+						DesktopDirectorySharing: types.NewBoolOption(true),
+						CreateDesktopUser:       types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
+						CreateHostUser:          types.NewBoolOption(false),
+						SSHFileCopy:             types.NewBoolOption(false),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						AppLabels:        types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						GroupLabels:      types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						KubernetesLabels: types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						DatabaseLabels:   types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						DatabaseNames:    []string{"postgres"},
+						DatabaseUsers:    []string{"postgres"},
+						Namespaces:       []string{"default"},
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindRole},
+								Verbs:     []string{types.VerbRead, types.VerbList},
+								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+								Actions: []string{
+									"log(\"info\", \"log entry\")",
+								},
+							},
+						},
+					},
+					Deny: types.RoleConditions{
+						Namespaces: []string{apidefaults.Namespace},
+						Logins:     []string{"c"},
+					},
+				},
+			},
+			error: nil,
+		},
 		{
 			name: "full valid role",
 			in: `{
@@ -3353,7 +3448,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	}
 }
 
-func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
+func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 	dbStage, err := types.NewDatabaseV3(types.Metadata{
 		Name:   "stage",
 		Labels: map[string]string{"env": "stage"},
@@ -3377,10 +3472,12 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"stage"}},
 				DatabaseUsers:  []string{types.Wildcard},
+				DatabaseNames:  []string{types.Wildcard},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 		},
 	}
@@ -3391,6 +3488,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{"env": []string{"prod"}},
 				DatabaseUsers:  []string{"dev"},
+				DatabaseNames:  []string{"dev"},
 			},
 		},
 	}
@@ -3411,11 +3509,13 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
-				DatabaseUsers: []string{"superuser"},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 		},
 	}
@@ -3431,17 +3531,17 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleAllowDenySame},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"superuser": false},
+				allowedDeniedMap: map[string]bool{"root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
 		},
 		{
-			name:   "developer allowed any username in stage database except superuser",
+			name:   "developer allowed any username in stage database except root",
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbStage,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  true,
 				wildcardDenied:   false,
 			},
@@ -3451,7 +3551,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": true, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": true, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   false,
 			},
@@ -3461,7 +3561,7 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 			roles:  RoleSet{roleDevStage, roleDevProd, roleNoDBAccess},
 			server: dbProd,
 			enumResult: EnumerationResult{
-				allowedDeniedMap: map[string]bool{"dev": false, "superuser": false},
+				allowedDeniedMap: map[string]bool{"dev": false, "root": false},
 				wildcardAllowed:  false,
 				wildcardDenied:   true,
 			},
@@ -3470,6 +3570,8 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			enumResult := tc.roles.EnumerateDatabaseUsers(tc.server)
+			require.Equal(t, tc.enumResult, enumResult)
+			enumResult = tc.roles.EnumerateDatabaseNames(tc.server)
 			require.Equal(t, tc.enumResult, enumResult)
 		})
 	}

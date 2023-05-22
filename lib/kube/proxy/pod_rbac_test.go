@@ -321,7 +321,13 @@ func TestListPodRBAC(t *testing.T) {
 				testPodName,
 				metav1.GetOptions{},
 			)
-			require.Equal(t, tt.want.getTestPodResult, err)
+
+			if tt.want.getTestPodResult == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.want.getTestPodResult.Error())
+			}
 		})
 	}
 }

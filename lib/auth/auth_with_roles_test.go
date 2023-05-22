@@ -1441,15 +1441,13 @@ func TestStreamSessionEvents_User(t *testing.T) {
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
 
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
+		EventTypes: []string{events.SessionRecordingAccessEvent},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -1474,15 +1472,13 @@ func TestStreamSessionEvents_Builtin(t *testing.T) {
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
 
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
+		EventTypes: []string{events.SessionRecordingAccessEvent},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 
 	require.Equal(t, 0, len(searchEvents))
@@ -1507,16 +1503,14 @@ func TestGetSessionEvents(t *testing.T) {
 
 	// we need to wait for a short period to ensure the event is returned
 	time.Sleep(500 * time.Millisecond)
-
-	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(
-		srv.Clock().Now().Add(-time.Hour),
-		srv.Clock().Now().Add(time.Hour),
-		defaults.Namespace,
-		[]string{events.SessionRecordingAccessEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	ctx := context.Background()
+	searchEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       srv.Clock().Now().Add(-time.Hour),
+		To:         srv.Clock().Now().Add(time.Hour),
+		EventTypes: []string{events.SessionRecordingAccessEvent},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -2808,7 +2802,13 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 			if len(tc.expectSearchEventRoles) > 0 {
 				require.Eventually(t, func() bool {
 					// make sure an audit event is logged for the search
-					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", []string{events.AccessRequestResourceSearch}, 10, 0, "")
+					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+						From:       time.Time{},
+						To:         time.Now(),
+						EventTypes: []string{events.AccessRequestResourceSearch},
+						Limit:      10,
+						Order:      types.EventOrderAscending,
+					})
 					require.NoError(t, err)
 					if len(auditEvents) == 0 {
 						t.Log("no search audit events found")
@@ -3826,7 +3826,10 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 	srv, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
 
-	for _, role := range types.LocalServiceMappings() {
+	// Test all local service roles, plus RoleInstance.
+	// The latter may also be used to run the uploader.
+	roles := append(types.LocalServiceMappings(), types.RoleInstance)
+	for _, role := range roles {
 		// RoleMDM services don't create events by themselves, instead they rely on
 		// Auth to issue events.
 		if role == types.RoleAuth || role == types.RoleMDM {
@@ -3835,7 +3838,22 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 		t.Run(role.String(), func(t *testing.T) {
 			ctx := context.Background()
 
-			identity := TestBuiltin(role)
+			var identity TestIdentity
+			if role == types.RoleInstance {
+				// RoleInstance needs AdditionalSystemRoles, otherwise the setup is the
+				// same.
+				identity = TestIdentity{
+					I: authz.BuiltinRole{
+						Role: role,
+						AdditionalSystemRoles: []types.SystemRole{
+							types.RoleNode, // Arbitrary, could be any role.
+						},
+						Username: string(role),
+					},
+				}
+			} else {
+				identity = TestBuiltin(role)
+			}
 
 			authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
 			require.NoError(t, err)

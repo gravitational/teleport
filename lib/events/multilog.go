@@ -17,11 +17,10 @@ limitations under the License.
 package events
 
 import (
-	"time"
+	"context"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
@@ -66,9 +65,9 @@ func (m *MultiLog) Close() error {
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchEvents(ctx context.Context, req SearchEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err := log.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+		events, lastKey, err := log.SearchEvents(ctx, req)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}
@@ -82,9 +81,9 @@ func (m *MultiLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, even
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
 // a query to be resumed.
-func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (m *MultiLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) (events []apievents.AuditEvent, lastKey string, err error) {
 	for _, log := range m.loggers {
-		events, lastKey, err = log.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+		events, lastKey, err = log.SearchSessionEvents(ctx, req)
 		if !trace.IsNotImplemented(err) {
 			return events, lastKey, err
 		}
