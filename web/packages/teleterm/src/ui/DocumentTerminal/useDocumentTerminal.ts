@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
@@ -31,6 +31,8 @@ import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import * as tshdGateway from 'teleterm/services/tshd/gateway';
 
 import type * as types from 'teleterm/ui/services/workspacesService';
 import type * as uri from 'teleterm/ui/uri';
@@ -41,6 +43,10 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const [attempt, startTerminal] = useAsync(async () => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'connecting' });
+    }
+
     try {
       return await startTerminalSession(
         ctx,
@@ -69,14 +75,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
     };
   }, [attempt]);
 
-  const reconnect = useCallback(() => {
-    if ('status' in doc) {
-      documentsService.update(doc.uri, { status: 'connecting' });
-    }
-    startTerminal();
-  }, [documentsService, doc.uri, startTerminal]);
-
-  return { attempt, reconnect };
+  return { attempt, reconnect: startTerminal };
 }
 
 async function startTerminalSession(
@@ -219,7 +218,13 @@ async function setUpPtyProcess(
     leafClusterId: doc.leafClusterId,
   });
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
-  const cmd = createCmd(doc, rootCluster.proxyHost, getClusterName());
+  const cmd = createCmd(
+    ctx.clustersService,
+    doc,
+    rootCluster.proxyHost,
+    getClusterName()
+  );
+
   const ptyProcess = await createPtyProcess(ctx, cmd);
 
   if (doc.kind === 'doc.terminal_tsh_node') {
@@ -314,7 +319,15 @@ async function createPtyProcess(
   return process;
 }
 
+// TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal
+// accept it as an argument. This will allow components such as DocumentGatewayCliClient contain
+// the logic related to their specific use case.
+//
+// useDocumentTerminal used to assume that the doc contains everything that's needed to create the
+// cmd. In case of the gateway CLI client that's not true – the state of ClustersService needs to be
+// inspected to get the correct command for the gateway CLI client.
 function createCmd(
+  clustersService: ClustersService,
   doc: types.DocumentTerminal,
   proxyHost: string,
   clusterName: string
@@ -346,6 +359,39 @@ function createCmd(
     };
   }
 
+  if (doc.kind === 'doc.gateway_cli_client') {
+    const gateway = clustersService.findGatewayByConnectionParams(
+      doc.targetUri,
+      doc.targetUser
+    );
+    if (!gateway) {
+      // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
+      // the gateway is found. In any case, if it does happen for some reason, the user will see
+      // this message and will be able to retry starting the terminal.
+      throw new Error(
+        `No gateway found for ${doc.targetUser} on ${doc.targetUri}`
+      );
+    }
+
+    // Below we convert cliCommand fields from Go conventions to Node.js conventions.
+    const args = tshdGateway.getCliCommandArgs(gateway.cliCommand);
+    const env = tshdGateway.getCliCommandEnv(gateway.cliCommand);
+    // We must not use argsList[0] as the path. Windows expects the executable to end with `.exe`,
+    // so if we passed just `psql` here, we wouldn't be able to start the process.
+    //
+    // Instead, let's use the absolute path resolved by Go.
+    const path = gateway.cliCommand.path;
+
+    return {
+      kind: 'pty.gateway-cli-client',
+      path,
+      args,
+      env,
+      proxyHost,
+      clusterName,
+    };
+  }
+
   return {
     ...doc,
     kind: 'pty.shell',
@@ -355,8 +401,3 @@ function createCmd(
     initCommand: doc.initCommand,
   };
 }
-
-export type Props = {
-  doc: types.DocumentTerminal;
-  visible: boolean;
-};
