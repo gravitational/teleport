@@ -317,13 +317,13 @@ func TestLocalProxyRequirement(t *testing.T) {
 			if tt.setupTC != nil {
 				tt.setupTC(tc)
 			}
-			route := &tlsca.RouteToDatabase{
+			route := tlsca.RouteToDatabase{
 				ServiceName: "foo-db",
 				Protocol:    "postgres",
 				Username:    "alice",
 				Database:    "postgres",
 			}
-			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
+			requires := getDBConnectLocalProxyRequirement(ctx, tc, route)
 			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
 			require.Equal(t, tt.wantTunnel, requires.tunnel)
 			if requires.tunnel {
