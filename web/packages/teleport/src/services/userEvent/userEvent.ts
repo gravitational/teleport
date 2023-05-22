@@ -17,7 +17,13 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { UserEvent, PreUserEvent, DiscoverEventRequest } from './types';
+import {
+  UserEvent,
+  PreUserEvent,
+  DiscoverEventRequest,
+  CtaEvent,
+  CaptureEvent,
+} from './types';
 
 export const userEventService = {
   captureUserEvent(userEvent: UserEvent) {
@@ -44,6 +50,18 @@ export const userEventService = {
     void api.fetch(cfg.api.captureUserEventPath, {
       method: 'POST',
       body: JSON.stringify(event),
+    });
+  },
+
+  captureCtaEvent(event: CtaEvent) {
+    // using api.fetch instead of api.fetchJSON
+    // because we are not expecting a JSON response
+    void api.fetch(cfg.api.captureUserEventPath, {
+      method: 'POST',
+      body: JSON.stringify({
+        event: CaptureEvent.UiCallToActionClickEvent,
+        eventData: event,
+      }),
     });
   },
 };

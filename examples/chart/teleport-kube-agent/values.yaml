@@ -103,7 +103,12 @@ databaseResources: []
 # Values that you may need to change.
 ################################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
+# DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+# This chart is designed to run a specific teleport version (see Chart.yaml).
+# You will face compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
 # Optional CA pins of the auth server. This enables a more secure way of
@@ -245,7 +250,18 @@ rbac:
   create: true
 
 # Name of the Secret to store the teleport join token.
-secretName: teleport-kube-agent-join-token
+# DEPRECATED Use joinTokenSecret.name instead
+secretName: ""
+
+# Manages the join token secret creation and its name.
+joinTokenSecret:
+  # create controls whether the Helm chart should create and manage the join token
+  # secret.
+  # If false, the chart assumes that the secret with the configured name already exists at the
+  # installation namespace.
+  create: true
+  # Name of the Secret to store the teleport join token.
+  name: teleport-kube-agent-join-token
 
 # Teleport logging configuration
 log:

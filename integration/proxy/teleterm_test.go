@@ -53,7 +53,7 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendDB(pack.Root.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testGatewayCertRenewal(t, pack, "", creds, databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
@@ -61,18 +61,28 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 			AppendLeafCluster(leafClusterName).
 			AppendDB(pack.Leaf.MysqlService.Name)
 
-		testGatewayCertRenewal(t, pack, creds, databaseURI)
+		testGatewayCertRenewal(t, pack, "", creds, databaseURI)
+	})
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
+
+		databaseURI := uri.NewClusterURI(rootClusterName).
+			AppendDB(pack.Root.MysqlService.Name)
+
+		testGatewayCertRenewal(t, pack, albProxy.Addr().String(), creds, databaseURI)
 	})
 }
 
-func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
+func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   pack.Root.User.GetName(),
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
+		ALBAddr: albAddr,
 	}, *creds)
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())

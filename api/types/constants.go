@@ -341,11 +341,18 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
 
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
@@ -457,6 +464,9 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// AWSInstanceRegion is used to identify the region an EC2
+	// instance is running in
+	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
@@ -468,6 +478,10 @@ const (
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
+
+	// DatabaseAdminLabel is used to identify database admin user for auto-
+	// discovered databases.
+	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"

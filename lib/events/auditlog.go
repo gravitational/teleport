@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -38,7 +39,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -643,7 +643,7 @@ func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 	for {
 		out, err := l.getSessionChunk(namespace, sid, offsetBytes, maxBytes)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return data, nil
 			}
 			return nil, trace.Wrap(err)
@@ -896,27 +896,29 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 	return out, nil
 }
 
-func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	g := l.log.WithFields(log.Fields{"namespace": namespace, "eventType": eventType, "limit": limit})
-	g.Debugf("SearchEvents(%v, %v)", fromUTC, toUTC)
+func (l *AuditLog) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	g := l.log.WithFields(log.Fields{"eventType": req.EventTypes, "limit": req.Limit})
+	g.Debugf("SearchEvents(%v, %v)", req.From, req.To)
+	limit := req.Limit
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
 	if limit > defaults.EventsMaxIterationLimit {
 		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
 	}
+	req.Limit = limit
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+		return l.ExternalLog.SearchEvents(ctx, req)
 	}
-	return l.localLog.SearchEvents(fromUTC, toUTC, namespace, eventType, limit, order, startKey)
+	return l.localLog.SearchEvents(ctx, req)
 }
 
-func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", req.From, req.To, req.Limit)
 	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+		return l.ExternalLog.SearchSessionEvents(ctx, req)
 	}
-	return l.localLog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first

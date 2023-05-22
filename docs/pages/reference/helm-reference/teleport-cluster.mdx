@@ -38,7 +38,7 @@ Get started with a guide for each mode:
 | `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
 | `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx) |
 | `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
 
 <Admonition type="note" title="Custom mode removal">
 `custom` mode has been removed in Teleport version 12. See the [version 12
@@ -124,7 +124,9 @@ auth:
 
 `auth.teleportConfig` contains YAML teleport configuration for auth pods.
 The configuration will be merged with the chart-generated configuration
-and will take precedence in case of conflict.
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
 
 The merge logic is as follows:
 - object fields are merged recursively
@@ -175,7 +177,9 @@ proxy:
 
 `proxy.teleportConfig` contains YAML teleport configuration for proxy pods
 The configuration will be merged with the chart-generated configuration
-and will take precedence in case of conflict.
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
 
 The merge logic is as follows:
 - object fields are merged recursively
@@ -652,10 +656,21 @@ It is recommended to set resource requests/limits for each container based on th
 |----------|---------------|
 | `string` | `nil`         |
 
-Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-10.0.0, you'll be using Teleport 10.0.0. Upgrading the Helm chart will use the latest version from the repo.
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `10.1.2` or `11`.
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
+
+<Admonition type="danger">
+`teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
+</Admonition>
 
 See our [installation guide](../../installation.mdx#docker) for information on
 Docker image versions.
@@ -779,9 +794,19 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
 | `scratch`    | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx)              |
 
+<Admonition type="warning">
+Using the `scratch` chart mode is discouraged. Precise chart and Teleport
+knowledge is required to write a fully working cluster configuration.
+
+If you want a working cluster with blocks of custom configuration, it is
+recommended to use one of the other modes and rely on
+[`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig)
+to inject your custom configuration.
+</Admonition>
+
 ## `persistence`
 
-<Details title="Read this if using Kubernetes 1.23+ on EKS" opened={false}>
+<Details title="Read this if using Kubernetes 1.23+ on EKS">
 
 Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
 without additional configuration.

@@ -20,7 +20,9 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
+import { Flex } from 'design';
 import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -55,6 +57,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
   } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const pickAndResetActiveItem = useCallback(
+    (item: T) => {
+      setActiveItemIndex(0);
+      onPick(item);
+    },
+    [onPick]
+  );
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -83,7 +92,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 
           const item = items[activeItemIndex];
           if (item) {
-            onPick(item);
+            pickAndResetActiveItem(item);
           }
           break;
         }
@@ -110,7 +119,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
       capture: true,
     });
     return cleanup;
-  }, [items, onPick, onBack, activeItemIndex, addWindowEventListener]);
+  }, [
+    items,
+    pickAndResetActiveItem,
+    onBack,
+    activeItemIndex,
+    addWindowEventListener,
+  ]);
 
   return (
     <>
@@ -131,7 +146,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
               role="menuitem"
               active={isActive}
               key={key}
-              onClick={() => props.onPick(r)}
+              onClick={() => pickAndResetActiveItem(r)}
             >
               {Component}
             </InteractiveItem>
@@ -172,6 +187,30 @@ const InteractiveItem = styled(NonInteractiveItem)`
     }
   }}
 `;
+
+/**
+ * IconAndContent is supposed to be used within InteractiveItem & NonInteractiveItem.
+ */
+export function IconAndContent(
+  props: React.PropsWithChildren<{
+    Icon: React.ComponentType<{
+      color: string;
+      fontSize: string;
+      lineHeight: string;
+    }>;
+    iconColor: string;
+  }>
+) {
+  return (
+    <Flex alignItems="flex-start" gap={2}>
+      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
+      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
+      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
+        {props.children}
+      </Flex>
+    </Flex>
+  );
+}
 
 function getNext(selectedIndex = 0, max = 0) {
   let index = selectedIndex % max;

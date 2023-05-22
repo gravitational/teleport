@@ -1,0 +1,131 @@
+---
+title: Setting up self-hosted automatic agent updates (Preview)
+description: How to setup automatic agent update for self-hosted Teleport
+---
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["enterprise"]}
+  scopeOnly={true}
+  min="13.0"
+>
+  Automatic agent update is available starting from Teleport `13.0`.
+</Details>
+
+Teleport supports automatic agent updates for
+systemd-based Linux distributions using `apt` or `yum` package managers,
+and Kubernetes clusters. The [automatic updates architecture 
+page](../../architecture/agent-update-management.mdx) describes how agent
+updating works.
+
+This guide covers how to set up the automatic update infrastructure. If this is
+already done, or you are a Teleport Cloud user, you can directly
+[enroll agents into automatic updates](./enroll-agent-into-automatic-updates.mdx).
+
+<Admonition type="warning">
+Systemd agents enrolled into automatic updates can only install versions
+present in their package repositories. As Teleport 14 won't be published to
+`stable/v13`, those agents will require manual intervention to be updated to
+the next major version (adding a new apt/yum repo for `stable/v14`).
+
+This limitation will be fixed before Teleport 14. We'll provide a rolling
+update channel for agents to be able to automatically update from one major
+to another. When this will happen, you will have to update the repos of the
+existing agents to point to the new repo.
+
+</Admonition>
+
+## Requirements
+
+- Self-hosted Teleport cluster running.
+- `tctl` execution on the auth machine or a role allowing verbs `create`, `read`,
+  `update`, `delete` on the resource `cluster_maintenance_config`.
+- Either:
+  - a public S3/GCS bucket,
+  - a web server accessible from all agents with valid TLS certificates.
+
+## Step 1/3. Create release channel files
+
+A release channel contains two pieces of information: the targeted version
+and if the update is critical. Updaters subscribe to a release channel and will
+update to the provided version during a maintenance window if possible. If the
+update is critical, updaters will ignore the maintenance schedule and update as
+soon as possible.
+
+Create a directory for the new release channel `current`.
+
+```code
+$ mkdir current/
+```
+
+Make the `current` release channel target the version (=teleport.version=):
+
+```code
+$ echo -n "(=teleport.version=)" > current/version
+```
+
+And mark the update as not critical:
+
+```code
+$ echo -n "no" > current/critical
+```
+
+## Step 2/3. Host the release channel files on the version server
+
+The release channel must be hosted on a webserver with trusted TLS certificates
+and reachable by all agents.
+
+Public cloud buckets like Amazon S3 or Google Cloud Storage are good
+candidates as they provide reliable low-maintenance file hosting.
+
+You can also serve the files with a regular webserver like `nginx`.
+The release channel needs to be served over HTTPS.
+
+Choose a way to serve the release channel and setup the hosting.
+
+The webserver must answer the following queries:
+
+```code
+$ curl https://<hosting-domain-and-path>/current/version
+(=teleport.version=)
+
+$ curl https://<hosting-domain-and-path>/current/critical
+no
+```
+
+The web server serving the release channel is called the version server.
+Save the version server domain and release channel name (here respectively
+`<hosting-domain-and-path>` and `current`) as they will be required
+later to configure the agent updaters.
+
+## Step 3/3. Configure the maintenance schedule
+
+At this point the updaters can be configured to pull the version from the
+release channel and update the agents. However, they still don't know when
+they should perform updates.
+
+Agents can retrieve the maintenance schedule from the Teleport cluster and
+pass it to the updater. In this step you'll configure the maintenance
+schedule for the whole cluster.
+
+Create the following `cmc.yaml` manifest allowing maintenances on Monday, Wednesday
+and Friday between 02:00 and 03:00 UTC.
+
+(!docs/pages/includes/cluster-maintenance-config-spec.mdx!)
+
+Finally, apply the manifest using `tctl`:
+
+```code
+$ tctl create cmc.yaml
+maintenance window has been updated
+```
+
+## Next steps
+
+At this point, the cluster is ready for agent automatic updates.
+Agents configured to automatically update will fetch their version from the
+version server. By changing the target version served by the version server
+you can upgrade or downgrade the agents.
+
+You can now [enroll agents into automatic updates](./enroll-agent-into-automatic-updates.mdx).

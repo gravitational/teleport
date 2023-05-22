@@ -21,14 +21,21 @@ import { KeysEnum } from './types';
 
 import type { ThemeOption } from 'design/theme';
 
+// This is an array of local storage `KeysEnum` that are kept when a user logs out
+const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
+  KeysEnum.THEME,
+  KeysEnum.SHOW_ASSIST_POPUP,
+];
+
 const storage = {
   clear() {
-    const themeOption = window.localStorage.getItem(KeysEnum.THEME);
-    window.localStorage.clear();
-    // This is to keep the theme selection in localStorage even when
-    // the rest of it is cleared. This is to prevent theme from
-    // getting reset on logout.
-    window.localStorage.setItem(KeysEnum.THEME, themeOption);
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+
+      if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
+        window.localStorage.removeItem(key);
+      }
+    }
   },
 
   subscribe(fn) {

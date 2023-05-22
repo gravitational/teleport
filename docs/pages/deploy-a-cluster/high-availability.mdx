@@ -173,6 +173,7 @@ services:
 | `3026` | HTTPS Kubernetes proxy |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
+| `27017` | Mongo port |
 
 </TabItem>
 </Tabs>
@@ -198,23 +199,27 @@ events:
 - Google Cloud Firestore
 - etcd (cluster state only)
 
-For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration (which
-we will describe in more detail in the [Configuration](#configuration) section)
-names a table or collection where Teleport stores cluster state and audit
-events. 
-
-The Teleport Auth Service manages the creation of any required DynamoDB tables
-or Firestore collections itself, and does not require them to exist in advance.
+For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration
+(which we will describe in more detail in the [Configuration](#configuration)
+section) names the two tables or collections where Teleport stores cluster state
+and audit events. 
 
 The Auth Service can also store cluster state in self-hosted
 [etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
 within item keys to identify cluster state data.
 
+When you configure the Teleport Auth Service to access a table or collection,
+the Auth Service checks that the table or collection exists on startup. If it
+does not, the Auth Service attempts to create it.
+
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution (e.g., AWS or Google Cloud IAM), your
-Auth Service instances need permissions to read from and write to your chosen
-key/value store, as well as to create tables and collections (if your key/value
+Make sure you configure your cloud provider's RBAC solution (e.g., AWS or Google
+Cloud IAM) so that your Auth Service instances have permissions to read from and
+write to your chosen key/value store. 
+
+Unless you have a pre-existing table or collection to use, the Auth Service
+must also have permissions to create tables and collections (if your key/value
 store supports them).
 
 </Admonition>
@@ -230,19 +235,21 @@ storage services:
 
 In your Teleport configuration (described in the [Configuration](#configuration)
 section), you must name a bucket within Google Cloud Storage or an Amazon
-S3-compatible service to use for managing session recordings. The Teleport Auth
-Service creates this bucket, so to prevent unexpected behavior, you should not
-create it in advance. 
+S3-compatible service to use for managing session recordings. 
+
+The Auth Service will check that the bucket exists on startup. If it does not,
+the Auth Service attempts to create it.
 
 <Admonition title="Required permissions">
 
 In your cloud provider's RBAC solution, your Auth Service instances need
 permissions to get buckets as well as to create, get, list, and update objects.
-Since this setup lets Teleport create buckets for you, you should also assign
-Auth Service instances permissions to create buckets
 
 In Google Cloud Storage, Auth Service instances also need permissions to delete
 objects. 
+
+Unless you plan to configure the Auth Service to access a pre-existing bucket,
+you must also assign Auth Service instances permissions to create buckets.
 
 </Admonition>
 

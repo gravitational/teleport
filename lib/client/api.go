@@ -312,6 +312,10 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
+	// extraEnvs contains additional environment variables that will be added
+	// to SSH session.
+	extraEnvs map[string]string
+
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
 	InteractiveCommand bool
@@ -1605,14 +1609,22 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	mfaCancel()
 	directCancel()
 
-	// Only return the error from connecting with mfa if the error
-	// originates from the mfa ceremony. If mfa is not required then
-	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	switch {
+	// No MFA errors, return any errors from the direct connection
+	case mfaErr == nil:
+		return nil, trace.Wrap(directErr)
+	// Any direct connection errors other than access denied, which should be returned
+	// if MFA is required, take precedent over MFA errors due to users not having any
+	// enrolled devices.
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+		return nil, trace.Wrap(directErr)
+	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
+		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
 		return nil, trace.Wrap(mfaErr)
+	default:
+		return nil, trace.Wrap(directErr)
 	}
-
-	return nil, trace.Wrap(directErr)
 }
 
 // MFARequiredUnknownErr indicates that connections to an instance failed
@@ -2664,6 +2676,10 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	}
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
+	}
+
+	for key, val := range tc.extraEnvs {
+		env[key] = val
 	}
 	return env
 }
@@ -4725,6 +4741,8 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery: tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

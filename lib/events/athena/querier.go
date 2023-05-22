@@ -113,11 +113,11 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
+func (q *querier) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time,
 	eventTypes []string, limit int, order types.EventOrder, startKey string,
 ) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: eventTypes}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   fromUTC,
 		toUTC:     toUTC,
 		limit:     limit,
@@ -129,7 +129,7 @@ func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
 	return events, keyset, trace.Wrap(err)
 }
 
-func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
+func (q *querier) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int,
 	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
 ) ([]apievents.AuditEvent, string, error) {
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
@@ -142,7 +142,7 @@ func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
 		}
 		filter.condition = condFn
 	}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   fromUTC,
 		toUTC:     toUTC,
 		limit:     limit,
@@ -304,7 +304,10 @@ func prepareQuery(params searchParams) (query string, execParams []string) {
 		qb.Append(` ORDER BY event_time DESC, uid DESC`)
 	}
 
-	qb.Append(` LIMIT ?`, strconv.Itoa(params.limit))
+	// Athena engine v2 supports ? placeholders only in Where part.
+	// To be compatible with v2, limit value is added as part of query.
+	// It's safe because it was already validated and it's just int.
+	qb.Append(` LIMIT ` + strconv.Itoa(params.limit) + `;`)
 
 	return qb.String(), qb.Args()
 }
@@ -361,11 +364,11 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 		case athenaTypes.QueryExecutionStateSucceeded:
 			return nil
 		case athenaTypes.QueryExecutionStateCancelled, athenaTypes.QueryExecutionStateFailed:
-			return trace.Errorf("got unexpected state: %s", state)
+			return trace.Errorf("got unexpected state: %s from queryID: %s", state, queryId)
 		case athenaTypes.QueryExecutionStateQueued, athenaTypes.QueryExecutionStateRunning:
 			continue
 		default:
-			return trace.Errorf("got unknown state: %s", state)
+			return trace.Errorf("got unknown state: %s from queryID: %s", state, queryId)
 		}
 	}
 }

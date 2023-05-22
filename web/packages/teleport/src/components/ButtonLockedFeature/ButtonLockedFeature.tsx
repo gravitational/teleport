@@ -20,32 +20,58 @@ import { ButtonPrimary } from 'design/Button';
 import { Unlock } from 'design/Icon';
 import Flex from 'design/Flex';
 
+import { CtaEvent, userEventService } from 'teleport/services/userEvent';
+import useTeleport from 'teleport/useTeleport';
+
 export type Props = {
   children: React.ReactNode;
   noIcon?: boolean;
+  event?: CtaEvent;
   [index: string]: any;
 };
 
-const salesUrl = 'https://goteleport.com/signup/enterprise/';
+const SALES_URL = 'https://goteleport.com/r/upgrade-team';
 
-export function ButtonLockedFeature({ children, noIcon = false, ...rest }) {
+export function ButtonLockedFeature({
+  children,
+  noIcon = false,
+  event,
+  ...rest
+}: Props) {
+  const ctx = useTeleport();
+  const version = ctx.storeUser.state.cluster.authVersion;
+  const isEnterprise = ctx.isEnterprise;
+
+  function handleClick() {
+    userEventService.captureCtaEvent(event);
+  }
+
   return (
-    <StyledButton onClick={() => window.open(salesUrl, 'blank')} {...rest}>
+    <ButtonPrimary
+      as="a"
+      target="blank"
+      href={`${SALES_URL}?${getParams(version, isEnterprise, event)}`}
+      onClick={handleClick}
+      py="12px"
+      width="100%"
+      style={{ textTransform: 'none' }}
+      {...rest}
+    >
       <Flex alignItems="center">
         {!noIcon && <UnlockIcon />}
         {children}
       </Flex>
-    </StyledButton>
+    </ButtonPrimary>
   );
 }
 
-const StyledButton = styled(ButtonPrimary)`
-  text-transform: none;
-  width: 100%;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 12px;
-`;
+function getParams(
+  version: string,
+  isEnterprise: boolean,
+  event: CtaEvent
+): string {
+  return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
+}
 
 const UnlockIcon = styled(Unlock)`
   color: inherit;

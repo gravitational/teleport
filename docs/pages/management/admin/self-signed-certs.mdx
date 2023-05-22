@@ -80,8 +80,7 @@ For example, this Teleport Proxy Service configuration would use self-signed cer
   ```
 
 - The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
+  which you can download by visiting your [Teleport account](https://teleport.sh).
 
   ```code
   $ tctl version
@@ -170,7 +169,7 @@ running Teleport: via the `teleport` CLI, using a Helm chart, or via systemd:
     You will see output similar to the following, including the file path (`/lib/systemd/system/teleport.service`) that contains the unit file for the systemd configuration being applied:
 
     ```code
-    ● teleport.service - Teleport SSH Service
+    ● teleport.service - Teleport Service
         Loaded: loaded (/lib/systemd/system/teleport.service; disabled; vendor preset: enabled)
         Active: inactive (dead)
     ```
