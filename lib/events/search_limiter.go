@@ -15,12 +15,12 @@
 package events
 
 import (
+	"context"
 	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/time/rate"
 
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
@@ -74,22 +74,18 @@ func NewSearchEventLimiter(cfg SearchEventsLimiterConfig) (*SearchEventsLimiter,
 	}, nil
 }
 
-func (s *SearchEventsLimiter) SearchEvents(fromUTC, toUTC time.Time, namespace string,
-	eventTypes []string, limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
+func (s *SearchEventsLimiter) SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
-	out, keyset, err := s.AuditLogger.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	out, keyset, err := s.AuditLogger.SearchEvents(ctx, req)
 	return out, keyset, trace.Wrap(err)
 }
 
-func (s *SearchEventsLimiter) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
-	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
-) ([]apievents.AuditEvent, string, error) {
+func (s *SearchEventsLimiter) SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	if !s.limiter.Allow() {
 		return nil, "", trace.LimitExceeded("rate limit exceeded for searching events")
 	}
-	out, keyset, err := s.AuditLogger.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	out, keyset, err := s.AuditLogger.SearchSessionEvents(ctx, req)
 	return out, keyset, trace.Wrap(err)
 }
