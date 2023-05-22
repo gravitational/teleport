@@ -589,7 +589,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	})
 }
 
-// TestConsumerWriteToS3 is writing parquet files per date works.
+// TestConsumerWriteToS3 checks if writing parquet files per date works.
 // It receives events from different dates and make sure that multiple
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.

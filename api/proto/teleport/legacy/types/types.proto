@@ -5055,6 +5055,8 @@ message PluginSpecV1 {
     PluginSlackAccessSettings slack_access_plugin = 1;
     // Settings for the Opsgenie access plugin
     PluginOpsgenieAccessSettings opsgenie = 2;
+    // Settings for the Okta plugin
+    PluginOktaSettings okta = 4;
   }
 }
 
@@ -5075,6 +5077,14 @@ message PluginOpsgenieAccessSettings {
   repeated string alert_tags = 3;
   // Default on-call schedules to check if none are provided in the access request annotations
   repeated string default_schedules = 4;
+}
+
+// Defines settings for the Okta plugin.
+message PluginOktaSettings {
+  option (gogoproto.equal) = true;
+
+  // OrgUrl is the Okta organization URL to use for API communication.
+  string org_url = 1;
 }
 
 message PluginBootstrapCredentialsV1 {
