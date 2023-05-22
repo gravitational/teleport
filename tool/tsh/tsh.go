@@ -1074,7 +1074,15 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
-	if cf.SampleTraces {
+	// kubectl is a special case because it is the only command that we re-execute
+	// in order to be able to access the exit code and stdout/stderr of the command
+	// that was run and determine if we should create a new access request from
+	// the output data.
+	// We don't want to enable tracing for the master invocation of tsh kubectl
+	// because the data that we would be tracing would be the tsh kubectl command.
+	// Instead, we want to enable tracing for the re-executed kubectl command and
+	// we do that in the kubectl command handler.
+	if cf.SampleTraces && cf.command != kubectl.FullCommand() {
 		// login only needs to be ignored if forwarding to auth
 		var ignored []string
 		if cf.TraceExporter == "" {
@@ -1315,7 +1323,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = deviceCmd.keyget.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
-		err = onKubectlCommand(&cf, args[idx:])
+		err = onKubectlCommand(&cf, args, args[idx:])
 	case approve.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
