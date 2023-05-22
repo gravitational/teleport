@@ -4706,6 +4706,11 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // HostID is the target host id that created the session tracker.
+  // It's useful for Kubernetes moderated sessions when running in high availabilty
+  // otherwise kube proxy is not able to know which agent runs the session.
+  string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
