@@ -87,23 +87,20 @@ implementation. It is _fully compatible with OpenSSH_,
 
 ## Installing and Running
 
-| Follow the [Installation](https://goteleport.com/docs/installation/) Guide
+To set up a single-instance Teleport cluster, follow our [getting started
+guide](https://goteleport.com/docs/get-started). You can then register your
+servers, Kubernetes clusters, and other infrastructure with your Teleport
+cluster.
 
-Download the [latest binary release](https://goteleport.com/download),
-unpack the .tar.gz and run `sudo ./install`. This will copy Teleport binaries into
-`/usr/local/bin`.
+You can also get started with Teleport Team, a managed Teleport deployment that
+makes it easier for small organizations to enable secure access to their
+infrastructure.
 
-Then you can run Teleport as a single-node cluster:
+[Sign up for a free trial](https://goteleport.com/signup) of Teleport Team.
 
-```bash
-sudo teleport start
-```
-
-In a production environment, Teleport must run as `root`. For testing or non-production environments, run it as the `$USER`:
-
-`chown $USER /var/lib/teleport`
-
-* In this case, you will not be able to log in as another user.
+Follow our guide to [registering your first
+server](https://goteleport.com/docs/choose-an-edition/teleport-team/) with
+Teleport Team
 
 ## Docker
 
