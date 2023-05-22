@@ -67,19 +67,6 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err 
 	return keyPath, nil
 }
 
-func openTPM() (*attest.TPM, error) {
-	cfg := &attest.OpenConfig{
-		TPMVersion: attest.TPMVersion20,
-	}
-
-	tpm, err := attest.OpenTPM(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return tpm, nil
-}
-
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
 func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	eks, err := tpm.EKs()
@@ -118,7 +105,7 @@ func createAndSaveAK(
 	tpm *attest.TPM,
 	persistencePath string,
 ) (*attest.AK, error) {
-	ak, err := tpm.NewAK(nil)
+	ak, err := tpm.NewAK(&attest.AKConfig{})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ak")
 	}
@@ -142,7 +129,9 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -155,13 +144,13 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err, "loading ak")
 		}
-		log.Debug("No existing AK was found on disk, an AK will be created.")
+		log.Debug("TPM: No existing AK was found on disk, an AK will be created.")
 		ak, err = createAndSaveAK(tpm, akPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating ak")
 		}
 	} else {
-		log.Debug("Existing AK was found on disk, it will be reused.")
+		log.Debug("TPM: Existing AK was found on disk, it will be reused.")
 	}
 	defer ak.Close(tpm)
 
@@ -339,7 +328,7 @@ func firstOf(strings ...string) string {
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
-	log.Debug("Collecting device data.")
+	log.Debug("TPM: Collecting device data.")
 	systemSerial, err := getDeviceSerial()
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching system serial")
@@ -388,7 +377,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	}
 	log.WithField(
 		"device_collected_data", dcd,
-	).Debug("Device data collected.")
+	).Debug("TPM: Device data collected.")
 	return dcd, nil
 }
 
@@ -399,7 +388,9 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -430,7 +421,9 @@ func solveTPMEnrollChallenge(
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
@@ -444,7 +437,7 @@ func solveTPMEnrollChallenge(
 	defer ak.Close(tpm)
 
 	// Next perform a platform attestation using the AK.
-	log.Debug("Performing platform attestation.")
+	log.Debug("TPM: Performing platform attestation.")
 	platformsParams, err := tpm.AttestPlatform(
 		ak,
 		challenge.AttestationNonce,
@@ -460,7 +453,7 @@ func solveTPMEnrollChallenge(
 
 	// First perform the credential activation challenge provided by the
 	// auth server.
-	log.Debug("Activating credential.")
+	log.Debug("TPM: Activating credential.")
 	activationSolution, err := ak.ActivateCredential(
 		tpm,
 		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
@@ -469,7 +462,7 @@ func solveTPMEnrollChallenge(
 		return nil, trace.Wrap(err, "activating credential with challenge")
 	}
 
-	log.Debug("TPM enrollment challenge completed.")
+	log.Debug("TPM: Enrollment challenge completed.")
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
 		PlatformParameters: devicetrust.PlatformParametersToProto(
