@@ -22,10 +22,10 @@ RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_
 ARG PROTOC_VER=3.20.2
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  cd /tmp && \
-  curl -fsSLO "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(uname -m).zip"  && \
-  unzip protoc*.zip -d /usr/local && \
-  rm -f protoc*.zip
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(uname -m).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
 # buf
 ARG BUF_VERSION=1.19.0

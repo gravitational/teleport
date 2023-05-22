@@ -280,10 +280,10 @@ RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_
 ARG PROTOC_VER
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
-  cd /tmp && \
-  curl -fsSLO "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
-  unzip protoc*.zip -d /usr/local && \
-  rm -f protoc*.zip
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
 # Install protoc-gen-gogofast.
 ARG GOGO_PROTO_TAG
