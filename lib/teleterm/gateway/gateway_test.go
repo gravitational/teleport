@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func TestCLICommandReturnsRelativeCommand(t *testing.T) {
+func TestCLICommandPreviewReturnsRelativeCommandWithEnv(t *testing.T) {
 	gateway := Gateway{
 		cfg: &Config{
 			TargetName:            "foo",
@@ -47,9 +47,11 @@ func TestCLICommandReturnsRelativeCommand(t *testing.T) {
 	command, err := gateway.CLICommand()
 	require.NoError(t, err)
 
-	args := strings.Split(command, " ")
-	path := args[0]
-	require.True(t, filepath.IsLocal(path), "Not a local path: %q", path)
+	args := strings.Split(command.Preview, " ")
+	env := args[0]
+	path := args[1]
+	require.Equal(t, "FOO=bar", env)
+	require.Equal(t, "postgres", path)
 }
 
 func TestGatewayStart(t *testing.T) {
@@ -161,6 +163,7 @@ func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (*exec.Cmd, error) 
 	// whether a command like postgres is installed on the system or not.
 	cmd := exec.Command(gateway.Protocol(), arg)
 	cmd.Path = absPath
+	cmd.Env = []string{"FOO=bar"}
 	return cmd, nil
 }
 
