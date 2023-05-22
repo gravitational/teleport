@@ -176,16 +176,22 @@ type CommandLineFlags struct {
 	// if the value cannot be obtained from the database.
 	DatabaseMySQLServerVersion string
 
-	// ProxyServer is the url of the proxy server to connect to
+	// ProxyServer is the url of the proxy server to connect to.
 	ProxyServer string
-	// OpenSSHConfigPath is the path of the file to write agentless configuration to
+	// OpenSSHConfigPath is the path of the file to write agentless configuration to.
 	OpenSSHConfigPath string
-	// OpenSSHKeysPath is the path to write teleport keys and certs into
-	OpenSSHKeysPath string
-	// AdditionalPrincipals are a list of extra principals to include when generating host keys.
-	AdditionalPrincipals string
 	// RestartOpenSSH indicates whether openssh should be restarted or not.
 	RestartOpenSSH bool
+	// RestartCommand is the command to use when restarting sshd
+	RestartCommand string
+	// CheckCommand is the command to use when checking sshd config validity
+	CheckCommand string
+	// Address is the ip address of the OpenSSH node.
+	Address string
+	// AdditionalPrincipals is a list of additional principals to include in the SSH cert.
+	AdditionalPrincipals string
+	// Directory to store
+	DataDir string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -2126,6 +2132,63 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
+
+	return nil
+}
+
+// ConfigureOpenSSH initializes a config from the commandline flags passed
+func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
+	// Apply command line --debug flag to override logger severity.
+	if clf.Debug {
+		log.SetLevel(log.DebugLevel)
+		cfg.Log.SetLevel(log.DebugLevel)
+		cfg.Debug = clf.Debug
+	}
+
+	if clf.AuthToken != "" {
+		// store the value of the --token flag:
+		cfg.SetToken(clf.AuthToken)
+	}
+
+	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
+	servicecfg.DisableLongRunningServices(cfg)
+
+	cfg.DataDir = clf.DataDir
+	cfg.Version = defaults.TeleportConfigVersionV3
+	cfg.OpenSSH.SSHDConfigPath = clf.OpenSSHConfigPath
+	cfg.OpenSSH.RestartSSHD = clf.RestartOpenSSH
+	cfg.OpenSSH.RestartCommand = clf.RestartCommand
+	cfg.OpenSSH.CheckCommand = clf.CheckCommand
+	cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Hostname = hostname
+	cfg.OpenSSH.InstanceAddr = clf.Address
+	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+		if principal == "" {
+			continue
+		}
+		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
+	}
+	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyServer, err := utils.ParseAddr(clf.ProxyServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.SetAuthServerAddresses(nil)
+	cfg.ProxyServer = *proxyServer
 
 	return nil
 }
