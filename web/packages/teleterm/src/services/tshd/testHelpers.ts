@@ -81,7 +81,12 @@ export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
   localAddress: 'localhost',
   localPort: '1337',
   protocol: 'postgres',
-  cliCommand: 'connect-me-to-db-please',
+  cliCommand: {
+    path: '/foo/psql',
+    argsList: ['psql', 'localhost:1337'],
+    envList: [],
+    preview: 'psql localhost:1337',
+  },
   targetSubresourceName: 'bar',
   ...props,
 });
