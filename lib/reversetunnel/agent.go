@@ -617,11 +617,9 @@ func (a *agent) handlesGlobalRequests() (bool, error) {
 		if err, ok := err.(*ssh.OpenChannelError); ok {
 			// sshAckAndClose indicates the channel was acknolwedged but requests
 			// are not handled.
-			if err.Reason != sshAckAndClose {
-				a.checkedServerVersion = true
-				a.isV2Server = false
-				return a.isV2Server, nil
-			}
+			a.checkedServerVersion = true
+			a.isV2Server = err.Reason == sshAckAndClose
+			return a.isV2Server, nil
 		} else if err != nil {
 			return false, trace.Wrap(err)
 		}
