@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -614,11 +615,11 @@ func (a *agent) handlesGlobalRequests() (bool, error) {
 		// REMOVE IN V14: In v14 proxy servers will be guarenteed to properly handle
 		// global requests.
 		v2Chan, v2Reqs, err := a.client.OpenChannel(a.ctx, teleport.ReverseTunnelServerV2Channel, nil)
-		if err, ok := err.(*ssh.OpenChannelError); ok {
+		if oce := (&ssh.OpenChannelError{}); errors.As(err, oce) {
 			// sshAckAndClose indicates the channel was acknolwedged but requests
 			// are not handled.
 			a.checkedServerVersion = true
-			a.isV2Server = err.Reason == sshAckAndClose
+			a.isV2Server = oce.Reason == sshAckAndClose
 			return a.isV2Server, nil
 		} else if err != nil {
 			return false, trace.Wrap(err)
