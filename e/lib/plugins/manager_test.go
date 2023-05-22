@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -147,7 +148,10 @@ func TestPluginManagerStartStop(t *testing.T) {
 				return makeInstanceDelegate(ctx), nil
 			},
 		},
-		TeleportClient: &client.Client{}, // not actually used in test
+
+		// the following are not used in the test
+		TeleportClient: &client.Client{},
+		ParentProcess:  &service.TeleportProcess{},
 	}
 
 	manager, err := NewManager(cfg)

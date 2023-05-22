@@ -10,14 +10,16 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // instanceDependencies is a container for dependencies of a plugin instance.
 type instanceDependencies struct {
-	authorizer oauth.Authorizer
-	client     teleport.Client
-	store      storage.Store
-	statusSink common.StatusSink
+	authorizer    oauth.Authorizer
+	client        teleport.Client
+	store         storage.Store
+	statusSink    common.StatusSink
+	parentProcess *service.TeleportProcess
 
 	log *logrus.Entry
 }

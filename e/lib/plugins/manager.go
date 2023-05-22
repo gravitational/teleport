@@ -13,9 +13,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// HeartbeatCreator is a function that will create heartbeats for a given component.
+type HeartbeatCreator func(string) func(error)
 
 // ManagerConfig contains parameters and dependencies for Manager
 type ManagerConfig struct {
@@ -27,6 +31,9 @@ type ManagerConfig struct {
 	TeleportClient teleport.Client
 	// RetryConfig defines the backoff settings for retrying the inner event loop
 	RetryConfig *retryutils.RetryV2Config
+	// ParentProcess is the process that is running this plugin manager. This is needed
+	// for plugins that do things like start services.
+	ParentProcess *service.TeleportProcess
 
 	Clock clockwork.Clock
 	Log   *logrus.Entry
@@ -43,13 +50,18 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 	if cfg.Events == nil {
 		return trace.BadParameter("events must be set")
 	}
+	if cfg.TeleportClient == nil {
+		return trace.BadParameter("teleportClient must be set")
+	}
+	if cfg.ParentProcess == nil {
+		return trace.BadParameter("parent process must be set")
+	}
+
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
 			types.PluginTypeSlack: slackInstanceFactory,
+			types.PluginTypeOkta:  oktaInstanceFactory,
 		}
-	}
-	if cfg.TeleportClient == nil {
-		return trace.BadParameter("teleportClient must be set")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -64,7 +76,6 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			Clock:     cfg.Clock,
 		}
 	}
-
 	if cfg.Log == nil {
 		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
 	}
@@ -86,6 +97,7 @@ type Manager struct {
 	teleportClient teleport.Client
 	watcher        types.Watcher
 	retryConfig    retryutils.RetryV2Config
+	parentProcess  *service.TeleportProcess
 
 	log *logrus.Entry
 }
@@ -106,6 +118,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		instances:      make(map[string]*instance),
 		teleportClient: cfg.TeleportClient,
 		retryConfig:    *cfg.RetryConfig,
+		parentProcess:  cfg.ParentProcess,
 
 		log: cfg.Log,
 	}
@@ -247,13 +260,18 @@ func (m *Manager) startInstance(plugin *types.PluginV1) error {
 		return trace.BadParameter("unsupported plugin type %q", plugin.GetType())
 	}
 
-	authorizer, err := m.authorizers.Get(plugin.GetType())
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.Wrap(err, "unsupported plugin type %q", plugin.GetType())
+	var authorizer *Authorizer
+	if NeedsOAuth(plugin) {
+		var err error
+		authorizer, err = m.authorizers.Get(plugin.GetType())
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.Wrap(err, "unsupported plugin type %q", plugin.GetType())
+			}
+			return trace.Wrap(err)
 		}
-		return trace.Wrap(err)
 	}
+
 	store := newPluginStore(m.backend, plugin.GetName())
 	statusSink := newStatusSink(m.backend, plugin.GetName(), string(plugin.GetType()))
 
@@ -262,11 +280,12 @@ func (m *Manager) startInstance(plugin *types.PluginV1) error {
 		"plugin_type": plugin.GetType(),
 	})
 	deps := instanceDependencies{
-		authorizer: authorizer,
-		client:     m.teleportClient,
-		store:      store,
-		statusSink: statusSink,
-		log:        log,
+		authorizer:    authorizer,
+		client:        m.teleportClient,
+		store:         store,
+		statusSink:    statusSink,
+		parentProcess: m.parentProcess,
+		log:           log,
 	}
 
 	// Use Background() here for now, no connection to event loop's context.
@@ -305,4 +324,14 @@ func (m *Manager) instanceUpToDate(name string, spec *types.PluginSpecV1) bool {
 		return false
 	}
 	return instance.spec.Equal(spec)
+}
+
+// NeedsOAuth returns true if the plugin needs OAuth.
+func NeedsOAuth(plugin types.Plugin) bool {
+	switch plugin.GetType() {
+	case types.PluginTypeOkta:
+		return false
+	}
+
+	return true
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -179,9 +180,10 @@ func NewTeleport(cfg Config) (*Process, error) {
 			Backend:        backendService,
 			Events:         process.GetAuthServer().Services,
 			TeleportClient: process.GetAuthServer(),
+			ParentProcess:  process.TeleportProcess,
 
 			Log: logrus.WithFields(logrus.Fields{
-				trace.Component: "pluginmanager",
+				trace.Component: teleport.ComponentPluginManager,
 			}),
 		})
 		if err != nil {
@@ -192,7 +194,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		process.Supervisor.RegisterFunc("pluginmanager", func() error {
+		process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
 			return trace.Wrap(pluginManager.Run(process.GracefulExitContext()))
 		})
 	}

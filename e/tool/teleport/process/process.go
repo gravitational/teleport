@@ -83,7 +83,9 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	if cfg.Okta.Enabled {
-		services.InitOkta(ossProcess)
+		if err := services.InitOkta(ossProcess); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if cfg.Jamf.Enabled() {

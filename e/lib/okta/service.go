@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -273,6 +274,9 @@ type Service struct {
 	stopChCloser sync.Once
 	stopCh       chan struct{}
 
+	shutdownCalled atomic.Bool
+	closeCalled    atomic.Bool
+
 	httpServer *http.Server
 }
 
@@ -388,6 +392,11 @@ func (s *Service) Wait(ctx context.Context) {
 
 // Shutdown will stop any processes that are currently running.
 func (s *Service) Shutdown() error {
+	// If we've already called shutdown, return.
+	if !s.shutdownCalled.CompareAndSwap(false, true) {
+		return nil
+	}
+
 	s.stopChCloser.Do(func() { close(s.stopCh) })
 	s.syncStoppedChCloser.Do(func() { close(s.stopCh) })
 
@@ -408,6 +417,11 @@ func (s *Service) Shutdown() error {
 
 // Close cleans up any lingering resources.
 func (s *Service) Close(ctx context.Context) error {
+	// If we've already called close, return.
+	if !s.closeCalled.CompareAndSwap(false, true) {
+		return nil
+	}
+
 	var errs []error
 	if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
 		for appName := range s.heartbeats {

@@ -36,4 +36,7 @@ const (
 
 	// ComponentJamf is the Jamf service component.
 	ComponentJamf = "jamf"
+
+	// ComponentPluginManager is a plugin manager component.
+	ComponentPluginManager = "pluginmanager"
 )

@@ -74,36 +74,8 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 	if plugin == nil {
 		return nil, trace.BadParameter("Plugin must be set")
 	}
-	bootstrapCreds := req.BootstrapCredentials
-	if bootstrapCreds == nil {
-		return nil, trace.BadParameter("BootstrapCredentials must be set")
-	}
 
-	authCodeCreds := bootstrapCreds.GetOauth2AuthorizationCode()
-	if authCodeCreds == nil {
-		return nil, trace.BadParameter("unknown type of bootstrap credentials received")
-	}
-
-	authorizer, err := s.pluginAuthorizers.Get(plugin.GetType())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	creds, err := authorizer.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = plugin.SetCredentials(&types.PluginCredentialsV1{
-		Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
-			Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
-				AccessToken:  creds.AccessToken,
-				RefreshToken: creds.RefreshToken,
-				Expires:      creds.ExpiresAt,
-			},
-		},
-	})
-	if err != nil {
+	if err := s.updatePluginWithLiveCredentials(ctx, plugin, req.BootstrapCredentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -111,6 +83,42 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// updatePluginWithLiveCredetials will update the plugin with live credentials if needed.
+func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin types.Plugin, bootstrapCreds *types.PluginBootstrapCredentialsV1) error {
+	if !plugins.NeedsOAuth(plugin) {
+		return nil
+	}
+
+	if bootstrapCreds == nil {
+		return trace.BadParameter("BootstrapCredentials must be set")
+	}
+
+	authCodeCreds := bootstrapCreds.GetOauth2AuthorizationCode()
+	if authCodeCreds == nil {
+		return trace.BadParameter("unknown type of bootstrap credentials received")
+	}
+
+	authorizer, err := s.pluginAuthorizers.Get(plugin.GetType())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	creds, err := authorizer.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(plugin.SetCredentials(&types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
+			Oauth2AccessToken: &types.PluginOAuth2AccessTokenCredentials{
+				AccessToken:  creds.AccessToken,
+				RefreshToken: creds.RefreshToken,
+				Expires:      creds.ExpiresAt,
+			},
+		},
+	}))
 }
 
 // GetPlugin returns a plugin instance by name.
