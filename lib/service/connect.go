@@ -770,6 +770,8 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		// all registered services/functions have finished and
 		// this cant finish if its waiting on this function to
 		// return
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
 		process.Shutdown(ctx)
 	}()
 
