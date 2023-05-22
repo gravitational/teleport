@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -35,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
@@ -161,7 +161,7 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 // The commands should run in parallel, but we don't have a deterministic way to
 // test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
-	counter := atomic.NewInt32(0)
+	counter := atomic.Int32{}
 
 	runCmd := func(host *hostInfo) error {
 		counter.Add(1)
