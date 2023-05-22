@@ -56,4 +56,4 @@ lint:
       - teleport/transport/v1/transport_service.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON
