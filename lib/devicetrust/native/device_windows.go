@@ -191,9 +191,9 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}, nil
 }
 
-// credentialIDFromAK produces a deterministic, short-ish, unique-ish, human
-// readable-ish, string identifier for a given AK. This can then be used as a
-// reference for this AK in the backend.
+// credentialIDFromAK produces a deterministic, short-ish, unique-ish, printable
+// string identifier for a given AK. This can then be used as a reference for
+// this AK in the backend.
 //
 // To produce this, we perform a SHA256 hash over the constituent fields of
 // the AKs public key and then base64 encode it to produce a human-readable

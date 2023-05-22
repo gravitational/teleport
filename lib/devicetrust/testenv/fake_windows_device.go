@@ -10,7 +10,7 @@ import (
 
 // FakeWindowsDevice allows us to exercise EnrollCeremony. To avoid requiring
 // dependencies to support a TPM simulator, we currently do not closely emulate
-// the behaviour of a real windows device.
+// the behavior of a real windows device.
 // TODO(noah): When the underlying implementation in `native/` is refactored to
 // share code between Windows & Linux, it will be a good opportunity to refactor
 // this implementation to be more realistic.
