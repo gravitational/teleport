@@ -40,8 +40,7 @@ func pickCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRout
 		if errLogin != nil {
 			log.WithError(errLogin).Debugf("App login attempt failed")
 			// combine errors
-			var cApp cloudApp
-			return cApp, trace.NewAggregate(err, errLogin)
+			return defaultValue[cloudApp](), trace.NewAggregate(err, errLogin)
 		}
 		// another attempt
 		app, _, err = pickActiveCloudApp[cloudApp](cf, cloudFriendlyName, matchRouteToApp, newCloudApp)
