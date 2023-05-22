@@ -16,8 +16,6 @@ package enroll
 
 import (
 	"context"
-	"runtime"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -30,7 +28,7 @@ import (
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
-	osType := getOSType()
+	osType := getDeviceOSType()
 	if !slices.Contains([]devicepb.OSType{
 		devicepb.OSType_OS_TYPE_MACOS,
 		devicepb.OSType_OS_TYPE_WINDOWS,
@@ -134,17 +132,4 @@ func enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp
 		},
 	})
 	return trace.Wrap(err)
-}
-
-func getDeviceOSType() devicepb.OSType {
-	switch runtime.GOOS {
-	case "darwin":
-		return devicepb.OSType_OS_TYPE_MACOS
-	case "linux":
-		return devicepb.OSType_OS_TYPE_LINUX
-	case "windows":
-		return devicepb.OSType_OS_TYPE_WINDOWS
-	default:
-		return devicepb.OSType_OS_TYPE_UNSPECIFIED
-	}
 }

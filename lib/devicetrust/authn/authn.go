@@ -16,6 +16,8 @@ package authn
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/types"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/trace"
 
@@ -26,9 +28,11 @@ import (
 
 // vars below are used to swap native methods for fakes in tests.
 var (
-	getDeviceCredential = native.GetDeviceCredential
-	collectDeviceData   = native.CollectDeviceData
-	signChallenge       = native.SignChallenge
+	getDeviceCredential     = native.GetDeviceCredential
+	collectDeviceData       = native.CollectDeviceData
+	signChallenge           = native.SignChallenge
+	solveTPMEnrollChallenge = native.SolveTPMEnrollChallenge
+	getDeviceOSType         = native.GetDeviceOSType
 )
 
 // RunCeremony performs the client-side device authentication ceremony.
@@ -44,6 +48,16 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 		return nil, trace.BadParameter("devicesClient required")
 	case certs == nil:
 		return nil, trace.BadParameter("certs required")
+	}
+	osType := getDeviceOSType()
+	if !slices.Contains([]devicepb.OSType{
+		devicepb.OSType_OS_TYPE_MACOS,
+		devicepb.OSType_OS_TYPE_WINDOWS,
+	}, osType) {
+		return nil, trace.BadParameter(
+			"device authentication not supported for current OS (%s)",
+			types.ResourceOSTypeToString(osType),
+		)
 	}
 
 	stream, err := devicesClient.AuthenticateDevice(ctx)
@@ -82,23 +96,21 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// Unimplemented errors are not expected to happen after this point.
 
 	// 2. Challenge.
-	chalResp := resp.GetChallenge()
-	if chalResp == nil {
-		return nil, trace.BadParameter("unexpected payload from server, expected AuthenticateDeviceChallenge: %T", resp.Payload)
+	switch osType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = authenticateDeviceMacOS(stream, resp)
+		// err handled below
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = authenticateDeviceWindows(stream, resp)
+		// err handled below
+	default:
+		// This should be caught by the OSType guard at start of function.
+		panic("no authentication function provided for os")
 	}
-	sig, err := signChallenge(chalResp.Challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature: sig,
-			},
-		},
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	resp, err = stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -110,4 +122,46 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 		return nil, trace.BadParameter("unexpected payload from server, expected UserCertificates: %T", resp.Payload)
 	}
 	return newCerts, nil
+}
+
+func authenticateDeviceMacOS(
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	resp *devicepb.AuthenticateDeviceResponse,
+) error {
+	chalResp := resp.GetChallenge()
+	if chalResp == nil {
+		return trace.BadParameter("unexpected payload from server, expected AuthenticateDeviceChallenge: %T", resp.Payload)
+	}
+	sig, err := signChallenge(chalResp.Challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
+				Signature: sig,
+			},
+		},
+	})
+	return trace.Wrap(err)
+}
+
+func authenticateDeviceWindows(
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	resp *devicepb.AuthenticateDeviceResponse,
+) error {
+	chalResp := resp.GetTpmChallenge()
+	if chalResp == nil {
+		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
+	}
+	sig, err := solveTPMEnrollChallenge()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: &devicepb.TPMAuthenticateDeviceChallengeResponse{},
+		},
+	})
+	return trace.Wrap(err)
 }
