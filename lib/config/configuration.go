@@ -29,6 +29,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -470,6 +471,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err := applyOktaConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	// Apply regardless of Jamf being enabled.
+	// If a config is present, we want it to be valid.
+	if err := applyJamfConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -2391,5 +2398,23 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	return nil
+}
+
+func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// Ignore empty configs, validate and transform anything else.
+	if reflect.DeepEqual(fc.Jamf, JamfService{}) {
+		return nil
+	}
+
+	jamfSpec, err := fc.Jamf.toJamfSpecV1()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Jamf = servicecfg.JamfConfig{
+		Spec:       jamfSpec,
+		ExitOnSync: fc.Jamf.ExitOnSync,
+	}
 	return nil
 }
