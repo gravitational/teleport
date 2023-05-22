@@ -21,10 +21,9 @@ entry while also ensuring minimal latency when accessing connected resources.
 
 ## Key deployment components
 
-- High-availability Teleport cluster
-- Deployed exclusively in AWS ecosystem
-- Auth Servers must remain in a single region
-- Proxy Servers are deployed across multiple regions
+- Deployed exclusively in the AWS ecosystem
+- High-availability Auto Scaling group of Auth Service instances that must remain in a single region
+- High-availability Auto Scaling group of Proxy Service instances deployed across multiple regions
 - [AWS Route 53 latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
 - [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
 - [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
