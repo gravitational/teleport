@@ -212,6 +212,14 @@
               ]
             },
             {
+              "title": "AWS Multi-Region Proxy Deployment",
+              "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
+              "forScopes": [
+                "oss",
+                "enterprise"
+              ]
+            },
+            {
               "title": "GCP",
               "slug": "/deploy-a-cluster/deployments/gcp/",
               "forScopes": [
