@@ -94,15 +94,15 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	}, nil
 }
 
-func errWrapper(statusCode int) error {
+func errWrapper(statusCode int, body string) error {
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied("opsgenie API access denied: status code %v", statusCode)
+		return trace.AccessDenied("opsgenie API access denied: status code %v: %q", statusCode, body)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(trace.Errorf("status code %v", statusCode),
+		return trace.ConnectionProblem(trace.Errorf("status code %v: %q", statusCode, body),
 			"connecting to opsgenie API")
 	}
-	return trace.Errorf("connecting to opsgenie API status code %v", statusCode)
+	return trace.Errorf("connecting to opsgenie API status code %v: %q", statusCode, body)
 }
 
 // CreateAlert creates an opsgenie alert.
@@ -132,7 +132,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return OpsgenieData{}, errWrapper(resp.StatusCode())
+		return OpsgenieData{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return OpsgenieData{
 		AlertID: result.Alert.ID,
@@ -175,7 +175,7 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return errWrapper(resp.StatusCode())
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return nil
 }
@@ -200,7 +200,7 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return errWrapper(resp.StatusCode())
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return RespondersResult{}, errWrapper(resp.StatusCode())
+		return RespondersResult{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return result, nil
 }
@@ -241,7 +241,7 @@ func (og Client) CheckHealth(ctx context.Context) error {
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return errWrapper(resp.StatusCode())
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return nil
 }
