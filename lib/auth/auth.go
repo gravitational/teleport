@@ -1188,6 +1188,12 @@ func (a *Server) Close() error {
 		errs = append(errs, err)
 	}
 
+	if a.Services.AuditLogSessionStreamer != nil {
+		if err := a.Services.AuditLogSessionStreamer.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
 	if a.bk != nil {
 		if err := a.bk.Close(); err != nil {
 			errs = append(errs, err)
@@ -1515,10 +1521,6 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return &proto.OpenSSHCert{
 		Cert: certs.SSH,
 	}, nil
-}
-
-func certRequestPinIP(pinIP bool) certRequestOption {
-	return func(r *certRequest) { r.pinIP = pinIP }
 }
 
 // GenerateUserTestCertsRequest is a request to generate test certificates.
@@ -2762,16 +2764,16 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 2
+	const minDevices = 1
 	switch sf := authPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if knownDevices < minDevices {
+		if knownDevices <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] < minDevices {
+		if sfToCount[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
@@ -4769,11 +4771,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db,
-			t.Database.Username,
-			t.Database.GetDatabase(),
-		)
+		autoCreate, _, err := checker.CheckDatabaseRoles(db)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+			Database:       db,
+			DatabaseUser:   t.Database.Username,
+			DatabaseName:   t.Database.GetDatabase(),
+			AutoCreateUser: autoCreate,
+		})
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessState{},

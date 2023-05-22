@@ -56,19 +56,21 @@ import (
 )
 
 type TestContext struct {
-	HostID          string
-	ClusterName     string
-	TLSServer       *auth.TestTLSServer
-	AuthServer      *auth.Server
-	AuthClient      *auth.Client
-	Authz           authz.Authorizer
-	KubeServer      *TLSServer
-	Emitter         *eventstest.ChannelEmitter
-	Context         context.Context
-	listener        net.Listener
-	cancel          context.CancelFunc
-	heartbeatCtx    context.Context
-	heartbeatCancel context.CancelFunc
+	HostID               string
+	ClusterName          string
+	TLSServer            *auth.TestTLSServer
+	AuthServer           *auth.Server
+	AuthClient           *auth.Client
+	Authz                authz.Authorizer
+	KubeServer           *TLSServer
+	Emitter              *eventstest.ChannelEmitter
+	Context              context.Context
+	listener             net.Listener
+	cancel               context.CancelFunc
+	heartbeatCtx         context.Context
+	heartbeatCancel      context.CancelFunc
+	lockWatcher          *services.LockWatcher
+	closeSessionTrackers chan struct{}
 }
 
 // KubeClusterConfig defines the cluster to be created
@@ -93,12 +95,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	ctx, cancel := context.WithCancel(ctx)
 	heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
 	testCtx := &TestContext{
-		ClusterName:     "root.example.com",
-		HostID:          uuid.New().String(),
-		Context:         ctx,
-		cancel:          cancel,
-		heartbeatCtx:    heartbeatCtx,
-		heartbeatCancel: heartbeatCancel,
+		ClusterName:          "root.example.com",
+		HostID:               uuid.New().String(),
+		Context:              ctx,
+		cancel:               cancel,
+		heartbeatCtx:         heartbeatCtx,
+		heartbeatCancel:      heartbeatCancel,
+		closeSessionTrackers: make(chan struct{}),
 	}
 	t.Cleanup(func() { testCtx.Close() })
 
@@ -138,7 +141,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, proxyAuthClient.Close()) })
 
-	proxyLockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+	testCtx.lockWatcher, err = services.NewLockWatcher(ctx, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentProxy,
 			Client:    proxyAuthClient,
@@ -146,12 +149,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		proxyLockWatcher.Close()
+		testCtx.lockWatcher.Close()
 	})
 	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
+		LockWatcher: testCtx.lockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -185,6 +188,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	if cfg.ClusterFeatures != nil {
 		features = cfg.ClusterFeatures
 	}
+
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -198,7 +202,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: client,
+			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			StreamEmitter:     testCtx.Emitter,
@@ -209,7 +213,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			KubeconfigPath:    kubeConfigLocation,
 			KubeServiceType:   KubeService,
 			Component:         teleport.ComponentKube,
-			LockWatcher:       proxyLockWatcher,
+			LockWatcher:       testCtx.lockWatcher,
 			// skip Impersonation validation
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
@@ -467,4 +471,18 @@ func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sess
 
 func (a *authClientWithStreamer) ResumeAuditStream(ctx context.Context, sID sessPkg.ID, uploadID string) (apievents.Stream, error) {
 	return a.streamer.ResumeAuditStream(ctx, sID, uploadID)
+}
+
+type fakeClient struct {
+	auth.ClientI
+	closeC chan struct{}
+}
+
+func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionTracker) (types.SessionTracker, error) {
+	select {
+	case <-f.closeC:
+		return nil, trace.ConnectionProblem(nil, "closed")
+	default:
+		return f.ClientI.CreateSessionTracker(ctx, st)
+	}
 }

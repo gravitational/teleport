@@ -146,8 +146,8 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 	}{
 		{
 			name:          "HELLO",
-			command:       []interface{}{"HELLO", 3, "user", "TOKEN"},
-			expectedError: "ERR unknown command 'HELLO', with args beginning with: '3' 'user' 'TOKEN'",
+			command:       []interface{}{"HELLO", 3, "AUTH", "user", "TOKEN"},
+			expectedError: "ERR unknown command 'HELLO', with args beginning with: '3' 'AUTH' 'user' 'TOKEN'",
 		},
 		{
 			name:          "no extra args",

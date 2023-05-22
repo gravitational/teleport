@@ -25,7 +25,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -49,7 +48,6 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -65,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -367,11 +364,6 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	if clusterName, err := auth.GetClusterName(); err == nil {
-		// we might want to enforce a filter for older clients in certain conditions
-		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
-	}
-
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -399,56 +391,6 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		}
 	}
 }
-
-// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
-// WatchKinds in the watch if the client is authenticated as just a `Node` with
-// no other roles and if the client is older than the cutoff version, and if the
-// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
-// KindCertAuthority} with no other fields set. In any other case we will assume
-// that the client knows what it's doing and the cache watcher will still send
-// everything.
-//
-// DELETE IN 10.0, no supported clients should require this at that point
-func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
-	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
-		return
-	}
-
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if !ok {
-		log.Debug("no client version found in grpc context")
-		return
-	}
-
-	clientVersion, err := semver.NewVersion(clientVersionString)
-	if err != nil {
-		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
-		return
-	}
-
-	// we treat the entire previous major version as "old" for this version
-	// check, even if there might have been backports; compliant clients will
-	// supply their own filter anyway
-	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
-		return
-	}
-
-	for i, k := range watch.Kinds {
-		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
-			continue
-		}
-
-		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
-		watch.Kinds[i].Filter = types.CertAuthorityFilter{
-			types.HostCA: clusterName,
-			types.UserCA: types.Wildcard,
-		}.IntoMap()
-	}
-}
-
-// certAuthorityFilterVersionCutoff is the version starting from which we stop
-// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
-var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -2648,15 +2590,13 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
+	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
+	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
-	}
-
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		opts = append(opts, certRequestPinIP(true)) // We always want to pin single use certs to client's IP, regardless of roles)
 	}
 
 	// Generate the cert.
@@ -3489,7 +3429,14 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate,
+		To:         req.EndDate,
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3518,7 +3465,13 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:     req.StartDate,
+		To:       req.EndDate,
+		Limit:    int(req.Limit),
+		Order:    types.EventOrder(req.Order),
+		StartKey: req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

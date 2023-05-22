@@ -28,8 +28,11 @@ export class Gateway extends jspb.Message {
     getProtocol(): string;
     setProtocol(value: string): Gateway;
 
-    getCliCommand(): string;
-    setCliCommand(value: string): Gateway;
+
+    hasCliCommand(): boolean;
+    clearCliCommand(): void;
+    getCliCommand(): GatewayCLICommand | undefined;
+    setCliCommand(value?: GatewayCLICommand): Gateway;
 
     getTargetSubresourceName(): string;
     setTargetSubresourceName(value: string): Gateway;
@@ -54,7 +57,44 @@ export namespace Gateway {
         localAddress: string,
         localPort: string,
         protocol: string,
-        cliCommand: string,
+        cliCommand?: GatewayCLICommand.AsObject,
         targetSubresourceName: string,
+    }
+}
+
+export class GatewayCLICommand extends jspb.Message { 
+    getPath(): string;
+    setPath(value: string): GatewayCLICommand;
+
+    clearArgsList(): void;
+    getArgsList(): Array<string>;
+    setArgsList(value: Array<string>): GatewayCLICommand;
+    addArgs(value: string, index?: number): string;
+
+    clearEnvList(): void;
+    getEnvList(): Array<string>;
+    setEnvList(value: Array<string>): GatewayCLICommand;
+    addEnv(value: string, index?: number): string;
+
+    getPreview(): string;
+    setPreview(value: string): GatewayCLICommand;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): GatewayCLICommand.AsObject;
+    static toObject(includeInstance: boolean, msg: GatewayCLICommand): GatewayCLICommand.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: GatewayCLICommand, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): GatewayCLICommand;
+    static deserializeBinaryFromReader(message: GatewayCLICommand, reader: jspb.BinaryReader): GatewayCLICommand;
+}
+
+export namespace GatewayCLICommand {
+    export type AsObject = {
+        path: string,
+        argsList: Array<string>,
+        envList: Array<string>,
+        preview: string,
     }
 }

@@ -56,9 +56,9 @@ export const SERVERS: ResourceSpec[] = [
     event: DiscoverEventResource.Server,
   },
   {
-    name: 'macOS (Intel)',
+    name: 'macOS',
     kind: ResourceKind.Server,
-    keywords: baseServerKeywords + 'mac macos intel',
+    keywords: baseServerKeywords + 'mac macos intel silicone apple',
     icon: 'Apple',
     event: DiscoverEventResource.Server,
   },

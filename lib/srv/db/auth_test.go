@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -32,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -41,7 +44,8 @@ import (
 // to cloud databases such as RDS, Redshift, Cloud SQL.
 func TestAuthTokens(t *testing.T) {
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t,
+	testCtx := setupTestContext(ctx, t)
+	withDBs := []withDatabaseOption{
 		withRDSPostgres("postgres-rds-correct-token", rdsAuthToken),
 		withRDSPostgres("postgres-rds-incorrect-token", "qwe123"),
 		withRedshiftPostgres("postgres-redshift-correct-token", redshiftAuthToken),
@@ -58,7 +62,23 @@ func TestAuthTokens(t *testing.T) {
 		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"),
 		withAzureRedis("redis-azure-correct-token", azureRedisToken),
 		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
-	)
+		withElastiCacheRedis("redis-elasticache-correct-token", elastiCacheRedisToken, "7.0.0"),
+		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
+	}
+	databases := make([]types.Database, 0, len(withDBs))
+	for _, withDB := range withDBs {
+		databases = append(databases, withDB(t, ctx, testCtx))
+	}
+	ecMock := &mocks.ElastiCacheMock{}
+	elastiCacheIAMUser := &elasticache.User{
+		UserId:         aws.String("default"),
+		Authentication: &elasticache.Authentication{Type: aws.String("iam")},
+	}
+	ecMock.AddMockUser(elastiCacheIAMUser, nil)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:   databases,
+		ElastiCache: ecMock,
+	})
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -137,6 +157,18 @@ func TestAuthTokens(t *testing.T) {
 			protocol: defaults.ProtocolRedis,
 			err:      "WRONGPASS invalid username-password pair",
 		},
+		{
+			desc:     "correct ElastiCache Redis auth token",
+			service:  "redis-elasticache-correct-token",
+			protocol: defaults.ProtocolRedis,
+		},
+		{
+			desc:     "incorrect ElastiCache Redis auth token",
+			service:  "redis-elasticache-incorrect-token",
+			protocol: defaults.ProtocolRedis,
+			// Make sure we print a user-friendly IAM auth error.
+			err: "Make sure that IAM auth is enabled",
+		},
 	}
 
 	for _, test := range tests {
@@ -211,6 +243,8 @@ const (
 	azureAccessToken = "azure-access-token"
 	// azureRedisToken is a mock Azure Redis token.
 	azureRedisToken = "azure-redis-token"
+	// elastiCacheRedisToken is a mock ElastiCache Redis token.
+	elastiCacheRedisToken = "elasticache-redis-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
@@ -227,6 +261,10 @@ func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *common.
 
 func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
 	return "", "", trace.NotImplemented("GetRedshiftServerlessAuthToken is not implemented")
+}
+
+func (a *testAuth) GetElastiCacheRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+	return elastiCacheRedisToken, nil
 }
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.

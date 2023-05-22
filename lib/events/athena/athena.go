@@ -16,6 +16,7 @@ package athena
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -29,9 +30,9 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -348,9 +349,9 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	publisher    *publisher
-	querier      *querier
-	consumerStop context.CancelFunc
+	publisher      *publisher
+	querier        *querier
+	consumerCloser io.Closer
 }
 
 // New creates an instance of an Athena based audit log.
@@ -360,14 +361,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumerCtx, consumerCancel := context.WithCancel(ctx)
-
-	l := &Log{
-		publisher:    newPublisher(cfg),
-		consumerStop: consumerCancel,
-	}
-
-	l.querier, err = newQuerier(querierConfig{
+	querier, err := newQuerier(querierConfig{
 		tablename:               cfg.TableName,
 		database:                cfg.Database,
 		workgroup:               cfg.Workgroup,
@@ -381,9 +375,17 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	consumer, err := newConsumer(cfg)
+	consumerCtx, consumerCancel := context.WithCancel(ctx)
+
+	consumer, err := newConsumer(cfg, consumerCancel)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	l := &Log{
+		publisher:      newPublisher(cfg),
+		querier:        querier,
+		consumerCloser: consumer,
 	}
 
 	go consumer.run(consumerCtx)
@@ -395,17 +397,16 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchEvents(ctx, req.From, req.To, req.EventTypes, req.Limit, req.Order, req.StartKey)
 }
 
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.querier.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, req.Cond, req.SessionID)
 }
 
 func (l *Log) Close() error {
-	l.consumerStop()
-	return nil
+	return trace.Wrap(l.consumerCloser.Close())
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")

@@ -1237,6 +1237,18 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
+
+## Proxy Peering
+
+[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
+
+- Verify that Proxy Peering works for the following protocols:
+  - [ ] SSH
+  - [ ] Kubernetes
+  - [ ] Database
+  - [ ] Windows Desktop
+  - [ ] App Access
+
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)

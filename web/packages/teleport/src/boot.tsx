@@ -19,6 +19,8 @@ import React from 'react';
 
 import history from 'teleport/services/history';
 
+import 'teleport/lib/polyfillRandomUuid';
+
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
 import cfg from './config';

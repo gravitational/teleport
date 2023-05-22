@@ -198,5 +198,6 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 		DatabaseURI:      session.Database.GetURI(),
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,
+		DatabaseRoles:    session.DatabaseRoles,
 	}
 }

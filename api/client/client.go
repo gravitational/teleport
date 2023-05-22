@@ -1378,7 +1378,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{})
+	_, err := c.grpc.DeleteAllSnowflakeSessions(ctx, &emptypb.Empty{})
 	return trail.FromGRPC(err)
 }
 
@@ -3679,6 +3679,15 @@ func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssist
 		return nil, trail.FromGRPC(err)
 	}
 	return messages, nil
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
 }
 
 // GetAssistantConversations returns all conversations started by a user.

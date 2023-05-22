@@ -57,6 +57,7 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
@@ -175,6 +176,12 @@ type webSuiteConfig struct {
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
+
+	// OpenAIConfig is a custom OpenAI config for the test.
+	OpenAIConfig *openai.ClientConfig
+
+	// ClusterFeatures allows overriding default auth server features
+	ClusterFeatures *authproto.Features
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -427,8 +434,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
+	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
+	if cfg.ClusterFeatures != nil {
+		features = *cfg.ClusterFeatures
+	}
 	handlerConfig := Config{
-		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
+		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -445,6 +456,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
 		UI:                              cfg.uiConfig,
+		OpenAIConfig:                    cfg.OpenAIConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -2276,15 +2288,14 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
-		s.clock.Now().Add(-time.Hour),
-		s.clock.Now().Add(time.Hour),
-		apidefaults.Namespace,
-		[]string{events.UserLoginEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	ctx := context.Background()
+	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       s.clock.Now().Add(-time.Hour),
+		To:         s.clock.Now().Add(time.Hour),
+		EventTypes: []string{events.UserLoginEvent},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 	event := events[0].(*apievents.UserLogin)
 	require.Equal(t, true, event.Success)
@@ -2467,7 +2478,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
-			}})
+			},
+		})
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -7706,6 +7718,11 @@ func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient
 	return &webclient.ProxySettings{}, nil
 }
 
+// GetOpenAIAPIKey returns a dummy OpenAI API key.
+func (mock *mockProxySettings) GetOpenAIAPIKey() string {
+	return "test-key"
+}
+
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
 // access request after it has been consumed and the web session has been renewed.
 func TestUserContextWithAccessRequest(t *testing.T) {
@@ -8123,6 +8140,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
+	// wait for the watcher to init or it may race with test cleanup.
+	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)

@@ -1,0 +1,96 @@
+Give your Teleport users permissions to assume IAM roles in your Teleport
+cluster.
+
+You can do this by creating a Teleport role with the `aws_role_arns` field
+listing the IAM role ARN created in the previous step. Create a file called
+`{{ role }}.yaml` with the following content:
+
+```code
+$ cat > {{ role }}.yaml <<EOF
+kind: role
+version: v5
+metadata:
+  name: {{ role }}
+spec:
+  allow:
+    app_labels:
+      '*': '*'
+    aws_role_arns:
+    - arn:aws:iam::<Var name="aws-account-id"/>:role/{{ iam-role }}
+EOF
+```
+Remember to replace <Var name="aws-account-id"/> with your AWS Account ID.
+
+<Details title="Templating &quot;aws_role_arns&quot; in role definitions">
+The `aws_role_arns` field supports template variables so they can be populated
+dynamically based on your users' identity provider attributes. Here are some
+examples:
+
+<Tabs>
+  <TabItem label="local users">
+  Use `{{internal.aws_role_arns}}` in the role definition:
+  ```yaml
+  kind: role
+  version: v5
+  metadata:
+    name: {{ role }}
+  spec:
+    allow:
+      app_labels:
+        '*': '*'
+      aws_role_arns: ['{{internal.aws_role_arns}}']
+  ```
+  Then specify the IAM roles through user traits:
+  ```yaml
+  kind: user
+  version: v2
+  metadata:
+    name: alice
+  spec:
+    roles: ['{{ role }}']
+    traits:
+      aws_role_arns: ['arn:aws:iam:123456789000:role/role_for_alice']
+  ---
+  kind: user
+  version: v2
+  metadata:
+    name: bob
+  spec:
+    roles: ['{{ role }}']
+    traits:
+      aws_role_arns: ['arn:aws:iam:123456789000:role/role_for_bob']
+    ```
+  </TabItem>
+  <TabItem label="SSO users">
+  Let's assume that an IAM role has been created for each Teleport user, and
+  the name of the IAM role corresponds to their Email addresses without the
+  Email domain suffix.
+
+
+  Then `aws_role_arns` can be templated with `external.email`:
+  ```yaml
+  kind: role
+  version: v5
+  metadata:
+    name: {{ role }}
+  spec:
+    allow:
+      app_labels:
+        '*': '*'
+      aws_role_arns: ['arn:aws:iam:123456789000:role/{{email.local(external.email)}}']
+  ```
+  </TabItem>
+</Tabs>
+
+See [Role Templates](../../access-controls/guides/role-templates.mdx) for
+details.
+</Details>
+
+Create the new role:
+
+```code
+$ tctl create -f {{ role }}.yaml
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="{{ role }}"!)
+
