@@ -20,7 +20,7 @@ import "github.com/gravitational/teleport/lib/devicetrust/native"
 var (
 	collectDeviceData       = native.CollectDeviceData
 	enrollInit              = native.EnrollDeviceInit
-	getOSType               = getDeviceOSType
+	getDeviceOSType         = native.GetDeviceOSType
 	signChallenge           = native.SignChallenge
 	solveTPMEnrollChallenge = native.SolveTPMEnrollChallenge
 )
