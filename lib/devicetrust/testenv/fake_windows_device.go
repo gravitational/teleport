@@ -2,9 +2,10 @@ package testenv
 
 import (
 	"github.com/google/uuid"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // FakeWindowsDevice allows us to exercise EnrollCeremony. To avoid requiring
@@ -77,6 +78,5 @@ func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 }
 
 func (f *FakeWindowsDevice) SignChallenge(_ []byte) (sig []byte, err error) {
-	return nil, trace.NotImplemented("windows does not implement SignChallenge",
-	)
+	return nil, trace.NotImplemented("windows does not implement SignChallenge")
 }

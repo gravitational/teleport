@@ -1,13 +1,14 @@
 package testenv
 
 import (
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/trace"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // FakeLinuxDevice only implements GetOSType Linux OS type so we can be sure
 // this fails in a user friendly manner.
-type FakeLinuxDevice struct {}
+type FakeLinuxDevice struct{}
 
 func NewFakeLinuxDevice() *FakeLinuxDevice {
 	return &FakeLinuxDevice{}

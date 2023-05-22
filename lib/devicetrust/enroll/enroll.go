@@ -16,13 +16,13 @@ package enroll
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
 	"runtime"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -79,7 +79,6 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
 	}
 
 	resp, err = stream.Recv()

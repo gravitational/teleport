@@ -21,11 +21,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"google.golang.org/protobuf/proto"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -97,16 +97,15 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	switch initReq.DeviceData.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		cred, pub, err = enrollMacOS(stream, initReq)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		// err handled below
 	case devicepb.OSType_OS_TYPE_WINDOWS:
 		cred, err = enrollTPM(stream, initReq)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		// err handled below
 	default:
 		return trace.BadParameter("os not supported")
+	}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Prepare device.
@@ -140,13 +139,10 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	return trace.Wrap(err)
 }
 
-func mustRandomBytes() []byte {
+func mustRandomBytes() ([]byte, error) {
 	buf := make([]byte, 32)
 	_, err := rand.Read(buf)
-	if err != nil {
-		panic(err)
-	}
-	return buf
+	return buf, err
 }
 
 func enrollTPM(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *devicepb.EnrollDeviceInit) (*devicepb.DeviceCredential, error) {
@@ -159,10 +155,19 @@ func enrollTPM(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *d
 		return nil, trace.BadParameter("init req tpm message attestation parameters mismatch")
 	}
 
-	secret := mustRandomBytes()
-	credentialBlob := mustRandomBytes()
+	secret, err := mustRandomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	credentialBlob, err := mustRandomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	expectSolution := append(secret, credentialBlob...)
-	nonce := mustRandomBytes()
+	nonce, err := mustRandomBytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := stream.Send(&devicepb.EnrollDeviceResponse{
 		Payload: &devicepb.EnrollDeviceResponse_TpmChallenge{
 			TpmChallenge: &devicepb.TPMEnrollChallenge{

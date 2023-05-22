@@ -20,9 +20,9 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
-	"github.com/gravitational/trace"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
