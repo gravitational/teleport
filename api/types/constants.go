@@ -464,6 +464,9 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// AWSInstanceRegion is used to identify the region an EC2
+	// instance is running in
+	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
