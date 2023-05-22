@@ -139,7 +139,7 @@ func (s *fakeDeviceService) EnrollDevice(stream devicepb.DeviceTrustService_Enro
 	return trace.Wrap(err)
 }
 
-func mustRandomBytes() ([]byte, error) {
+func randomBytes() ([]byte, error) {
 	buf := make([]byte, 32)
 	_, err := rand.Read(buf)
 	return buf, err
@@ -155,16 +155,16 @@ func enrollTPM(stream devicepb.DeviceTrustService_EnrollDeviceServer, initReq *d
 		return nil, trace.BadParameter("init req tpm message attestation parameters mismatch")
 	}
 
-	secret, err := mustRandomBytes()
+	secret, err := randomBytes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	credentialBlob, err := mustRandomBytes()
+	credentialBlob, err := randomBytes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	expectSolution := append(secret, credentialBlob...)
-	nonce, err := mustRandomBytes()
+	nonce, err := randomBytes()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
