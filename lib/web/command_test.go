@@ -33,7 +33,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
@@ -153,4 +155,30 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// Test_runCommands tests that runCommands runs the given command on all hosts.
+// The commands should run in parallel, but we don't have a deterministic way to
+// test that (sleep with checking the execution time in not deterministic).
+func Test_runCommands(t *testing.T) {
+	counter := atomic.NewInt32(0)
+
+	runCmd := func(host *hostInfo) error {
+		counter.Add(1)
+		return nil
+	}
+
+	hosts := make([]hostInfo, 0, 100)
+	for i := 0; i < 100; i++ {
+		hosts = append(hosts, hostInfo{
+			hostName: fmt.Sprintf("localhost%d", i),
+		})
+	}
+
+	logger := logrus.New()
+	logger.Out = io.Discard
+
+	runCommands(hosts, runCmd, logger)
+
+	require.Equal(t, int32(100), counter.Load())
 }
