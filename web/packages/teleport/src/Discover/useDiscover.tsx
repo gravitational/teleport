@@ -63,6 +63,7 @@ type EventState = {
 };
 
 type CustomEventInput = {
+  id?: string;
   eventName?: DiscoverEvent;
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
@@ -116,7 +117,7 @@ export function DiscoverProvider(
       userEventService.captureDiscoverEvent({
         event: custom?.eventName || currEventName,
         eventData: {
-          id,
+          id: id || custom.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
@@ -213,6 +214,7 @@ export function DiscoverProvider(
       {
         eventName: discover.eventState.currEventName,
         eventResourceName: discover.resourceSpec.event,
+        id: discover.eventState.id,
       }
     );
   }

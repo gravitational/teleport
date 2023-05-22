@@ -103,8 +103,14 @@ type Config struct {
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
+	// OpenSSH defines the configuration for an openssh node
+	OpenSSH OpenSSHConfig
+
 	// Okta defines the okta service configuration.
 	Okta OktaConfig
+
+	// Jamf defines the Jamf MDM service configuration.
+	Jamf JamfConfig
 
 	// Tracing defines the tracing service configuration.
 	Tracing TracingConfig
@@ -277,6 +283,18 @@ type RoleAndIdentityEvent struct {
 
 	// IdentityEvent is the identity event associated with the above role.
 	IdentityEvent string
+}
+
+// DisableLongRunningServices disables all services but OpenSSH
+func DisableLongRunningServices(cfg *Config) {
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = false
+	cfg.SSH.Enabled = false
+	cfg.Kube.Enabled = false
+	cfg.Apps.Enabled = false
+	cfg.WindowsDesktop.Enabled = false
+	cfg.Databases.Enabled = false
+	cfg.Okta.Enabled = false
 }
 
 // JoinParams is a set of extra parameters for joining the auth server.
@@ -666,6 +684,8 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.WindowsDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
+		cfg.Jamf.Enabled(),
+		cfg.OpenSSH.Enabled,
 	}
 
 	for _, item := range enabled {
@@ -675,5 +695,5 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service")
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
 }
