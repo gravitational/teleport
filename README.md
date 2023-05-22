@@ -78,7 +78,6 @@ implementation. It is _fully compatible with OpenSSH_,
 |---|----
 | [Teleport Website](https://goteleport.com/) | The official website of the project. |
 | [Documentation](https://goteleport.com/docs/) | Admin guide, user manual and more. |
-| [Demo Video](https://www.youtube.com/watch?v=b1WHFW0NIoM) | 3-minute video overview of Teleport. |
 | [Blog](https://goteleport.com/blog/) | Our blog where we publish Teleport news. |
 | [Forum](https://github.com/gravitational/teleport/discussions) | Ask us a setup question, post your tutorial, feedback, or idea on our forum. |
 | [Slack](https://goteleport.com/slack) | Need help with your setup? Ping us in our Slack channel. |
@@ -103,8 +102,6 @@ server](https://goteleport.com/docs/choose-an-edition/teleport-team/) with
 Teleport Team
 
 ## Docker
-
-| Follow the Docker-Compose [Getting Started](https://goteleport.com/docs/setup/guides/docker-compose/) Guide
 
 ### Deploy Teleport
 
