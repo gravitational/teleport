@@ -3553,13 +3553,17 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 }
 
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
-	sessionEvents, _, err := a.alog.SearchSessionEvents(time.Time{}, a.authServer.clock.Now().UTC(),
-		defaults.EventsIterationLimit, types.EventOrderAscending, "",
-		&types.WhereExpr{Equals: types.WhereExpr2{
+	sessionEvents, _, err := a.alog.SearchSessionEvents(context.TODO(), events.SearchSessionEventsRequest{
+		From:  time.Time{},
+		To:    a.authServer.clock.Now().UTC(),
+		Limit: defaults.EventsIterationLimit,
+		Order: types.EventOrderAscending,
+		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
 			L: &types.WhereExpr{Field: events.SessionEventID},
 			R: &types.WhereExpr{Literal: sid.String()},
-		}}, sid.String(),
-	)
+		}},
+		SessionID: sid.String(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4883,37 +4887,38 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 }
 
 // SearchEvents allows searching audit events with pagination support.
-func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEventsRequest) (outEvents []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	outEvents, lastKey, err = a.alog.SearchEvents(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return events, lastKey, nil
+	return outEvents, lastKey, nil
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
-	if cond != nil {
+func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) (outEvents []apievents.AuditEvent, lastKey string, err error) {
+	if req.Cond != nil {
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	cond, err = a.actionForListWithCondition(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
+	cond, err := a.actionForListWithCondition(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// TODO(codingllama): Refactor cond out of SearchSessionEvents and simplify signature.
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	req.Cond = cond
+	outEvents, lastKey, err = a.alog.SearchSessionEvents(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return events, lastKey, nil
+	return outEvents, lastKey, nil
 }
 
 // GetLock gets a lock by name.
