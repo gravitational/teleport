@@ -31,7 +31,6 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
-	reviewConditions := defaultEditorRoleAllowAccessReviewConditions()
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -93,7 +92,7 @@ func NewPresetEditorRole() types.Role {
 					// Please see defaultAllowRules when adding a new rule.
 				},
 				// By default, allow editors to approve any user group access requests.
-				ReviewRequests: &reviewConditions,
+				ReviewRequests: defaultAllowAccessReviewConditions()[teleport.PresetEditorRoleName],
 			},
 		},
 	}
@@ -103,7 +102,6 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
-	requestConditions := defaultAccessRoleAllowAccessRequestConditions()
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -150,7 +148,7 @@ func NewPresetAccessRole() types.Role {
 					// Please see defaultAllowRules when adding a new rule.
 				},
 				// By default, allow users with the access role to request any user group.
-				Request: &requestConditions,
+				Request: defaultAllowAccessRequestConditions()[teleport.PresetAccessRoleName],
 			},
 		},
 	}
@@ -269,27 +267,29 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 	}
 }
 
-// defaultAccessRoleAllowAccessRequestConditions has the access request conditions that should be set as default when they were
-// not explicitly defined. This is used to update existing access preset role with new permissions during cluster
-// upgrades.
-func defaultAccessRoleAllowAccessRequestConditions() types.AccessRequestConditions {
-	return types.AccessRequestConditions{
-		SearchAsRoles: []string{
-			teleport.PresetGroupAccessRoleName,
+// defaultAllowAccessRequestConditions has the access request conditions that should be set as default when they were
+// not explicitly defined.
+func defaultAllowAccessRequestConditions() map[string]*types.AccessRequestConditions {
+	return map[string]*types.AccessRequestConditions{
+		teleport.PresetAccessRoleName: {
+			SearchAsRoles: []string{
+				teleport.PresetGroupAccessRoleName,
+			},
 		},
 	}
 }
 
-// defaultEditorRoleAllowAccessReviewConditions has the access review conditions that should be set as default when they were
-// not explicitly defined. This is used to update existing editor preset role with new permissions during cluster
-// upgrades.
-func defaultEditorRoleAllowAccessReviewConditions() types.AccessReviewConditions {
-	return types.AccessReviewConditions{
-		PreviewAsRoles: []string{
-			teleport.PresetGroupAccessRoleName,
-		},
-		Roles: []string{
-			teleport.PresetGroupAccessRoleName,
+// defaultAllowAccessReviewConditions has the access review conditions that should be set as default when they were
+// not explicitly defined.
+func defaultAllowAccessReviewConditions() map[string]*types.AccessReviewConditions {
+	return map[string]*types.AccessReviewConditions{
+		teleport.PresetEditorRoleName: {
+			PreviewAsRoles: []string{
+				teleport.PresetGroupAccessRoleName,
+			},
+			Roles: []string{
+				teleport.PresetGroupAccessRoleName,
+			},
 		},
 	}
 }
@@ -330,26 +330,18 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
-	if role.GetName() == teleport.PresetAccessRoleName {
-		allowARC := role.GetAccessRequestConditions(types.Allow)
-		if len(allowARC.Annotations) == 0 &&
-			len(allowARC.ClaimsToRoles) == 0 &&
-			len(allowARC.Roles) == 0 &&
-			len(allowARC.SearchAsRoles) == 0 &&
-			len(allowARC.SuggestedReviewers) == 0 &&
-			len(allowARC.Thresholds) == 0 {
-			role.SetAccessRequestConditions(types.Allow, defaultAccessRoleAllowAccessRequestConditions())
+	if role.GetAccessRequestConditions(types.Allow).IsEmpty() {
+		arc := defaultAllowAccessRequestConditions()[role.GetName()]
+		if arc != nil {
+			role.SetAccessRequestConditions(types.Allow, *arc)
 			changed = true
 		}
 	}
 
-	if role.GetName() == teleport.PresetEditorRoleName {
-		allowARC := role.GetAccessReviewConditions(types.Allow)
-		if len(allowARC.ClaimsToRoles) == 0 &&
-			len(allowARC.PreviewAsRoles) == 0 &&
-			len(allowARC.Roles) == 0 &&
-			len(allowARC.Where) == 0 {
-			role.SetAccessReviewConditions(types.Allow, defaultEditorRoleAllowAccessReviewConditions())
+	if role.GetAccessReviewConditions(types.Allow).IsEmpty() {
+		arc := defaultAllowAccessReviewConditions()[role.GetName()]
+		if arc != nil {
+			role.SetAccessReviewConditions(types.Allow, *arc)
 			changed = true
 		}
 	}

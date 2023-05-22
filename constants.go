@@ -615,7 +615,7 @@ const (
 
 	// PresetGroupAccessRoleName is a name of a preset role that allows
 	// access to all user groups.
-	PresetGroupAccessRoleName = "group_access"
+	PresetGroupAccessRoleName = "group-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
