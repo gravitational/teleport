@@ -445,9 +445,9 @@ message TPMPCR {
   int32 index = 1;
   // the digest currently held in the PCR
   bytes digest = 2;
-  // hash algorithm associated with the PCR bank. This value is the underlying
-  // value of the crypto.Hash type.
-  uint64 hash = 3;
+  // the hash algorithm used to produce the digest in this PCR bank. This value
+  // is the underlying value of the Go crypto.Hash type.
+  uint64 digest_alg = 3;
 }
 
 // Encapsulates the result of a quote operation against the TPM over a PCR
@@ -553,7 +553,9 @@ message AuthenticateDeviceChallengeResponse {
 // <- SyncInventoryResult
 // (end loop)
 // -> SyncInventoryEnd
-// <- SyncInventoryResult (missing devices)
+// (loop until server closes the stream, zero or more times)
+// <- SyncInventoryResult (deleted/missing devices)
+// (end)
 message SyncInventoryRequest {
   oneof payload {
     SyncInventoryStart start = 1;
@@ -574,10 +576,8 @@ message SyncInventoryResponse {
 // SyncInventoryStart starts the inventory sync.
 message SyncInventoryStart {
   // Source of the inventory sync.
-  // Acquired from the mTLS certificate for MDM services, must be explicitly
-  // supplied otherwise.
-  // This source is used for all devices. The `source` field in individual
-  // devices is ignored by this RPC.
+  // Used for all devices. The `source` field in individual devices is ignored
+  // by this RPC.
   DeviceSource source = 1;
 
   // Mode of syncing.
@@ -586,8 +586,8 @@ message SyncInventoryStart {
 
   // Action for devices missing from the external inventory, but present in
   // Teleport.
-  // Only executed if mode is FULL and mdm_sync_successful is set to true in the
-  // SyncInventoryEnd message.
+  // Only executed if mode is FULL and external_sync_successful is set to true
+  // in the SyncInventoryEnd message.
   SyncInventoryDeviceAction on_missing_action = 3;
 }
 

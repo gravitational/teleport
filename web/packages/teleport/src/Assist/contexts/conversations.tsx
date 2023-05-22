@@ -23,7 +23,7 @@ import React, {
   useState,
 } from 'react';
 
-import logger from 'shared/libs/logger';
+import Logger from 'shared/libs/logger';
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
@@ -52,6 +52,8 @@ interface ListConversationsResponse {
     }
   ];
 }
+
+const logger = Logger.create('assist');
 
 const ConversationsContext = createContext<MessageContextValue>({
   conversations: [],

@@ -120,6 +120,11 @@ type Database interface {
 	RequireAWSIAMRolesAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
+	// GetAdminUser returns database privileged user information.
+	GetAdminUser() string
+	// SupportsAutoUsers returns true if this database supports automatic
+	// user provisioning.
+	SupportsAutoUsers() bool
 }
 
 // NewDatabaseV3 creates a new database resource.
@@ -266,6 +271,29 @@ func (d *DatabaseV3) GetURI() string {
 // SetURI sets the database connection address.
 func (d *DatabaseV3) SetURI(uri string) {
 	d.Spec.URI = uri
+}
+
+// GetAdminUser returns database privileged user information.
+func (d *DatabaseV3) GetAdminUser() string {
+	// First check the spec.
+	if d.Spec.AdminUser != nil {
+		return d.Spec.AdminUser.Name
+	}
+	// If it's not in the spec, check labels (for auto-discovered databases).
+	return d.Metadata.Labels[DatabaseAdminLabel]
+}
+
+// SupportsAutoUsers returns true if this database supports automatic user
+// provisioning.
+func (d *DatabaseV3) SupportsAutoUsers() bool {
+	switch d.GetProtocol() {
+	case DatabaseProtocolPostgreSQL:
+		switch d.GetType() {
+		case DatabaseTypeSelfHosted, DatabaseTypeRDS:
+			return true
+		}
+	}
+	return false
 }
 
 // GetCA returns the database CA certificate. If more than one CA is set, then
@@ -738,6 +766,14 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q missing Cloud SQL project ID",
 			d.GetName())
 	}
+
+	// Admin user (for automatic user provisioning) is only supported for
+	// PostgreSQL currently.
+	if d.GetAdminUser() != "" && !d.SupportsAutoUsers() {
+		return trace.BadParameter("cannot set admin user on database %q: %v/%v databases don't support automatic user provisioning yet",
+			d.GetName(), d.GetProtocol(), d.GetType())
+	}
+
 	return nil
 }
 
@@ -850,6 +886,9 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 }
 
 const (
+	// DatabaseProtocolPostgreSQL is the PostgreSQL database protocol.
+	DatabaseProtocolPostgreSQL = "postgres"
+
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"
 	// DatabaseTypeRDS is AWS-hosted RDS or Aurora database.

@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 

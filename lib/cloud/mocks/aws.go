@@ -550,6 +550,18 @@ func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
 	m.TagsByARN[arn] = tags
 }
 
+func (m *ElastiCacheMock) DescribeUsersWithContext(_ aws.Context, input *elasticache.DescribeUsersInput, opts ...request.Option) (*elasticache.DescribeUsersOutput, error) {
+	if input.UserId == nil {
+		return &elasticache.DescribeUsersOutput{Users: m.Users}, nil
+	}
+	for _, user := range m.Users {
+		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
+			return &elasticache.DescribeUsersOutput{Users: []*elasticache.User{user}}, nil
+		}
+	}
+	return nil, trace.NotFound("ElastiCache UserId %v not found", aws.StringValue(input.UserId))
+}
+
 func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
 	for _, replicationGroup := range m.ReplicationGroups {
 		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {

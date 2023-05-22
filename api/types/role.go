@@ -58,6 +58,9 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
+	// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+	GetCreateDatabaseUserOption() bool
+
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
 	// SetLogins sets *nix system logins for allow or deny condition.
@@ -135,6 +138,11 @@ type Role interface {
 	GetDatabaseUsers(RoleConditionType) []string
 	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
 	SetDatabaseUsers(RoleConditionType, []string)
+
+	// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+	GetDatabaseRoles(RoleConditionType) []string
+	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+	SetDatabaseRoles(RoleConditionType, []string)
 
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
@@ -323,6 +331,14 @@ func (r *RoleV6) GetOptions() RoleOptions {
 // SetOptions sets role options.
 func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
+}
+
+// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+func (r *RoleV6) GetCreateDatabaseUserOption() bool {
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		return false
+	}
+	return r.Spec.Options.CreateDatabaseUser.Value
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -597,6 +613,23 @@ func (r *RoleV6) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+func (r *RoleV6) GetDatabaseRoles(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseRoles
+	}
+	return r.Spec.Deny.DatabaseRoles
+}
+
+// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseRoles = values
+	} else {
+		r.Spec.Deny.DatabaseRoles = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
@@ -856,6 +889,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.CreateDesktopUser == nil {
 		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
 	}
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		r.Spec.Options.CreateDatabaseUser = NewBoolOption(false)
+	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
@@ -891,24 +927,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
 
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				{
-					Kind:      KindKubePod,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-				},
-			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
-
 		// Allow unrestricted access to all pods.
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
+		if len(r.Spec.Allow.KubernetesResources) == 0 && len(r.Spec.Allow.KubernetesLabels) > 0 {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
 					Kind:      KindKubePod,
@@ -916,11 +939,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Name:      Wildcard,
 				},
 			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
 		}
+
+		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
 			return trace.Wrap(err)
@@ -978,6 +1002,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
 		}
 	}
+	for _, role := range r.Spec.Allow.DatabaseRoles {
+		if role == Wildcard {
+			return trace.BadParameter("wildcard is not allowed in allow.database_roles")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
@@ -1024,6 +1053,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 
