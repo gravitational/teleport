@@ -139,13 +139,12 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=teleport.example.com:443
   ```
 
   </ScopedBlock>
@@ -153,12 +152,11 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
@@ -171,13 +169,12 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=teleport.example.com:443
   ```
 
   </ScopedBlock>
@@ -190,7 +187,6 @@ the foreground to better understand how it works.
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
@@ -208,7 +204,6 @@ Replace the following fields with values from your own cluster.
 <ScopedBlock scope={["cloud"]}>
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
@@ -220,10 +215,8 @@ Replace the following fields with values from your own cluster.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Auth Server, for example
-  `auth.example.com:3025`. If your Machine ID host is in a different network
-  than your Auth Server, use the public web address of your Proxy Service
-  instead (e.g., `auth.example.com:443`). 
+- `auth-server` is the address of your Teleport Proxy Server, for example
+  `teleport.example.com:443`.
 
 </ScopedBlock>
 
@@ -274,9 +267,23 @@ node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 To use Machine ID with the OpenSSH integration, run the following command to
 connect to `node-name` within cluster `example.com`.
 
+```code
+$ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
-ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+
+In addition to the `ssh` client you can use `tsh`. Replace the `--proxy` parameter
+with your proxy address. 
+
+<ScopedBlock scope={["oss","enterprise"]}>
+```code
+$ tsh ssh --proxy=teleport.example.com -i /opt/machine-id/identity root@node-name
 ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+```code
+$ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
+```
+</ScopedBlock>
 
 <Admonition type="note" title="Roles must have logins defined">
   The below error can occur when the bot does not have permission to log in to
