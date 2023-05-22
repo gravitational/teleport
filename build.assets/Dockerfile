@@ -272,12 +272,12 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-ARG NODE_GRPC_TOOLS_VERSION
-ARG NODE_PROTOC_TS_VERSION
+ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
+ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-ARG PROTOC_VER
+ARG PROTOC_VER # eg, "3.20.2"
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
   PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
@@ -286,7 +286,7 @@ RUN VERSION="$PROTOC_VER" && \
   rm -f "$PB_FILE"
 
 # Install protoc-gen-gogofast.
-ARG GOGO_PROTO_TAG
+ARG GOGO_PROTO_TAG # eg, "v1.3.2"
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
@@ -300,7 +300,7 @@ RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.52.2
     sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
-ARG BUF_VERSION
+ARG BUF_VERSION # eg, "1.19.0"
 RUN BIN='/usr/local/bin' && \
   VERSION="$BUF_VERSION" && \
   curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
