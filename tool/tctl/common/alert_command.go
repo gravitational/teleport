@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -172,6 +172,7 @@ func (c *AlertCommand) List(ctx context.Context, client auth.ClientI) error {
 	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		Labels:           labels,
 		WithAcknowledged: c.verbose,
+		WithUntargeted:   true, // include alerts not specifically targeted toward this user
 	})
 	if err != nil {
 		return trace.Wrap(err)

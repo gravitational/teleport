@@ -31,6 +31,13 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
+        },
+        {
+          "title": "Teleport Assist",
+          "slug": "/ai-assist/",
+          "forScopes": [
+            "oss"
+          ]
         }
       ]
     },
@@ -42,20 +49,15 @@
           "title": "Introduction",
           "slug": "/choose-an-edition/introduction/"
         },
+	{
+	  "title": "Teleport Team",
+	  "slug": "/choose-an-edition/teleport-team/"
+	},
         {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
-          "forScopes": [
-            "cloud"
-          ],
+          "forScopes": ["cloud"],
           "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/choose-an-edition/teleport-cloud/getting-started/",
-              "forScopes": [
-                "cloud"
-              ]
-            },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
@@ -931,7 +933,11 @@
               "slug": "/application-access/guides/dynamic-registration/"
             },
             {
-              "title": "AWS DynamoDB",
+              "title": "Amazon Athena",
+              "slug": "/application-access/guides/amazon-athena/"
+            },
+            {
+              "title": "Amazon DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
             },
             {
@@ -955,11 +961,11 @@
           ]
         },
         {
-          "title": "Protect Okta Applications and Groups with Teleport",
+          "title": "Protect Okta Applications and Groups (Preview)",
           "slug": "/application-access/okta/",
           "entries": [
             {
-              "title": "Guide",
+              "title": "Okta Service",
               "slug": "/application-access/okta/guide/"
             },
             {
@@ -1147,8 +1153,12 @@
           "slug": "/database-access/guides/",
           "entries": [
             {
-              "title": "AWS DynamoDB",
-              "slug": "/database-access/guides/aws-dynamodb/"
+               "title": "AWS Cross-Account",
+               "slug": "/database-access/guides/aws-cross-account/"
+            },
+            {
+               "title": "AWS DynamoDB",
+               "slug": "/database-access/guides/aws-dynamodb/"
             },
             {
               "title": "AWS ElastiCache & MemoryDB",
@@ -1665,7 +1675,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.3.3",
+      "version": "12.4.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2245,12 +2255,12 @@
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2515,12 +2525,12 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2611,6 +2621,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {

@@ -2197,7 +2197,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 type withDatabaseOption func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database
 
-func withSelfHostedPostgres(name string) withDatabaseOption {
+type databaseOption func(*types.DatabaseV3)
+
+func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
@@ -2215,6 +2217,9 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
+		for _, dbOpt := range dbOpts {
+			dbOpt(database)
+		}
 		testCtx.postgres[name] = testPostgres{
 			db:       postgresServer,
 			resource: database,
