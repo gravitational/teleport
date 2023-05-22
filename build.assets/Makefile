@@ -48,7 +48,7 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include images.mk
-include babybox.mk
+include grpcbox.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -249,13 +249,13 @@ ui: buildbox
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
-grpc: babybox
-	$(BABYRUN) make grpc/host
+grpc: grpcbox
+	$(GRPCBOX_RUN) make grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
 .PHONY: protos-up-to-date
-protos-up-to-date: babybox
-	$(BABYRUN) make protos-up-to-date/host
+protos-up-to-date: grpcbox
+	$(GRPCBOX_RUN) make protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
@@ -382,11 +382,11 @@ enter-root/centos7: buildbox-centos7
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
-# Starts a shell inside the babybox.
+# Starts a shell inside the grpcbox.
 #
-.PHONY: enter/babybox
-enter/babybox: babybox
-	$(BABYRUN)
+.PHONY: enter/grpcbox
+enter/grpcbox: grpcbox
+	$(GRPCBOX_RUN)
 
 #
 # Create a Teleport package using the build container.
