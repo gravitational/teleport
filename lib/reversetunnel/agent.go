@@ -612,11 +612,11 @@ func (a *agent) handlesGlobalRequests() (bool, error) {
 
 	if !a.checkedServerVersion {
 		// Check to see if client -> server global requests are handled properly.
-		// REMOVE IN V14: In v14 proxy servers will be guarenteed to properly handle
+		// REMOVE IN V14: In v14 proxy servers will be guaranteed to properly handle
 		// global requests.
 		v2Chan, v2Reqs, err := a.client.OpenChannel(a.ctx, teleport.ReverseTunnelServerV2Channel, nil)
-		if oce := (&ssh.OpenChannelError{}); errors.As(err, oce) {
-			// sshAckAndClose indicates the channel was acknolwedged but requests
+		if oce := (&ssh.OpenChannelError{}); errors.As(err, &oce) {
+			// sshAckAndClose indicates the channel was acknowledged but requests
 			// are not handled.
 			a.checkedServerVersion = true
 			a.isV2Server = oce.Reason == sshAckAndClose
