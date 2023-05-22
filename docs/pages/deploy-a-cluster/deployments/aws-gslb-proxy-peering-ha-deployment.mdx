@@ -8,9 +8,7 @@ This deployment architecture features two important design decisions:
 1. AWS Route 53 latency-based routing is used for global server load balancing 
    ([GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)).
    This allows for efficient distribution of traffic across resources that are globally distributed.
-
-2. Teleport's [Proxy Peering](../architecture/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
-
+2. Teleport's [Proxy Peering](../../architecture/proxy-peering.mdx) is used to reduce the total number of tunnel connections in the Teleport cluster.
 
 This deployment architecture isn't recommended for use cases where your users or resources are 
 clustered in a single region, or for Managed Service Providers needing to provide separate clusters 
@@ -49,7 +47,7 @@ entry while also ensuring minimal latency when accessing connected resources.
 - More technically complex to deploy than a single region Teleport cluster.
 
 ![Diagram showing this Teleport
-architecture](../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
+architecture](../../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
 
 
 ## AWS Network Load Balancer (NLB)
@@ -124,7 +122,8 @@ resources are routed to the closest or lowest latency path Proxy NLB based on th
 the VPC the resource is connecting from.
 
 To create GSLB routing, create a CNAME record for each region where you have VPCs containing Teleport connected resources.
-It is recommended to add a wildcard record for every region if you plan to use Teleport Application Access.
+It is recommended to add a wildcard record for every region if you plan to
+register applications with Teleport.
 
 The following CNAME record values need to be set:
 - **Value:** The domain name of the NLB where `example-region-1` located Teleport resource traffic should be routed
@@ -134,13 +133,13 @@ The following CNAME record values need to be set:
 
 Example Hosted Zone using AWS Route53 Latency Routing to create GSLB:
 
-### Root GSLB record for Teleport:
+### Root GSLB record for Teleport
 
 |Record name|Type|Value|
 |---|---|---|
 |```*.teleport.example.com```|CNAME|AWS Route 53 nameservers|
 
-### Teleport Proxy DNS records for GSLB:
+### Teleport Proxy DNS records for GSLB
 
 |Record name|Type|Routing Policy|Region|Value|
 |---|---|---|---|---|
