@@ -578,8 +578,7 @@ func TestGetAtlasIAMToken(t *testing.T) {
 	db := newMongoAtlasDatabase(t)
 
 	for name, tt := range map[string]struct {
-		stsMock *mocks.STSMock
-		// database types.Database
+		stsMock       *mocks.STSMock
 		username      string
 		expectedKeyId string
 		expectErr     require.ErrorAssertionFunc
