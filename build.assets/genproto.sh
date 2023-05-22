@@ -3,14 +3,38 @@
 # Generates protos for Teleport and Teleport API.
 set -eu
 
+echoed() {
+  echo "$*" >&2
+  "$@"
+}
+
 main() {
   cd "$(dirname "$0")"  # ./build-assets/
   cd ../                # teleport root
 
+  # Parse optional args.
+  local skip_js=0 # skips Javascript and Typescript protogen
+  local skip_rm=0 # skips removal of old protos
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --skip-js)
+        skip_js=1
+        ;;
+      --skip-rm)
+        skip_rm=1
+        ;;
+      *)
+        echo "Unknown argument $1" >&2
+        exit 1
+        ;;
+    esac
+    shift
+  done
+
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
-  rm -fr api/gen/proto gen/proto
+  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
 
   # Generate Gogo protos. Generated protos are written to
   # gogogen/github.com/gravitational/teleport/..., so we copy them to the
@@ -18,7 +42,7 @@ main() {
   # this for us (and which is what we use for the non-gogo protogen).
   rm -fr gogogen
   trap 'rm -fr gogogen' EXIT # don't leave files behind
-  buf generate --template=buf-gogo.gen.yaml \
+  echoed buf generate --template=buf-gogo.gen.yaml \
     --path=api/proto/teleport/legacy/ \
     --path=api/proto/teleport/attestation/ \
     --path=api/proto/teleport/usageevents/ \
@@ -29,7 +53,7 @@ main() {
   rmdir gogogen/github.com/gravitational gogogen/github.com gogogen
 
   # Generate protoc-gen-go protos (preferred).
-  buf generate --template=buf-go.gen.yaml \
+  echoed buf generate --template=buf-go.gen.yaml \
     --exclude-path=api/proto/teleport/legacy/ \
     --exclude-path=api/proto/teleport/attestation/ \
     --exclude-path=api/proto/teleport/usageevents/ \
@@ -37,11 +61,11 @@ main() {
     --exclude-path=proto/prehog/
 
   # Generate connect-go protos.
-  buf generate --template=buf-connect-go.gen.yaml \
+  echoed buf generate --template=buf-connect-go.gen.yaml \
     --path=proto/prehog/
 
   # Generate JS protos.
-	buf generate --template=buf-js.gen.yaml \
+  [[ $skip_js -eq 0 ]] && echoed buf generate --template=buf-js.gen.yaml \
     --path=proto/prehog/ \
     --path=proto/teleport/lib/teleterm/
 }

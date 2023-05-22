@@ -42,11 +42,15 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
     this._logger = new Logger(
-      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args})`
+      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args.join(
+        ' '
+      )})`
     );
   }
 
   start(cols: number, rows: number) {
+    // TODO(ravicious): Set argv0 when node-pty adds support for it.
+    // https://github.com/microsoft/node-pty/issues/472
     this._process = nodePTY.spawn(this.options.path, this.options.args, {
       cols,
       rows,
