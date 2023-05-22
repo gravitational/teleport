@@ -65,7 +65,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
-	ws, resp, err := dialer.Dial(joinEndpoint, nil)
+	ws, resp, err := dialer.DialContext(ctx, joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
@@ -236,7 +236,7 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 // Wait waits for the session to finish.
 func (s *KubeSession) Wait() {
-	<-s.ctx.Done()
+	// Wait for the session to copy everything into stdout
 	s.wg.Wait()
 }
 
@@ -246,7 +246,6 @@ func (s *KubeSession) Close() error {
 		return trace.Wrap(err)
 	}
 
-	<-s.ctx.Done()
 	s.wg.Wait()
 	return trace.Wrap(s.Detach())
 }
