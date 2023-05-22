@@ -25,7 +25,7 @@ func main() {
 	dbStartCmd := app.GetCommand("db").GetCommand("start")
 	switch executedCommand {
 	case startCmd.FullCommand(), appStartCmd.FullCommand(), dbStartCmd.FullCommand():
-		if err := service.Run(context.TODO(), *config, process.NewTeleport); err != nil {
+		if err := service.Run(context.Background(), *config, process.NewTeleport); err != nil {
 			utils.FatalError(err)
 		}
 	}

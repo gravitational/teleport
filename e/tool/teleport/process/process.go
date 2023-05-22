@@ -86,6 +86,10 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		services.InitOkta(ossProcess)
 	}
 
+	if cfg.Jamf.Enabled() {
+		services.JamfInit(ossProcess)
+	}
+
 	if cfg.Databases.Enabled {
 		common.RegisterEngine(oracle.NewEngine, defaults.ProtocolOracle)
 	}
@@ -159,4 +163,6 @@ func registerExpectedServices(cfg *servicecfg.Config) {
 			})
 		cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, services.OktaReady)
 	}
+
+	services.JamfRegister(cfg)
 }
