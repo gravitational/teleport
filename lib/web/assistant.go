@@ -189,7 +189,10 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	// moved into a separate function for error management/debug purposes
 	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
-		return nil, trace.Wrap(err)
+		// The connection was very likely hijacked (when upgrading to websocket),
+		// We should not try to send the error back. Writing to an hijacked
+		// connection is illegal and will only cause more errors.
+		return nil, nil
 	}
 
 	return nil, nil
@@ -313,7 +316,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
-			if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+			if err == io.EOF || websocket.IsCloseError(
+				err,
+				websocket.CloseAbnormalClosure,
+				websocket.CloseGoingAway,
+				websocket.CloseNormalClosure,
+				websocket.CloseNoStatusReceived,
+			) {
 				break
 			}
 			return trace.Wrap(err)
