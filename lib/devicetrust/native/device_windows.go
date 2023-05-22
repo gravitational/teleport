@@ -74,8 +74,16 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(eks) == 0 {
+		// This is a pretty unusual case, `go-attestation` will attempt to
+		// create an EK if no EK Certs are present in the NVRAM of the TPM.
+		// Either way, it lets us catch this early in case `go-attestation`
+		// misbehaves.
 		return nil, trace.BadParameter("no endorsement keys found in tpm")
 	}
+	// The first EK returned by `go-attestation` will be an RSA based EK key or
+	// EK cert. On Windows, ECC certs may also be returned following this. At
+	// this time, we are only interested in RSA certs, so we just consider the
+	// first thing returned.
 	// TODO(noah): Marshal EK Certificate instead of key if present:
 	// https://github.com/gravitational/teleport.e/issues/1393
 	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
@@ -200,6 +208,7 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 	}
 	publicKey := akPub.Public
 	switch publicKey := publicKey.(type) {
+	// at this time `go-attestation` only creates RSA 2048bit Attestation Keys.
 	case *rsa.PublicKey:
 		h := sha256.New()
 		// This logic is roughly based off the openssh key fingerprinting,
