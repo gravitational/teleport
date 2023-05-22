@@ -562,6 +562,14 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 			Key:   aws.String("key"),
 			Value: aws.String("val"),
 		}},
+		DBSubnetGroup: &rdsTypesV2.DBSubnetGroup{
+			Subnets: []rdsTypesV2.Subnet{
+				{SubnetIdentifier: aws.String("")},
+				{SubnetIdentifier: aws.String("subnet-1234567890abcdef0")},
+				{SubnetIdentifier: aws.String("subnet-1234567890abcdef1")},
+				{SubnetIdentifier: aws.String("subnet-1234567890abcdef2")},
+			},
+		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "instance-1",
@@ -586,6 +594,11 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 				ClusterID:  "cluster-1",
 				ResourceID: "resource-1",
 				IAMAuth:    true,
+				Subnets: []string{
+					"subnet-1234567890abcdef0",
+					"subnet-1234567890abcdef1",
+					"subnet-1234567890abcdef2",
+				},
 			},
 		},
 	})

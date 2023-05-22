@@ -679,10 +679,8 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "aarch64" || ${ARCH} == "arm64" ]]; then
+    if [[ ${ARCH} == "arm64" ]]; then
         TELEPORT_ARCH="arm64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
-        exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else

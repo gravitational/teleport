@@ -98,15 +98,3 @@ export class MockTshClient implements TshClient {
   transferFile: () => undefined;
   reportUsageEvent: () => undefined;
 }
-
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};
