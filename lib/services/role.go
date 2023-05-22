@@ -933,12 +933,12 @@ func (result *EnumerationResult) filtered(value bool) []string {
 	return filtered
 }
 
-// Denied returns all explicitly denied users.
+// Denied returns all explicitly denied entities.
 func (result *EnumerationResult) Denied() []string {
 	return result.filtered(false)
 }
 
-// Allowed returns all known allowed users.
+// Allowed returns all known allowed entities.
 func (result *EnumerationResult) Allowed() []string {
 	if result.WildcardDenied() {
 		return nil
@@ -946,12 +946,12 @@ func (result *EnumerationResult) Allowed() []string {
 	return result.filtered(true)
 }
 
-// WildcardAllowed is true if there * username allowed for given rule set.
+// WildcardAllowed is true if the * entity is allowed for a given rule set.
 func (result *EnumerationResult) WildcardAllowed() bool {
 	return result.wildcardAllowed && !result.wildcardDenied
 }
 
-// WildcardDenied is true if there * username deny for given rule set.
+// WildcardDenied is true if the * entity is denied for a given rule set.
 func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
@@ -965,52 +965,84 @@ func NewEnumerationResult() EnumerationResult {
 	}
 }
 
-// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
-// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
-// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
-//
-// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
-// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
-// This extra set of users may be sourced e.g. from user connection history.
+// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
 func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		return role.GetDatabaseUsers(condition)
+	}
+	newMatcher := func(user string) RoleMatcher {
+		return NewDatabaseUserMatcher(database, user)
+	}
+	return set.EnumerateEntities(database, listFn, newMatcher, extraUsers...)
+}
+
+// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
+func (set RoleSet) EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		return role.GetDatabaseNames(condition)
+	}
+	newMatcher := func(dbName string) RoleMatcher {
+		return &DatabaseNameMatcher{Name: dbName}
+	}
+	return set.EnumerateEntities(database, listFn, newMatcher, extraNames...)
+}
+
+// roleEntitiesListFn is used for listing a role's allowed/denied entities.
+type roleEntitiesListFn func(types.Role, types.RoleConditionType) []string
+
+// roleMatcherFactoryFn is used for making a role matcher for a given entity.
+type roleMatcherFactoryFn func(entity string) RoleMatcher
+
+// EnumerateEntities works on a given role set to return a minimal description
+// of allowed set of entities (db_users, db_names, etc). It is biased towards
+// *allowed* entities; It is meant to describe what the user can do, rather than
+// cannot do. For that reason if the user isn't allowed to pick *any* entities,
+// the output will be empty.
+//
+// In cases where * is listed in set of allowed entities, it may be hard for
+// users to figure out the expected entity to use. For this reason the parameter
+// extraEntities provides an extra set of entities to be checked against
+// RoleSet. This extra set of entities may be sourced e.g. from user connection
+// history.
+func (set RoleSet) EnumerateEntities(resource AccessCheckable, listFn roleEntitiesListFn, newMatcher roleMatcherFactoryFn, extraEntities ...string) EnumerationResult {
 	result := NewEnumerationResult()
 
-	// gather users for checking from the roles, check wildcards.
-	var users []string
+	// gather entities for checking from the roles, check wildcards.
+	var entities []string
 	for _, role := range set {
 		wildcardAllowed := false
 		wildcardDenied := false
 
-		for _, user := range role.GetDatabaseUsers(types.Allow) {
-			if user == types.Wildcard {
+		for _, e := range listFn(role, types.Allow) {
+			if e == types.Wildcard {
 				wildcardAllowed = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, e)
 			}
 		}
 
-		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			if user == types.Wildcard {
+		for _, e := range listFn(role, types.Deny) {
+			if e == types.Wildcard {
 				wildcardDenied = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, e)
 			}
 		}
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(database, AccessState{MFAVerified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(resource, AccessState{MFAVerified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 
 	}
 
-	users = apiutils.Deduplicate(append(users, extraUsers...))
+	entities = apiutils.Deduplicate(append(entities, extraEntities...))
 
-	// check each individual user against the database.
-	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
-		result.allowedDeniedMap[user] = err == nil
+	// check each individual role spec entity against the resource.
+	for _, e := range entities {
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newMatcher(e))
+		result.allowedDeniedMap[e] = err == nil
 	}
 
 	return result

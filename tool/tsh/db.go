@@ -858,54 +858,132 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteTo
 	if dbInfo.ServiceName == "" {
 		return nil, trace.BadParameter("missing database service name")
 	}
-	if dbInfo.Protocol == "" {
-		db, err := dbInfo.GetDatabase(cf, tc)
+	if dbInfo.Protocol != "" && dbInfo.Username != "" && dbInfo.Database != "" {
+		return &dbInfo, nil
+	}
+	db, err := dbInfo.GetDatabase(cf, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbInfo.Protocol = db.GetProtocol()
+	// If database has admin user defined, we're most likely using automatic
+	// user provisioning so default to Teleport username unless database
+	// username was provided explicitly.
+	if dbInfo.Username == "" && db.GetAdminUser() != "" {
+		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
+		dbInfo.Username = tc.Username
+	}
+	// recheck to see if we can avoid fetching the roleset to set defaults.
+	needDBUser := dbInfo.Username == "" && role.RequireDatabaseUserMatcher(dbInfo.Protocol)
+	needDBName := dbInfo.Database == "" && role.RequireDatabaseNameMatcher(dbInfo.Protocol)
+	if !needDBUser && !needDBName {
+		return &dbInfo, nil
+	}
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var proxy *client.ProxyClient
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		proxy, err = tc.ConnectToProxy(cf.Context)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxy.Close()
+
+	roleSet, err := fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if needDBUser {
+		dbUser, err := getDefaultDBUser(db, roleSet)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		dbInfo.Protocol = db.GetProtocol()
+		log.Debugf("Defaulting to the allowed database user %q\n", dbUser)
+		dbInfo.Username = dbUser
 	}
-	if dbInfo.Username == "" {
-		db, err := dbInfo.GetDatabase(cf, tc)
+	if needDBName {
+		dbName, err := getDefaultDBName(db, roleSet)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		// If database has admin user defined, we're most likely using automatic
-		// user provisioning so default to Teleport username unless database
-		// username was provided explicitly.
-		if db.GetAdminUser() != "" {
-			log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
-			dbInfo.Username = tc.Username
-		} else {
-			switch dbInfo.Protocol {
-			// When generating certificate for MongoDB access, database username must
-			// be encoded into it. This is required to be able to tell which database
-			// user to authenticate the connection as Elasticsearch needs database username too.
-			case defaults.ProtocolMongoDB, defaults.ProtocolElasticsearch, defaults.ProtocolOracle, defaults.ProtocolOpenSearch:
-				return nil, trace.BadParameter("please provide the database user name using the --db-user flag")
-			case defaults.ProtocolRedis:
-				// Default to "default" in the same way as Redis does. We need the username to check access on our side.
-				// ref: https://redis.io/commands/auth
-				log.Debugf("Defaulting to Redis username %q as database username.", defaults.DefaultRedisUsername)
-				dbInfo.Username = defaults.DefaultRedisUsername
-			}
-		}
+		log.Debugf("Defaulting to the allowed database name %q\n", dbName)
+		dbInfo.Database = dbName
 	}
-	if dbInfo.Database != "" {
-		switch dbInfo.Protocol {
-		case defaults.ProtocolDynamoDB:
-			log.Warnf("Database %v protocol %v does not support --db-name flag, ignoring --db-name=%v",
-				dbInfo.ServiceName, defaults.ReadableDatabaseProtocol(dbInfo.Protocol), dbInfo.Database)
-			dbInfo.Database = ""
-		}
-	} else {
-		switch dbInfo.Protocol {
-		// Always require db-name for Oracle Protocol.
-		case defaults.ProtocolOracle:
-			return nil, trace.BadParameter("please provide the database name using the --db-name flag")
-		}
-	}
+
 	return &dbInfo, nil
+}
+
+// getDefaultDBUser enumerates the allowed database users for a given database
+// and selects one if it is the only non-wildcard database user allowed.
+// Returns an error if there are no allowed database users or more than one.
+func getDefaultDBUser(db types.Database, roleSet services.RoleSet) (string, error) {
+	var extraUsers []string
+	if db.GetProtocol() == defaults.ProtocolRedis {
+		// Check for the Redis default username "default" in the same way as
+		// Redis does. This way if the wildcard is the only allowed db_user,
+		// we will select this as the default db user.
+		// ref: https://redis.io/commands/auth
+		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
+	}
+	dbUsers := roleSet.EnumerateDatabaseUsers(db, extraUsers...)
+	allowed := dbUsers.Allowed()
+	if len(allowed) == 1 {
+		return allowed[0], nil
+	}
+	// anything else is an error.
+	if dbUsers.WildcardAllowed() {
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+	if len(allowed) == 0 {
+		errMsg := "you are not allowed access to any database user for %v, " +
+			"ask a cluster administrator to ensure your Teleport user has appropriate db_users set"
+		return "", trace.AccessDenied(errMsg, db.GetName())
+	}
+	errMsg := fmt.Sprintf("please provide the database user using the --db-user flag, "+
+		"allowed database users for %v: %v", db.GetName(), allowed)
+	if dbUsers.WildcardAllowed() {
+		denied := dbUsers.Denied()
+		if len(denied) > 0 {
+			errMsg += fmt.Sprintf(" except %v", denied)
+		}
+	}
+	return "", trace.BadParameter(errMsg)
+}
+
+// getDefaultDBName enumerates the allowed database names for a given database
+// and selects one if it is the only non-wildcard database name allowed.
+// Returns an error if there are no allowed database names or more than one.
+func getDefaultDBName(db types.Database, roleSet services.RoleSet) (string, error) {
+	dbNames := roleSet.EnumerateDatabaseNames(db)
+	allowed := dbNames.Allowed()
+	if len(allowed) == 1 {
+		return allowed[0], nil
+	}
+	// anything else is an error.
+	if dbNames.WildcardAllowed() {
+		allowed = append([]string{types.Wildcard}, allowed...)
+	}
+	if len(allowed) == 0 {
+		errMsg := "you are not allowed access to any database name for %v, " +
+			"ask a cluster administrator to ensure your Teleport user has appropriate db_names set"
+		return "", trace.AccessDenied(errMsg, db.GetName())
+	}
+	errMsg := fmt.Sprintf("please provide the database name using the --db-name flag, "+
+		"allowed database names for %v: %v", db.GetName(), allowed)
+	if dbNames.WildcardAllowed() {
+		denied := dbNames.Denied()
+		if len(denied) > 0 {
+			errMsg += fmt.Sprintf(" except %v", denied)
+		}
+	}
+	return "", trace.BadParameter(errMsg)
 }
 
 func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
