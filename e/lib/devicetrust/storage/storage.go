@@ -464,15 +464,21 @@ func (s *S) UpdateDevice(
 	return storedToDevice(deviceID, storedU), nil
 }
 
-// DeleteDevice hard-deletes a device from storage.
-func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
+// DeleteDevicePredicate hard-deletes the specified device from storage if it
+// matches the predicate.
+func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d *devicepb.Device) error) error {
 	if deviceID == "" {
 		return trace.BadParameter("device ID required")
 	}
 
 	// Read the device first, we need the asset tag for the cleanup below.
-	dev, err := s.GetDeviceByID(ctx, deviceID)
+	dev, _, _, err := s.getDeviceByID(ctx, deviceID)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Predicate applies?
+	if err := p(dev); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -521,6 +527,11 @@ func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
 	}
 
 	return nil
+}
+
+// DeleteDevice hard-deletes a device from storage.
+func (s *S) DeleteDevice(ctx context.Context, deviceID string) error {
+	return s.DeleteDevicePredicate(ctx, deviceID, func(d *devicepb.Device) error { return nil })
 }
 
 func (s *S) removeFromAssetTagIndex(ctx context.Context, deviceID, assetTag string) error {

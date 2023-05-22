@@ -2127,9 +2127,9 @@ func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 			// Abort here, failures can't always inform the device.
 			return
 		case devEvent.Device == nil:
-			t.Errorf("Audit: event mismatch: got[%v].Device is nil, want non-nil", i)
+			t.Errorf("Audit: event mismatch: got[%v].Device=nil, want non-nil", i)
 		case devEvent.Device.DeviceId == "":
-			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId is "", want non-empty`, i)
+			t.Errorf(`Audit: event mismatch: got[%v].Device.DeviceId="", want non-empty`, i)
 		}
 	}
 }

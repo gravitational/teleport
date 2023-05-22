@@ -1371,6 +1371,66 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 	}
 }
 
+func TestS_DeleteDevicePredicate(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	const createAsResource = false
+	llama, err := s.CreateDevice(ctx, &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "llama"}, createAsResource)
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	dev1, err := s.CreateDevice(ctx, &devicepb.Device{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev1"}, createAsResource)
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// See TestS_DeleteDevice for more extensive testing.
+	tests := []struct {
+		name      string
+		deviceID  string
+		predicate func(d *devicepb.Device) error
+		wantErr   string
+	}{
+		{
+			name:      "predicate matches",
+			deviceID:  llama.Id,
+			predicate: func(_ *devicepb.Device) error { return nil },
+		},
+		{
+			name:      "predicate doesn't match",
+			deviceID:  dev1.Id,
+			predicate: func(_ *devicepb.Device) error { return errors.New("please don't delete me") },
+			wantErr:   "please don't delete me",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := s.DeleteDevicePredicate(ctx, test.deviceID, test.predicate)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "DeleteDevicePredicate error mismatch")
+			} else if err != nil {
+				t.Errorf("DeleteDevicePredicate returned err=%v, want nil", err)
+			}
+
+			// Verify deletion.
+			_, err = s.GetDeviceByID(ctx, test.deviceID)
+			if err != nil && !trace.IsNotFound(err) {
+				t.Fatalf("GetDeviceByID returned unexpected error: %v", err)
+			}
+
+			gotDeleted := err != nil // NotFound means deleted
+			wantDeleted := test.wantErr == ""
+			if gotDeleted != wantDeleted {
+				t.Errorf("DeleteDevicePredicate: device deleted=%v, want %v", gotDeleted, wantDeleted)
+			}
+		})
+	}
+}
+
 func TestS_DeleteDevice(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()

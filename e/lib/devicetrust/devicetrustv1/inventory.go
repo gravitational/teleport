@@ -7,6 +7,7 @@ import (
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -127,7 +128,7 @@ Devices:
 			// We don't want an Update failure to cause a device to be deleted.
 			updateSeen(devs)
 		case *devicepb.SyncInventoryRequest_DevicesToRemove:
-			statuses, err = s.deleteDevices(ctx, req.DevicesToRemove.GetDevices())
+			statuses, err = s.deleteDevices(ctx, source, req.DevicesToRemove.GetDevices())
 			// err handled below.
 		default:
 			return trace.BadParameter("unexpected payload type %T during devices phase", req)
@@ -165,9 +166,7 @@ Devices:
 		var statuses []*devicepb.DeviceOrStatus
 		for _, dev := range devs {
 			// Is the device managed by the source?
-			if dev.Source == nil ||
-				dev.Source.Name != source.Name ||
-				dev.Source.Origin != source.Origin {
+			if !sourcesMatch(dev.Source, source) {
 				continue
 			}
 
@@ -276,10 +275,67 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 	return statuses, nil
 }
 
-func (s *inventorySyncer) deleteDevices(ctx context.Context, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
-	return nil, trace.NotImplemented("devices_to_remove not implemented")
+func (s *inventorySyncer) deleteDevices(ctx context.Context, source *devicepb.DeviceSource, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
+	statuses := make([]*devicepb.DeviceOrStatus, len(devs))
+	for i, dev := range devs {
+		st := &devicepb.DeviceOrStatus{}
+		statuses[i] = st
+
+		// Either Id or (OsType,AssetTag) must be present for the device to be
+		// identified.
+		hasID := dev.Id != ""
+		hasOSTag := dev.OsType != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.AssetTag != ""
+		if !hasID && !hasOSTag {
+			st.Status = &spb.Status{
+				Code:    int32(codes.InvalidArgument),
+				Message: "device has no identifiers (id or os_type+asset_tag)",
+			}
+			continue
+		}
+
+		// Query device ID?
+		// Assign the queried ID to the device itself, it's useful for audit below.
+		if dev.Id == "" {
+			var err error
+			dev.Id, err = s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
+			if err != nil {
+				st.Status = errToStatus(err)
+				continue
+			}
+		}
+
+		// Delete.
+		err := s.storage.DeleteDevicePredicate(ctx, dev.Id, func(stored *devicepb.Device) error {
+			switch {
+			// If multiple identifiers are provided, make sure all of them match.
+			case dev.AssetTag != "" && dev.AssetTag != stored.AssetTag,
+				dev.OsType != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.OsType != stored.OsType:
+				return trace.BadParameter("device identifiers don't match the same device (id vs os_type+asset_tag)")
+			// Source must match.
+			case !sourcesMatch(stored.Source, source):
+				return trace.BadParameter("device is owned by another source")
+			default:
+				return nil
+			}
+		})
+		s.deleteAuditCallback(dev, err)
+		if err == nil {
+			st.Id = dev.Id
+			st.Deleted = true
+		} else {
+			st.Status = errToStatus(err)
+		}
+	}
+	return statuses, nil
 }
 
 func errToStatus(err error) *spb.Status {
 	return status.Convert(trail.ToGRPC(err)).Proto()
+}
+
+func sourcesMatch(s1, s2 *devicepb.DeviceSource) bool {
+	if s1 == nil || s2 == nil {
+		return s1 == s2
+	}
+	return s1.Name == s2.Name && s1.Origin == s2.Origin
 }

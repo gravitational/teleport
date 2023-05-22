@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -869,8 +870,184 @@ func TestService_SyncInventory_audit(t *testing.T) {
 		deleteEvent,
 		deleteEvent,
 	})
+}
 
-	// TODO(codingllama): Test audit on devices_to_remove.
+func TestService_SyncInventory_devicesToRemove(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	ctx := context.Background()
+	devicesClient := env.DevicesClient
+
+	source1 := &devicepb.DeviceSource{
+		Name:   "jamf",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+	}
+	source2 := &devicepb.DeviceSource{
+		Name:   "intune",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE,
+	}
+
+	allDevices := []*devicepb.Device{
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "llama"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "alpaca"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev1"},
+		{OsType: devicepb.OSType_OS_TYPE_WINDOWS, AssetTag: "dev1"}, // different OS!
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev2"},
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "dev3"},
+		{OsType: devicepb.OSType_OS_TYPE_WINDOWS, AssetTag: "dev4"},
+		{OsType: devicepb.OSType_OS_TYPE_WINDOWS, AssetTag: "dev5"},
+	}
+	llama := allDevices[0]
+	alpaca := allDevices[1]
+	dev1 := allDevices[2]
+	dev1Windows := allDevices[3]
+	dev2 := allDevices[4]
+	dev3 := allDevices[5]
+	dev4 := allDevices[6]
+	dev5 := allDevices[7]
+
+	// Sync a few devices with source1 and others with source2.
+	syncResp, err := syncInventoryPages(
+		ctx,
+		devicesClient,
+		&devicepb.SyncInventoryStart{Source: source1},
+		&devicepb.SyncInventoryEnd{ExternalSyncSuccessful: true},
+		[][]*devicepb.Device{allDevices})
+	if err != nil {
+		t.Fatalf("syncInventoryPages failed: %v", err)
+	}
+
+	// Assign IDs back to the original devices.
+	for i, s := range syncResp[0] {
+		// Sanity checks, this is covered by other tests.
+		switch {
+		case codes.Code(s.GetStatus().GetCode()) != codes.OK:
+			t.Fatalf("Device %v has non-OK code: %s", i, codes.Code(s.GetStatus().GetCode()))
+		case s.Deleted:
+			t.Fatalf("Device %v has Deleted set: %#v", i, s)
+		case s.Id == "":
+			t.Fatalf("Device %v has an empty Id: %#v", i, s)
+		}
+		allDevices[i].Id = s.Id
+	}
+
+	// "Transfer" a few devices to source2.
+	if _, err := syncInventoryPages(
+		ctx,
+		devicesClient,
+		&devicepb.SyncInventoryStart{Source: source2},
+		&devicepb.SyncInventoryEnd{},
+		[][]*devicepb.Device{{dev4, dev5}}); err != nil {
+		t.Fatalf("syncInventoryPages failed: %v", err)
+	}
+
+	// Test proper begins here.
+	devsToUpsert := []*devicepb.Device{dev4}
+	devsToRemove := []*devicepb.Device{
+		nil, // NOK
+		{},  // NOK, lacks identifiers
+		{Id: llama.Id, OsType: llama.OsType, AssetTag: "notllama"},     // NOK, identifiers don't match
+		{Id: llama.Id, OsType: llama.OsType, AssetTag: llama.AssetTag}, // OK, identifiers match
+		{Id: dev2.Id},
+		{OsType: devicepb.OSType_OS_TYPE_LINUX, AssetTag: dev3.AssetTag}, // unknown device
+		{OsType: devicepb.OSType_OS_TYPE_MACOS, AssetTag: "unknown"},     // unknown device
+		{Id: "unknown"},
+		{OsType: dev1.OsType, AssetTag: dev1.AssetTag},
+		dev4, // OK, source1 took ownership
+		dev5, // NOK, source2 has ownership
+	}
+	wantOutcomes := []struct {
+		id   string
+		code codes.Code
+		err  string
+	}{
+		{code: codes.InvalidArgument, err: "no identifiers"},
+		{code: codes.InvalidArgument, err: "no identifiers"},
+		{code: codes.InvalidArgument, err: "don't match"},
+		{id: llama.Id},
+		{id: dev2.Id},
+		{code: codes.NotFound},
+		{code: codes.NotFound},
+		{code: codes.NotFound},
+		{id: dev1.Id},
+		{id: dev4.Id},
+		{code: codes.InvalidArgument, err: "owned by another source"},
+	}
+	wantEvents := []wantEvent{
+		{Type: events.DeviceUpdateEvent, Code: events.DeviceUpdateCode}, // dev4, devicesToUpsert
+		{Type: events.DeviceDeleteEvent, Code: events.DeviceDeleteCode}, // llama
+		{Type: events.DeviceDeleteEvent, Code: events.DeviceDeleteCode}, // dev2
+		{Type: events.DeviceDeleteEvent, Code: events.DeviceDeleteCode}, // dev1
+		{Type: events.DeviceDeleteEvent, Code: events.DeviceDeleteCode}, // dev4
+	}
+
+	// Run stream with deletions.
+	emitter.Reset()
+	deleteResp, err := syncInventoryDelete(ctx, devicesClient, source1, devsToUpsert, devsToRemove)
+	if err != nil {
+		t.Fatalf("SyncInventory deletion stream failed: %v", err)
+	}
+
+	// We expect 2 pages:
+	// - page1 has the successful update of dev4
+	// - page2 has the deletions
+	switch {
+	case len(deleteResp) != 2:
+		t.Fatalf("SyncInventory returned %v pages, want 2", len(deleteResp))
+	case len(deleteResp[0]) != 1:
+		t.Fatalf("SyncInventory returned %v updated devices, want 1", len(deleteResp[0]))
+	case codes.Code(deleteResp[0][0].GetStatus().GetCode()) != codes.OK:
+		t.Fatalf("SyncInventory returned device update code=%s, want OK", codes.Code(deleteResp[0][0].GetStatus().GetCode()))
+	case len(deleteResp[1]) != len(devsToRemove):
+		t.Fatalf("SyncInventory returned %v deleted devices, want %v", len(deleteResp[1]), len(devsToRemove))
+	}
+
+	// Verify errors/successes on page2.
+	for i, s := range deleteResp[1] {
+		want := wantOutcomes[i]
+
+		// Assert response code.
+		gotCode := codes.Code(s.GetStatus().GetCode())
+		if gotCode != want.code {
+			t.Errorf("SyncInventory: deleted device #%v code=%s(%q), want %s", i, gotCode, s.GetStatus().GetMessage(), want.code)
+		}
+
+		// Assert failure message, it helps to distinguish errors.
+		if got, want := s.GetStatus().GetMessage(), want.err; !strings.Contains(got, want) {
+			t.Errorf("SyncInventory: deleted device #%v message=%q, want %q", i, got, want)
+		}
+
+		if gotCode != codes.OK {
+			continue
+		}
+		if !s.Deleted {
+			t.Errorf("SyncInventory: deleted device #%v deleted=%v, want true", i, s.Deleted)
+		}
+
+		// Assert deletions.
+		if _, err := devicesClient.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: s.Id}); !trace.IsNotFound(err) {
+			t.Errorf("SyncInventory: querying deleted device #%v returned err=%v, want NotFound", i, err)
+		}
+	}
+
+	// Assert non-deletions.
+	for _, dev := range []*devicepb.Device{
+		alpaca,      // delete not requested
+		dev1Windows, // delete requested for dev1/macOS
+		dev3,        // delete requested for wrong OsType
+		dev5,        // owned by source2
+	} {
+		if _, err := devicesClient.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: dev.Id}); err != nil {
+			t.Errorf("GetDevice(%s/%v) returned err=%v, want nil (wrongly deleted?)", dev.OsType, dev.AssetTag, err)
+		}
+	}
+
+	// Assert audit events.
+	assertEvents(t, emitter.Events(), wantEvents)
 }
 
 // syncInventoryPages sends `startReq`, then `devicePages` as `devices_to_add`
@@ -957,6 +1134,83 @@ func syncInventoryPages(
 	}
 
 	return results, nil
+}
+
+// syncInventoryDelete runs a delete-focused SyncInventory stream.
+func syncInventoryDelete(
+	ctx context.Context,
+	devicesClient devicepb.DeviceTrustServiceClient,
+	source *devicepb.DeviceSource,
+	devsToUpsert, devsToRemove []*devicepb.Device) ([][]*devicepb.DeviceOrStatus, error) {
+	// Start stream.
+	stream, err := devicesClient.SyncInventory(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("init: %w", err)
+	}
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_Start{
+			Start: &devicepb.SyncInventoryStart{Source: source},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("start Send: %w", err)
+	}
+	if _, err = stream.Recv(); err != nil {
+		return nil, fmt.Errorf("start Recv: %w", err)
+	}
+
+	// Send DevicesToUpsert, if any.
+	var statuses [][]*devicepb.DeviceOrStatus
+	if len(devsToUpsert) > 0 {
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
+				DevicesToUpsert: &devicepb.SyncInventoryDevices{Devices: devsToUpsert},
+			},
+		}); err != nil {
+			return nil, fmt.Errorf("devicesToUpsert Send: %w", err)
+		}
+		resp, err := stream.Recv()
+		if err != nil {
+			return nil, fmt.Errorf("devicesToUpsert Recv: %w", err)
+		}
+		statuses = append(statuses, resp.GetResult().GetDevices())
+	}
+
+	// Send DevicesToRemove.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
+			DevicesToRemove: &devicepb.SyncInventoryDevices{Devices: devsToRemove},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("devicesToRemove Send: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("devicesToRemove Recv: %w", err)
+	}
+	statuses = append(statuses, resp.GetResult().GetDevices())
+
+	// Signal end and wait for EOF.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_End{
+			End: &devicepb.SyncInventoryEnd{ExternalSyncSuccessful: true},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("end Send: %w", err)
+	}
+	for {
+		resp, err = stream.Recv()
+		switch {
+		case errors.Is(err, io.EOF):
+			return statuses, nil
+		case err != nil:
+			return nil, fmt.Errorf("end Recv: %w", err)
+		case resp.GetResult() == nil:
+			return nil, fmt.Errorf("end: unexpected payload %T", resp.Payload)
+		}
+
+		// Unexpected, record and let the test figure it out.
+		statuses = append(statuses, resp.GetResult().Devices)
+	}
 }
 
 func listAllDevices(ctx context.Context, devices devicepb.DeviceTrustServiceClient) ([]*devicepb.Device, error) {
