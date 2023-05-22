@@ -40,10 +40,10 @@ const (
 	attestationKeyFileName = "attestation.key"
 )
 
-// Ensures that device state directory exists.
+// setupDeviceStateDir ensures that device state directory exists.
 // It returns the absolute path to where the attestation key can be found:
 // ~/teleport-device/attestation.key
-func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
+func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err error) {
 	home, err := getHomeDir()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -52,8 +52,7 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (string, error) {
 	deviceStateDirPath := path.Join(home, deviceStateFolderName)
 	keyPath := path.Join(deviceStateDirPath, attestationKeyFileName)
 
-	_, err = os.Stat(deviceStateDirPath)
-	if err != nil {
+	if _, err := os.Stat(deviceStateDirPath); err != nil {
 		if os.IsNotExist(err) {
 			// If it doesn't exist, we can create it and return as we know
 			// the perms are correct as we created it.
@@ -93,13 +92,10 @@ func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
 	// TODO(noah): Marshal EK Certificate instead of key if present:
 	// https://github.com/gravitational/teleport.e/issues/1393
 	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return encodedEK, nil
+	return encodedEK, trace.Wrap(err)
 }
 
-// loadOrCreateAK attempts to load an AK from disk. A NotFound error will be
+// loadAK attempts to load an AK from disk. A NotFound error will be
 // returned if no such file exists.
 func loadAK(
 	tpm *attest.TPM,
@@ -198,8 +194,8 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	}, nil
 }
 
-// credentialIDFromAK produces a deterministic short-ish unique-ish human
-// readable-ish string identifier for a given AK. This can then be used as a
+// credentialIDFromAK produces a deterministic, short-ish, unique-ish, human
+// readable-ish, string identifier for a given AK. This can then be used as a
 // reference for this AK in the backend.
 //
 // To produce this, we perform a SHA256 hash over the constituent fields of
@@ -219,7 +215,7 @@ func credentialIDFromAK(ak *attest.AK) (string, error) {
 		h := sha256.New()
 		// This logic is roughly based off the openssh key fingerprinting,
 		// but, the hash excludes "ssh-rsa" and the outputted id is not
-		// prepended with "SHA256:
+		// prepended with "SHA256":
 		//
 		// It is imperative the order of the fields does not change in future
 		// implementations.

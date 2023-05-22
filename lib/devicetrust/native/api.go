@@ -43,8 +43,6 @@ func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
 }
 
 // SolveTPMEnrollChallenge completes a TPM enrollment challenge.
-func SolveTPMEnrollChallenge(
-	challenge *devicepb.TPMEnrollChallenge,
-) (*devicepb.TPMEnrollChallengeResponse, error) {
+func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return solveTPMEnrollChallenge(challenge)
 }

@@ -68,16 +68,18 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// 2. Challenge.
 	switch osType {
 	case devicepb.OSType_OS_TYPE_MACOS:
-		if err := enrollDeviceMacOS(stream, resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		err = enrollDeviceMacOS(stream, resp)
+		// err handled below
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		if err := enrollDeviceTPM(stream, resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		err = enrollDeviceTPM(stream, resp)
+		// err handled below
 	default:
 		// This should be caught by the OSType guard at start of function.
 		panic("no enrollment function provided for os")
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	}
 
 	resp, err = stream.Recv()

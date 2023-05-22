@@ -147,5 +147,5 @@ func statusErrorFromC(res C.int32_t) error {
 }
 
 func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
-	return nil, devicetrust.ErrPlatformNotSupported
+	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
 }
