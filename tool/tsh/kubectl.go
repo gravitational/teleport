@@ -143,13 +143,14 @@ func runKubectlCode(cf *CLIConf, args []string) {
 				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
 				defer cancel()
 				err := provider.Shutdown(shutdownCtx)
-				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+				if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 					log.WithError(err).Debugf("Failed to shutdown trace provider")
 				}
 			}
 		}
 	}
-
+	// If the user opted to not sample traces, cf.TracingProvider is pre-initialized
+	// with a noop provider.
 	ctx, span := cf.TracingProvider.Tracer("kubectl").Start(cf.Context, "kubectl")
 	closeSpanAndTracer := func() {
 		span.End()
