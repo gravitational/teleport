@@ -171,10 +171,10 @@ func TestAllDeviceEnumsMapped(t *testing.T) {
 			name:    "DeviceEnrollStatus",
 			nameMap: devicepb.DeviceEnrollStatus_name,
 			toString: func(i int32) string {
-				return ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus(i))
+				return ResourceDeviceEnrollStatusToString(devicepb.DeviceEnrollStatus(i))
 			},
 			fromString: func(s string) (int32, error) {
-				val, err := ResourceEnrollStatusFromString(s)
+				val, err := ResourceDeviceEnrollStatusFromString(s)
 				return int32(val), err
 			},
 		},
