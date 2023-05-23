@@ -41,5 +41,5 @@ RUN BIN='/usr/local/bin' && \
 COPY go.mod go.sum /teleport-module/
 RUN cd /teleport-module; \
   go install github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go && \
-  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc && \
+  go install github.com/golang/protobuf/protoc-gen-go && \
   go install google.golang.org/protobuf/cmd/protoc-gen-go
