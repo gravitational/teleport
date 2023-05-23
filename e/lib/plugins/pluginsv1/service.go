@@ -61,6 +61,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authorizer:        cfg.Authorizer,
 		pluginAuthorizers: cfg.PluginAuthorizers,
 		backendService:    cfg.BackendService,
+		log:               cfg.Log,
 	}, nil
 }
 

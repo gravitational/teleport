@@ -20,18 +20,10 @@ import (
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	// openaiTokenFileCloud is the path to a plain-text file
-	// that contains a shared (Teleport-owned) OpenAI API token
-	// This is automatically provided from a K8s secret in Cloud
-	openaiTokenFileCloud = "/var/lib/openai_credentials/api_key"
 )
 
 var (
@@ -190,8 +182,11 @@ func NewTeleport(cfg Config) (*Process, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := createOpenAIPlugin(backendService); err != nil {
-			return nil, trace.Wrap(err)
+		// Remove OpenAI plugin that was previously auto-provisioned in Cloud.
+		// TODO(justinas): remove after deploying in Cloud once.
+		// Ref: https://github.com/gravitational/teleport.e/issues/1477
+		if err := backendService.DeletePlugin(context.Background(), "openai-default"); err != nil && !trace.IsNotFound(err) {
+			logrus.Error(err)
 		}
 
 		process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
@@ -208,51 +203,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 	}
 
 	return process, nil
-}
-
-// createOpenAIPlugin bootstraps the default Cloud OpenAI plugin with shared credentials
-func createOpenAIPlugin(backendService services.Plugins) error {
-	if !modules.GetModules().Features().Assist {
-		logrus.Debug("Assist feature not enabled by the plan, will not bootstrap an OpenAI plugin")
-		return nil
-	}
-
-	const openaiPluginName = "openai-default"
-	openaiPlugin := types.NewPluginV1(
-		types.Metadata{
-			Name: openaiPluginName,
-			Labels: map[string]string{
-				types.OriginLabel: types.OriginCloud,
-				"type":            "openai",
-			},
-		},
-		types.PluginSpecV1{
-			Settings: &types.PluginSpecV1_Openai{
-				Openai: &types.PluginOpenAISettings{},
-			},
-		},
-		&types.PluginCredentialsV1{
-			Credentials: &types.PluginCredentialsV1_BearerToken{
-				BearerToken: &types.PluginBearerTokenCredentials{
-					TokenFile: openaiTokenFileCloud,
-				},
-			},
-		},
-	)
-
-	err := backendService.CreatePlugin(context.Background(), openaiPlugin)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		return trace.Wrap(err)
-	}
-
-	err = backendService.SetPluginStatus(context.Background(), openaiPluginName, types.PluginStatusV1{
-		Code: types.PluginStatusCode_RUNNING,
-	})
-	if err != nil {
-		logrus.WithError(err).Warningf("failed to set status for plugin %q", openaiPluginName)
-	}
-
-	return nil
 }
 
 // CheckAndSetDefaults checks and sets default config values
