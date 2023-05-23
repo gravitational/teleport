@@ -8,17 +8,6 @@ user database.
   </ScopedBlock>
 
   <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
-
-  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
-
-  ```yaml
-  auth_service:
-    authentication:
-      type: saml
-  ```
-
-  </TabItem>
   <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
 
   Use `tctl` to edit the `cluster_auth_preference` value:
@@ -45,6 +34,17 @@ user database.
 
   ```text
   cluster auth preference has been updated
+  ```
+
+  </TabItem>
+  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+
+  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+
+  ```yaml
+  auth_service:
+    authentication:
+      type: saml
   ```
 
   </TabItem>
