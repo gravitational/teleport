@@ -73,21 +73,22 @@ func (m *reportMode) Set(text string) error {
 }
 
 type args struct {
-	report reportMode
-	top    int
+	report      reportMode
+	top         int
+	summaryFile string
 }
 
 func parseCommandLine() (args, error) {
-	reportMode := byPackage
-	top := 0
-	flag.Var(&reportMode, "report-by",
+	var a args
+	flag.Var(&a.report, "report-by",
 		fmt.Sprintf("test reporting mode [%s, %s, %s]", byPackageName, byTestName, byFlakinessName))
-	flag.IntVar(&top, "top", 0, "top number of flaky tests to report [default 0 - all]")
+	flag.IntVar(&a.top, "top", 0, "top number of flaky tests to report [default 0 - all]")
+	flag.StringVar(&a.summaryFile, "summary-file", "", "file to write summary to")
 	flag.Parse()
 
-	if top != 0 && reportMode != byFlakiness {
+	if a.top != 0 && a.report != byFlakiness {
 		return args{}, trace.Errorf("-top <n> can only be used with -report-by flakiness")
 	}
 
-	return args{report: reportMode, top: top}, nil
+	return a, nil
 }

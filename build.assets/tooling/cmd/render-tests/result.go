@@ -166,14 +166,7 @@ func (rr *runResult) printSummary(out io.Writer) {
 		fmt.Fprintln(out, "All tests pass. Yay!")
 		return
 	}
-
-	// Order the packages by name for consistent output ordering.
-	pkgs := maps.Values(rr.packages)
-	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
-
-	printFailedTests(out, pkgs)
-	fmt.Fprintln(out, separator)
-	printFailedTestOutput(out, pkgs)
+	rr.printFailedTests(out)
 }
 
 func (rr *runResult) printFlakinessSummary(out io.Writer) {
@@ -214,11 +207,16 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 		}
 		printOutput(out, test.name, test.output)
 	}
+
 }
 
 // printFailedTests prints a summary list of the failed tests and packages in
 // the given packages.
-func printFailedTests(out io.Writer, pkgs []*packageResult) {
+func (rr *runResult) printFailedTests(out io.Writer) {
+	// Order the packages by name for consistent output ordering.
+	pkgs := maps.Values(rr.packages)
+	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
+
 	for _, pkg := range pkgs {
 		if pkg.count.fail == 0 {
 			continue
@@ -236,7 +234,11 @@ func printFailedTests(out io.Writer, pkgs []*packageResult) {
 // printFailedTestOutput prints the output of each failed package or test. Only
 // print the package output if there is no test that failed (how can this
 // happen?) so as to not swamp individual test output.
-func printFailedTestOutput(out io.Writer, pkgs []*packageResult) {
+func (rr *runResult) printFailedTestOutput(out io.Writer) {
+	// Order the packages by name for consistent output ordering.
+	pkgs := maps.Values(rr.packages)
+	sort.Slice(pkgs, func(i, j int) bool { return pkgs[i].name < pkgs[j].name })
+
 	for _, pkg := range pkgs {
 		testPrinted := false
 		if pkg.count.fail == 0 {

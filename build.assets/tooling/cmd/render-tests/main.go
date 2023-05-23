@@ -81,6 +81,19 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
+	var summaryOut io.Writer = os.Stdout
+	if args.summaryFile != "" {
+		f, err := os.Create(args.summaryFile)
+		if err != nil {
+			// Don't fatally exit, because we should still summarize the
+			// results to stdout
+			fmt.Fprintf(os.Stderr, "Could not create summary file: %v\n", err)
+		} else {
+			summaryOut = io.MultiWriter(os.Stdout, f)
+			defer f.Close()
+		}
+	}
+
 	rr := newRunResult(args.report, args.top)
 	ok := true
 	for ok {
@@ -102,9 +115,11 @@ func main() {
 	}
 
 	if args.report == byFlakiness {
-		rr.printFlakinessSummary(os.Stdout)
+		rr.printFlakinessSummary(summaryOut)
 	} else {
-		rr.printSummary(os.Stdout)
+		rr.printSummary(summaryOut)
+		fmt.Fprintln(os.Stdout, separator)
+		rr.printFailedTestOutput(os.Stdout)
 	}
 
 	if rr.testCount.fail == 0 {

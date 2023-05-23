@@ -188,7 +188,18 @@ Packages: 1 passed, 1 failed, 0 skipped
 ===================================================
 FAIL: example.com/package
 FAIL: example.com/package.TestParse
-===================================================
+`[1:]
+	require.Equal(t, expected, output.String())
+}
+
+func TestPrintFailedTestOutput(t *testing.T) {
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passFailPass)
+
+	output := &bytes.Buffer{}
+	rr.printFailedTestOutput(output)
+
+	expected := `
 OUTPUT example.com/package.TestParse
 ===================================================
 === RUN   TestParse
