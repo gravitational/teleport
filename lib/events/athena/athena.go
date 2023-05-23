@@ -398,11 +398,11 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchEvents(ctx, req.From, req.To, req.EventTypes, req.Limit, req.Order, req.StartKey)
+	return l.querier.SearchEvents(ctx, req)
 }
 
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.querier.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey, req.Cond, req.SessionID)
+	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
