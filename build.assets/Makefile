@@ -33,9 +33,7 @@ BUF_VERSION ?= 1.19.0
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4
 NODE_PROTOC_TS_VERSION ?= 5.0.1
-# Newer version of protoc have removed JS support that breaks our Teleterm build.
-# Related issue: https://github.com/protocolbuffers/protobuf-javascript/issues/105
-PROTOC_VER ?= 3.20.2
+PROTOC_VER ?= 3.20.3
 
 UID := $$(id -u)
 GID := $$(id -g)
