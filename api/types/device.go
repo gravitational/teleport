@@ -293,6 +293,8 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 // for use in resource fields.
 func ResourceOSTypeToString(osType devicepb.OSType) string {
 	switch osType {
+	case devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return "unspecified"
 	case devicepb.OSType_OS_TYPE_LINUX:
 		return "linux"
 	case devicepb.OSType_OS_TYPE_MACOS:
@@ -308,6 +310,8 @@ func ResourceOSTypeToString(osType devicepb.OSType) string {
 // for resource fields to OSType.
 func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	switch osType {
+	case "", "unspecified":
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED, nil
 	case "linux":
 		return devicepb.OSType_OS_TYPE_LINUX, nil
 	case "macos":
