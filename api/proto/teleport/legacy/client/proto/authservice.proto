@@ -306,8 +306,6 @@ message UserCertsRequest {
   // reserving the struct field number 18 to prevent future breakage.
   //
   // https://github.com/gravitational/teleport/issues/24817
-  reserved 18;
-  reserved "RequesterName";
 
   // SSHLogin is the OS Login for the SSH session that the certificate will be used for.
   // This login is used when performing RBAC checks to determine if MFA is required
