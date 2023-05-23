@@ -36,7 +36,7 @@ updates.
 
 <Tabs>
 <TabItem label="Self-hosted">
-- A Teleport agent, either:
+- A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
 - automatic update infrastructure set up. For Self-Hosted users this means you
@@ -44,7 +44,7 @@ updates.
   know your version server URL and release channel
 </TabItem>
 <TabItem label="Teleport Cloud">
-- A Teleport agent, either:
+- A Teleport Enterprise agent, either:
   - started via systemd on a distribution using the `apt` or `yum` package managers
   - deployed with the `teleport-kube-agent` Helm chart
 - as a Teleport Cloud user, you must check if your Could Tenant is enrolled
@@ -57,10 +57,17 @@ updates.
 <Tabs dropdownCaption="Cluster Type" dropdownSelected="Self-hosted">
 <TabItem label="systemd" options="Self-hosted">
 
+Confirm you have the Teleport Enterprise edition installed.
+
+```code
+$ teleport version
+Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+```
+
 Create the upgrade configuration directory:
 
 ```code
-$ mkdir -p /etc/teleport-upgrade.d/
+$ sudo mkdir -p /etc/teleport-upgrade.d/
 ```
 
 If you changed the agent user to run as non-root, create
@@ -68,29 +75,33 @@ If you changed the agent user to run as non-root, create
 Else, you can skip this step:
 
 ```code
-$ touch /etc/teleport-upgrade.d/schedule
-$ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+$ sudo touch /etc/teleport-upgrade.d/schedule
+$ sudo chown <Var name="your-teleport-user" /> /etc/teleport-upgrade.d/schedule
 ```
 
 Configure the updater to connect to your custom version server and subscribe
 to the right release channel:
 
 ```code
-$ echo <version-server-url/path>/<release-channel> > /etc/teleport-upgrade.d/endpoint
+$ echo <Var name="version-server-url/path" />/<Var name="release-channel" /> | sudo tee /etc/teleport-upgrade.d/endpoint
 ```
+
+<Admonition type="tip" title="Note">
+Make sure not to include `https://` as a prefix to the server address.
+</Admonition>
 
 Install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install):
 
 ```code
-$ apt install teleport-ent-updater
+$ sudo apt install teleport-ent-updater
 # or
-$ yum install teleport-ent-updater
+$ sudo yum install teleport-ent-updater
 ```
 
 Finally, verify that the updater can see your version endpoint:
 
 ```code
-$ teleport-upgrade dry-run
+$ sudo teleport-upgrade dry-run
 ```
 
 You should see one of the following messages, depending on the target version
@@ -110,6 +121,9 @@ not be exported yet.
 </TabItem>
 
 <TabItem label="teleport-kube-agent chart" options="Self-hosted">
+
+Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
+should have been set to `true` for the Helm chart installation.
 
 Add the following chart values to your existing agent `values.yaml`:
 
@@ -142,6 +156,13 @@ $ kubectl logs <your-agent-release>-updater
 
 </TabItem>
 <TabItem label="systemd " options="Teleport Cloud">
+
+Confirm you have the Teleport Enterprise edition installed.
+
+```code
+$ teleport version
+Teleport Enterprise v(=teleport.version=) go(=teleport.golang=)
+```
 
 If you changed the agent user to run as non-root, create
 `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
@@ -183,6 +204,9 @@ not be exported yet.
 
 </TabItem>
 <TabItem label="teleport-kube-agent chart " options="Teleport Cloud">
+
+Confirm you are using the Teleport Enterprise image. The `enterprise` value setting
+should have been set to `true` for the Helm chart installation.
 
 Add the following chart values to your existing agent `values.yaml`:
 
