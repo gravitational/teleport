@@ -67,9 +67,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if len(c.Recipients) == 0 {
-		return trace.BadParameter("missing required value role_to_recipients.")
+		return trace.BadParameter("missing required value recipients.")
 	} else if len(c.Recipients[types.Wildcard]) == 0 {
-		return trace.BadParameter("missing required value role_to_recipients[%v].", types.Wildcard)
+		return trace.BadParameter("missing required value recipients[%v].", types.Wildcard)
 	}
 
 	return nil
@@ -84,6 +84,7 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 	c.ClientConfig.WebProxyURL = webProxyURL
 	c.ClientConfig.ClusterName = clusterName
 	c.ClientConfig.APIKey = c.Opsgenie.Token
+	c.UsersAsRecipients = true
 	client, err := NewClient(c.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
