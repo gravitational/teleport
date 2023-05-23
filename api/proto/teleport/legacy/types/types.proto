@@ -712,9 +712,6 @@ message ServerV2List {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
-  reserved 8;
-  reserved 10;
-
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
   // PublicAddr is the public address where this server can be reached.
@@ -750,6 +747,10 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+
+  reserved 8;
+  reserved 10;
+  reserved "KubernetesClusters";
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -1650,6 +1651,7 @@ message AuthPreferenceSpecV2 {
   ];
 
   reserved 5; // RequireSessionMFA replaced by RequireMFAType
+  reserved "RequireSessionMFA";
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -2343,6 +2345,7 @@ message RoleOptions {
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
   reserved 13; // RequireSessionMFA replaced by RequireMFAType
+  reserved "RequireSessionMFA";
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
