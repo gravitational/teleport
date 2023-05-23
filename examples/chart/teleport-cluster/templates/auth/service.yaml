@@ -9,6 +9,7 @@ metadata:
   annotations: {{- toYaml $auth.annotations.service | nindent 4 }}
 {{- end }}
 spec:
+  type: {{ default "ClusterIP" $auth.service.type }}
   ports:
   - name: auth
     port: 3025
