@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
 )
@@ -64,12 +63,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Log.Severity == "" {
 		c.Log.Severity = "info"
-	}
-
-	if len(c.Recipients) == 0 {
-		return trace.BadParameter("missing required value recipients.")
-	} else if len(c.Recipients[types.Wildcard]) == 0 {
-		return trace.BadParameter("missing required value recipients[%v].", types.Wildcard)
 	}
 
 	return nil
