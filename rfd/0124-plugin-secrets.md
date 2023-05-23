@@ -71,8 +71,7 @@ metadata:
 spec:
   credentials:
     # Only one of these credential types must be defined at a time. All values in this
-    # are string literals and not file locations, though its up to the plugin how
-    # to interpret the value of the literal.
+    # are string literals and not file locations.
     api_token: example-token
     basic_auth:
       username: example-user
@@ -110,9 +109,7 @@ able to actually read the static credentials.
 
 The one exception here is Teleport Assist, which runs in the proxy. The proxy will be
 able to read plugin credentials with the name of `openai-default`, which is the name of
-the Assist plugin. The Teleport Assist static credentials object API token must be interpreted
-as a file location, however, to avoid leaking the API key to unintended proxies joined to a
-Teleport cluster.
+the Assist plugin.
 
 ### Lifecycle of the `PluginStaticCredentials` object
 
