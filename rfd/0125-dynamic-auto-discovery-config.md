@@ -87,7 +87,7 @@ spec:
 ### Discovery Group
 The Discovery Group property will not be ported to `DiscoveryConfig` because it exists to ensure that multiple `discovery_services` don't step on each other.
 
-Running `discovery_service`s in high availability (multiple instances and same config) should yeld the same result as before.
+Running `discovery_service`s in high availability (multiple instances and same config) should yield the same result as before.
 
 ### New `discovery_service` property: `selector`
 The configuration of the `discovery_service` has a new field: `selector`.
@@ -296,6 +296,32 @@ discovery_service:
     labelC: "*" # matches on all values
 ```
 
+#### gRPC: manage `DiscoveryConfig` resource
+The following methods will be created in the gRPC server to allow `DiscoveryConfig` resource management:
+```proto
+// DiscoveryConfigService provides methods to manage DiscoveryConfig resources.
+// These resources are used by `discovery_service` to set up the matchers.
+service DiscoveryConfigService {
+  // ListDiscoveryConfig returns a paginated list of DiscoveryConfig resources.
+  rpc ListDiscoveryConfig(ListDiscoveryConfigRequest) returns (ListDiscoveryConfigResponse);
+
+  // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
+  rpc GetDiscoveryConfig(GetDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+
+  // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
+  rpc CreateDiscoveryConfig(CreateDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+
+  // UpdateDiscoveryConfig updates an existing DiscoveryConfig resource.
+  rpc UpdateDiscoveryConfig(UpdateDiscoveryConfigRequest) returns (types.DiscoveryConfigV1);
+
+  // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
+  rpc DeleteDiscoveryConfig(DeleteDiscoveryConfigRequest) returns (google.protobuf.Empty);
+
+  // DeleteAllDiscoveryConfigs removes all DiscoveryConfigs.
+  rpc DeleteAllDiscoveryConfigs(DeleteAllDiscoveryConfigsRequest) returns (google.protobuf.Empty);
+}
+```
+
 #### WebAPI: manage `DiscoveryConfig` resource
 The following endpoints must be create to be used by WebAPI:
 ```
@@ -404,3 +430,8 @@ A new resource `DiscoveryConfig` must be created to allow its management from th
 Helm charts must support the new property when setting up a `discovery_service`.
 
 ### Security
+
+#### RBAC for `DiscoveryConfig` resource
+The `editor` preset role will include read and write access to this new resource.
+
+The `discovery` system role (used by `discovery_service`) must be able to list and read `DiscoveryConfig` resources to be able to update the matchers of its service.
