@@ -15,17 +15,19 @@ Teleport is made up of four CLI tools.
 <Details title="Improve the CLI experience: enable shell completion">
 
   Teleport's CLI tools can provide completion hints for bash and zsh.
-  For example, typing `tsh` and pressing `Tab` will show all available subcommands, typing `tsh --` and pressing `Tab`
-  will show all available flags.
+  For example, typing `tsh` and pressing `Tab` will show all available
+  subcommands, typing `tsh --` and pressing `Tab` will show all available flags.
 
   To enable completion add an additional statement to `bash_profile` (or equivalent).
 
   Example (`.bashrc`):
+
   ```sh
   eval "$(tsh --completion-script-bash)"
   ```
 
   Example (`.zshrc`):
+
   ```sh
   # enable completion feature
   autoload -Uz compinit
