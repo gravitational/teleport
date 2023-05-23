@@ -40,11 +40,33 @@ const (
 // covPattern matches output that contains package coverage values
 var covPattern = regexp.MustCompile("\t" + `coverage: (\d+\.\d+)\% of statements`)
 
+type counts struct {
+	total int
+	pass  int
+	fail  int
+	skip  int
+}
+
+func (c *counts) record(action string) {
+	c.total++
+	switch action {
+	case actionPass:
+		c.pass++
+	case actionFail:
+		c.fail++
+	case actionSkip:
+		c.skip++
+	}
+}
+
+func (c counts) String() string {
+	return fmt.Sprintf("%d passed, %d failed, %d skipped", c.pass, c.fail, c.skip)
+}
+
 // runResult records the results of an entire test run piped into render-tests.
 type runResult struct {
-	passCount int
-	failCount int
-	skipCount int
+	pkgCount  counts
+	testCount counts
 	packages  map[string]*packageResult
 	reportBy  reportMode
 }
@@ -53,7 +75,7 @@ type runResult struct {
 // individual tests within that package.
 type packageResult struct {
 	name     string
-	status   string
+	count    counts
 	coverage *float64
 	output   []string
 	tests    map[string]*testResult
@@ -62,7 +84,7 @@ type packageResult struct {
 // testResult records the results of a single test.
 type testResult struct {
 	name   string
-	status string
+	count  counts
 	output []string
 }
 
@@ -99,18 +121,15 @@ func (rr *runResult) processTestEvent(te TestEvent) {
 	pkg := rr.getPackage(te.Package)
 	pkg.processTestEvent(te)
 
-	switch te.Action {
-	case actionFail:
-		rr.failCount++
-	case actionPass:
-		rr.passCount++
-	case actionSkip:
-		rr.skipCount++
+	if te.Test == "" {
+		rr.pkgCount.record(te.Action)
+	} else {
+		rr.testCount.record(te.Action)
 	}
 }
 
 func (rr *runResult) printTestResult(out io.Writer, te TestEvent) {
-	if te.Action != actionPass && te.Action != actionFail && te.Action != actionSkip {
+	if !isTestResult(te.Action) {
 		return
 	}
 
@@ -133,10 +152,11 @@ func (rr *runResult) printTestResult(out io.Writer, te TestEvent) {
 
 func (rr *runResult) printSummary(out io.Writer) {
 	fmt.Fprintln(out, separator)
-	fmt.Fprintln(out, rr.passCount, "tests passed,", rr.failCount, "failed,", rr.skipCount, "skipped")
+	fmt.Fprintln(out, "Tests:", rr.testCount)
+	fmt.Fprintln(out, "Packages:", rr.pkgCount)
 	fmt.Fprintln(out, separator)
 
-	if rr.failCount == 0 {
+	if rr.testCount.fail == 0 {
 		fmt.Fprintln(out, "All tests pass. Yay!")
 		return
 	}
@@ -154,12 +174,12 @@ func (rr *runResult) printSummary(out io.Writer) {
 // the given packages.
 func printFailedTests(out io.Writer, pkgs []*packageResult) {
 	for _, pkg := range pkgs {
-		if pkg.status != actionFail {
+		if pkg.count.fail == 0 {
 			continue
 		}
 		fmt.Fprintf(out, "FAIL: %s\n", pkg.name)
 		for _, test := range pkg.tests {
-			if test.status != actionFail {
+			if test.count.fail == 0 {
 				continue
 			}
 			fmt.Fprintf(out, "FAIL: %s\n", test.name)
@@ -173,11 +193,11 @@ func printFailedTests(out io.Writer, pkgs []*packageResult) {
 func printFailedTestOutput(out io.Writer, pkgs []*packageResult) {
 	for _, pkg := range pkgs {
 		testPrinted := false
-		if pkg.status != actionFail {
+		if pkg.count.fail == 0 {
 			continue
 		}
 		for _, test := range pkg.tests {
-			if test.status != actionFail {
+			if test.count.fail == 0 {
 				continue
 			}
 			printOutput(out, test.name, test.output)
@@ -220,10 +240,11 @@ func (pr *packageResult) processTestEvent(te TestEvent) {
 		}
 	}
 
-	if te.Action != actionFail && te.Action != actionPass && te.Action != actionSkip {
+	if !isTestResult(te.Action) {
 		return
 	}
-	pr.status = te.Action
+
+	pr.count.record(te.Action)
 
 	// Delete test output of passed / skipped packages. Only save output of failures.
 	if te.Action == actionPass || te.Action == actionSkip {
@@ -246,13 +267,18 @@ func (tr *testResult) processTestEvent(te TestEvent) {
 		tr.output = append(tr.output, te.Output)
 	}
 
-	if te.Action != actionFail && te.Action != actionPass && te.Action != actionSkip {
+	if !isTestResult(te.Action) {
 		return
 	}
-	tr.status = te.Action
+
+	tr.count.record(te.Action)
 
 	// Delete test output of passed / skipped tests. Only save output of failures.
 	if te.Action == actionPass || te.Action == actionSkip {
 		tr.output = nil
 	}
+}
+
+func isTestResult(action string) bool {
+	return action == actionPass || action == actionFail || action == actionSkip
 }

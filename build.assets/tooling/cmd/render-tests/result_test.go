@@ -61,15 +61,16 @@ func TestStatus(t *testing.T) {
 		rr.processTestEvent(event)
 	}
 
-	require.Equal(t, rr.passCount, 1)
-	require.Equal(t, rr.failCount, 2) // +1 for package fail result
-	require.Equal(t, rr.skipCount, 1)
+	require.Equal(t, rr.testCount.pass, 1)
+	require.Equal(t, rr.testCount.fail, 1)
+	require.Equal(t, rr.testCount.skip, 1)
+	require.Equal(t, rr.pkgCount.fail, 1)
 	pkgname := "example.com/package"
 	pkg := rr.packages[pkgname]
-	require.Equal(t, pkg.status, "fail")
-	require.Equal(t, pkg.tests[pkgname+".TestEmpty"].status, "pass")
-	require.Equal(t, pkg.tests[pkgname+".TestParse"].status, "fail")
-	require.Equal(t, pkg.tests[pkgname+".TestParseHostPort"].status, "skip")
+	require.Equal(t, pkg.count.fail, 1)
+	require.Equal(t, pkg.tests[pkgname+".TestEmpty"].count.pass, 1)
+	require.Equal(t, pkg.tests[pkgname+".TestParse"].count.fail, 1)
+	require.Equal(t, pkg.tests[pkgname+".TestParseHostPort"].count.skip, 1)
 }
 
 func TestSuccessOutput(t *testing.T) {
@@ -170,7 +171,8 @@ func TestPrintSummaryNoFail(t *testing.T) {
 
 	expected := `
 ===================================================
-4 tests passed, 0 failed, 0 skipped
+Tests: 3 passed, 0 failed, 0 skipped
+Packages: 1 passed, 0 failed, 0 skipped
 ===================================================
 All tests pass. Yay!
 `[1:]
@@ -188,7 +190,8 @@ func TestPrintSummaryFail(t *testing.T) {
 
 	expected := `
 ===================================================
-2 tests passed, 2 failed, 1 skipped
+Tests: 1 passed, 1 failed, 1 skipped
+Packages: 1 passed, 1 failed, 0 skipped
 ===================================================
 FAIL: example.com/package
 FAIL: example.com/package.TestParse

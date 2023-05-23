@@ -98,7 +98,7 @@ func main() {
 	}
 
 	rr.printSummary(os.Stdout)
-	if rr.failCount == 0 {
+	if rr.testCount.fail == 0 {
 		os.Exit(0)
 	}
 	os.Exit(1)
