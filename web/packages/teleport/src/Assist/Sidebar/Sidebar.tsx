@@ -129,13 +129,17 @@ export function Sidebar() {
     );
   }, []);
 
-  const handleDeleteChat = useCallback((conversationId: string) => {
-    api.delete(cfg.getAssistConversationHistoryUrl(conversationId)).then(() => {
-      remove(conversationId);
-    });
+  const handleDeleteChat = useCallback(async (conversationId: string) => {
+    try {
+      await api.delete(cfg.getAssistConversationHistoryUrl(conversationId));
+      await remove(conversationId);
+      history.push(cfg.routes.assistBase);
+    } catch (err) {
+      console.error(err);
+    }
   }, []);
 
-  //TODO: Do CSS magic and display the landing page after the last chat is deleted
+  //TODO: Do CSS magic.
   const chatHistory = conversations.map(conversation => (
     <ChatHistoryItem
       key={conversation.id}
