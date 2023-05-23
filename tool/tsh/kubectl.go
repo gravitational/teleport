@@ -144,7 +144,7 @@ func runKubectlCode(cf *CLIConf, args []string) {
 				defer cancel()
 				err := provider.Shutdown(shutdownCtx)
 				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
-					log.WithError(err).Debugf("failed to shutdown trace provider")
+					log.WithError(err).Debugf("Failed to shutdown trace provider")
 				}
 			}
 		}
