@@ -27,7 +27,14 @@ import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
 import cfg from 'teleport/config';
-import {makeMfaAuthenticateChallenge} from "teleport/services/auth";
+import {
+  WebauthnAssertionResponse,
+} from 'teleport/services/auth';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
+import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
+import { Message, MfaJson } from 'teleport/lib/tdp/codec';
+import AuthnDialog from "teleport/components/AuthnDialog";
+import {TermEvent} from "teleport/lib/term/enums";
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -71,37 +78,31 @@ interface RawPayload {
   payload: string;
 }
 
-export function RunCommand(props: RunCommandProps) {
-  const { clusterId } = useStickyClusterId();
-  const urlParams = useParams<{ conversationId: string }>();
+class assistClient extends EventEmitterWebAuthnSender {
+  private ws: WebSocket;
+  private proto: Protobuf;
+  encoder = new window.TextEncoder();
 
-  const [state, setState] = useState(() => []);
+  constructor(url: string, setState: React.Dispatch<React.SetStateAction<any[]>>) {
+    super();
 
-  const params = convertContentToCommand(props.actions);
+    this.proto = new Protobuf();
 
-  const execParams = {
-    ...params,
-    conversation_id: urlParams.conversationId,
-    execution_id: crypto.randomUUID(),
-  };
+    const refWS = useRef<WebSocket>();
 
-  const url = cfg.getAssistExecuteCommandUrl(
-    getHostName(),
-    clusterId,
-    getAccessToken(),
-    execParams
-  );
+    React.useEffect(() => {
+      if(refWS.current) {
+        this.ws = refWS.current;
+        return;
+      }
 
-  const websocket = useRef<WebSocket>(null);
-  const protoRef = useRef<any>(null);
+      this.ws = new WebSocket(url);
+      this.ws.binaryType = 'arraybuffer';
+      refWS.current = this.ws;
 
-  useEffect(() => {
-    if (!websocket.current) {
       const proto = new Protobuf();
-      const ws = new WebSocket(url);
-      ws.binaryType = 'arraybuffer';
 
-      ws.onmessage = event => {
+      this.ws.onmessage = event => {
         const uintArray = new Uint8Array(event.data);
         const msg = proto.decode(uintArray);
 
@@ -144,24 +145,83 @@ export function RunCommand(props: RunCommandProps) {
           case MessageTypeEnum.WEBAUTHN_CHALLENGE:
             //TODO: handle webauthn challenge
             console.log(msg.payload);
-            const challengeJson = msg.payload;
-            const challenge = JSON.parse(challengeJson);
-            const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
+
+            this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
 
             break;
         }
       };
+    }, [refWS.current]);
+  }
 
-      protoRef.current = proto;
-      websocket.current = ws;
+  sendWebAuthn(data: WebauthnAssertionResponse) {
+    console.log("sendWebAuthn", data);
+    const msg = this.encodeMfaJson({
+      mfaType: 'n',
+      jsonString: JSON.stringify(data),
+    });
+    this.send(msg);
+  }
+
+  send(data) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !data) {
+      console.log('websocket unavailable', this.ws, data);
+      return;
     }
-  }, []);
+
+    console.log("send", data);
+    const msg = this.proto.encodeRawMessage(data);
+    const bytearray = new Uint8Array(msg);
+    this.ws.send(bytearray.buffer);
+  }
+
+  // | message type (10) | mfa_type byte | message_length uint32 | json []byte
+  encodeMfaJson(mfaJson: MfaJson): Message {
+    const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
+    return dataUtf8array
+  }
+}
+
+export function RunCommand(props: RunCommandProps) {
+  const { clusterId } = useStickyClusterId();
+  const urlParams = useParams<{ conversationId: string }>();
+
+  const [state, setState] = useState(() => []);
+
+  const params = convertContentToCommand(props.actions);
+
+  const execParams = {
+    ...params,
+    conversation_id: urlParams.conversationId,
+    execution_id: crypto.randomUUID(),
+  };
+
+  const url = cfg.getAssistExecuteCommandUrl(
+    getHostName(),
+    clusterId,
+    getAccessToken(),
+    execParams
+  );
+
+  const assistClt = new assistClient(url, setState);
+  const webauthn = useWebAuthn(assistClt);
 
   const nodes = state.map((item, index) => (
     <NodeOutput key={index} state={item} />
   ));
 
-  return <div style={{ marginTop: '40px' }}>{nodes}</div>;
+  return (
+    <>
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={() => {} }
+          errorText={webauthn.errorText}
+        />
+      )}
+      <div style={{ marginTop: '40px' }}>{nodes}</div>
+    </>
+  );
 }
 
 interface NodeOutputProps {
