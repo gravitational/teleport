@@ -37,14 +37,20 @@ var (
 
 	//go:embed testdata/pass-fail-skip.in
 	passFailSkip string
+
+	//go:embed testdata/flaky-pass.in
+	flakyPass string
+	//go:embed testdata/flaky-fail-1.in
+	flakyFail1 string
+	//go:embed testdata/flaky-fail-4.in
+	flakyFail4 string
+	//go:embed testdata/flaky-fail-5.in
+	flakyFail5 string
 )
 
 func TestHierarchy(t *testing.T) {
-	events := strToEvents(t, passFailSkip)
-	rr := newRunResult(byPackage)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passFailSkip)
 
 	pkgname := "example.com/package"
 	require.Contains(t, rr.packages, pkgname)
@@ -55,11 +61,8 @@ func TestHierarchy(t *testing.T) {
 }
 
 func TestStatus(t *testing.T) {
-	events := strToEvents(t, passFailSkip)
-	rr := newRunResult(byPackage)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passFailSkip)
 
 	require.Equal(t, rr.testCount.pass, 1)
 	require.Equal(t, rr.testCount.fail, 1)
@@ -74,11 +77,8 @@ func TestStatus(t *testing.T) {
 }
 
 func TestSuccessOutput(t *testing.T) {
-	events := strToEvents(t, passPassPass)
-	rr := newRunResult(byPackage)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passPassPass)
 
 	pkgname := "example.com/package"
 	pkg := rr.packages[pkgname]
@@ -89,11 +89,8 @@ func TestSuccessOutput(t *testing.T) {
 }
 
 func TestFailureOutput(t *testing.T) {
-	events := strToEvents(t, passFailSkip)
-	rr := newRunResult(byPackage)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passFailSkip)
 
 	pkgname := "example.com/package"
 	pkg := rr.packages[pkgname]
@@ -132,7 +129,7 @@ func TestFailureOutput(t *testing.T) {
 func TestPrintTestResultByPackage(t *testing.T) {
 	output := &bytes.Buffer{}
 	events := strToEvents(t, passFailSkip)
-	rr := newRunResult(byPackage)
+	rr := newRunResult(byPackage, 0)
 	for _, event := range events {
 		rr.processTestEvent(event)
 		rr.printTestResult(output, event)
@@ -145,7 +142,7 @@ func TestPrintTestResultByPackage(t *testing.T) {
 func TestPrintTestResultByTest(t *testing.T) {
 	output := &bytes.Buffer{}
 	events := strToEvents(t, passFailSkip)
-	rr := newRunResult(byTest)
+	rr := newRunResult(byTest, 0)
 	for _, event := range events {
 		rr.processTestEvent(event)
 		rr.printTestResult(output, event)
@@ -161,12 +158,10 @@ fail (in   0.01s): example.com/package
 }
 
 func TestPrintSummaryNoFail(t *testing.T) {
+	rr := newRunResult(byTest, 0)
+	feedEvents(t, rr, passPassPass)
+
 	output := &bytes.Buffer{}
-	events := strToEvents(t, passPassPass)
-	rr := newRunResult(byTest)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
 	rr.printSummary(output)
 
 	expected := `
@@ -180,12 +175,10 @@ All tests pass. Yay!
 }
 
 func TestPrintSummaryFail(t *testing.T) {
+	rr := newRunResult(byPackage, 0)
+	feedEvents(t, rr, passFailPass)
+
 	output := &bytes.Buffer{}
-	events := strToEvents(t, passFailPass)
-	rr := newRunResult(byPackage)
-	for _, event := range events {
-		rr.processTestEvent(event)
-	}
 	rr.printSummary(output)
 
 	expected := `
@@ -208,6 +201,62 @@ OUTPUT example.com/package.TestParse
 	require.Equal(t, expected, output.String())
 }
 
+func TestPrintFlakinessSummaryNoFail(t *testing.T) {
+	rr := newRunResult(byFlakiness, 2) // top 2 failures only
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyPass)
+
+	output := &bytes.Buffer{}
+	rr.printFlakinessSummary(output)
+
+	expected := `
+===================================================
+No flaky tests!
+`[1:]
+	require.Equal(t, expected, output.String())
+}
+
+func TestPrintFlakinessSummaryFail(t *testing.T) {
+	rr := newRunResult(byFlakiness, 2) // top 2 failures only
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyFail1)
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyFail4)
+	feedEvents(t, rr, flakyFail5)
+	feedEvents(t, rr, flakyFail5)
+	feedEvents(t, rr, flakyFail5)
+	feedEvents(t, rr, flakyPass)
+	feedEvents(t, rr, flakyFail1)
+	feedEvents(t, rr, flakyPass)
+
+	output := &bytes.Buffer{}
+	rr.printFlakinessSummary(output)
+
+	expected := `
+===================================================
+FAIL(30.0%): example.com/package3.Test5
+FAIL(20.0%): example.com/package1.Test1
+===================================================
+OUTPUT example.com/package3.Test5
+===================================================
+=== RUN   Test5
+    baz_test.go:10: nevermind
+--- FAIL: Test5 (0.00s)
+===================================================
+OUTPUT example.com/package1.Test1
+===================================================
+=== RUN   Test1
+    foo_test.go:6: doing stuff
+x =  1
+    foo_test.go:8: fail
+--- FAIL: Test1 (0.00s)
+===================================================
+`[1:]
+	require.Equal(t, expected, output.String())
+}
+
 func strToEvents(t *testing.T, s string) []TestEvent {
 	t.Helper()
 	result := []TestEvent{}
@@ -222,4 +271,12 @@ func strToEvents(t *testing.T, s string) []TestEvent {
 		result = append(result, event)
 	}
 	return result
+}
+
+func feedEvents(t *testing.T, rr *runResult, s string) {
+	t.Helper()
+	events := strToEvents(t, s)
+	for _, event := range events {
+		rr.processTestEvent(event)
+	}
 }

@@ -63,12 +63,17 @@ func (c counts) String() string {
 	return fmt.Sprintf("%d passed, %d failed, %d skipped", c.pass, c.fail, c.skip)
 }
 
+func (c counts) failureRate() float64 {
+	return float64(c.fail) / float64(c.total)
+}
+
 // runResult records the results of an entire test run piped into render-tests.
 type runResult struct {
 	pkgCount  counts
 	testCount counts
 	packages  map[string]*packageResult
 	reportBy  reportMode
+	top       int
 }
 
 // packageResult records the test results of a single Go package including the
@@ -88,10 +93,11 @@ type testResult struct {
 	output []string
 }
 
-func newRunResult(reportBy reportMode) *runResult {
+func newRunResult(reportBy reportMode, top int) *runResult {
 	return &runResult{
 		packages: map[string]*packageResult{},
 		reportBy: reportBy,
+		top:      top,
 	}
 }
 
@@ -170,6 +176,46 @@ func (rr *runResult) printSummary(out io.Writer) {
 	printFailedTestOutput(out, pkgs)
 }
 
+func (rr *runResult) printFlakinessSummary(out io.Writer) {
+	fmt.Fprintln(out, separator)
+	if rr.testCount.fail == 0 {
+		fmt.Fprintln(out, "No flaky tests!")
+		return
+	}
+
+	// get all failed tests so we can get the top N flaky failures
+	var alltests []*testResult
+	for _, pkg := range rr.packages {
+		if pkg.count.fail == 0 {
+			continue
+		}
+		for _, test := range pkg.tests {
+			if test.count.fail > 0 {
+				alltests = append(alltests, test)
+			}
+		}
+	}
+	// reverse sort by failure rate
+	sort.Slice(alltests, func(i, j int) bool {
+		return alltests[i].count.failureRate() > alltests[j].count.failureRate()
+	})
+	for i, test := range alltests {
+		if rr.top != 0 && i >= rr.top {
+			break
+		}
+		fmt.Fprintf(out, "FAIL(%3.1f%%): %s\n", test.count.failureRate()*100, test.name)
+	}
+
+	fmt.Fprintln(out, separator)
+
+	for i, test := range alltests {
+		if rr.top != 0 && i >= rr.top {
+			break
+		}
+		printOutput(out, test.name, test.output)
+	}
+}
+
 // printFailedTests prints a summary list of the failed tests and packages in
 // the given packages.
 func printFailedTests(out io.Writer, pkgs []*packageResult) {
@@ -221,7 +267,13 @@ func printOutput(out io.Writer, test string, output []string) {
 func (pr *packageResult) processTestEvent(te TestEvent) {
 	if te.Action == actionOutput {
 		// Record the output of package AND test against the package
-		pr.output = append(pr.output, te.Output)
+		// TODO(camh): Why? not sure that makes sense
+
+		// Only append output if no failures. We only record the output
+		// of the first failure so we don't store too much redundant output.
+		if pr.count.fail == 0 {
+			pr.output = append(pr.output, te.Output)
+		}
 	}
 
 	if te.Test != "" {
@@ -247,7 +299,7 @@ func (pr *packageResult) processTestEvent(te TestEvent) {
 	pr.count.record(te.Action)
 
 	// Delete test output of passed / skipped packages. Only save output of failures.
-	if te.Action == actionPass || te.Action == actionSkip {
+	if pr.count.fail == 0 && (te.Action == actionPass || te.Action == actionSkip) {
 		pr.output = nil
 	}
 }
@@ -264,7 +316,11 @@ func (pr *packageResult) getTest(name string) *testResult {
 
 func (tr *testResult) processTestEvent(te TestEvent) {
 	if te.Action == actionOutput {
-		tr.output = append(tr.output, te.Output)
+		// Only append output if no failures. We only record the output
+		// of the first failure so we don't store too much redundant output.
+		if tr.count.fail == 0 {
+			tr.output = append(tr.output, te.Output)
+		}
 	}
 
 	if !isTestResult(te.Action) {
@@ -274,7 +330,7 @@ func (tr *testResult) processTestEvent(te TestEvent) {
 	tr.count.record(te.Action)
 
 	// Delete test output of passed / skipped tests. Only save output of failures.
-	if te.Action == actionPass || te.Action == actionSkip {
+	if tr.count.fail == 0 && (te.Action == actionPass || te.Action == actionSkip) {
 		tr.output = nil
 	}
 }

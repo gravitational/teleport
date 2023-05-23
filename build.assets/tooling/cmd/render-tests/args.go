@@ -27,13 +27,15 @@ import (
 type reportMode int
 
 const (
-	byPackage reportMode = 0
-	byTest    reportMode = iota
+	byPackage reportMode = iota
+	byTest
+	byFlakiness
 )
 
 const (
-	byPackageName = "package"
-	byTestName    = "test"
+	byPackageName   = "package"
+	byTestName      = "test"
+	byFlakinessName = "flakiness"
 )
 
 func (m *reportMode) String() string {
@@ -43,6 +45,9 @@ func (m *reportMode) String() string {
 
 	case byTest:
 		return byTestName
+
+	case byFlakiness:
+		return byFlakinessName
 
 	default:
 		return fmt.Sprintf("Unknown filter mode %d", *m)
@@ -57,6 +62,9 @@ func (m *reportMode) Set(text string) error {
 	case byTestName:
 		(*m) = byTest
 
+	case byFlakinessName:
+		(*m) = byFlakiness
+
 	default:
 		return trace.Errorf("Invalid report mode %q", text)
 	}
@@ -66,13 +74,20 @@ func (m *reportMode) Set(text string) error {
 
 type args struct {
 	report reportMode
+	top    int
 }
 
-func parseCommandLine() args {
+func parseCommandLine() (args, error) {
 	reportMode := byPackage
+	top := 0
 	flag.Var(&reportMode, "report-by",
-		fmt.Sprintf("test reporting mode [%s, %s]", byPackageName, byTestName))
+		fmt.Sprintf("test reporting mode [%s, %s, %s]", byPackageName, byTestName, byFlakinessName))
+	flag.IntVar(&top, "top", 0, "top number of flaky tests to report [default 0 - all]")
 	flag.Parse()
 
-	return args{report: reportMode}
+	if top != 0 && reportMode != byFlakiness {
+		return args{}, trace.Errorf("-top <n> can only be used with -report-by flakiness")
+	}
+
+	return args{report: reportMode, top: top}, nil
 }

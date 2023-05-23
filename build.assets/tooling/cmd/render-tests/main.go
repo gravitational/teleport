@@ -68,7 +68,11 @@ func readInput(input io.Reader, ch chan<- TestEvent, errCh chan<- error) {
 }
 
 func main() {
-	args := parseCommandLine()
+	args, err := parseCommandLine()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	events := make(chan TestEvent)
 	errors := make(chan error)
@@ -77,7 +81,7 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 
-	rr := newRunResult(args.report)
+	rr := newRunResult(args.report, args.top)
 	ok := true
 	for ok {
 		var event TestEvent
@@ -97,7 +101,12 @@ func main() {
 		}
 	}
 
-	rr.printSummary(os.Stdout)
+	if args.report == byFlakiness {
+		rr.printFlakinessSummary(os.Stdout)
+	} else {
+		rr.printSummary(os.Stdout)
+	}
+
 	if rr.testCount.fail == 0 {
 		os.Exit(0)
 	}
