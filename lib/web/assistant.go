@@ -312,7 +312,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	sctx *SessionContext, site reversetunnel.RemoteSite,
-) error {
+) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
 	if conversationID == "" {
@@ -371,7 +371,23 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil
 	}
-	defer ws.Close()
+	defer func() {
+		closureReason := websocket.CloseNormalClosure
+		closureMsg := ""
+		if err != nil {
+			_ = ws.WriteJSON(&assistantMessage{
+				Type:        assist.MessageKindError,
+				Payload:     err.Error(),
+				CreatedTime: time.Now().Format(time.RFC3339),
+			})
+			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
+			closureReason = websocket.CloseInternalServerErr
+			closureMsg = err.Error()
+		}
+		// Send the close message to the client and close the connection
+		ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(closureReason, closureMsg), time.Now().Add(time.Second))
+		ws.Close()
+	}()
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
