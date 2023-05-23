@@ -1297,13 +1297,10 @@ dependencies = [
 name = "ironrdp"
 version = "0.5.0"
 dependencies = [
- "ironrdp-connector",
  "ironrdp-graphics",
  "ironrdp-input",
  "ironrdp-pdu",
  "ironrdp-session",
- "ironrdp-tls",
- "ironrdp-tokio",
 ]
 
 [[package]]
@@ -1376,7 +1373,6 @@ dependencies = [
  "sha1",
  "tap",
  "thiserror",
- "tracing",
  "x509-cert",
 ]
 
@@ -2270,7 +2266,11 @@ dependencies = [
  "cbindgen",
  "env_logger",
  "futures-util",
- "ironrdp 0.5.0",
+ "ironrdp-connector",
+ "ironrdp-pdu",
+ "ironrdp-session",
+ "ironrdp-tls",
+ "ironrdp-tokio",
  "iso7816",
  "iso7816-tlv",
  "libc",

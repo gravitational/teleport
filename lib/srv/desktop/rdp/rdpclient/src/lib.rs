@@ -52,14 +52,13 @@ extern crate num_derive;
 use bytes::BytesMut;
 use errors::try_error;
 use futures_util::Future;
-use ironrdp::pdu::geometry::Rectangle;
-use ironrdp::pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
-use ironrdp::pdu::input::mouse::PointerFlags;
-use ironrdp::pdu::input::MousePdu;
-use ironrdp::pdu::PduParsing;
-use ironrdp::session::image::DecodedImage;
-use ironrdp::session::utils::swap_hashmap_kv;
-use ironrdp::session::{x224, ActiveStageOutput, SessionError, SessionErrorKind, SessionResult};
+use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
+use ironrdp_pdu::input::mouse::PointerFlags;
+use ironrdp_pdu::input::MousePdu;
+use ironrdp_pdu::PduParsing;
+use ironrdp_session::image::DecodedImage;
+use ironrdp_session::utils::swap_hashmap_kv;
+use ironrdp_session::{x224, ActiveStageOutput, SessionError, SessionErrorKind, SessionResult};
 use rdp::core::event::*;
 use rdp::model::error::{Error as RdpError, RdpResult};
 use rdpdr::path::UnixPath;
@@ -76,6 +75,7 @@ use std::os::raw::c_char;
 use std::pin::Pin;
 use std::{mem, ptr, slice, time};
 use tokio::net::TcpStream as TokioTcpStream;
+use tokio::sync::oneshot::error;
 
 #[no_mangle]
 pub extern "C" fn init() {
@@ -156,7 +156,7 @@ impl Client {
         drop(Box::from_raw(ptr))
     }
 
-    async fn read_pdu(&mut self) -> io::Result<(ironrdp::pdu::Action, BytesMut)> {
+    async fn read_pdu(&mut self) -> io::Result<(ironrdp_pdu::Action, BytesMut)> {
         self.iron_rdp_client.framed.read_pdu().await
     }
 
@@ -186,7 +186,10 @@ impl Client {
                     match output {
                         ActiveStageOutput::ResponseFrame(response) => {
                             match self.write_all(&response).await {
-                                Ok(_) => continue,
+                                Ok(_) => {
+                                    trace!("write_all succeeded, continuing");
+                                    continue;
+                                }
                                 Err(e) => {
                                     return Some(ReadRdpOutputReturns {
                                         user_message: format!("Failed to write frame: {}", e),
@@ -225,6 +228,7 @@ impl Client {
         }
 
         // All outputs were response frames, return None to indicate that the client should continue
+        trace!("process_active_stage_result returning None");
         None
     }
 
@@ -355,7 +359,7 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
-type UpgradedFramed = ironrdp::tokio::TokioFramed<ironrdp::tls::TlsStream<TokioTcpStream>>;
+type UpgradedFramed = ironrdp_tokio::TokioFramed<ironrdp_tls::TlsStream<TokioTcpStream>>;
 
 fn connect_rdp_inner(
     go_ref: usize,
@@ -376,40 +380,39 @@ fn connect_rdp_inner(
             }
         };
 
-        let mut framed = ironrdp::tokio::TokioFramed::new(stream);
+        let mut framed = ironrdp_tokio::TokioFramed::new(stream);
 
-        let connector_config = ironrdp::connector::Config {
-            desktop_size: ironrdp::connector::DesktopSize {
+        let connector_config = ironrdp_connector::Config {
+            desktop_size: ironrdp_connector::DesktopSize {
                 width: 1728, //todo(isaiah): hardcoded
                 height: 932, //todo(isaiah): hardcoded
             },
-            security_protocol: ironrdp::pdu::nego::SecurityProtocol::HYBRID_EX,
+            security_protocol: ironrdp_pdu::nego::SecurityProtocol::HYBRID_EX,
             username: "Administrator".to_string(),
             password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
             domain: None,
             client_build: 0, //todo(isaiah)
             client_name: "Teleport".to_string(),
-            keyboard_type: ironrdp::pdu::gcc::KeyboardType::IbmEnhanced,
+            keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
             keyboard_subtype: 0,
             keyboard_functional_keys_count: 12,
             ime_file_name: "".to_string(),
             graphics: None,
-            bitmap: Some(ironrdp::connector::BitmapConfig {
+            bitmap: Some(ironrdp_connector::BitmapConfig {
                 lossy_compression: true,
                 color_depth: 32, // todo(isaiah): changing this to 16 gets us uncompressed bitmaps
             }),
             dig_product_id: "".to_string(),
             client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
-            platform: ironrdp::pdu::rdp::capability_sets::MajorPlatformType::Unspecified,
+            platform: ironrdp_pdu::rdp::capability_sets::MajorPlatformType::Unspecified,
         };
 
-        let mut connector = ironrdp::connector::ClientConnector::new(connector_config)
+        let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
             .with_server_addr(server_addr)
             .with_server_name("54.144.205.187:3389".to_string()) // todo(isaiah): hardcoded
             .with_credssp_client_factory(Box::new(RequestClientFactory));
 
-        let should_upgrade = match ironrdp::tokio::connect_begin(&mut framed, &mut connector).await
-        {
+        let should_upgrade = match ironrdp_tokio::connect_begin(&mut framed, &mut connector).await {
             Ok(it) => it,
             Err(e) => {
                 error!("connect_begin error: {:?}", e);
@@ -425,25 +428,29 @@ fn connect_rdp_inner(
         // Ensure there is no leftover
         let initial_stream = framed.into_inner_no_leftover();
         let (upgraded_stream, server_public_key) =
-            ironrdp::tls::upgrade(initial_stream, "54.144.205.187").await?;
+            ironrdp_tls::upgrade(initial_stream, "54.144.205.187").await?;
 
         let upgraded =
-            ironrdp::tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
+            ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
 
-        let mut upgraded_framed = ironrdp::tokio::TokioFramed::new(upgraded_stream);
+        let mut upgraded_framed = ironrdp_tokio::TokioFramed::new(upgraded_stream);
 
-        let connection_result =
-            match ironrdp::tokio::connect_finalize(upgraded, &mut upgraded_framed, connector).await
-            {
-                Ok(it) => it,
-                Err(e) => {
-                    error!("connect_finalize error: {:?}", e);
-                    return Err(ConnectError::IronRdpError(SessionError::new(
-                        "connect_finalize error",
-                        SessionErrorKind::General,
-                    )));
-                }
-            };
+        let connection_result = match ironrdp_tokio::connect_finalize(
+            upgraded,
+            &mut upgraded_framed,
+            connector,
+        )
+        .await
+        {
+            Ok(it) => it,
+            Err(e) => {
+                error!("connect_finalize error: {:?}", e);
+                return Err(ConnectError::IronRdpError(SessionError::new(
+                    "connect_finalize error",
+                    SessionErrorKind::General,
+                )));
+            }
+        };
 
         debug!("connection_result: {:?}", connection_result);
 
@@ -755,7 +762,7 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
         }
     };
 
-    // TODO(isaiah): make a client.block_on()
+    trace!("taking tokio runtime handle from read_rdp_output");
     client
         .tokio_rt
         .handle()
@@ -765,14 +772,16 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
 
 async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
     loop {
+        trace!("awaiting frame from rdp server");
         let (action, mut frame) = match client.read_pdu().await {
             Ok(it) => it,
             Err(e) => {
+                error!("error reading PDU: {:?}", e);
                 return ReadRdpOutputReturns {
                     user_message: "error reading PDU".to_string(),
                     disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
                     err_code: CGOErrCode::ErrCodeFailure,
-                }
+                };
             }
         };
         trace!(
@@ -782,13 +791,13 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
         );
 
         match action {
-            ironrdp::pdu::Action::X224 => {
+            ironrdp_pdu::Action::X224 => {
                 let result = client.process_x224_frame(&frame);
                 if let Some(return_value) = client.process_active_stage_result(result).await {
                     return return_value;
                 }
             }
-            ironrdp::pdu::Action::FastPath => {
+            ironrdp_pdu::Action::FastPath => {
                 let go_ref = client.go_ref;
                 let id = client.next_id();
                 match unsafe {
@@ -974,6 +983,7 @@ pub unsafe extern "C" fn handle_tdp_fastpath_response(
         }
     };
 
+    trace!("taking tokio runtime handle from handle_tdp_fastpath_response");
     match client
         .tokio_rt
         .handle()
@@ -1042,6 +1052,7 @@ pub unsafe extern "C" fn write_rdp_pointer(
     let input_pdu = FastPathInput(fastpath_events);
     input_pdu.to_buffer(&mut data).unwrap();
 
+    trace!("taking tokio runtime handle from write_rdp_pointer");
     client.tokio_rt.handle().clone().block_on(async {
         // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
         client.write_all(&data).await.unwrap(); // todo(isaiah): handle error
