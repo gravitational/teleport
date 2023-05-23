@@ -361,13 +361,13 @@ function createCmd(
     }
 
     // Below we convert cliCommand fields from Go conventions to Node.js conventions.
-    const args = tshdGateway.getCliCommandArgs(gateway.cliCommand);
-    const env = tshdGateway.getCliCommandEnv(gateway.cliCommand);
+    const args = tshdGateway.getCliCommandArgs(gateway.gatewayCliCommand);
+    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
     // We must not use argsList[0] as the path. Windows expects the executable to end with `.exe`,
     // so if we passed just `psql` here, we wouldn't be able to start the process.
     //
     // Instead, let's use the absolute path resolved by Go.
-    const path = gateway.cliCommand.path;
+    const path = gateway.gatewayCliCommand.path;
 
     return {
       kind: 'pty.gateway-cli-client',

@@ -98,8 +98,8 @@ proto.teleport.lib.teleterm.v1.Gateway.toObject = function(includeInstance, msg)
     localAddress: jspb.Message.getFieldWithDefault(msg, 5, ""),
     localPort: jspb.Message.getFieldWithDefault(msg, 6, ""),
     protocol: jspb.Message.getFieldWithDefault(msg, 7, ""),
-    cliCommand: (f = msg.getCliCommand()) && proto.teleport.lib.teleterm.v1.GatewayCLICommand.toObject(includeInstance, f),
-    targetSubresourceName: jspb.Message.getFieldWithDefault(msg, 9, "")
+    targetSubresourceName: jspb.Message.getFieldWithDefault(msg, 9, ""),
+    gatewayCliCommand: (f = msg.getGatewayCliCommand()) && proto.teleport.lib.teleterm.v1.GatewayCLICommand.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -164,14 +164,14 @@ proto.teleport.lib.teleterm.v1.Gateway.deserializeBinaryFromReader = function(ms
       var value = /** @type {string} */ (reader.readString());
       msg.setProtocol(value);
       break;
-    case 8:
-      var value = new proto.teleport.lib.teleterm.v1.GatewayCLICommand;
-      reader.readMessage(value,proto.teleport.lib.teleterm.v1.GatewayCLICommand.deserializeBinaryFromReader);
-      msg.setCliCommand(value);
-      break;
     case 9:
       var value = /** @type {string} */ (reader.readString());
       msg.setTargetSubresourceName(value);
+      break;
+    case 10:
+      var value = new proto.teleport.lib.teleterm.v1.GatewayCLICommand;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.GatewayCLICommand.deserializeBinaryFromReader);
+      msg.setGatewayCliCommand(value);
       break;
     default:
       reader.skipField();
@@ -251,19 +251,19 @@ proto.teleport.lib.teleterm.v1.Gateway.serializeBinaryToWriter = function(messag
       f
     );
   }
-  f = message.getCliCommand();
-  if (f != null) {
-    writer.writeMessage(
-      8,
-      f,
-      proto.teleport.lib.teleterm.v1.GatewayCLICommand.serializeBinaryToWriter
-    );
-  }
   f = message.getTargetSubresourceName();
   if (f.length > 0) {
     writer.writeString(
       9,
       f
+    );
+  }
+  f = message.getGatewayCliCommand();
+  if (f != null) {
+    writer.writeMessage(
+      10,
+      f,
+      proto.teleport.lib.teleterm.v1.GatewayCLICommand.serializeBinaryToWriter
     );
   }
 };
@@ -396,43 +396,6 @@ proto.teleport.lib.teleterm.v1.Gateway.prototype.setProtocol = function(value) {
 
 
 /**
- * optional GatewayCLICommand cli_command = 8;
- * @return {?proto.teleport.lib.teleterm.v1.GatewayCLICommand}
- */
-proto.teleport.lib.teleterm.v1.Gateway.prototype.getCliCommand = function() {
-  return /** @type{?proto.teleport.lib.teleterm.v1.GatewayCLICommand} */ (
-    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.GatewayCLICommand, 8));
-};
-
-
-/**
- * @param {?proto.teleport.lib.teleterm.v1.GatewayCLICommand|undefined} value
- * @return {!proto.teleport.lib.teleterm.v1.Gateway} returns this
-*/
-proto.teleport.lib.teleterm.v1.Gateway.prototype.setCliCommand = function(value) {
-  return jspb.Message.setWrapperField(this, 8, value);
-};
-
-
-/**
- * Clears the message field making it undefined.
- * @return {!proto.teleport.lib.teleterm.v1.Gateway} returns this
- */
-proto.teleport.lib.teleterm.v1.Gateway.prototype.clearCliCommand = function() {
-  return this.setCliCommand(undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.teleport.lib.teleterm.v1.Gateway.prototype.hasCliCommand = function() {
-  return jspb.Message.getField(this, 8) != null;
-};
-
-
-/**
  * optional string target_subresource_name = 9;
  * @return {string}
  */
@@ -447,6 +410,43 @@ proto.teleport.lib.teleterm.v1.Gateway.prototype.getTargetSubresourceName = func
  */
 proto.teleport.lib.teleterm.v1.Gateway.prototype.setTargetSubresourceName = function(value) {
   return jspb.Message.setProto3StringField(this, 9, value);
+};
+
+
+/**
+ * optional GatewayCLICommand gateway_cli_command = 10;
+ * @return {?proto.teleport.lib.teleterm.v1.GatewayCLICommand}
+ */
+proto.teleport.lib.teleterm.v1.Gateway.prototype.getGatewayCliCommand = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.GatewayCLICommand} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.GatewayCLICommand, 10));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.GatewayCLICommand|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.Gateway} returns this
+*/
+proto.teleport.lib.teleterm.v1.Gateway.prototype.setGatewayCliCommand = function(value) {
+  return jspb.Message.setWrapperField(this, 10, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.Gateway} returns this
+ */
+proto.teleport.lib.teleterm.v1.Gateway.prototype.clearGatewayCliCommand = function() {
+  return this.setGatewayCliCommand(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.Gateway.prototype.hasGatewayCliCommand = function() {
+  return jspb.Message.getField(this, 10) != null;
 };
 
 

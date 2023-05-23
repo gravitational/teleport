@@ -41,7 +41,7 @@ const gateway = makeGateway({
   protocol: 'postgres',
   targetSubresourceName: 'bar',
 });
-gateway.cliCommand.preview = 'connect-me-to-db-please';
+gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
 
 const onlineDocumentGatewayProps: DocumentGatewayProps = {
   gateway: gateway,
@@ -75,7 +75,7 @@ export function OnlineWithLongValues() {
     targetSubresourceName:
       'foo-bar-baz-quux-quuz-foo-bar-baz-quux-quuz-foo-bar-baz-quux-quuz',
   });
-  gateway.cliCommand.preview =
+  gateway.gatewayCliCommand.preview =
     'connect-me-to-db-please-baz-quux-quuz-foo-baz-quux-quuz-foo-baz-quux-quuz-foo';
 
   return (
