@@ -21,7 +21,7 @@ ARCH ?= amd64
 
 GOLANG_VERSION ?= go1.20.4
 
-NODE_VERSION ?= 16.18.1
+NODE_VERSION ?= 18.16.0
 
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.68.0
