@@ -32,6 +32,7 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -93,7 +94,7 @@ func NewPresetEditorRole() types.Role {
 					// Please see defaultAllowRules when adding a new rule.
 				},
 				// By default, allow editors to approve any user group access requests.
-				ReviewRequests: defaultAllowAccessReviewConditions()[teleport.PresetEditorRoleName],
+				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetEditorRoleName],
 			},
 		},
 	}
@@ -103,6 +104,7 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -149,7 +151,7 @@ func NewPresetAccessRole() types.Role {
 					// Please see defaultAllowRules when adding a new rule.
 				},
 				// By default, allow users with the access role to request any user group.
-				Request: defaultAllowAccessRequestConditions()[teleport.PresetAccessRoleName],
+				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetAccessRoleName],
 			},
 		},
 	}
@@ -270,8 +272,8 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 
 // defaultAllowAccessRequestConditions has the access request conditions that should be set as default when they were
 // not explicitly defined.
-func defaultAllowAccessRequestConditions() map[string]*types.AccessRequestConditions {
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.AccessRequestConditions {
+	if enterprise {
 		return map[string]*types.AccessRequestConditions{
 			teleport.PresetAccessRoleName: {
 				SearchAsRoles: []string{
@@ -286,8 +288,8 @@ func defaultAllowAccessRequestConditions() map[string]*types.AccessRequestCondit
 
 // defaultAllowAccessReviewConditions has the access review conditions that should be set as default when they were
 // not explicitly defined.
-func defaultAllowAccessReviewConditions() map[string]*types.AccessReviewConditions {
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.AccessReviewConditions {
+	if enterprise {
 		return map[string]*types.AccessReviewConditions{
 			teleport.PresetEditorRoleName: {
 				PreviewAsRoles: []string{
@@ -339,8 +341,10 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+
 	if role.GetAccessRequestConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessRequestConditions()[role.GetName()]
+		arc := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
 		if arc != nil {
 			role.SetAccessRequestConditions(types.Allow, *arc)
 			changed = true
@@ -348,7 +352,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	}
 
 	if role.GetAccessReviewConditions(types.Allow).IsEmpty() {
-		arc := defaultAllowAccessReviewConditions()[role.GetName()]
+		arc := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
 		if arc != nil {
 			role.SetAccessReviewConditions(types.Allow, *arc)
 			changed = true
