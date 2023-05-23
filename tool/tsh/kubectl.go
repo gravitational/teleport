@@ -132,7 +132,7 @@ func runKubectlCode(cf *CLIConf, args []string) {
 	if cf.SampleTraces {
 		provider, err := newTraceProvider(cf, "", nil)
 		if err != nil {
-			log.WithError(err).Debug("failed to set up span forwarding.")
+			log.WithError(err).Debug("Failed to set up span forwarding")
 		} else {
 			// only update the provider if we successfully set it up
 			cf.TracingProvider = provider
