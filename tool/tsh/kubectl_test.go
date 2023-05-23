@@ -123,11 +123,11 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 						loadedKubeClusters = clusters
 						return func() {}, wantLocalProxyKubeconfigLocation, nil
 					}
-					// Fake os.Setenv.
-					o.setEnvFunc = func(key, value string) error {
-						loadedKubeconfigLocation = value
+					// Verify if onNewKubeconfigFuncs is called with correct value.
+					o.onNewKubeconfigFuncs = append(o.onNewKubeconfigFuncs, func(newPath string) error {
+						loadedKubeconfigLocation = newPath
 						return nil
-					}
+					})
 				},
 			)
 			require.NoError(t, err)

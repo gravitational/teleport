@@ -437,7 +437,7 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 }
 
 func (c *kubeExecCommand) run(cf *CLIConf) error {
-	closeFn, err := maybeStartKubeLocalProxy(cf)
+	closeFn, err := maybeStartKubeLocalProxy(cf, withKubeconfigEnvUpdate())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -628,6 +628,9 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
+		return trace.Wrap(err)
+	}
 
 	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
@@ -658,6 +661,8 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
+		// The requirement may change after a new login so check again just in
+		// case.
 		if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
 			return trace.Wrap(err)
 		}
@@ -691,7 +696,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(connUpgradeRequired bool) error {
 	if connUpgradeRequired {
-		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` instead.")
+		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
 }
@@ -1093,15 +1098,17 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
 		return trace.Wrap(err)
 	}
-	if tc.TLSRoutingConnUpgradeRequired {
-		c.printLocalProxyMessage()
-	} else {
-		c.printMessage()
-	}
+
+	c.printUserMessage(tc)
 	return nil
 }
 
-func (c *kubeLoginCommand) printMessage() {
+func (c *kubeLoginCommand) printUserMessage(tc *client.TeleportClient) {
+	if c.localProxyRequired(tc) {
+		c.printLocalProxyUserMessage()
+		return
+	}
+
 	if c.kubeCluster != "" {
 		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	} else {
@@ -1109,26 +1116,26 @@ func (c *kubeLoginCommand) printMessage() {
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyMessage() {
-	if c.kubeCluster != "" {
-		c.printLocalProxySingleClusterMessage()
-	} else {
-		c.printLocalProxyAllClustersMessage()
-	}
-}
-func (c *kubeLoginCommand) printLocalProxySingleClusterMessage() {
-	fmt.Printf(`Logged into Kubernetes cluster %q. Start the local proxy:
+func (c *kubeLoginCommand) printLocalProxyUserMessage() {
+	switch {
+	case c.kubeCluster != "":
+		fmt.Printf(`Logged into Kubernetes cluster %q. Start the local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
 `, c.kubeCluster)
-}
-func (c *kubeLoginCommand) printLocalProxyAllClustersMessage() {
-	fmt.Printf(`Logged into all Kubernetes clusters available. Start the local proxy:
+
+	default:
+		fmt.Printf(`Logged into all Kubernetes clusters available. Start the local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
 `)
+	}
+}
+
+func (c *kubeLoginCommand) localProxyRequired(tc *client.TeleportClient) bool {
+	return tc.TLSRoutingConnUpgradeRequired
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
