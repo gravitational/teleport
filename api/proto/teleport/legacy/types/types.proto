@@ -5149,8 +5149,8 @@ message PluginSlackAccessSettings {
 message PluginOpsgenieAccessSettings {
   option (gogoproto.equal) = true;
 
-  // API_endpoint is the address of Opsgenie API.
-  string API_endpoint = 1;
+  // APIEndpoint is the address of Opsgenie API.
+  string api_endpoint = 1;
   // Priority to create Opsgenie alerts with
   string priority = 2;
   // List of tags to be added to alerts created in Opsgenie
