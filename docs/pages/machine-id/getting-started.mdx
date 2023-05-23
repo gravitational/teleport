@@ -215,7 +215,9 @@ Replace the following fields with values from your own cluster.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Proxy Server, for example
+- `auth-server` is typically the address of your Teleport Proxy Server
+   (`teleport.example.com:443`), but can also be the address of the
+   Auth Server is direct connectivity is available.
   `teleport.example.com:443`.
 
 </ScopedBlock>
