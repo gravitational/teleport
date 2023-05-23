@@ -90,6 +90,7 @@ func (s *AssistService) CreateAssistantConversation(ctx context.Context,
 	return &assist.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
+// getConversation returns a conversation from the backend.
 func (s *AssistService) getConversation(ctx context.Context, username, conversationID string) (*Conversation, error) {
 	item, err := s.Get(ctx, backend.Key(assistantConversationPrefix, username, conversationID))
 	if err != nil {
@@ -102,6 +103,39 @@ func (s *AssistService) getConversation(ctx context.Context, username, conversat
 	}
 
 	return &conversation, nil
+}
+
+// DeleteAssistantConversation deletes a conversation from the backend.
+func (s *AssistService) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if req.Username == "" {
+		return trace.BadParameter("missing parameter username")
+	}
+	if req.ConversationId == "" {
+		return trace.BadParameter("missing parameter conversation ID")
+	}
+
+	// Delete all messages in the conversation first, so that if the delete
+	// fails, the conversation is still there. Client can retry the deleting.
+	if err := s.deleteAllMessages(ctx, req.Username, req.ConversationId); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete the conversation.
+	if err := s.Delete(ctx, backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// deleteAllMessages deletes all messages in a conversation.
+func (s *AssistService) deleteAllMessages(ctx context.Context, username, conversationID string) error {
+	startKey := backend.Key(assistantMessagePrefix, username, conversationID)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // UpdateAssistantConversationInfo updates the conversation title.

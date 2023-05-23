@@ -23,9 +23,12 @@ import { useHistory } from 'react-router';
 
 import { ChatIcon, PlusIcon } from 'design/SVGIcon';
 
+import { MinusIcon } from 'design/SVGIcon/Minus';
+
 import { useConversations } from 'teleport/Assist/contexts/conversations';
 
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
 
 const Container = styled.div`
   display: flex;
@@ -118,7 +121,7 @@ export function Sidebar() {
 
   const history = useHistory();
 
-  const { create, conversations, error } = useConversations();
+  const { create, remove, conversations, error } = useConversations();
 
   const handleNewChat = useCallback(() => {
     create().then(conversationId =>
@@ -126,6 +129,13 @@ export function Sidebar() {
     );
   }, []);
 
+  const handleDeleteChat = useCallback((conversationId: string) => {
+    api.delete(cfg.getAssistConversationHistoryUrl(conversationId)).then(() => {
+      remove(conversationId);
+    });
+  }, []);
+
+  //TODO: Do CSS magic and display the landing page after the last chat is deleted
   const chatHistory = conversations.map(conversation => (
     <ChatHistoryItem
       key={conversation.id}
@@ -134,7 +144,12 @@ export function Sidebar() {
       <ChatHistoryItemIcon>
         <ChatIcon size={14} />
       </ChatHistoryItemIcon>
-      <ChatHistoryItemTitle>{conversation.title}</ChatHistoryItemTitle>
+      <ChatHistoryItemTitle>
+        <button onClick={() => handleDeleteChat(conversation.id)}>
+          <MinusIcon css={'position: fixed'}></MinusIcon>
+        </button>
+        {conversation.title}
+      </ChatHistoryItemTitle>
     </ChatHistoryItem>
   ));
 

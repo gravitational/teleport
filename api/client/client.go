@@ -3681,6 +3681,15 @@ func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssist
 	return messages, nil
 }
 
+// DeleteAssistantConversation deletes a conversation entry in the backend.
+func (c *Client) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	_, err := c.grpc.DeleteAssistantConversation(ctx, req)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
 	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
