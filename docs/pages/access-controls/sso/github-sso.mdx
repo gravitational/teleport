@@ -90,6 +90,47 @@ spec:
 
 </Details>
 
+You can optionally test the connector configuration before applying it to your cluster:
+
+```code
+$ cat github.yaml | tctl sso test
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:52690/35714f6b-...
+Success! Logged in as: alice
+--------------------------------------------------------------------------------
+Authentication details:
+   roles:
+   - access
+   - editor
+   traits:
+     github_teams:
+     - admins
+     kubernetes_groups: null
+     kubernetes_users: null
+     logins:
+     - alice
+   username: alice
+--------------------------------------------------------------------------------
+[GitHub] Received claims:
+organization_to_teams:
+  Octocats:
+  - admins
+teams:
+- admins
+username: alice
+
+--------------------------------------------------------------------------------
+[GitHub] Connector team to roles mapping:
+- organization: Octocats
+  roles:
+  - access
+  - editor
+  team: admins
+
+--------------------------------------------------------------------------------
+For more details repeat the command with --debug flag.
+```
+
 Finally, create the connector using `tctl`:
 
 ```code
