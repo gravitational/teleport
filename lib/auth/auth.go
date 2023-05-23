@@ -5275,6 +5275,11 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
+// GetFeatures returns the feature set of the cluster.
+func (a *Server) GetFeatures(ctx context.Context) (*proto.Features, error) {
+	return modules.GetModules().Features().ToProto(), nil
+}
+
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
 // finds, or empty otherwise.
 func (a *Server) getProxyPublicAddr() string {

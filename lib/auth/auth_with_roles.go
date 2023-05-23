@@ -6195,6 +6195,14 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
 }
 
+// GetFeatures returns the feature set of the cluster.
+func (a *ServerWithRoles) GetFeatures(ctx context.Context) (*proto.Features, error) {
+	// GetFeatures does not require special permissions since its return is a
+	// subset of the information returned by Ping, which doesn't require
+	// permissions by design.
+	return a.authServer.GetFeatures(ctx)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
