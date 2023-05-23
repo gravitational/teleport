@@ -621,6 +621,36 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 	}
 }
 
+func TestRoleSetForBuiltinRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		clusterName   string
+		recConfig     types.SessionRecordingConfig
+		roles         []types.SystemRole
+		assertRoleSet func(t *testing.T, rs services.RoleSet)
+	}{
+		{
+			name:        "RoleMDM is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rs, err := RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
+			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
+			test.assertRoleSet(t, rs)
+		})
+	}
+}
+
 // fakeCtxUser is used for auth.Context tests.
 type fakeCtxUser struct {
 	types.User

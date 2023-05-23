@@ -321,6 +321,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/pods", fwd.withAuth(fwd.listPods))
 	router.GET("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.listPods))
+	router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
 	router.DELETE("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.deletePodsCollection))
 	router.POST("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(
 		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
@@ -1263,18 +1264,23 @@ func (f *Forwarder) deleteSession(id uuid.UUID) {
 
 // remoteJoin forwards a join request to a remote cluster.
 func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp any, err error) {
+	hostID, err := f.getSessionHostID(req.Context(), ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	netDialer := sess.DialWithContext(withTargetHostID(hostID))
 	tlsConfig, impersonationHeaders, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	dialer := &websocket.Dialer{
 		TLSClientConfig: tlsConfig,
-		NetDialContext:  sess.DialWithContext,
+		NetDialContext:  netDialer,
 	}
 
-	headers := req.Header
+	headers := http.Header{}
 	if impersonationHeaders {
-		if headers, err = auth.IdentityForwardingHeaders(req.Context(), req.Header); err != nil {
+		if headers, err = auth.IdentityForwardingHeaders(req.Context(), headers); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1287,6 +1293,10 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.DialContext(req.Context(), url, headers)
 	if err != nil {
+		if respTarget == nil {
+			return nil, trace.Wrap(err)
+		}
+		defer respTarget.Body.Close()
 		msg, err := io.ReadAll(respTarget.Body)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1296,7 +1306,6 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 		if err := json.Unmarshal(msg, &obj); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
@@ -1314,6 +1323,24 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	}
 
 	return nil, nil
+}
+
+// getSessionHostID returns the host ID that controls the session being joined.
+// If the session is remote, returns an empty string, otherwise returns the host ID
+// from the session tracker.
+func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, p httprouter.Params) (string, error) {
+	if authCtx.teleportCluster.isRemote {
+		return "", nil
+	}
+	session := p.ByName("session")
+	if session == "" {
+		return "", trace.BadParameter("missing session ID")
+	}
+	sess, err := f.cfg.AuthClient.GetSessionTracker(ctx, session)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return sess.GetHostID(), nil
 }
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
@@ -1636,7 +1663,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	// proxy.Close closes the underlying connection and releases the resources.
+	defer proxy.Close()
 	if sess.noAuditEvents {
 		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
@@ -1644,20 +1672,30 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	if !request.tty {
 		resp, err = f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
-		return
+		if err != nil {
+			// will hang waiting for the response.
+			proxy.sendStatus(err)
+		}
+		return nil, nil
 	}
 
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*authCtx, types.SessionPeerMode, client)
 	session, err := newSession(*authCtx, f, req, p, party, sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	<-party.closeC
@@ -2020,7 +2058,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
-		dialWithContext:       sess.DialWithContext,
+		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
@@ -2051,7 +2089,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
-		dialWithContext:       sess.DialWithContext,
+		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
@@ -2149,12 +2187,14 @@ func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.dial(s.requestContext, network))
 }
 
-func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(ctx, network))
+func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return s.monitorConn(s.dial(ctx, network, opts...))
+	}
 }
 
-func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, error) {
-	dialer := s.parent.getContextDialerFunc(s)
+func (s *clusterSession) dial(ctx context.Context, network string, opts ...contextDialerOption) (net.Conn, error) {
+	dialer := s.parent.getContextDialerFunc(s, opts...)
 
 	conn, err := dialer(ctx, network, s.targetAddr)
 
@@ -2220,7 +2260,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx context.Context, authCtx authCont
 		return nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
 
-	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
+	f.log.Debugf("Handling kubernetes session for %v using local credentials.", authCtx)
 	return &clusterSession{
 		parent:         f,
 		authContext:    authCtx,
@@ -2670,7 +2710,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 
 	const internalErrStatus = http.StatusInternalServerError
 	// get content-type value
-	contentType := responsewriters.GetContentHeader(memWriter.Header())
+	contentType := responsewriters.GetContentTypeHeader(memWriter.Header())
 	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator())
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
@@ -2806,13 +2846,20 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 	apiGroup := ""
 	// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 	return fmt.Sprintf(
-		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q",
+		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q\n"+
+			"Ask your Teleport admin to ensure that your Teleport role includes access to the pod in %q field.\n"+
+			"Check by running: kubectl auth can-i %s %s/%s --namespace %s ",
 		resource,
 		kubeResource.Name,
 		user,
 		getRequestVerb(method),
 		resource,
 		apiGroup,
+		kubeResource.Namespace,
+		kubernetesResourcesKey,
+		getRequestVerb(method),
+		resource,
+		kubeResource.Name,
 		kubeResource.Namespace,
 	)
 }

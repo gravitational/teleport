@@ -1799,18 +1799,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: cluster},
-		tc.Config.HostLogin,
-	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
-	}
-	defer nodeClient.Close()
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, false)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -2833,12 +2822,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		cluster = connected
 	}
 
-	cltConfig := pclt.ClientConfig(ctx, cluster)
-	cltConfig.DialOpts = append(cltConfig.DialOpts,
-		grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
-		grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
-	)
-	aclt, err := auth.NewClient(cltConfig)
+	aclt, err := auth.NewClient(pclt.ClientConfig(ctx, cluster))
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}

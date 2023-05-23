@@ -17,6 +17,7 @@
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
+import { makeGateway } from 'teleterm/services/tshd/testHelpers';
 
 import { ClustersService } from './clustersService';
 
@@ -66,17 +67,10 @@ const leafClusterMock: tsh.Cluster = {
   },
 };
 
-const gatewayMock: tsh.Gateway = {
+const gatewayMock = makeGateway({
   uri: '/gateways/gatewayTestUri',
-  localAddress: 'localhost',
-  localPort: '2000',
-  protocol: 'https',
-  targetName: 'Name',
-  targetSubresourceName: '',
-  targetUser: 'sam',
   targetUri: `${clusterUri}/dbs/databaseTestUri`,
-  cliCommand: 'psql postgres://postgres@localhost:5432/postgres',
-};
+});
 
 const NotificationsServiceMock = NotificationsService as jest.MockedClass<
   typeof NotificationsService

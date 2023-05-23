@@ -18,8 +18,9 @@ import "github.com/gravitational/teleport/lib/devicetrust/native"
 
 // vars below are used to fake OSes and switch implementations for tests.
 var (
-	collectDeviceData = native.CollectDeviceData
-	enrollInit        = native.EnrollDeviceInit
-	getOSType         = getDeviceOSType
-	signChallenge     = native.SignChallenge
+	collectDeviceData       = native.CollectDeviceData
+	enrollInit              = native.EnrollDeviceInit
+	getOSType               = getDeviceOSType
+	signChallenge           = native.SignChallenge
+	solveTPMEnrollChallenge = native.SolveTPMEnrollChallenge
 )

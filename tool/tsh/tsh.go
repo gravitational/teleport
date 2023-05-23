@@ -40,8 +40,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -724,6 +724,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
 	appLogin.Flag("azure-identity", "(For Azure CLI access only) Azure managed identity name.").StringVar(&cf.AzureIdentity)
 	appLogin.Flag("gcp-service-account", "(For GCP CLI access only) GCP service account name.").StringVar(&cf.GCPServiceAccount)
+	appLogin.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	appLogout := apps.Command("logout", "Remove app certificate.")
 	appLogout.Arg("app", "App to remove credentials for.").StringVar(&cf.AppName)
 	appConfig := apps.Command("config", "Print app connection information.")

@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { AWSIcon, ChevronRightIcon } from 'design/SVGIcon';
 
@@ -59,12 +59,13 @@ export function BreadcrumbArrow() {
 
 export function AWSWrapper(props: React.PropsWithChildren<unknown>) {
   const ctx = useTeleport();
+  const theme = useTheme();
 
   return (
     <Container>
       <Header>
         <HeaderLogo>
-          <AWSIcon size={24} />
+          <AWSIcon size={24} fill={theme.colors.light} />
         </HeaderLogo>
 
         <HeaderUsername>{ctx.storeUser.state.username}</HeaderUsername>

@@ -88,6 +88,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
+					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -126,6 +127,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
+				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -182,6 +184,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
+					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -227,6 +230,7 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 	}
 }
@@ -259,6 +263,10 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	if ok {
 		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
 			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
+		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
+			role.SetDatabaseRoles(types.Allow, defaultLabels.DatabaseRoles)
 			changed = true
 		}
 	}

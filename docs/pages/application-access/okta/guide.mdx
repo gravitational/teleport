@@ -3,6 +3,10 @@ title: Setting up the Okta Service
 description: How to set up the Okta Service with some basic configurations
 ---
 
+<Admonition type="warning" title="Preview">
+Okta application access is currently in Preview mode.
+</Admonition>
+
 Teleport can import and grant access to Okta applications and user groups. Okta applications
 can be accessed through Teleport's application access UI, and access to these applications along
 with user groups can be managed by Teleport's RBAC along with access requests.
@@ -15,7 +19,6 @@ configurations to enable it.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-
 - An Okta organization with an [Okta API token](https://developer.okta.com/docs/guides/create-an-api-token) provisioned.
 - A running Teleport cluster with Okta login configured.
 - An instance where you will run the Okta Service. This can live anywhere
@@ -31,7 +34,7 @@ provisioned earlier.
 
 To get group IDs:
 
-```
+```code
 $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-endpoint-url" />/api/v1/groups | jq '[.[] |  {"id": .id, "label": .profile.name}]'
 ...
 [
@@ -55,7 +58,7 @@ $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-en
 ]
 ```
 
-```
+```code
 $ curl -H "Authorization: SSWS <Var name="okta-api-token" />" <Var name="okta-endpoint-url" />/api/v1/apps | jq '[.[] |  {"id": .id, "label": .label}]'
 ...
 [

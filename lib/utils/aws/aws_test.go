@@ -282,8 +282,16 @@ func TestParseRoleARN(t *testing.T) {
 			arn:             "arn:aws:iam::123456789012:user/test-user",
 			wantErrContains: "not an AWS IAM role",
 		},
-		"iam role arn is missing role name": {
+		"iam role arn is missing role name section": {
 			arn:             "arn:aws:iam::123456789012:role",
+			wantErrContains: "missing AWS IAM role name",
+		},
+		"iam role arn is missing role name": {
+			arn:             "arn:aws:iam::123456789012:role/",
+			wantErrContains: "missing AWS IAM role name",
+		},
+		"service role arn is missing role name": {
+			arn:             "arn:aws:iam::123456789012:role/aws-service-role/redshift.amazonaws.com/",
 			wantErrContains: "missing AWS IAM role name",
 		},
 	}
@@ -292,7 +300,7 @@ func TestParseRoleARN(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			got, err := ParseRoleARN(tt.arn)
 			if tt.wantErrContains != "" {
-				require.Error(t, err, err.Error())
+				require.Error(t, err)
 				require.ErrorContains(t, err, tt.wantErrContains)
 				return
 			}

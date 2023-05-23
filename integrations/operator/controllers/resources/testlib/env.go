@@ -107,6 +107,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule("user", unrestricted),
 				types.NewRule("auth_connector", unrestricted),
 				types.NewRule("login_rule", unrestricted),
+				types.NewRule("token", unrestricted),
 			},
 		},
 	})
@@ -188,6 +189,9 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = resources.NewLoginRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = resources.NewProvisionTokenReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
