@@ -40,15 +40,35 @@ A new object will be needed to house static credentials. At present it will supp
 - OAuth client ID and secret
 
 This object has very strict access control requirements that will be explained in detail
-in the **Access Control** section.
+in the **Access Control** section. On creation, the plugin and static credentials will
+receive a UUID called the `plugin-label`. The static credentials will have an internal
+label that receives this value. Additionally, one plugin may have _many_ credentials
+that are disambiguated with an additional label `plugin-credentials-type`. This is an
+arbitrary plugin specific string that will allow plugin authors to refer to multiple
+static
+credentials if needed.
+
+```mermaid
+flowchart LR
+  Plugin
+  Okta[Okta Credentials]
+  Slack[Slack Credentials]
+  OpsGenie[OpsGenie Credentials]
+
+  Plugin-->|credentials type okta|Okta
+  Plugin-->|credentials type slack|Slack
+  Plugin-->|credentials type opsgenie|OpsGenie
+```
 
 ```yaml
 kind: plugin_static_credentials
 version: v1
 metadata:
-  name: plugin-name # name must match the name of the plugin.
+  name: credentials-name
+  labels:
+    teleport.internal/plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155 # unique plugin label.
+    teleport.internal/plugin-credentials-type: slack # a unique type associated with the credentials
 spec:
-  last_rotated: "2023-05-09T16:50:52.497874Z"
   credentials:
     # Only one of these credential types must be defined at a time. All values in this
     # are string literals and not file locations.
@@ -61,25 +81,29 @@ spec:
       client_secret: example-client-secret
 ```
 
-If a plugin requires static credentials, there is a 1-to-1 mapping between `Plugin`
-objects and `PluginStaticCredentials` objects. If a `Plugin` is using oauth, however,
-it will not need a `PluginStaticCredentials` and none will be created. The object will
-inherit the same name as its associated plugin.
+If a `Plugin` is using oauth, however, it will not need any `PluginStaticCredentials` objects.
 
 ### Changes to the `Plugin` object
 
 The `Plugin` object's `Credentials` field will have a new type of credential called
-`PluginNeedsStaticCredentials` with a single boolean `Enabled` flag. If this flag is set,
-this will indicate to Teleport that the plugin must have a corresponding
-`PluginNeedsStaticCredentials` object in order to start.
+`PluginStaticCredentialsRefs` that contains a UUID and a list of plugin types.
+
+```yaml
+plugin_static_credentials_refs:
+  label: 48398071-9860-4be6-9f29-ca6ca5bc7155
+  types:
+    - okta
+    - slack
+    - opsgenie
+```
 
 ### Access control
 
-`PluginStaticCredentials` can be written to and deleted by any user with RBAC permissions
-to do so. For these operations, the object is straightforward and reflects the typical
-way that Teleport resources are handled.
+`PluginStaticCredentials` can be written to and deleted by `RoleProxy`. At introduction,
+creating credentials is a flow that will only happen through the web UI, so only `RoleProxy`
+is needed. Future work may determine that we want to open up writing through the CLI.
 
-However, the object will be only readable by the `RoleAdmin` role (with one exception).
+The object will be only readable by the `RoleAdmin` role (with one exception).
 This is because plugins run on the auth server, so it's the only role that needs to be
 able to actually read the static credentials.
 
@@ -91,19 +115,11 @@ the Assist plugin.
 
 #### Creation
 
-A `PluginStaticCredentials` object can be created after a `Plugin` object has been
-created. If a `Plugin` is marked as needing static credentials as described above, the
-`Plugin` won't start until these have been provided.
-
-When creating a plugin, Teleport will first perform a lookup to ensure that there is a
-plugin with the same name as the new `PluginStaticCredentials` object being created
-and that the plugin has `PluginNeedsStaticCredentials` with the `Enabled` flag set to
-true. If this plugin doesn't exist, the creation of the `PluginStaticCredentials` object
-will fail.
+A `PluginStaticCredentials` object must be created at the same time that the `Plugin` is created.
 
 #### Deletion
 
-On deletion, the associated `Plugin` will be stopped. Additionally, `PluginStaticCredentials`
+On deletion, the associated `Plugin` will be stopped and related `PluginStaticCredentials`
 objects will be deleted when deleting its associated plugin.
 
 ### UX
@@ -124,8 +140,8 @@ A number of new audit events will be created as part of this effort:
 
 ### Security
 
-* Only the auth server is able to read plugin credentials. Any user with proper RBAC permissions
-  will be able to create and delete credentials, but not read them.
+* Only the auth server is able to read plugin credentials. The proxy will be able to create
+them, and admins will be able to delete them.
 
 ### Implementation plan
 
@@ -136,14 +152,13 @@ A number of new audit events will be created as part of this effort:
 
 #### Modifications to the `Plugin` object
 
-- A new `PluginNeedsStaticCredentials` type.
-- Modify the `PluginStaticCredentials` local service to only allow creation of
-  `PluginStaticCredentials` objects if this new credentials type is enabled for
-  the corresponding `Plugin`.
+- A new `PluginStaticCredentialsRefs` type.
+- `PluginStaticCredentials` objects are created during `Plugin` creation.
+- `PluginStaticCredentials` objects are deleted during `Plugin` deletion.
 
 #### Implement `PluginStaticCredentials` permissions
 
-- gRPC methods in the auth service to support reading, writing, and deleting the
+- gRPC methods in the auth service to support reading the
   `PluginStaticCredentials`, ensuring that reading can only be done by `RoleAdmin`
   and, for the specific case of Teleport Assist, `RoleProxy`.
 - Any updates to RBAC to support the creation/deletion of the `PluginStaticCredentials`
@@ -151,10 +166,8 @@ A number of new audit events will be created as part of this effort:
 
 #### Integrate `PluginStaticCredentials` with enterprise plugin manager
 
-- Only start plugins with a credentials type of `PluginNeedsStaticCredentials` if there's
-  a corresponding `PluginStaticCredentials` object to go along with it.
-- Monitor the creation/deletion of static credentials objects and trigger plugin start/stop if the
-  credentials have been removed for a given plugin.
+- Look up `PluginStaticCredentials` objects when starting plugins that require them in the
+plugin manager.
 
 #### Add audit events
 
