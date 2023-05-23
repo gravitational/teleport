@@ -35,51 +35,7 @@ in your Teleport cluster.
 
 ## Step 2/9. Install the Teleport Microsoft Teams plugin
 
-We currently only provide `linux-amd64` binaries. You can also compile these
-plugins from source. You can run the plugin from a remote host or your local
-development machine.
-
-<Notice scope={["enterprise"]} type="tip">
-We recommend installing Teleport plugins on the same host as the Teleport
-Proxy Service. This is an ideal location as plugins have a low memory footprint
-and will require access to both the public internet and the Teleport Auth Service.
-</Notice>
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-msteams-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-msteams-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ ./teleport-access-msteams/install
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` >= (=teleport.golang=)
-  installed.
-
-  ```code
-  # Check out the teleport-plugins repository
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/msteams
-  $ make
-  ```
-  
-  Place the `teleport-msteams` binary into an appropriate location
-  within the system's `PATH`, e.g., `/usr/local/bin`:
-
-  ```code 
-  $ mv ./build/teleport-msteams /usr/local/bin
-  ```
-
-</TabItem> 
-</Tabs>
-
-  Make sure the binary is installed:
-
-  ```code
-  $ teleport-msteams version
-  teleport-msteams v(=teleport.plugin.version=) git:teleport-msteams-v(=teleport.plugin.version=)-fffffffff go(=teleport.golang=)
-  ```
+(!docs/pages/includes/plugins/install-access-request.mdx name="msteams"!)
 
 ## Step 3/9. Create a user and role for the plugin
 
