@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
@@ -266,28 +267,36 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 // defaultAllowAccessRequestConditions has the access request conditions that should be set as default when they were
 // not explicitly defined.
 func defaultAllowAccessRequestConditions() map[string]*types.AccessRequestConditions {
-	return map[string]*types.AccessRequestConditions{
-		teleport.PresetAccessRoleName: {
-			SearchAsRoles: []string{
-				teleport.PresetGroupAccessRoleName,
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		return map[string]*types.AccessRequestConditions{
+			teleport.PresetAccessRoleName: {
+				SearchAsRoles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
 			},
-		},
+		}
 	}
+
+	return map[string]*types.AccessRequestConditions{}
 }
 
 // defaultAllowAccessReviewConditions has the access review conditions that should be set as default when they were
 // not explicitly defined.
 func defaultAllowAccessReviewConditions() map[string]*types.AccessReviewConditions {
-	return map[string]*types.AccessReviewConditions{
-		teleport.PresetEditorRoleName: {
-			PreviewAsRoles: []string{
-				teleport.PresetGroupAccessRoleName,
+	if modules.GetModules().BuildType() == modules.BuildEnterprise {
+		return map[string]*types.AccessReviewConditions{
+			teleport.PresetEditorRoleName: {
+				PreviewAsRoles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
+				Roles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
 			},
-			Roles: []string{
-				teleport.PresetGroupAccessRoleName,
-			},
-		},
+		}
 	}
+
+	return map[string]*types.AccessReviewConditions{}
 }
 
 // AddRoleDefaults adds default role attributes to a preset role.
