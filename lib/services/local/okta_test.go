@@ -205,8 +205,8 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 
 	createRegexMatch := func(appNameRegex, groupNameRegex string) *types.OktaImportRuleMatchV1 {
 		return &types.OktaImportRuleMatchV1{
-			AppNameRegex:   appNameRegex,
-			GroupNameRegex: groupNameRegex,
+			AppNameRegexes:   []string{appNameRegex},
+			GroupNameRegexes: []string{groupNameRegex},
 		}
 	}
 

@@ -121,15 +121,19 @@ func validateOktaImportRuleRegexes(importRule types.OktaImportRule) error {
 	var errs []error
 	for _, mapping := range importRule.GetMappings() {
 		for _, match := range mapping.GetMatches() {
-			if ok, regex := match.GetAppNameRegex(); ok {
-				if _, err := regexp.Compile(regex); err != nil {
-					errs = append(errs, err)
+			if ok, regexes := match.GetAppNameRegexes(); ok {
+				for _, regex := range regexes {
+					if _, err := regexp.Compile(regex); err != nil {
+						errs = append(errs, err)
+					}
 				}
 			}
 
-			if ok, regex := match.GetGroupNameRegex(); ok {
-				if _, err := regexp.Compile(regex); err != nil {
-					errs = append(errs, err)
+			if ok, regexes := match.GetGroupNameRegexes(); ok {
+				for _, regex := range regexes {
+					if _, err := regexp.Compile(regex); err != nil {
+						errs = append(errs, err)
+					}
 				}
 			}
 		}
