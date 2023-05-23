@@ -594,6 +594,18 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var subnets []string
+	if rdsInstance.DBSubnetGroup != nil {
+		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
+		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
+			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
+				continue
+			}
+			subnets = append(subnets, *s.SubnetIdentifier)
+		}
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -602,6 +614,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
+			Subnets:    subnets,
 		},
 	}, nil
 }
