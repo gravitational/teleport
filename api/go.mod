@@ -13,13 +13,13 @@ require (
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/sirupsen/logrus v1.9.2
 	github.com/stretchr/testify v1.8.3
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.41.0
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.42.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.41.0
-	go.opentelemetry.io/otel v1.15.0
+	go.opentelemetry.io/otel v1.16.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.15.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.15.0
 	go.opentelemetry.io/otel/sdk v1.15.0
-	go.opentelemetry.io/otel/trace v1.15.0
+	go.opentelemetry.io/otel/trace v1.16.0
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
@@ -43,7 +43,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russellhaering/goxmldsig v1.3.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.15.0 // indirect
-	go.opentelemetry.io/otel/metric v0.38.0 // indirect
+	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/term v0.8.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
