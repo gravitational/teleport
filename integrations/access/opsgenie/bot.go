@@ -51,8 +51,8 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
 	schedules := []string{}
 
-	if _, ok := reqData.ResolveAnnotations[ReqAnnotationRespondersKey]; ok {
-		schedules = reqData.ResolveAnnotations[ReqAnnotationRespondersKey]
+	if recipients, ok := reqData.ResolveAnnotations[ReqAnnotationRespondersKey]; ok {
+		schedules = append(schedules, recipients...)
 	} else {
 		for _, recipient := range b.client.DefaultSchedules {
 			schedules = append(schedules, recipient)
