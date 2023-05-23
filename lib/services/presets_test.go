@@ -20,11 +20,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/trace"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -33,8 +34,12 @@ func TestAddRoleDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		role        types.Role
+		name                   string
+		role                   types.Role
+		enterprise             bool
+		reviewRequestsNotEmpty bool
+		accessReviewNotEmpty   bool
+
 		expectedErr require.ErrorAssertionFunc
 		expected    types.Role
 	}{
@@ -59,7 +64,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Rules:          defaultAllowRules()[teleport.PresetEditorRoleName],
-						ReviewRequests: defaultAllowAccessReviewConditions()[teleport.PresetEditorRoleName],
+						ReviewRequests: defaultAllowAccessReviewConditions(false)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -94,7 +99,44 @@ func TestAddRoleDefaults(t *testing.T) {
 								Verbs:     []string{"test"},
 							},
 						}, defaultAllowRules()[teleport.PresetEditorRoleName]...),
-						ReviewRequests: defaultAllowAccessReviewConditions()[teleport.PresetEditorRoleName],
+						ReviewRequests: defaultAllowAccessReviewConditions(false)[teleport.PresetEditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "editor (existing rules, enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							{
+								Resources: []string{"test"},
+								Verbs:     []string{"test"},
+							},
+						},
+					},
+				},
+			},
+			enterprise:           true,
+			accessReviewNotEmpty: true,
+			expectedErr:          require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: append([]types.Rule{
+							{
+								Resources: []string{"test"},
+								Verbs:     []string{"test"},
+							},
+						}, defaultAllowRules()[teleport.PresetEditorRoleName]...),
+						ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetEditorRoleName],
 					},
 				},
 			},
@@ -139,7 +181,36 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						Request:               defaultAllowAccessRequestConditions()[teleport.PresetAccessRoleName],
+						Request:               defaultAllowAccessRequestConditions(false)[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "access (access review, db labels, identical rules, enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+			enterprise:             true,
+			reviewRequestsNotEmpty: true,
+			expectedErr:            require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+						Request:               defaultAllowAccessRequestConditions(true)[teleport.PresetAccessRoleName],
 					},
 				},
 			},
@@ -148,10 +219,21 @@ func TestAddRoleDefaults(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.enterprise {
+				modules.SetTestModules(t, &modules.TestModules{
+					TestBuildType: modules.BuildEnterprise,
+				})
+			}
+
 			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
 
 			require.Empty(t, cmp.Diff(role, test.expected))
+
+			if test.expected != nil {
+				require.Equal(t, test.reviewRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.accessReviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
+			}
 		})
 	}
 }
