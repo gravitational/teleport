@@ -215,14 +215,13 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 USER root
 
 # Install Node.js.
+RUN yum install -y python3 ninja-build
 ARG NODE_VERSION
-ENV NODE_PATH="/usr/local/lib/nodejs-linux"
-ENV PATH="$PATH:${NODE_PATH}/bin"
-RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
-    export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
-    mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
-    tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
+RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
+    cd node && \
+    scl enable ${DEVTOOLSET} "./configure --ninja && NINJA='ninja-build' make install" && \
+    make clean
+RUN node --version
 RUN corepack enable yarn
 
 # Install Go.
