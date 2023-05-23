@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,19 +19,13 @@ package proxy
 import (
 	"context"
 	"encoding/base64"
-	"io"
-	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/eks"
-	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -43,13 +37,24 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
 )
 
+// Test_DynamicKubeCreds tests the dynamic kube credrentials generator for
+// AWS, GCP, and Azure clusters accessed using their respective IAM credentials.
+// This test mocks the cloud provider clients and the STS client to generate
+// rest.Config objects for each cluster. It also tests the renewal of the
+// credentials when they expire.
 func Test_DynamicKubeCreds(t *testing.T) {
 	t.Parallel()
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	var (
+		fakeClock = clockwork.NewFakeClock()
+		log       = logrus.New()
+		notify    = make(chan struct{}, 1)
+		ttl       = 14 * time.Minute
+	)
+
 	awsKube, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: "aws",
@@ -71,7 +76,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			GCP: types.KubeGCP{
 				Location:  "us-west-2",
 				ProjectID: "1234567890",
-				Name:      "eks",
+				Name:      "gke",
 			},
 		},
 	)
@@ -84,7 +89,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			Azure: types.KubeAzure{
 				TenantID:       "id",
 				ResourceGroup:  "1234567890",
-				ResourceName:   "eks",
+				ResourceName:   "aks-name",
 				SubscriptionID: "12345",
 			},
 		},
@@ -92,28 +97,70 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	require.NoError(t, err)
 
 	// mock sts client
-	stsMock := &stsMockClient{
-		// u is used to presign the request
-		// here we just verify the pre-signed request includes this url.
-		u: &url.URL{
-			Scheme: "https",
-			Host:   "sts.amazonaws.com",
-			Path:   "/?Action=GetCallerIdentity&Version=2011-06-15",
-		},
+	u := &url.URL{
+		Scheme: "https",
+		Host:   "sts.amazonaws.com",
+		Path:   "/?Action=GetCallerIdentity&Version=2011-06-15",
 	}
-
 	// mock clients
 	cloudclients := &cloud.TestCloudClients{
-		STS: stsMock,
-		EKS: &eksMockClient{
-			cluster: awsKube,
-			t:       t,
+		STS: &mocks.STSMock{
+			// u is used to presign the request
+			// here we just verify the pre-signed request includes this url.
+			URL: u,
 		},
-		GCPGKE: &gkeMockCLient{kube: gkeKube, t: t},
+		EKS: &mocks.EKSMock{
+			Notify: notify,
+			Clusters: []*eks.Cluster{
+				{
+					Endpoint: aws.String("https://api.eks.us-west-2.amazonaws.com"),
+					Name:     aws.String(awsKube.GetAWSConfig().Name),
+					CertificateAuthority: &eks.Certificate{
+						Data: aws.String(base64.RawStdEncoding.EncodeToString([]byte(fixtures.TLSCACertPEM))),
+					},
+				},
+			},
+		},
+		GCPGKE: &mocks.GKEMock{
+			Notify: notify,
+			Clock:  fakeClock,
+			Clusters: []mocks.GKEClusterEntry{
+				{
+					Config: &rest.Config{
+						Host: "https://api.gke.google.com",
+						TLSClientConfig: rest.TLSClientConfig{
+							CAData: []byte(fixtures.TLSCACertPEM),
+						},
+					},
+					ClusterDetails: gcp.ClusterDetails{
+						Name:      gkeKube.GetGCPConfig().Name,
+						ProjectID: gkeKube.GetGCPConfig().ProjectID,
+						Location:  gkeKube.GetGCPConfig().Location,
+					},
+					TTL: ttl,
+				},
+			},
+		},
 		AzureAKSClientPerSub: map[string]azure.AKSClient{
-			"12345": &azureMockCLient{
-				kube: aksKube,
-				t:    t,
+			"12345": &mocks.AKSMock{
+				Notify: notify,
+				Clock:  fakeClock,
+				Clusters: []mocks.AKSClusterEntry{
+					{
+						Config: &rest.Config{
+							Host: "https://api.aks.microsoft.com",
+							TLSClientConfig: rest.TLSClientConfig{
+								CAData: []byte(fixtures.TLSCACertPEM),
+							},
+						},
+						TTL: ttl,
+						ClusterCredentialsConfig: azure.ClusterCredentialsConfig{
+							ResourceName:  aksKube.GetAzureConfig().ResourceName,
+							ResourceGroup: aksKube.GetAzureConfig().ResourceGroup,
+							TenantID:      aksKube.GetAzureConfig().TenantID,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -132,7 +179,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			name: "aws eks cluster",
 			args: args{
 				cluster: awsKube,
-				client:  getAWSClientRestConfig(cloudclients),
+				client:  getAWSClientRestConfig(cloudclients, fakeClock),
 				validateBearerToken: func(token string) error {
 					if token == "" {
 						return trace.BadParameter("missing bearer token")
@@ -148,7 +195,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					if err != nil {
 						return trace.Wrap(err)
 					}
-					if string(dec) != stsMock.u.String() {
+					if string(dec) != u.String() {
 						return trace.BadParameter("invalid token payload")
 					}
 					return nil
@@ -177,7 +224,6 @@ func Test_DynamicKubeCreds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeClock := clockwork.NewFakeClock()
 			got, err := newDynamicKubeCreds(
 				context.Background(),
 				dynamicCredsConfig{
@@ -187,88 +233,34 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					) error {
 						return nil
 					},
-					log:         log,
-					kubeCluster: tt.args.cluster,
-					client:      tt.args.client,
+					log:                  log,
+					kubeCluster:          tt.args.cluster,
+					client:               tt.args.client,
+					initialRenewInterval: ttl / 2,
 				},
 			)
 			require.NoError(t, err)
-			require.Equal(t, got.getKubeRestConfig().CAData, []byte(fixtures.TLSCACertPEM))
-			require.NoError(t, tt.args.validateBearerToken(got.getKubeRestConfig().BearerToken))
-			require.Equal(t, got.getTargetAddr(), tt.wantAddr)
+			select {
+			case <-notify:
+			case <-time.After(5 * time.Second):
+				t.Fatalf("timeout waiting for cluster to be ready")
+			}
+			for i := 0; i < 10; i++ {
+				require.Equal(t, got.getKubeRestConfig().CAData, []byte(fixtures.TLSCACertPEM))
+				require.NoError(t, tt.args.validateBearerToken(got.getKubeRestConfig().BearerToken))
+				require.Equal(t, got.getTargetAddr(), tt.wantAddr)
+				fakeClock.BlockUntil(1)
+				fakeClock.Advance(ttl / 2)
+				// notify receives a signal when the cloud client is invoked.
+				// this is used to test that the credentials are refreshed each time
+				// they are about to expire.
+				select {
+				case <-notify:
+				case <-time.After(5 * time.Second):
+					t.Fatalf("timeout waiting for cluster to be ready, i=%d", i)
+				}
+			}
 			require.NoError(t, got.close())
 		})
 	}
-}
-
-type eksMockClient struct {
-	eksiface.EKSAPI
-	cluster types.KubeCluster
-	t       *testing.T
-}
-
-func (e *eksMockClient) DescribeClusterWithContext(_ aws.Context, req *eks.DescribeClusterInput, _ ...request.Option) (*eks.DescribeClusterOutput, error) {
-	require.Equal(e.t, e.cluster.GetAWSConfig().Name, *req.Name)
-	return &eks.DescribeClusterOutput{
-		Cluster: &eks.Cluster{
-			Endpoint: aws.String("https://api.eks.us-west-2.amazonaws.com"),
-			Name:     req.Name,
-			CertificateAuthority: &eks.Certificate{
-				Data: aws.String(base64.RawStdEncoding.EncodeToString([]byte(fixtures.TLSCACertPEM))),
-			},
-		},
-	}, nil
-}
-
-type stsMockClient struct {
-	stsiface.STSAPI
-	u *url.URL
-}
-
-func (s *stsMockClient) GetCallerIdentityRequest(req *sts.GetCallerIdentityInput) (*request.Request, *sts.GetCallerIdentityOutput) {
-	return &request.Request{
-		HTTPRequest: &http.Request{
-			Header: http.Header{},
-			URL:    s.u,
-		},
-		Operation: &request.Operation{},
-		Handlers:  request.Handlers{},
-	}, nil
-}
-
-type gkeMockCLient struct {
-	gcp.GKEClient
-	kube types.KubeCluster
-	t    *testing.T
-}
-
-func (g *gkeMockCLient) GetClusterRestConfig(ctx context.Context, cfg gcp.ClusterDetails) (*rest.Config, time.Time, error) {
-	require.Equal(g.t, g.kube.GetGCPConfig().Name, cfg.Name)
-	require.Equal(g.t, g.kube.GetGCPConfig().ProjectID, cfg.ProjectID)
-	require.Equal(g.t, g.kube.GetGCPConfig().Location, cfg.Location)
-	return &rest.Config{
-		Host: "https://api.gke.google.com",
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: []byte(fixtures.TLSCACertPEM),
-		},
-	}, time.Now(), nil
-}
-
-type azureMockCLient struct {
-	azure.AKSClient
-	kube types.KubeCluster
-	t    *testing.T
-}
-
-func (a *azureMockCLient) ClusterCredentials(ctx context.Context, cfg azure.ClusterCredentialsConfig) (*rest.Config, time.Time, error) {
-	require.Equal(a.t, a.kube.GetAzureConfig().ResourceName, cfg.ResourceName)
-	require.Equal(a.t, a.kube.GetAzureConfig().ResourceGroup, cfg.ResourceGroup)
-	require.Equal(a.t, a.kube.GetAzureConfig().TenantID, cfg.TenantID)
-
-	return &rest.Config{
-		Host: "https://api.aks.microsoft.com",
-		TLSClientConfig: rest.TLSClientConfig{
-			CAData: []byte(fixtures.TLSCACertPEM),
-		},
-	}, time.Now(), nil
 }
