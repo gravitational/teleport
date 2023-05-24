@@ -188,6 +188,7 @@ func (h *Handler) executeCommand(
 	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
 	mfaCacheFn := getMFACacheFn()
+	interactiveCommand := strings.Split(req.Command, " ")
 
 	runCmd := func(host *hostInfo) error {
 		sessionData, err := h.generateCommandSession(host, req.Login, clusterName, sessionCtx.cfg.User)
@@ -203,9 +204,9 @@ func (h *Handler) executeCommand(
 			SessionCtx:         sessionCtx,
 			AuthProvider:       clt,
 			SessionData:        sessionData,
-			KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+			KeepAliveInterval:  keepAliveInterval,
 			ProxyHostPort:      h.ProxyHostPort(),
-			InteractiveCommand: strings.Split(req.Command, " "),
+			InteractiveCommand: interactiveCommand,
 			Router:             h.cfg.Router,
 			TracerProvider:     h.cfg.TracerProvider,
 			LocalAuthProvider:  h.auth.accessPoint,
@@ -267,7 +268,6 @@ func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, log logrus
 
 	for _, host := range hosts {
 		host := host
-
 		wg.Add(1)
 
 		go func() {
