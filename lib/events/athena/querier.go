@@ -126,7 +126,7 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
-		"events/athena/SearchEvents",
+		"audit/SearchEvents",
 		oteltrace.WithAttributes(
 			attribute.Int("limit", req.Limit),
 			attribute.String("from", req.From.Format(time.RFC3339)),
@@ -150,7 +150,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	ctx, span := q.tracer.Start(
 		ctx,
-		"events/athena/SearchSessionEvents",
+		"audit/SearchSessionEvents",
 		oteltrace.WithAttributes(
 			attribute.Int("limit", req.Limit),
 			attribute.String("from", req.From.Format(time.RFC3339)),
@@ -339,7 +339,7 @@ func prepareQuery(params searchParams) (query string, execParams []string) {
 }
 
 func (q *querier) startQueryExecution(ctx context.Context, query string, params []string) (string, error) {
-	ctx, span := q.tracer.Start(ctx, "startQueryExecution")
+	ctx, span := q.tracer.Start(ctx, "athena/startQueryExecution")
 	defer span.End()
 	startQueryInput := &athena.StartQueryExecutionInput{
 		QueryExecutionContext: &athenaTypes.QueryExecutionContext{
@@ -366,7 +366,13 @@ func (q *querier) startQueryExecution(ctx context.Context, query string, params 
 }
 
 func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
-	ctx, span := q.tracer.Start(ctx, "waitForSuccess")
+	ctx, span := q.tracer.Start(
+		ctx,
+		"athena/waitForSuccess",
+		oteltrace.WithAttributes(
+			attribute.String("queryId", queryId),
+		),
+	)
 	defer span.End()
 	ctx, cancel := context.WithTimeout(ctx, getQueryResultsMaxTime)
 	defer cancel()
@@ -407,7 +413,13 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 // Athena API allows only fetch 1000 results, so if client asks for more, multiple
 // calls to GetQueryResults will be necessary.
 func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]apievents.AuditEvent, string, error) {
-	ctx, span := q.tracer.Start(ctx, "fetchResults")
+	ctx, span := q.tracer.Start(
+		ctx,
+		"athena/fetchResults",
+		oteltrace.WithAttributes(
+			attribute.String("queryId", queryId),
+		),
+	)
 	defer span.End()
 	rb := &responseBuilder{}
 	// nextToken is used as offset to next calls for GetQueryResults.
