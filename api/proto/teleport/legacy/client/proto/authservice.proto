@@ -2310,12 +2310,6 @@ message ExportUpgradeWindowsResponse {
   string SystemdUnitSchedule = 3;
 }
 
-// GetFeaturesResponse encodes the resonse of a GetFeatures call.
-message GetFeaturesResponse {
-  // Features represents the features of the cluster.
-  Features Features = 1;
-}
-
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2977,7 +2971,4 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
-
-  // GetFeatures returns the feature set of the cluster.
-  rpc GetFeatures(google.protobuf.Empty) returns (GetFeaturesResponse);
 }

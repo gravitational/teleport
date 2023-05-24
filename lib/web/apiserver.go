@@ -1395,17 +1395,9 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
-	clusterFeatures, err := h.cfg.ProxyClient.GetFeatures(r.Context())
-
-	if err != nil {
-		h.log.WithError(err).Warn("cannot retrieve cluster features, client may get a stale feature set")
-		// h.ClusterFeatures may be stale, but can be used to fulfill the request
-		clusterFeatures = &h.ClusterFeatures
-	}
-
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	if clusterFeatures.GetCloud() {
+	if h.ClusterFeatures.GetCloud() {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 		if err != nil {
 			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
@@ -1426,12 +1418,12 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
-		IsCloud:              clusterFeatures.GetCloud(),
+		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
+		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(*clusterFeatures),
-		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
+		IsDashboard:          isDashboard(h.ClusterFeatures),
+		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

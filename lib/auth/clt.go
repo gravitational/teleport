@@ -850,7 +850,4 @@ type ClientI interface {
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
-
-	// GetFeatures returns the feature set of the cluster.
-	GetFeatures(ctx context.Context) (*proto.Features, error)
 }

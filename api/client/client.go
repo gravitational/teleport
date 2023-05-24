@@ -3441,16 +3441,6 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
-// GetFeatures returns the feature set of the cluster.
-func (c *Client) GetFeatures(ctx context.Context) (*proto.Features, error) {
-	req, err := c.grpc.GetFeatures(ctx, &emptypb.Empty{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return req.GetFeatures(), nil
-}
-
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {

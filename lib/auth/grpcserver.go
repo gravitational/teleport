@@ -4960,22 +4960,6 @@ func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
 }
 
-// GetFeatures returns the feature set of the cluster.
-func (g *GRPCServer) GetFeatures(ctx context.Context, req *emptypb.Empty) (*proto.GetFeaturesResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rsp, err := auth.GetFeatures(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.GetFeaturesResponse{
-		Features: rsp,
-	}, nil
-}
-
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
