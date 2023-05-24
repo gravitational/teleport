@@ -1395,9 +1395,15 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
+	pingResponse, err := h.GetProxyClient().Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterFeatures := pingResponse.ServerFeatures
+
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	if h.ClusterFeatures.GetCloud() {
+	if clusterFeatures.GetCloud() {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 		if err != nil {
 			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
@@ -1418,12 +1424,12 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
-		IsCloud:              h.ClusterFeatures.GetCloud(),
+		IsCloud:              clusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(h.ClusterFeatures),
-		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
+		IsDashboard:          isDashboard(*clusterFeatures),
+		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
