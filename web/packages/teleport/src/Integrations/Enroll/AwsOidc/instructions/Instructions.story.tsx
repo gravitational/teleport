@@ -29,6 +29,7 @@ import {
 } from './SeventhStageInstructions';
 
 import type { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import type { CommonInstructionsProps } from './common';
 
 export default {
   title: 'Teleport/Integrations/Enroll/AwsOidc/Instructions',
@@ -42,7 +43,7 @@ export const Step5 = () => <FifthStageInstructions {...props} />;
 export const Step6 = () => <SixthStageInstructions {...props} />;
 export const Step7 = () => (
   <MemoryRouter>
-    <SeventhStageInstructions />
+    <SeventhStageInstructions {...props} />
   </MemoryRouter>
 );
 
@@ -60,7 +61,13 @@ export const ConfirmDialogFromDiscover = () => (
   </MemoryRouter>
 );
 
-const props = {
+const props: CommonInstructionsProps = {
   onNext: () => null,
+  onPrev: () => null,
+  awsOidc: {
+    thumbprint: 'thumbprint',
+    roleArn: 'arn',
+    integrationName: 'name',
+  },
   clusterPublicUri: 'gravitationalwashington.cloud.gravitional.io:4444',
 };
