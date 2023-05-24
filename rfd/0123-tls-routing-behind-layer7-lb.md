@@ -247,10 +247,8 @@ Teleport should support XFF header with both IPv4 and IPv6 addresses, with or wi
 reported in the XFF header, port can be taken from the observed TCP connection or use an arbitrary number, since the
 port is usually trivial.
 
-In case of multiple IPs are appended in the header, Teleport takes the last IP in the list. If the client request has to
-go through multiple jumps of reverse proxies/load balancers, say request -> jump A -> jump B -> jump C -> Teleport
-Proxy, only the first jump A should be setting the XFF header and the user can configure jump B and jump C to maintain
-the header values without modifying it.
+Request with multiple XFF header values will be rejected. In case of multiple IPs are appended in the header, the last
+IP is taken.
 
 ### User Experience
 
@@ -371,7 +369,9 @@ To minimize this risk, the web APIs will only take client source IPs from XFF he
 service is indeed behind a layer 7 load balancer AND the load balancer is configured to set correct values in the XFF
 headers.
 
-Further more, only the last IP in the XFF header is taken in case a hacker injected a fake IP at the beginning.
+Further more, requests with multiple XFF values will be rejected as it is difficult to know which is the truth. And in
+cases multiple IPs are present in the header, the last IP is taken as only the last one can be trusted as the load
+balancer sets it before delivering the request to the Proxy.
 
 ### Performance
 
