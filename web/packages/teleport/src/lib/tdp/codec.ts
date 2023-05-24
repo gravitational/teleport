@@ -286,9 +286,8 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
-// | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+// | message type (29) | data_length uint32 | data []byte |
 export type FastPathFrame = {
-  rpcId: number;
   data: Uint8Array;
 };
 
@@ -943,17 +942,13 @@ export default class Codec {
     return pngFrame;
   }
 
-  // | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+  // | message type (29) | data_length uint32 | data []byte |
   decodeFastPathFrame(buffer: ArrayBuffer): FastPathFrame {
-    const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type
-    const rpcId = dv.getUint32(offset);
-    offset += uint32Length; // eat rpc_id
     offset += uint32Length; // eat data_length
     const data = buffer.slice(offset);
     return {
-      rpcId,
       data: new Uint8Array(data),
     };
   }

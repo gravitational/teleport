@@ -273,18 +273,12 @@ func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // FastPathFrame is a RemoteFX frame message
-// | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+// | message type (29) | data_length uint32 | data []byte |
 type FastPathFrame struct {
-	RpcId uint32
-	Data  []byte
+	Data []byte
 }
 
 func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
-	var rpcId uint32
-	if err := binary.Read(in, binary.BigEndian, &rpcId); err != nil {
-		return FastPathFrame{}, trace.Wrap(err)
-	}
-
 	// Read PNG length so we can allocate buffer that will fit FastPathFrame message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
@@ -300,15 +294,13 @@ func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 	}
 
 	return FastPathFrame{
-		RpcId: rpcId,
-		Data:  data,
+		Data: data,
 	}, nil
 }
 
 func (f FastPathFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeFastPathFrame))
-	writeUint32(buf, f.RpcId)
 	writeUint32(buf, uint32(len(f.Data)))
 	buf.Write(f.Data)
 	return buf.Bytes(), nil

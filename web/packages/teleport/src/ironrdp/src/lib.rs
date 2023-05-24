@@ -61,27 +61,24 @@ pub fn init_wasm_log(log_level: &str) {
 
 #[wasm_bindgen]
 pub struct FastPathFrame {
-    rpc_id: u32,
     data: Uint8Array,
 }
 
 #[wasm_bindgen]
 impl FastPathFrame {
     #[wasm_bindgen(constructor)]
-    pub fn new(rpc_id: u32, data: Uint8Array) -> Self {
-        Self { rpc_id, data }
+    pub fn new(data: Uint8Array) -> Self {
+        Self { data }
     }
 }
 
 struct RustFastPathFrame {
-    rpc_id: u32,
     data: Vec<u8>,
 }
 
 impl From<FastPathFrame> for RustFastPathFrame {
     fn from(js_frame: FastPathFrame) -> Self {
         Self {
-            rpc_id: js_frame.rpc_id,
             data: js_frame.data.to_vec(), // TODO(isaiah): is it possible to avoid copy?
         }
     }

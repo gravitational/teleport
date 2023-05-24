@@ -96,18 +96,7 @@ impl IronRDPClient {
     }
 }
 
-type RpcId = u32;
-
-/// PinnedDynamicFuture is pinned so that it can handle self referential futures.
-/// See: https://rust-lang.github.io/async-book/04_pinning/01_chapter.html
-type Fut<T> = Pin<Box<dyn Future<Output = T>>>;
-type AsyncFn<Args, Return> = Box<dyn Fn(Args) -> Fut<Return>>;
-type AsyncFnCache<Key, Args, Return> = HashMap<Key, AsyncFn<Args, Return>>;
-
-type FastPathResponseArgs = (&'static mut Client, SessionResult<Vec<ActiveStageOutput>>);
-type FastPathResponseReturn = Option<ReadRdpOutputReturns>;
-type FastPathResponseCache = AsyncFnCache<RpcId, FastPathResponseArgs, FastPathResponseReturn>;
-
+// TODO(isaiah): update this docstring
 /// Client has an unusual lifecycle:
 /// - connect_rdp calls Client::new(), which creates it on the heap, grabs a raw pointer, and returns in to Go.
 /// - most other exported rdp functions take the raw pointer, convert it to a reference for use
@@ -121,9 +110,6 @@ pub struct Client {
     iron_rdp_client: IronRDPClient,
     tokio_rt: tokio::runtime::Runtime,
     go_ref: usize,
-
-    next_id: RpcId,
-    pending_fp_resp_handlers: FastPathResponseCache,
 }
 
 impl Client {
@@ -136,9 +122,6 @@ impl Client {
             iron_rdp_client,
             tokio_rt,
             go_ref,
-
-            next_id: 0,
-            pending_fp_resp_handlers: HashMap::new(),
         }))
     }
 
@@ -230,28 +213,6 @@ impl Client {
         // All outputs were response frames, return None to indicate that the client should continue
         trace!("process_active_stage_result succeeded, returning None");
         None
-    }
-
-    fn next_id(&mut self) -> u32 {
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1);
-        id
-    }
-
-    async fn handle_tdp_fastpath_response(
-        &'static mut self,
-        res: FastpathResponse,
-    ) -> Option<ReadRdpOutputReturns> {
-        if let Some(handler) = self.pending_fp_resp_handlers.remove(&res.rpc_id) {
-            let args = (self, Ok(res.active_stage_outputs));
-            return handler(args).await;
-        };
-
-        Some(ReadRdpOutputReturns {
-            user_message: format!("received invalid rpc id: {}", res.rpc_id),
-            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-            err_code: CGOErrCode::ErrCodeFailure,
-        })
     }
 }
 
@@ -834,22 +795,10 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
             }
             ironrdp_pdu::Action::FastPath => {
                 let go_ref = client.go_ref;
-                let id = client.next_id();
                 match unsafe {
-                    handle_remote_fx_frame(go_ref, id, frame.as_mut_ptr(), frame.len() as u32)
+                    handle_remote_fx_frame(go_ref, frame.as_mut_ptr(), frame.len() as u32)
                 } {
-                    CGOErrCode::ErrCodeSuccess => {
-                        client.pending_fp_resp_handlers.insert(
-                            id,
-                            Box::new(|(cli, resp)| {
-                                Box::pin(async move {
-                                    {
-                                        cli.process_active_stage_result(resp).await
-                                    }
-                                })
-                            }),
-                        );
-                    }
+                    CGOErrCode::ErrCodeSuccess => continue,
                     err => {
                         error!("failed to process fastpath frame: {:?}", err);
                         return ReadRdpOutputReturns {
@@ -917,118 +866,6 @@ impl From<CGOMousePointerEvent> for PointerEvent {
                 CGOPointerWheel::PointerWheelHorizontal => PointerWheel::Horizontal,
             },
             wheel_delta: p.wheel_delta,
-        }
-    }
-}
-
-#[repr(C)]
-pub struct CGOFastpathResponse {
-    rpc_id: RpcId,
-    err_code: TdpErrCode,
-    active_stage_output_len: u32,
-    active_stage_outputs: *mut CGOActiveStageOutput,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct CGOActiveStageOutput {
-    ouput_type: CGOActiveStageOutputType,
-    response_frame_len: u32,
-    /// Only valid if output_type == ResponseFrame
-    response_frame: *mut u8,
-}
-
-impl From<CGOActiveStageOutput> for ActiveStageOutput {
-    fn from(cgo: CGOActiveStageOutput) -> ActiveStageOutput {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        unsafe {
-            match cgo.ouput_type {
-                CGOActiveStageOutputType::ResponseFrame => {
-                    let frame = from_go_array(cgo.response_frame, cgo.response_frame_len);
-                    ActiveStageOutput::ResponseFrame(frame)
-                }
-                CGOActiveStageOutputType::Terminate => ActiveStageOutput::Terminate,
-            }
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-/// Mirrors IronRDP's ActiveStageOutput enum sans the GraphicsUpdate,
-/// which is handled on the client.
-pub enum CGOActiveStageOutputType {
-    ResponseFrame = 0,
-    Terminate = 1,
-}
-
-/// FastpathResponse is sent by the TDP client to the server.
-pub struct FastpathResponse {
-    rpc_id: RpcId,
-    err_code: TdpErrCode,
-    active_stage_outputs: Vec<ActiveStageOutput>,
-}
-
-impl From<CGOFastpathResponse> for FastpathResponse {
-    fn from(cgo: CGOFastpathResponse) -> FastpathResponse {
-        // # Safety
-        //
-        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
-        // In other words, all pointer data that needs to persist after this function returns MUST
-        // be copied into Rust-owned memory.
-        unsafe {
-            let cgo_active_stage_outputs =
-                from_go_array(cgo.active_stage_outputs, cgo.active_stage_output_len);
-            let mut active_stage_outputs = vec![];
-            for cgo_active_stage_output in cgo_active_stage_outputs.into_iter() {
-                active_stage_outputs.push(ActiveStageOutput::from(cgo_active_stage_output));
-            }
-
-            FastpathResponse {
-                rpc_id: cgo.rpc_id,
-                err_code: cgo.err_code,
-                active_stage_outputs,
-            }
-        }
-    }
-}
-
-/// handle_tdp_fastpath_response handles a TDP Shared Directory Create Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_fastpath_response(
-    client_ptr: *mut Client,
-    res: CGOFastpathResponse,
-) -> CGOErrCode {
-    let res = FastpathResponse::from(res);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    trace!("taking tokio runtime handle from handle_tdp_fastpath_response");
-    match client
-        .tokio_rt
-        .handle()
-        .clone()
-        .block_on(Client::handle_tdp_fastpath_response(client, res))
-    {
-        None => CGOErrCode::ErrCodeSuccess,
-        Some(r) => {
-            error!("failed to handle Fastpath Response: {:?}", r.user_message);
-            r.err_code
         }
     }
 }
@@ -1691,12 +1528,7 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_remote_fx_frame(
-        client_ref: usize,
-        rpc_id: u32,
-        data: *mut u8,
-        len: u32,
-    ) -> CGOErrCode;
+    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
     fn tdp_sd_info_request(

@@ -637,20 +637,19 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 }
 
 //export handle_remote_fx_frame
-func handle_remote_fx_frame(handle C.uintptr_t, rpc_id C.uint32_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	// TODO(isaiah): check if C.GoBytes is a copy or not.
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
-	rpcId := uint32(rpc_id)
-	return cgo.Handle(handle).Value().(*Client).handleFastPathFrame(goData, rpcId)
+	return cgo.Handle(handle).Value().(*Client).handleFastPathFrame(goData)
 }
 
-func (c *Client) handleFastPathFrame(data []byte, rpcId uint32) C.CGOErrCode {
+func (c *Client) handleFastPathFrame(data []byte) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a png was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame{RpcId: rpcId, Data: data}); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame{Data: data}); err != nil {
 		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
 		return C.ErrCodeFailure
 	}

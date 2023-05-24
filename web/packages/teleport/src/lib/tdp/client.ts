@@ -278,10 +278,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     let decodedFastPathFrame = this.codec.decodeFastPathFrame(buffer);
 
     // Need to create the wasm-bindgen FastPathFrame to pass into Rust
-    let fastPathFrame = new FastPathFrame(
-      decodedFastPathFrame.rpcId,
-      decodedFastPathFrame.data
-    );
+    let fastPathFrame = new FastPathFrame(decodedFastPathFrame.data);
 
     this.fastPathProcessor.process(
       fastPathFrame,
