@@ -1646,7 +1646,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	// However, when Automatic Upgrades are on and cluster is part of cloud,
 	// it will use the stable/cloud channel.
-	if feats.Cloud && feats.AutomaticUpgrades {
+	if feats.Cloud {
 		repoChannel = stableCloudChannelRepo
 	}
 
