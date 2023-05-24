@@ -1504,7 +1504,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 		return nil, trace.BadParameter("public key is empty")
 	}
 	if req.TTL == 0 {
-		return nil, trace.BadParameter("TTL is not set")
+		cap, err := a.GetAuthPreference(ctx)
+		if err != nil {
+			return nil, trace.BadParameter("cert request does not specify a TTL and the cluster_auth_preference is not available: %v", err)
+		}
+		req.TTL = proto.Duration(cap.GetDefaultSessionTTL())
 	}
 	if req.TTL < 0 {
 		return nil, trace.BadParameter("TTL must be positive")
@@ -2080,10 +2084,10 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		// Adjust session TTL to the smaller of two values: the session TTL
-		// requested in tsh or the session TTL for the role.
+		// Adjust session TTL to the smaller of two values: the session TTL requested
+		// in tsh (possibly using default_session_ttl) or the session TTL for the
+		// role.
 		sessionTTL = req.checker.AdjustSessionTTL(req.ttl)
-
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
 		// that login will not be included in the list of allowed logins.

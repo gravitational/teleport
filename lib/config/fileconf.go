@@ -1204,6 +1204,9 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// DefaultSessionTTL is the default cluster max session ttl
+	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1246,6 +1249,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		DefaultSessionTTL: a.DefaultSessionTTL,
 	})
 }
 
