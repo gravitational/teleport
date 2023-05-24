@@ -139,7 +139,7 @@ func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportV
 	}
 
 	// I'm assuming that we will have few enough images returned in
-	// any given search thatits not worth setting up a fancy sorting
+	// any given search that it is not worth setting up a fancy sorting
 	// predicate
 	newestTimestamp := time.Time{}
 	newestAMI := -1
