@@ -100,14 +100,14 @@ type ProxyTemplates []*ProxyTemplate
 // Apply attempts to match the provided full hostname against all the templates
 // in the list. Returns extracted proxy and host upon encountering the first
 // matching template.
-func (t ProxyTemplates) Apply(fullHostname string) (proxy, host string, matched bool) {
+func (t ProxyTemplates) Apply(fullHostname string) (proxy, host, cluster string, matched bool) {
 	for _, template := range t {
-		proxy, host, matched := template.Apply(fullHostname)
+		proxy, host, cluster, matched := template.Apply(fullHostname)
 		if matched {
-			return proxy, host, true
+			return proxy, host, cluster, true
 		}
 	}
-	return "", "", false
+	return "", "", "", false
 }
 
 // ProxyTemplate describes a single rule for parsing out proxy address from
@@ -119,17 +119,19 @@ type ProxyTemplate struct {
 	Proxy string `yaml:"proxy"`
 	// Host is optional hostname. Can refer to regex groups from the template.
 	Host string `yaml:"host"`
+	// Cluster is optional cluster name. Can refer to regex groups from the template.
+	Cluster string `yaml:"cluster"`
 	// re is the compiled template regexp.
 	re *regexp.Regexp
 }
 
 // Check validates the proxy template.
 func (t *ProxyTemplate) Check() (err error) {
-	if strings.TrimSpace(t.Proxy) == "" {
-		return trace.BadParameter("empty proxy expression")
-	}
 	if strings.TrimSpace(t.Template) == "" {
 		return trace.BadParameter("empty proxy template")
+	}
+	if strings.TrimSpace(t.Proxy) == "" && strings.TrimSpace(t.Cluster) == "" && strings.TrimSpace(t.Host) == "" {
+		return trace.BadParameter("empty proxy, cluster, and host fields in proxy template, but at least one is required")
 	}
 	t.re, err = regexp.Compile(t.Template)
 	if err != nil {
@@ -140,19 +142,20 @@ func (t *ProxyTemplate) Check() (err error) {
 
 // Apply applies the proxy template to the provided hostname and returns
 // expanded proxy address and hostname.
-func (t ProxyTemplate) Apply(fullHostname string) (proxy, host string, matched bool) {
+func (t ProxyTemplate) Apply(fullHostname string) (proxy, host, cluster string, matched bool) {
 	match := t.re.FindAllStringSubmatchIndex(fullHostname, -1)
 	if match == nil {
-		return "", "", false
+		return "", "", "", false
 	}
 
-	expandedProxy := []byte{}
-	for _, m := range match {
-		expandedProxy = t.re.ExpandString(expandedProxy, t.Proxy, fullHostname, m)
+	if t.Proxy != "" {
+		expandedProxy := []byte{}
+		for _, m := range match {
+			expandedProxy = t.re.ExpandString(expandedProxy, t.Proxy, fullHostname, m)
+		}
+		proxy = string(expandedProxy)
 	}
-	proxy = string(expandedProxy)
 
-	host = fullHostname
 	if t.Host != "" {
 		expandedHost := []byte{}
 		for _, m := range match {
@@ -161,7 +164,15 @@ func (t ProxyTemplate) Apply(fullHostname string) (proxy, host string, matched b
 		host = string(expandedHost)
 	}
 
-	return proxy, host, true
+	if t.Cluster != "" {
+		expandedCluster := []byte{}
+		for _, m := range match {
+			expandedCluster = t.re.ExpandString(expandedCluster, t.Cluster, fullHostname, m)
+		}
+		cluster = string(expandedCluster)
+	}
+
+	return proxy, host, cluster, true
 }
 
 // loadConfig load a single config file from given path. If the path does not exist, an empty config is returned instead.
@@ -193,7 +204,7 @@ func loadAllConfigs(cf CLIConf) (*TshConfig, error) {
 
 	globalConf, err := loadConfig(globalConfigPath)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
+		return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalConfigPath)
 	}
 
 	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)
