@@ -116,7 +116,7 @@ func main() {
 	}
 }
 
-var notFound error = fmt.Errorf("Not Found")
+var notFound error = fmt.Errorf("not found")
 
 func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportVersion, edition, fips string) (string, error) {
 	resp, err := client.DescribeImages(ctx, &ec2.DescribeImagesInput{
@@ -131,7 +131,7 @@ func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportV
 	})
 
 	if err != nil {
-		return "", fmt.Errorf("Failed to query AMIs: %w", err)
+		return "", fmt.Errorf("querying AMIs: %w", err)
 	}
 
 	if len(resp.Images) == 0 {
@@ -146,7 +146,7 @@ func findLatestAMI(ctx context.Context, client *ec2.Client, accountId, teleportV
 	for i := range resp.Images {
 		creationDate, err := time.Parse(time.RFC3339, *resp.Images[i].CreationDate)
 		if err != nil {
-			return "", fmt.Errorf("failed to parse timestamp %w", err)
+			return "", fmt.Errorf("parsing timestamp: %w", err)
 		}
 
 		if creationDate.After(newestTimestamp) {
