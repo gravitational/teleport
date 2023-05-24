@@ -268,7 +268,7 @@ func TestModeratedSessions(t *testing.T) {
 			}
 			req, err := generateExecRequest(
 				generateExecRequestConfig{
-					addr:          testCtx.KubeServiceAddress(),
+					addr:          testCtx.KubeProxyAddress(),
 					podName:       podName,
 					podNamespace:  podNamespace,
 					containerName: podContainerName,
@@ -653,7 +653,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 			}
 			req, err := generateExecRequest(
 				generateExecRequestConfig{
-					addr:          testCtx.KubeServiceAddress(),
+					addr:          testCtx.KubeProxyAddress(),
 					podName:       podName,
 					podNamespace:  podNamespace,
 					containerName: podContainerName,
