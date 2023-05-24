@@ -57,6 +57,7 @@ export enum MessageType {
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
   REMOTE_FX_FRAME = 29,
+  RESPONSE_FRAME = 30,
   __LAST, // utility value
 }
 
@@ -799,6 +800,22 @@ export default class Codec {
     dataUtf8array.forEach(byte => {
       view.setUint8(offset++, byte);
     });
+
+    return buffer;
+  }
+
+  // | message type (30) | res_frame_length uint32 | res_frame []byte |
+  encodeFastPathResponseFrame(responseFrame: ArrayBuffer): Message {
+    const bufLen = byteLength + uint32Length + responseFrame.byteLength;
+    const buffer = new ArrayBuffer(bufLen);
+    const view = new DataView(buffer);
+    let offset = 0;
+
+    view.setUint8(offset, MessageType.RESPONSE_FRAME);
+    offset += byteLength;
+    view.setUint32(offset, responseFrame.byteLength);
+    offset += uint32Length;
+    new Uint8Array(buffer, offset).set(new Uint8Array(responseFrame));
 
     return buffer;
   }

@@ -228,7 +228,7 @@ impl Client {
         }
 
         // All outputs were response frames, return None to indicate that the client should continue
-        trace!("process_active_stage_result returning None");
+        trace!("process_active_stage_result succeeded, returning None");
         None
     }
 
@@ -741,6 +741,41 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     CGOErrCode::ErrCodeSuccess
 }
 
+/// handle_tdp_fast_path_response handles a TDP FastPath Response message.
+///
+/// res is the raw response message to be sent back to the RDP server, without the TDP message type or
+/// array length header.
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_fast_path_response(
+    client_ptr: *mut Client,
+    res: *mut u8,
+    res_len: u32,
+) -> CGOErrCode {
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    trace!("taking tokio runtime handle from handle_tdp_fast_path_response");
+    client.tokio_rt.handle().clone().block_on(async {
+        let res = from_go_array(res, res_len);
+        match client
+            .process_active_stage_result(Ok(vec![ActiveStageOutput::ResponseFrame(res)]))
+            .await
+        {
+            Some(ret) => ret.err_code,
+            None => CGOErrCode::ErrCodeSuccess,
+        }
+    })
+}
+
 /// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
 /// as a png and forwards them to handle_png.
 ///
@@ -1168,6 +1203,8 @@ unsafe fn from_c_string(s: *const c_char) -> String {
     CStr::from_ptr(s).to_string_lossy().into_owned()
 }
 
+/// Creates a Vec from a Go (C) array without a copy.
+///
 /// # Safety
 ///
 /// See https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html

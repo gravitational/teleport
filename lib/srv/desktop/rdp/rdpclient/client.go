@@ -340,6 +340,7 @@ func (c *Client) start() {
 
 			if atomic.LoadUint32(&c.readyForInput) == 0 {
 				// Input not allowed yet, drop the message.
+				c.cfg.Log.Warnf("Dropping TDP input message: %T", msg)
 				continue
 			}
 
@@ -578,6 +579,22 @@ func (c *Client) start() {
 						return
 					}
 				}
+			case tdp.FastPathResponse:
+				var fastPathResponseLen uint32 = uint32(len(m))
+				var fastPathResponse *C.uint8_t
+				if fastPathResponseLen > 0 {
+					fastPathResponse = (*C.uint8_t)(unsafe.Pointer(&m[0]))
+				} else {
+					c.cfg.Log.Error("FastPathResponse is empty")
+					return
+				}
+
+				if errCode := C.handle_tdp_fast_path_response(
+					c.rustClient, fastPathResponse, C.uint32_t(fastPathResponseLen),
+				); errCode != C.ErrCodeSuccess {
+					c.cfg.Log.Errorf("FastPathResponse failed: %v", errCode)
+					return
+				}
 			default:
 				c.cfg.Log.Warningf("Skipping unimplemented TDP message type %T", msg)
 			}
@@ -628,6 +645,11 @@ func handle_remote_fx_frame(handle C.uintptr_t, rpc_id C.uint32_t, data *C.uint8
 }
 
 func (c *Client) handleFastPathFrame(data []byte, rpcId uint32) C.CGOErrCode {
+	// Notify the input forwarding goroutine that we're ready for input.
+	// Input can only be sent after connection was established, which we infer
+	// from the fact that a png was sent.
+	atomic.StoreUint32(&c.readyForInput, 1)
+
 	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame{RpcId: rpcId, Data: data}); err != nil {
 		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
 		return C.ErrCodeFailure

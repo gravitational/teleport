@@ -283,25 +283,14 @@ export default class Client extends EventEmitterWebAuthnSender {
       decodedFastPathFrame.data
     );
 
-    console.log('fastPathFrame: ', fastPathFrame);
-    // Passes buffer into RdpFrameProcessor.process
-    // In there we call RdpFrameProcessor.fast_path_processor.process()
-    // for out in outputs {}:
-    //   ActiveStageOutput::GraphicsUpdate(updated_region): we imitate their send_update_rectangle.
-    //   This eventually calls a callback to a JS function which emits the TDP_BITMAP_FRAME event.
-    //
-    //   ActiveStageOutput::ResponseFrame(frame) and ActiveStageOutput::Terminate
-    //   We add each of these to a vector, they are encoded to TDP in Rust and sent to the client
-    //   via the websocket which we pass in when RdpFrameProcessor is created.
     this.fastPathProcessor.process(
       fastPathFrame,
       this,
       (bmpFrame: BitmapFrame) => {
-        console.log('emitting TDP_BITMAP_FRAME: ', bmpFrame);
-        console.log('bmpFrame.top = ', bmpFrame.top);
-        console.log('bmpFrame.left = ', bmpFrame.left);
-        console.log('bmpFrame.image_data = ', bmpFrame.image_data);
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+      },
+      (responseFrame: ArrayBuffer) => {
+        this.sendFastPathResponseFrame(responseFrame);
       }
     );
   }
@@ -619,6 +608,10 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   resize(spec: ClientScreenSpec) {
     this.send(this.codec.encodeClientScreenSpec(spec));
+  }
+
+  sendFastPathResponseFrame(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeFastPathResponseFrame(responseFrame));
   }
 
   // Emits an errType event, closing the socket if the error was fatal.

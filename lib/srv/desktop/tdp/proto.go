@@ -75,6 +75,7 @@ const (
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
 	TypeFastPathFrame                 = MessageType(29)
+	TypeFastPathResponse              = MessageType(30)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -115,6 +116,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNG2Frame(in)
 	case TypeFastPathFrame:
 		return decodeFastPathFrame(in)
+	case TypeFastPathResponse:
+		return decodeFastPathResponse(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -308,6 +311,36 @@ func (f FastPathFrame) Encode() ([]byte, error) {
 	writeUint32(buf, f.RpcId)
 	writeUint32(buf, uint32(len(f.Data)))
 	buf.Write(f.Data)
+	return buf.Bytes(), nil
+}
+
+// | message type (30) | res_frame_length uint32 | res_frame []byte |
+//
+// Whenever you see this type itself, you can assume that it's just
+// the | res_frame []byte | section of the message.
+// Calling Encode() on this type will return the full encodded message,
+// including the | message type (30) | res_frame_length uint32 | sections.
+type FastPathResponse []byte
+
+func decodeFastPathResponse(in byteReader) (FastPathResponse, error) {
+	var resFrameLength uint32
+	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
+		return FastPathResponse{}, trace.Wrap(err)
+	}
+
+	resFrame := make([]byte, resFrameLength)
+	if _, err := io.ReadFull(in, resFrame); err != nil {
+		return FastPathResponse{}, trace.Wrap(err)
+	}
+
+	return resFrame, nil
+}
+
+func (r FastPathResponse) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeFastPathResponse))
+	writeUint32(buf, uint32(len(r)))
+	buf.Write(r)
 	return buf.Bytes(), nil
 }
 

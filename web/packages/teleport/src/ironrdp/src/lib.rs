@@ -55,6 +55,7 @@ pub fn init_wasm_log(log_level: &str) {
             .init();
 
         debug!("IronRDP wasm log is ready");
+        // TODO(isaiah): is it possible to set up logging for IronRDP trace logs like so: https://github.com/Devolutions/IronRDP/blob/c71ada5783fee13eea512d5d3d8ac79606716dc5/crates/ironrdp-client/src/main.rs#L47-L78
     }
 }
 
@@ -177,12 +178,15 @@ impl FastPathProcessor {
         }
     }
 
-    // tdp_fast_path_frame = | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+    /// draw_cb: (bitmapFrame: BitmapFrame) => void
+    ///
+    /// respond_cb: (responseFrame: ArrayBuffer) => void
     pub fn process(
         &mut self,
         tdp_fast_path_frame: FastPathFrame,
-        callback_context: &JsValue,
-        callback: &js_sys::Function,
+        cb_context: &JsValue,
+        draw_cb: &js_sys::Function,
+        respond_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
         let mut output = Vec::new();
         let tdp_fast_path_frame: RustFastPathFrame = tdp_fast_path_frame.into();
@@ -205,16 +209,16 @@ impl FastPathProcessor {
         for out in fast_path_outputs {
             match out {
                 ActiveStageOutput::GraphicsUpdate(updated_region) => {
+                    // TODO(isaiah): wrap in its own function
                     let (image_location, image_data) =
                         extract_partial_image(&self.image, updated_region);
-                    self.apply_image_to_canvas(
-                        image_data,
-                        image_location,
-                        callback_context,
-                        callback,
-                    )?;
+                    self.apply_image_to_canvas(image_data, image_location, cb_context, draw_cb)?;
                 }
-                ActiveStageOutput::ResponseFrame(_) => todo!(), // TODO(isaiah): must be sent back to server over TDP
+                ActiveStageOutput::ResponseFrame(frame) => {
+                    // TODO(isaiah): wrap in its own function
+                    let frame = Uint8Array::from(frame.as_slice()); // todo(isaiah): this is a copy
+                    let _ = respond_cb.call1(cb_context, &frame.buffer())?;
+                }
                 ActiveStageOutput::Terminate => {
                     return Err(JsValue::from_str("Terminate should never be returned"));
                 }
@@ -228,7 +232,7 @@ impl FastPathProcessor {
         &self,
         image_data: Vec<u8>,
         image_location: Rectangle,
-        callback_context: &JsValue,
+        cb_context: &JsValue,
         callback: &js_sys::Function,
     ) -> Result<(), JsValue> {
         let top = image_location.top;
@@ -242,9 +246,9 @@ impl FastPathProcessor {
         };
 
         let bitmap_frame = &JsValue::from(bitmap_frame);
-        debug!("bitmap_frame: {:?}", bitmap_frame);
 
-        let _ret = callback.call1(callback_context, bitmap_frame)?;
+        // TODO(isaiah): return this?
+        let _ret = callback.call1(cb_context, bitmap_frame)?;
         Ok(())
     }
 }
