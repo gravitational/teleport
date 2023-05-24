@@ -5183,13 +5183,8 @@ message PluginBearerTokenCredentials {
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
-  // TokenFile is a path to the local file containing a bearer token.
-  // This takes precedence over Token, and is currently only used by
-  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
-  // This avoids exposing the token itself to the cluster.
-  // The file must exist and be readable on whatever runs the plugin
-  // (in the OpenAI case, it is the Proxy).
-  string token_file = 2;
+  reserved 2; // token_file
+  reserved "token_file";
 }
 
 // PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
