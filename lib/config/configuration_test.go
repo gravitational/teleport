@@ -3384,6 +3384,145 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
+func TestApplyConfig_JamfService(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Write a password file, valid configs require one.
+	const password = "supersecret!!1!"
+	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
+	require.NoError(t,
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0400),
+		"WriteFile(%q) failed", passwordFile)
+
+	minimalYAML := fmt.Sprintf(`
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: %v
+`, passwordFile)
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+		want    servicecfg.JamfConfig
+	}{
+		{
+			name: "minimal config",
+			yaml: minimalYAML,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+				},
+			},
+		},
+		{
+			name: "all fields",
+			yaml: minimalYAML + `  name: jamf2
+  sync_delay: 1m
+  exit_on_sync: true
+  inventory:
+  - filter_rsql: 1==1
+    sync_period_partial: 4h
+    sync_period_full: 48h
+    on_missing: NOOP
+  - {}`,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					Name:        "jamf2",
+					SyncDelay:   types.Duration(1 * time.Minute),
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+					Inventory: []*types.JamfInventoryEntry{
+						{
+							FilterRsql:        "1==1",
+							SyncPeriodPartial: types.Duration(4 * time.Hour),
+							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							OnMissing:         "NOOP",
+						},
+						{},
+					},
+				},
+				ExitOnSync: true,
+			},
+		},
+
+		{
+			name:    "listen_addr not supported",
+			yaml:    minimalYAML + `  listen_addr: localhost:55555`,
+			wantErr: "listen_addr",
+		},
+		{
+			name: "password_file empty",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file required",
+		},
+		{
+			name: "password_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "password_file",
+		},
+		{
+			name: "spec is validated",
+			yaml: minimalYAML + `  inventory:
+  - on_missing: BANANA`,
+			wantErr: "on_missing",
+		},
+
+		{
+			name: "absent config ignored",
+			yaml: ``,
+		},
+		{
+			name: "empty config ignored",
+			yaml: `jamf_service: {}`,
+		},
+		{
+			name: "disabled config is validated",
+			yaml: `
+jamf_service:
+  enabled: false
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(strings.NewReader(test.yaml))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(fc, cfg)
+			if test.wantErr == "" {
+				require.NoError(t, err, "ApplyFileConfig failed")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "ApplyFileConfig error mismatch")
+				return
+			}
+
+			if diff := cmp.Diff(test.want, cfg.Jamf, protocmp.Transform()); diff != "" {
+				t.Errorf("ApplyFileConfig: JamfConfig mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 

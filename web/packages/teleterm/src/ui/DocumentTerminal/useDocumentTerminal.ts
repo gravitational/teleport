@@ -42,13 +42,13 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
-  const [attempt, startTerminal] = useAsync(async () => {
+  const [attempt, runAttempt] = useAsync(async () => {
     if ('status' in doc) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
     try {
-      return await startTerminalSession(
+      return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
@@ -65,7 +65,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
   useEffect(() => {
     if (attempt.status === '') {
-      startTerminal();
+      runAttempt();
     }
 
     return () => {
@@ -73,12 +73,15 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
         attempt.data.ptyProcess.dispose();
       }
     };
+    // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
+    // Reconnect button (which happens post mount), we want to dispose this process when
+    // DocumentTerminal gets unmounted. To do this, we need to have a fresh reference to ptyProcess.
   }, [attempt]);
 
-  return { attempt, reconnect: startTerminal };
+  return { attempt, initializePtyProcess: runAttempt };
 }
 
-async function startTerminalSession(
+async function initializePtyProcess(
   ctx: IAppContext,
   logger: Logger,
   documentsService: DocumentsService,
@@ -261,6 +264,8 @@ async function setUpPtyProcess(
     documentsService.update(doc.uri, { initCommand: undefined });
   };
 
+  // We don't need to clean up the listeners added on ptyProcess in this function. The effect which
+  // calls setUpPtyProcess automatically disposes of the process on cleanup, removing all listeners.
   ptyProcess.onOpen(() => {
     refreshTitle();
     removeInitCommand();
@@ -277,6 +282,12 @@ async function setUpPtyProcess(
 
   // mark document as connected when first data arrives
   ptyProcess.onData(() => markDocumentAsConnectedOnce());
+
+  ptyProcess.onStartError(() => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'error' });
+    }
+  });
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
@@ -374,13 +385,13 @@ function createCmd(
     }
 
     // Below we convert cliCommand fields from Go conventions to Node.js conventions.
-    const args = tshdGateway.getCliCommandArgs(gateway.cliCommand);
-    const env = tshdGateway.getCliCommandEnv(gateway.cliCommand);
+    const args = tshdGateway.getCliCommandArgs(gateway.gatewayCliCommand);
+    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
     // We must not use argsList[0] as the path. Windows expects the executable to end with `.exe`,
     // so if we passed just `psql` here, we wouldn't be able to start the process.
     //
     // Instead, let's use the absolute path resolved by Go.
-    const path = gateway.cliCommand.path;
+    const path = gateway.gatewayCliCommand.path;
 
     return {
       kind: 'pty.gateway-cli-client',
