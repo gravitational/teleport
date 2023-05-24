@@ -349,6 +349,7 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, app
 		Created:      s.c.Clock.Now(),
 		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
 		AppSessionID: identity.RouteToApp.SessionID,
+		HostID:       s.c.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)

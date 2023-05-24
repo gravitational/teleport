@@ -15,8 +15,9 @@
 package enroll
 
 var (
-	CollectDeviceData = &collectDeviceData
-	EnrollInit        = &enrollInit
-	GetOSType         = &getOSType
-	SignChallenge     = &signChallenge
+	CollectDeviceData       = &collectDeviceData
+	EnrollInit              = &enrollInit
+	GetOSType               = &getOSType
+	SignChallenge           = &signChallenge
+	SolveTPMEnrollChallenge = &solveTPMEnrollChallenge
 )

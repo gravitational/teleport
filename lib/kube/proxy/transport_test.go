@@ -160,8 +160,10 @@ func TestForwarderClusterDialer(t *testing.T) {
 		want          reversetunnel.DialParams
 	}{
 		{
-			name:          "local site",
-			dialerCreator: f.localClusterDialer,
+			name: "local site",
+			dialerCreator: func(kubeClusterName string) dialContextFunc {
+				return f.localClusterDialer(kubeClusterName)
+			},
 			want: reversetunnel.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",

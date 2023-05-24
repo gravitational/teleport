@@ -29,7 +29,7 @@ export function ConversationTitle() {
     );
 
     if (conversation) {
-      return <> - {conversation.title}</>;
+      return <>{conversation.title}</>;
     }
   }
 

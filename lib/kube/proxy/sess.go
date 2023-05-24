@@ -1192,6 +1192,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		Created:           s.forwarder.cfg.Clock.Now(),
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
+		HostID:            s.forwarder.cfg.HostID,
 	}
 
 	s.log.Debug("Creating session tracker")

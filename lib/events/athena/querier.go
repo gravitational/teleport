@@ -113,43 +113,39 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time,
-	eventTypes []string, limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: eventTypes}
+func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	filter := searchEventsFilter{eventTypes: req.EventTypes}
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
-		fromUTC:   fromUTC,
-		toUTC:     toUTC,
-		limit:     limit,
-		order:     order,
-		startKey:  startKey,
+		fromUTC:   req.From.UTC(),
+		toUTC:     req.To.UTC(),
+		limit:     req.Limit,
+		order:     req.Order,
+		startKey:  req.StartKey,
 		filter:    filter,
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
 }
 
-func (q *querier) SearchSessionEvents(ctx context.Context, fromUTC, toUTC time.Time, limit int,
-	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
-) ([]apievents.AuditEvent, string, error) {
+func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if cond != nil {
-		condFn, err := utils.ToFieldsCondition(cond)
+	if req.Cond != nil {
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
-		fromUTC:   fromUTC,
-		toUTC:     toUTC,
-		limit:     limit,
-		order:     order,
-		startKey:  startKey,
+		fromUTC:   req.From.UTC(),
+		toUTC:     req.To.UTC(),
+		limit:     req.Limit,
+		order:     req.Order,
+		startKey:  req.StartKey,
 		filter:    filter,
-		sessionID: sessionID,
+		sessionID: req.SessionID,
 	})
 	return events, keyset, trace.Wrap(err)
 }
