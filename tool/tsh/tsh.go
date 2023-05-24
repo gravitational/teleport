@@ -3258,11 +3258,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
-	}
-
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost

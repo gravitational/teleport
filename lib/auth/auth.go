@@ -1887,10 +1887,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		// Adjust session TTL to the smaller of two values: the session TTL
-		// requested in tsh or the session TTL for the role.
+		// Adjust session TTL to the smaller of two values: the session TTL requested
+		// in tsh (possibly using default_session_ttl) or the session TTL for the
+		// role.
 		sessionTTL = req.checker.AdjustSessionTTL(req.ttl)
-
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
 		// that login will not be included in the list of allowed logins.

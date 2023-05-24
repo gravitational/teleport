@@ -785,7 +785,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, time.Duration(0), tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5

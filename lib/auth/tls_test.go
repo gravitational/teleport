@@ -2170,6 +2170,10 @@ func TestGenerateCerts(t *testing.T) {
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
+		authPref, err := srv.Auth().GetAuthPreference(ctx)
+		require.NoError(t, err)
+		authPref.SetDefaultSessionTTL(types.Duration(maxSessionTTL))
+		srv.Auth().SetAuthPreference(ctx, authPref)
 		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
