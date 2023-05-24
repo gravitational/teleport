@@ -50,16 +50,16 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-// Scheme is our own test-specific scheme to avoid using the global
+// scheme is our own test-specific scheme to avoid using the global
 // unprotected scheme.Scheme that triggers the race detector
-var Scheme = apiruntime.NewScheme()
+var scheme = apiruntime.NewScheme()
 
 func init() {
-	utilruntime.Must(v1.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv1.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv2.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv3.AddToScheme(Scheme))
-	utilruntime.Must(resourcesv5.AddToScheme(Scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv2.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
+	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 }
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
@@ -178,7 +178,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
-		Scheme:             Scheme,
+		Scheme:             scheme,
 		MetricsBindAddress: "0",
 	})
 	require.NoError(t, err)
@@ -277,7 +277,7 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: Scheme})
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme})
 	require.NoError(t, err)
 	require.NotNil(t, k8sClient)
 
