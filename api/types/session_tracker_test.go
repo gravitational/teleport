@@ -26,6 +26,7 @@ import (
 
 func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 	clock := clockwork.NewFakeClock()
+	now := clock.Now().UTC()
 
 	s, err := NewSessionTracker(SessionTrackerSpecV1{
 		SessionID: "123",
@@ -34,32 +35,30 @@ func TestSessionTrackerV1_UpdatePresence(t *testing.T) {
 				ID:         "1",
 				User:       "llama",
 				Mode:       string(SessionPeerMode),
-				LastActive: clock.Now().UTC(),
+				LastActive: now,
 			},
 			{
 				ID:         "2",
 				User:       "fish",
 				Mode:       string(SessionModeratorMode),
-				LastActive: clock.Now().UTC(),
+				LastActive: now,
 			},
 		},
 	})
 	require.NoError(t, err)
 
 	// Presence cannot be updated for a non-existent user
-	err = s.UpdatePresence("alpaca", clock.Now().UTC().Add(time.Hour))
+	err = s.UpdatePresence("alpaca", now.Add(time.Hour))
 	require.ErrorIs(t, err, trace.NotFound("participant alpaca not found"))
 
 	// Update presence for just the user fish
-	require.NoError(t, s.UpdatePresence("fish", clock.Now().UTC().Add(time.Hour)))
+	require.NoError(t, s.UpdatePresence("fish", now.Add(time.Hour)))
 
-	// Verify that user llama still has a LastActive time matching the
-	// fake clock used by the test but that user fish has their LastActive
-	// time modified
+	// Verify that llama has not been active but that fish was
 	for _, participant := range s.GetParticipants() {
-		lastActive := clock.Now().UTC()
+		lastActive := now
 		if participant.User == "fish" {
-			lastActive = clock.Now().UTC().Add(time.Hour)
+			lastActive = lastActive.Add(time.Hour)
 		}
 
 		assert.Equal(t, lastActive, participant.LastActive)
