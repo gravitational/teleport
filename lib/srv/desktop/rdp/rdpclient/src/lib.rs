@@ -51,7 +51,6 @@ extern crate num_derive;
 
 use bytes::BytesMut;
 use errors::try_error;
-use futures_util::Future;
 use ironrdp_pdu::input::fast_path::{FastPathInput, FastPathInputEvent};
 use ironrdp_pdu::input::mouse::PointerFlags;
 use ironrdp_pdu::input::MousePdu;
@@ -93,16 +92,19 @@ impl IronRDPClient {
     }
 }
 
-// TODO(isaiah): update this docstring
 /// Client has an unusual lifecycle:
-/// - connect_rdp calls Client::new(), which creates it on the heap, grabs a raw pointer, and returns in to Go.
-/// - most other exported rdp functions take the raw pointer, convert it to a reference for use
-///   without dropping the Client
-/// - free_rdp takes the raw pointer and drops it
+/// - The function connect_rdp calls Client::new(), which creates it on the heap (Box::new), grabs a raw pointer(Box::into_raw),
+///   and returns in to Go.
+/// - Most other exported rdp functions (pub unsafe extern "C") take the raw pointer and convert it (Box::leak(Box::from_raw(ptr)))
+///   to a reference (&'static mut Client), which can then be used without dropping the client.
+/// - The function free_rdp takes the raw pointer and drops it.
 ///
-/// All of the exported rdp functions could run concurrently, so the rdp_client is synchronized.
-/// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
-/// synchronization.
+/// The Client makes use of asynchronous rust via the tokio runtime. A single runtime is created in connect_rdp and held on to by the
+/// Client. The exported rdp functions which need to call async rust functions start with `client.tokio_rt.handle().clone().block_on( ... )`,
+/// which creates a new task on the tokio runtime and blocks the current thread until it completes. Since these functions are called from
+/// Go, the "current thread" can be thought of as whichever goroutine the exported rdp function is called from. Because the client might
+/// be being used by multiple goroutines concurrently, it is up to the programmer to consider any synchronization mechanisms that might
+/// need to be implemented as features are added to the Client going forward.
 pub struct Client {
     iron_rdp_client: IronRDPClient,
     tokio_rt: tokio::runtime::Runtime,
@@ -122,7 +124,7 @@ impl Client {
         }))
     }
 
-    unsafe fn from_ptr(ptr: *mut Self) -> Result<&'static mut Client, CGOErrCode> {
+    unsafe fn from_raw(ptr: *mut Self) -> Result<&'static mut Client, CGOErrCode> {
         match ptr.as_ref() {
             None => {
                 error!("invalid Rust client pointer");
@@ -252,7 +254,7 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
             show_desktop_wallpaper: params.show_desktop_wallpaper,
         },
     ) {
-        Ok(mut client) => ClientOrError {
+        Ok(client) => ClientOrError {
             client,
             err: CGOErrCode::ErrCodeSuccess,
         },
@@ -714,14 +716,13 @@ pub unsafe extern "C" fn handle_tdp_fast_path_response(
     res: *mut u8,
     res_len: u32,
 ) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
+    let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
             return cgo_error;
         }
     };
 
-    trace!("taking tokio runtime handle from handle_tdp_fast_path_response");
     client.tokio_rt.handle().clone().block_on(async {
         let res = from_go_array(res, res_len);
         match client
@@ -743,7 +744,7 @@ pub unsafe extern "C" fn handle_tdp_fast_path_response(
 /// `handle_png` *must not* free the memory of CGOPNG.
 #[no_mangle]
 pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
-    let client = match Client::from_ptr(client_ptr) {
+    let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
             return ReadRdpOutputReturns {
@@ -755,7 +756,6 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
         }
     };
 
-    trace!("taking tokio runtime handle from read_rdp_output");
     client
         .tokio_rt
         .handle()
@@ -876,7 +876,7 @@ pub unsafe extern "C" fn write_rdp_pointer(
     client_ptr: *mut Client,
     pointer: CGOMousePointerEvent,
 ) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
+    let client = match Client::from_raw(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
             return cgo_error;
@@ -921,7 +921,6 @@ pub unsafe extern "C" fn write_rdp_pointer(
     let input_pdu = FastPathInput(fastpath_events);
     input_pdu.to_buffer(&mut data).unwrap();
 
-    trace!("taking tokio runtime handle from write_rdp_pointer");
     client.tokio_rt.handle().clone().block_on(async {
         // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
         client.write_all(&data).await.unwrap(); // todo(isaiah): handle error
