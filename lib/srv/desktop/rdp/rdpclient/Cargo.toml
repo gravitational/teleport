@@ -33,12 +33,11 @@ tokio-rustls =  { version = "0.23", features = ["dangerous_configuration"] }
 x509-parser = "0.14"
 sspi = { version = "0.8.1", features = ["network_client"] }
 
-# IronRDP commit hash 89edebf152ff5f32471ba53523c145efe027bc3a
-ironrdp-connector = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-connector" }
-ironrdp-tls = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tls" }
-ironrdp-session = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-session" }
-ironrdp-pdu = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-pdu" }
-ironrdp-tokio = { path = "/Users/ibeckermayer/Devolutions/IronRDP/crates/ironrdp-tokio" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
 
 [build-dependencies]
 cbindgen = "0.24.3"

@@ -5,7 +5,9 @@ extern crate log;
 extern crate byteorder;
 extern crate bytes;
 extern crate console_log;
-extern crate ironrdp;
+extern crate ironrdp_graphics;
+extern crate ironrdp_pdu;
+extern crate ironrdp_session;
 extern crate js_sys;
 extern crate tracing;
 extern crate tracing_subscriber;
@@ -13,10 +15,10 @@ extern crate tracing_web;
 extern crate wasm_bindgen;
 extern crate web_sys;
 
-use ironrdp::graphics::image_processing::PixelFormat;
-use ironrdp::pdu::geometry::Rectangle;
-use ironrdp::session::image::DecodedImage;
-use ironrdp::session::{
+use ironrdp_graphics::image_processing::PixelFormat;
+use ironrdp_pdu::geometry::Rectangle;
+use ironrdp_session::image::DecodedImage;
+use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
     fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder, ActiveStageOutput,
 };
