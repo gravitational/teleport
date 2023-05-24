@@ -649,7 +649,7 @@ func (c *Client) handleFastPathFrame(data []byte) C.CGOErrCode {
 	// from the fact that a png was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame{Data: data}); err != nil {
+	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame(data)); err != nil {
 		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
 		return C.ErrCodeFailure
 	}

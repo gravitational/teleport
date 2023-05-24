@@ -16,11 +16,7 @@ import Logger from 'shared/libs/logger';
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 
-import init, {
-  init_wasm_log,
-  FastPathProcessor,
-  FastPathFrame,
-} from 'teleport/ironrdp/pkg';
+import init, { init_wasm_log, FastPathProcessor } from 'teleport/ironrdp/pkg';
 
 import Codec, {
   MessageType,
@@ -275,10 +271,7 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleFastPathFrame(buffer: ArrayBuffer) {
-    let decodedFastPathFrame = this.codec.decodeFastPathFrame(buffer);
-
-    // Need to create the wasm-bindgen FastPathFrame to pass into Rust
-    let fastPathFrame = new FastPathFrame(decodedFastPathFrame.data);
+    let fastPathFrame = this.codec.decodeFastPathFrame(buffer);
 
     this.fastPathProcessor.process(
       fastPathFrame,

@@ -64,7 +64,6 @@ use rdp::model::error::{Error as RdpError, RdpResult};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString, NulError};
 use std::fmt::Debug;
@@ -72,10 +71,8 @@ use std::io::Cursor;
 use std::io::{self, Error as IoError};
 use std::net::ToSocketAddrs;
 use std::os::raw::c_char;
-use std::pin::Pin;
 use std::{mem, ptr, slice, time};
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::sync::oneshot::error;
 
 #[no_mangle]
 pub extern "C" fn init() {

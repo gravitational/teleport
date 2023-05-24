@@ -273,16 +273,20 @@ func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // FastPathFrame is a RemoteFX frame message
+//
 // | message type (29) | data_length uint32 | data []byte |
-type FastPathFrame struct {
-	Data []byte
-}
+//
+// Whenever you see this type itself, you can assume that it's just
+// the | data []byte | part of the message. Calling Encode() on this
+// type will return the full encoded message, including the
+// | message type (29) | data_length uint32 | parts.
+type FastPathFrame []byte
 
 func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 	// Read PNG length so we can allocate buffer that will fit FastPathFrame message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
-		return FastPathFrame{}, trace.Wrap(err)
+		return FastPathFrame(nil), trace.Wrap(err)
 	}
 
 	// Allocate buffer that will fit the data
@@ -290,28 +294,28 @@ func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 
 	// Write the data into the buffer
 	if _, err := io.ReadFull(in, data); err != nil {
-		return FastPathFrame{}, trace.Wrap(err)
+		return FastPathFrame(nil), trace.Wrap(err)
 	}
 
-	return FastPathFrame{
-		Data: data,
-	}, nil
+	return FastPathFrame(data), nil
 }
 
 func (f FastPathFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeFastPathFrame))
-	writeUint32(buf, uint32(len(f.Data)))
-	buf.Write(f.Data)
+	writeUint32(buf, uint32(len(f)))
+	buf.Write(f)
 	return buf.Bytes(), nil
 }
 
-// | message type (30) | res_frame_length uint32 | res_frame []byte |
+// FastPathResponse is a fast path response message.
+//
+// | message type (30) | data_length uint32 | data []byte |
 //
 // Whenever you see this type itself, you can assume that it's just
-// the | res_frame []byte | section of the message.
-// Calling Encode() on this type will return the full encodded message,
-// including the | message type (30) | res_frame_length uint32 | sections.
+// the | data []byte | section of the message. Calling Encode() on
+// this type will return the full encoded message, including the
+// | message type (30) | data_length uint32 | parts.
 type FastPathResponse []byte
 
 func decodeFastPathResponse(in byteReader) (FastPathResponse, error) {
