@@ -53,11 +53,6 @@ export class PtyCreate extends jspb.Message {
     getCwd(): string;
     setCwd(value: string): PtyCreate;
 
-    hasInitCommand(): boolean;
-    clearInitCommand(): void;
-    getInitCommand(): string | undefined;
-    setInitCommand(value: string): PtyCreate;
-
     hasEnv(): boolean;
     clearEnv(): void;
     getEnv(): google_protobuf_struct_pb.Struct | undefined;
@@ -78,7 +73,6 @@ export namespace PtyCreate {
         path: string,
         argsList: Array<string>,
         cwd: string,
-        initCommand?: string,
         env?: google_protobuf_struct_pb.Struct.AsObject,
     }
 }
