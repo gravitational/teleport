@@ -105,6 +105,8 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 	switch dev.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		cred, err = c.enrollDeviceMacOS(initReq, dev, stream)
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		cred, err = c.enrollDeviceTPM(initReq, dev, stream)
 	default:
 		return dev, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
 	}
@@ -133,7 +135,7 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 		Id:           initReq.CredentialId,
 		PublicKeyDer: initReq.Macos.GetPublicKeyDer(),
 	}
-	pubKey, err := storage.ValidateDeviceCredential(cred)
+	pubKey, err := storage.ValidateDeviceCredential(cred, dev.OsType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -149,10 +151,10 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	case ecKey.Curve != elliptic.P256():
 		c.logger.
 			WithFields(log.Fields{
-				"DeviceID":     dev.Id,
-				"AssetTag":     dev.AssetTag,
-				"CredentialID": cred.Id,
-				"Curve":        ecKey.Curve,
+				"device_id":     dev.Id,
+				"asset_tag":     dev.AssetTag,
+				"credential_id": cred.Id,
+				"curve":         ecKey.Curve,
 			}).
 			Warn("Unexpected macOS public key curve found, is the device genuine?")
 		// TODO(codingllama): Forbid unexpected macOS key curve?

@@ -2194,7 +2194,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 			deviceID: dev.Id,
 			createCred: func() *devicepb.DeviceCredential {
 				cp := proto.Clone(validCred).(*devicepb.DeviceCredential)
-				cp.Id = strings.Repeat("A", 41)
+				cp.Id = strings.Repeat("A", 70)
 				return cp
 			},
 			createCD:  func() *devicepb.DeviceCollectedData { return validCD },

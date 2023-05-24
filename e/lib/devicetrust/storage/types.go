@@ -4,8 +4,11 @@ import "time"
 
 // storedDeviceCredential represents a devicepb.DeviceCredential in storage.
 type storedDeviceCredential struct {
-	ID           string `json:"id"`             // Required.
-	PublicKeyDER []byte `json:"public_key_der"` // Required.
+	ID                    string `json:"id"`                      // Required.
+	PublicKeyDER          []byte `json:"public_key_der"`          // Required on macos.
+	DeviceAttestationType int    `json:"device_attestation_type"` // Required. Same as devicepb.DeviceAttestationType.
+	TPMEKCertSerial       string `json:"tpm_ekcert_serial"`       // Optional.
+	TPMAKPublic           []byte `json:"tpm_ak_public"`           // Required on windows/linux.
 }
 
 // storedDevice (partially) represents a devicepb.Device in storage.
@@ -63,6 +66,9 @@ type storedCollectedData struct {
 	OSUsername              string              `json:"os_username,omitempty"`               // Optional.
 	JamfBinaryVersion       string              `json:"jamf_binary_version,omitempty"`       // Optional.
 	MacOSEnrollmentProfiles string              `json:"macos_enrollment_profiles,omitempty"` // Optional.
+	ReportedAssetTag        string              `json:"reported_asset_tag,omitempty"`        // Optional.
+	SystemSerialNumber      string              `json:"system_serial_number,omitempty"`      // Optional.
+	BaseBoardSerialNumber   string              `json:"base_board_serial_number,omitempty"`  // Optional.
 }
 
 // storedDeviceSource represents a devicepb.DeviceSource in storage.

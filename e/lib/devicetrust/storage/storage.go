@@ -269,8 +269,11 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	// DeviceCredential.
 	if cred := d.Credential; cred != nil {
 		storedDev.Credential = &storedDeviceCredential{
-			ID:           cred.Id,
-			PublicKeyDER: cred.PublicKeyDer,
+			ID:                    cred.Id,
+			PublicKeyDER:          cred.PublicKeyDer,
+			DeviceAttestationType: int(cred.DeviceAttestationType),
+			TPMEKCertSerial:       cred.TpmEkcertSerial,
+			TPMAKPublic:           cred.TpmAkPublic,
 		}
 	}
 
@@ -284,9 +287,9 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
 	logger := s.logger.WithFields(log.Fields{
-		"DeviceID": ref.DeviceID,
-		"OSType":   ref.OSType,
-		"AssetTag": assetTag,
+		"device_id": ref.DeviceID,
+		"os_type":   ref.OSType,
+		"asset_tag": assetTag,
 	})
 
 	assetTagKey := devicesByAssetTagKey(assetTag)
@@ -363,9 +366,9 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 			// We either found a hanging mapping or there is a race on CreateDevice.
 			// Let both tags be, admins can clear duplicate devices manually.
 			s.logger.WithFields(log.Fields{
-				"AssetTag":   deviceIDFromKey(current.Key),
-				"ExistingID": existing.DeviceID,
-				"NewID":      ref.DeviceID,
+				"asset_tag":   deviceIDFromKey(current.Key),
+				"existing_id": existing.DeviceID,
+				"new_id":      ref.DeviceID,
 			}).Warn("Found possible duplicate on asset tag mapping")
 		}
 	}
@@ -495,8 +498,8 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
-				"DeviceID": deviceID,
-				"AssetTag": dev.AssetTag,
+				"device_id": deviceID,
+				"asset_tag": dev.AssetTag,
 			}).
 			Warn("Failed to remove asset tag mapping for device")
 		// err swallowed on purpose.
@@ -507,8 +510,8 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
-				"DeviceID": deviceID,
-				"AssetTag": dev.AssetTag,
+				"device_id": deviceID,
+				"asset_tag": dev.AssetTag,
 			}).
 			Warn("Failed to remove enroll token for device")
 		// err swallowed on purpose.
@@ -519,8 +522,8 @@ func (s *S) DeleteDevicePredicate(ctx context.Context, deviceID string, p func(d
 		s.logger.
 			WithError(err).
 			WithFields(log.Fields{
-				"DeviceID": deviceID,
-				"AssetTag": dev.AssetTag,
+				"device_id": deviceID,
+				"asset_tag": dev.AssetTag,
 			}).
 			Warn("Failed to remove collected data for device")
 		// err swallowed on purpose.
@@ -887,7 +890,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 				if err != nil {
 					s.logger.
 						WithError(err).
-						WithField("deviceID", dev.Id).
+						WithField("device_id", dev.Id).
 						Warn("Failed to fetch collected data for device")
 					return nil // err swallowed on purpose
 				}
@@ -939,9 +942,6 @@ func deviceIDFromPageToken(pageToken string) (string, error) {
 func (s *S) EnrollDevice(
 	ctx context.Context,
 	deviceID string, cred *devicepb.DeviceCredential, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
-	if _, err := ValidateDeviceCredential(cred); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := ValidateCollectedData(cd); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -953,14 +953,20 @@ func (s *S) EnrollDevice(
 	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if _, err := ValidateDeviceCredential(cred, dev.OsType); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Marshal new device first, so we can exit in the off chance it errors.
 	now := s.nowUTC()
 	stored.UpdateTime = now
 	stored.EnrollStatus = int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED)
 	stored.Credential = &storedDeviceCredential{
-		ID:           cred.Id,
-		PublicKeyDER: cred.PublicKeyDer,
+		ID:                    cred.Id,
+		PublicKeyDER:          cred.PublicKeyDer,
+		DeviceAttestationType: int(cred.DeviceAttestationType),
+		TPMEKCertSerial:       cred.TpmEkcertSerial,
+		TPMAKPublic:           cred.TpmAkPublic,
 	}
 	val, err := json.Marshal(stored)
 	if err != nil {
@@ -973,8 +979,8 @@ func (s *S) EnrollDevice(
 	if err := s.backend.DeleteRange(ctx, cdKeyStart, backend.RangeEnd(cdKeyStart)); err != nil {
 		s.logger.
 			WithFields(log.Fields{
-				"DeviceID": dev.Id,
-				"AssetTag": dev.AssetTag,
+				"device_id": dev.Id,
+				"asset_tag": dev.AssetTag,
 			}).
 			WithError(err).
 			Warn("" +
@@ -1047,8 +1053,8 @@ func validateCollectedDataDriftQueried(logger *log.Entry, dev *devicepb.Device, 
 	if l == 0 {
 		logger.
 			WithFields(log.Fields{
-				"DeviceID": dev.Id,
-				"AssetTag": dev.AssetTag,
+				"device_id": dev.Id,
+				"asset_tag": dev.AssetTag,
 			}).
 			Warn("Found no collected data entries for device. Skipping collected data drift validation.")
 		return nil
@@ -1095,7 +1101,7 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 	if err := s.clearCollectedDataIfNeeded(ctx, deviceID); err != nil {
 		s.logger.
 			WithError(err).
-			WithField("deviceID", deviceID).
+			WithField("device_id", deviceID).
 			Warn("Failed to clear collected data for device")
 		// err swallowed on purpose, new data is already written.
 	}
@@ -1336,8 +1342,11 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 	var cred *devicepb.DeviceCredential
 	if c := sd.Credential; c != nil {
 		cred = &devicepb.DeviceCredential{
-			Id:           c.ID,
-			PublicKeyDer: c.PublicKeyDER,
+			Id:                    c.ID,
+			PublicKeyDer:          c.PublicKeyDER,
+			DeviceAttestationType: devicepb.DeviceAttestationType(c.DeviceAttestationType),
+			TpmEkcertSerial:       c.TPMEKCertSerial,
+			TpmAkPublic:           c.TPMAKPublic,
 		}
 	}
 
@@ -1381,11 +1390,14 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 
 func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time, createAsResource bool) *storedCollectedData {
 	storedCD := &storedCollectedData{
-		Origin:       origin,
-		CollectTime:  cd.CollectTime.AsTime(),
-		RecordTime:   recordTime,
-		OSType:       int(cd.OsType),
-		SerialNumber: cd.SerialNumber,
+		Origin:                origin,
+		CollectTime:           cd.CollectTime.AsTime(),
+		RecordTime:            recordTime,
+		OSType:                int(cd.OsType),
+		SerialNumber:          cd.SerialNumber,
+		ReportedAssetTag:      cd.ReportedAssetTag,
+		SystemSerialNumber:    cd.SystemSerialNumber,
+		BaseBoardSerialNumber: cd.BaseBoardSerialNumber,
 	}
 
 	if dtent.MDMFeatureActive {
@@ -1420,6 +1432,9 @@ func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollecte
 		OsUsername:              stored.OSUsername,
 		JamfBinaryVersion:       stored.JamfBinaryVersion,
 		MacosEnrollmentProfiles: stored.MacOSEnrollmentProfiles,
+		ReportedAssetTag:        stored.ReportedAssetTag,
+		SystemSerialNumber:      stored.SystemSerialNumber,
+		BaseBoardSerialNumber:   stored.BaseBoardSerialNumber,
 	}
 }
 

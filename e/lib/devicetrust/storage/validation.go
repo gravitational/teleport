@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/go-attestation/attest"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/mod/semver"
@@ -18,7 +19,7 @@ import (
 
 const (
 	deviceIDLength              = 36 // aka an UUID, anything else is unexpected.
-	maxCredentialIDLength       = 40 // UUID is 36 chars.
+	maxCredentialIDLength       = 64 // UUID is 36 chars, TPM AK hash is 64 chars.
 	maxDeviceAssetTagLength     = 40 // macOS serial is 12 chars, UUID is 36 chars.
 	maxDeviceSerialNumberLength = maxDeviceAssetTagLength
 
@@ -37,7 +38,8 @@ const (
 // The storage package is ultimately responsible for making sure data written to
 // storage is valid, but this function is exposed to allow for early failures in
 // multi-step ceremonies, such as device enrollment.
-func ValidateDeviceCredential(cred *devicepb.DeviceCredential) (crypto.PublicKey, error) {
+func ValidateDeviceCredential(cred *devicepb.DeviceCredential, os devicepb.OSType) (crypto.PublicKey, error) {
+	isTPM := (os == devicepb.OSType_OS_TYPE_WINDOWS || os == devicepb.OSType_OS_TYPE_LINUX)
 	switch {
 	case cred == nil:
 		return nil, trace.BadParameter("device credential required")
@@ -45,9 +47,20 @@ func ValidateDeviceCredential(cred *devicepb.DeviceCredential) (crypto.PublicKey
 		return nil, trace.BadParameter("credential ID required")
 	case len(cred.Id) > maxCredentialIDLength:
 		return nil, trace.BadParameter("credential ID exceeds %v characters", maxCredentialIDLength)
-	case len(cred.PublicKeyDer) == 0:
+	case os == devicepb.OSType_OS_TYPE_MACOS && len(cred.PublicKeyDer) == 0:
 		return nil, trace.BadParameter("credential public key required")
+	case isTPM && len(cred.TpmAkPublic) == 0:
+		return nil, trace.BadParameter("credential TPM AK public required")
 	}
+
+	if isTPM {
+		akPub, err := attest.ParseAKPublic(attest.TPMVersion20, cred.TpmAkPublic)
+		if err != nil {
+			return nil, trace.BadParameter("invalid TPM credential public key DER")
+		}
+		return akPub.Public, nil
+	}
+
 	pubKey, err := x509.ParsePKIXPublicKey(cred.PublicKeyDer)
 	if err != nil {
 		return nil, trace.BadParameter("invalid credential public key DER")
@@ -260,7 +273,7 @@ func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 
 	// DeviceCredential.
 	if d.Credential != nil {
-		if _, err := ValidateDeviceCredential(d.Credential); err != nil {
+		if _, err := ValidateDeviceCredential(d.Credential, d.OsType); err != nil {
 			return trace.Wrap(err)
 		}
 	}

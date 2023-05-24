@@ -674,8 +674,8 @@ func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
 	var fields log.Fields
 	if dev != nil {
 		fields = log.Fields{
-			"DeviceID": dev.Id,
-			"AssetTag": dev.AssetTag,
+			"device_id": dev.Id,
+			"asset_tag": dev.AssetTag,
 		}
 	}
 	s.logger.

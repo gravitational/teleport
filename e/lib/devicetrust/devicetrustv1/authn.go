@@ -99,8 +99,8 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 	case dev.Credential == nil:
 		c.logger.
 			WithFields(log.Fields{
-				"DeviceID": dev.Id,
-				"AssetTag": dev.AssetTag,
+				"device_id": dev.Id,
+				"asset_tag": dev.AssetTag,
 			}).
 			Error("Internal: Enrolled device has nil credential")
 		return nil, trace.Wrap(errors.New("device has no registered credential"))
