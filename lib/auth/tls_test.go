@@ -3289,11 +3289,22 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	err = adminClt.UpsertClusterAlert(ctx, alert2)
 	require.NoError(t, err)
 
-	// verify that admin client can see all alerts
-	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	// verify that admin client can see all alerts due to resource-level permissions
+	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: true,
+	})
 	require.NoError(t, err)
 	require.Len(t, alerts, 2)
 	expectAlerts(alerts, "alert-1", "alert-2")
+
+	// verify that WithUntargeted=false admin only observes the alert that specifies
+	// that it should be shown to all
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: false,
+	})
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+	expectAlerts(alerts, "alert-2")
 
 	// verify that some other client with no alert-specific permissions can
 	// see the "permit-all" subset of alerts (using role node here, but any
@@ -3302,10 +3313,16 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	require.NoError(t, err)
 	defer otherClt.Close()
 
-	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-	require.NoError(t, err)
-	require.Len(t, alerts, 1)
-	expectAlerts(alerts, "alert-2")
+	// untargeted and targeted should result in the same behavior since otherClt
+	// does not have resource-level permissions for the cluster_alert type.
+	for _, untargeted := range []bool{true, false} {
+		alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+			WithUntargeted: untargeted,
+		})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+		expectAlerts(alerts, "alert-2")
+	}
 
 	// verify that we still reject unauthenticated clients
 	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
@@ -3336,11 +3353,21 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	err = adminClt.UpsertClusterAlert(ctx, alert4)
 	require.NoError(t, err)
 
-	// verify that admin client can see all alerts
-	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	// verify that admin client can see all alerts in untargeted read mode
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: true,
+	})
 	require.NoError(t, err)
 	require.Len(t, alerts, 4)
 	expectAlerts(alerts, "alert-1", "alert-2", "alert-3", "alert-4")
+
+	// verify that admin client can see all targeted alerts in targeted mode
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: false,
+	})
+	require.NoError(t, err)
+	require.Len(t, alerts, 3)
+	expectAlerts(alerts, "alert-2", "alert-3", "alert-4")
 
 	// verify that node client can only see one of the two new alerts
 	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
