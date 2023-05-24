@@ -172,6 +172,23 @@ Teleport container images are no longer being published to it.
 
 Users should use the public ECR registry: https://goteleport.com/docs/installation/#docker.
 
+#### Helm chart uses `distroless`-based container image by default
+
+Starting with Teleport 13, the Helm charts `teleport-cluster` and `teleport-kube-agent`
+are deploying distroless Teleport images by default. Those images are slimmer
+and more secure but contain less tooling (e.g. neither `bash` nor
+`apt` are available).
+
+The debian-based images are deprecated and will be removed in Teleport 14.
+The chart image can be reverted back to the debian-based images by setting:
+```
+image: "public.ecr.aws/gravitational/teleport"
+```
+
+For debugging purposes, a "debug" image is available and contains busybox,
+which includes a shell and most common POSIX executables:
+`public.ecr.aws/gravitational/teleport-distroless`.
+
 ## 12.3.0 (05/01/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
