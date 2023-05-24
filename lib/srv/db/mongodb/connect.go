@@ -172,25 +172,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 	switch {
 	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
-		e.Log.Debug("Authenticating to database using AWS IAM authentication.")
-		username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		authenticator, err := auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
-			Source:   awsIAMSource,
-			Username: username,
-			Password: password,
-			Props: map[string]string{
-				awsSecretTokenKey: sessToken,
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return authenticator, nil
+		return e.getAWSAuthenticator(ctx, sessionCtx)
 	default:
 		e.Log.Debug("Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
@@ -203,6 +185,31 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 		return authenticator, nil
 	}
+}
+
+// getAWSAuthenticator fetches the AWS credentials and initializes the MongoDB
+// authenticator.
+func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
+
+	username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authenticator, err := auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
+		Source:   awsIAMSource,
+		Username: username,
+		Password: password,
+		Props: map[string]string{
+			awsSecretTokenKey: sessToken,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authenticator, nil
 }
 
 // getConnectionString returns connection string for the server.
