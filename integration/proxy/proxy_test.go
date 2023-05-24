@@ -1170,11 +1170,18 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
+	// stop the node so it doesn't keep trying to join the cluster with bad credentials.
+	require.NoError(t, rc.StopNodes())
+	require.Error(t, <-startErrC)
 
 	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
 
-	// with env set correctly and authorized, the node should register.
+	// with env set correctly and authorized, the node should be able to register.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
