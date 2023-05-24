@@ -87,7 +87,7 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   private logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string) {
+  constructor(socketAddr: string, width: number, height: number) {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
@@ -102,7 +102,7 @@ export default class Client extends EventEmitterWebAuthnSender {
     // init initializes the wasm module into memory
     init().then(() => {
       init_wasm_log(wasmLogLevel);
-      this.fastPathProcessor = new FastPathProcessor();
+      this.fastPathProcessor = new FastPathProcessor(width, height);
     });
   }
 

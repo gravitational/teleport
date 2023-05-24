@@ -273,7 +273,7 @@ enum ConnectError {
     Tcp(IoError),
     Rdp(RdpError),
     InvalidAddr(),
-    IronRdpError(SessionError),
+    IronRdpError(SessionError), //todo(isaiah): reconsider error typing
 }
 
 impl From<IoError> for ConnectError {
@@ -307,6 +307,7 @@ pub struct CGOConnectParams {
     show_desktop_wallpaper: bool,
 }
 
+#[derive(Debug)]
 struct ConnectParams {
     addr: String,
     username: String,
@@ -327,9 +328,10 @@ fn connect_rdp_inner(
     params: ConnectParams,
 ) -> Result<*mut Client, ConnectError> {
     match tokio_rt.block_on(async {
-        let server_addr = ("54.144.205.187", 3389).to_socket_addrs()?.next().unwrap(); //todo(isaiah): hardcoded
+        let server_addr = params.addr;
+        let server_socket_addr = server_addr.to_socket_addrs()?.next().unwrap();
 
-        let stream = match TokioTcpStream::connect(&server_addr).await {
+        let stream = match TokioTcpStream::connect(&server_socket_addr).await {
             Ok(it) => it,
             Err(err) => {
                 error!("tcp connect error: {:?}", err);
@@ -344,14 +346,14 @@ fn connect_rdp_inner(
 
         let connector_config = ironrdp_connector::Config {
             desktop_size: ironrdp_connector::DesktopSize {
-                width: 1728, //todo(isaiah): hardcoded
-                height: 932, //todo(isaiah): hardcoded
+                width: params.screen_width,
+                height: params.screen_height,
             },
             security_protocol: ironrdp_pdu::nego::SecurityProtocol::HYBRID_EX,
-            username: "Administrator".to_string(),
+            username: params.username,
             password: std::env::var("RDP_PASSWORD").unwrap(), //todo(isaiah)
             domain: None,
-            client_build: 0, //todo(isaiah)
+            client_build: 0,
             client_name: "Teleport".to_string(),
             keyboard_type: ironrdp_pdu::gcc::KeyboardType::IbmEnhanced,
             keyboard_subtype: 0,
@@ -360,7 +362,7 @@ fn connect_rdp_inner(
             graphics: None,
             bitmap: Some(ironrdp_connector::BitmapConfig {
                 lossy_compression: true,
-                color_depth: 32, // todo(isaiah): changing this to 16 gets us uncompressed bitmaps
+                color_depth: 32, // Changing this to 16 gets us uncompressed bitmaps on machines configured like https://github.com/Devolutions/IronRDP/blob/55d11a5000ebd474c2ddc294b8b3935554443112/README.md?plain=1#L17-L36
             }),
             dig_product_id: "".to_string(),
             client_dir: "C:\\Windows\\System32\\mstscax.dll".to_string(),
@@ -368,8 +370,8 @@ fn connect_rdp_inner(
         };
 
         let mut connector = ironrdp_connector::ClientConnector::new(connector_config)
-            .with_server_addr(server_addr)
-            .with_server_name("54.144.205.187:3389".to_string()) // todo(isaiah): hardcoded
+            .with_server_addr(server_socket_addr)
+            .with_server_name(server_addr)
             .with_credssp_client_factory(Box::new(RequestClientFactory));
 
         let should_upgrade = match ironrdp_tokio::connect_begin(&mut framed, &mut connector).await {

@@ -160,18 +160,14 @@ pub struct FastPathProcessor {
 #[wasm_bindgen]
 impl FastPathProcessor {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new(width: u16, height: u16) -> Self {
         Self {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
                 io_channel_id: 1003,   // todo(isaiah)
                 user_channel_id: 1004, // todo(isaiah)
             }
             .build(),
-            image: DecodedImage::new(
-                PixelFormat::RgbA32,
-                1728, //todo(isaiah): hardcoded
-                932,  //todo(isaiah): hardcoded
-            ),
+            image: DecodedImage::new(PixelFormat::RgbA32, width, height),
         }
     }
 
