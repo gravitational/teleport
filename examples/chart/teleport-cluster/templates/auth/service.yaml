@@ -10,6 +10,9 @@ metadata:
 {{- end }}
 spec:
   type: {{ default "ClusterIP" $auth.service.type }}
+{{- with $auth.service.spec }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
   ports:
   - name: auth
     port: 3025
