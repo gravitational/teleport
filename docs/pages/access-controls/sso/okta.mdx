@@ -23,7 +23,16 @@ Teleport administrators to define policies like:
 
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
-- (!docs/pages/includes/tctl.mdx!)
+
+<Tabs>
+<TabItem label="Teleport Enterprise (Self-Hosted)" scope="enterprise">
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
+</TabItem>
+<TabItem label="Teleport Cloud" scope="cloud">
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+</TabItem>
+</Tabs>
+
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
