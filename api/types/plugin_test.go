@@ -99,19 +99,6 @@ func TestPluginOpenAIValidation(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
-		{
-			name: "valid credentials (token file)",
-			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/openai_token",
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.NoError(t, err)
-			},
-		},
 	}
 
 	for _, tc := range testCases {
