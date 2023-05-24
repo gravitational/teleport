@@ -353,11 +353,11 @@ do_upgrade() {
                 post_install_version="unknown"
             fi
 
-            # yum silently ignores downgrades, so if it looks like the install was inefectual we attempt an
+            # yum silently ignores downgrades, so if it looks like the install was ineffectual we attempt an
             # explicit downgrade. this is safe to do even if we are wrong (e.g. due to undetectable version),
             # since the downgrade command will similarly ignore upgrades.
             if [[ "$post_install_version" != "$target_version" ]]; then
-                log_info "install may have been inefectual (post_install_version=$post_install_version)."
+                log_info "install may have been ineffectual (post_install_version=$post_install_version)."
                 log_info "attempting downgrade command variant..."
                 yum downgrade  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$yum_target_version"
             fi
@@ -411,7 +411,7 @@ elif ! schedule_appears_healthy; then
     fi
     log_warn "agent was previously marked unhealthy and does not appear recovered, upgrade will be attempted."
 else
-    log_info "upgrade is non-critical and we are outside of maintanence window, not attempting."
+    log_info "upgrade is non-critical and we are outside of maintenance window, not attempting."
     exit 0
 fi
 
