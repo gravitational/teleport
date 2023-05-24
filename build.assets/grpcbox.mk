@@ -14,20 +14,23 @@ else
 GRPCBOX ?= $(GRPCBOX_BASE_NAME):$(BUILDBOX_VERSION)
 endif
 
-# UID and GID are used to run the grpcbox as the current user.
-UID := $$(id -u)
-GID := $$(id -g)
+DOCKER := docker
+UNAME := $(shell uname)
+
+ifeq ($(UNAME), Linux)
+# Use podman on linux.
+DOCKER = podman
+endif
 
 # GRPCBOX_RUN has the necessary invocation to run a command inside the grpcbox.
 # Use this variable to run it from other Makefiles.
-# Set XDG_CACHE_HOME to let non-root user cache dependencies: https://github.com/bufbuild/buf/blob/f38ba9455c6650947b0b710327f9acb708da1196/private/pkg/app/app_unix.go#LL70C18-L70C32
-GRPCBOX_RUN := docker run -it --rm -u $(UID):$(GID) -e XDG_CACHE_HOME="/tmp/.cache" -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
+GRPCBOX_RUN := $(DOCKER) run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
 
 # grpcbox builds a codegen-focused buildbox.
 # It's leaner, meaner, faster and not supposed to compile code.
 .PHONY: grpcbox
 grpcbox:
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
