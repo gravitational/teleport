@@ -43,7 +43,12 @@ int32_t DeviceKeySign(Digest digest, Signature *sigOut);
 
 // DeviceData contains collected data for the device in use.
 typedef struct _DeviceData {
+  // Mac system serial number.
+  // Example: "C02FP3EXXXXX".
   const char *serial_number;
+  // Mac device model.
+  // See https://support.apple.com/en-us/HT201608.
+  // Example: "MacBookPro16,1".
   const char *model;
   // OS version "string", as acquired from NSProcessInfo.
   // Example: "Version 13.4 (Build 22F66)".
