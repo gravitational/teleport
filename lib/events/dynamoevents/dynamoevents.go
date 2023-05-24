@@ -883,6 +883,15 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 			},
 		},
 	}
+	// Uncomment the following to have Teleport create DynamoDB tables with an
+	// "AWS Managed Key" in KMS. This comes with an added cost as compared to
+	// the default of an "AWS Owned Key", however it comes with the advantage of
+	// automatic key rotation (which can be a requirement in some regulatory
+	// contexts)
+	// c.SSESpecification = &dynamodb.SSESpecification{
+	// 	Enabled: aws.Bool(true),
+	// 	SSEType: aws.String(dynamodb.SSETypeKms),
+	// }
 	_, err := l.svc.CreateTableWithContext(ctx, &c)
 	if err != nil {
 		return trace.Wrap(err)
