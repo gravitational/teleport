@@ -10,7 +10,7 @@ Related RFDs:
 
 ## Required Approvers
 
-- Engineering: `@r0mant`
+- Engineering: `@r0mant && @smallinsky && @tigrato`
 - Product: `@klizhentas || @xinding33`
 - Security: `@reedloden || @jentfoo`
 
@@ -28,17 +28,19 @@ Having an almost stateless configuration eases the configuration and deployment 
 Users no longer need to log in to a machine that is running this service to change the matchers, and can do any sort of configuration from the clients (ie WebApp, `tctl`, Terraform Provider and Kubernetes Operator).
 
 ## Details
-There will be a new resource - `DiscoveryConfig` - which will be used by the `discovery_service` to create a set of matchers for that particular service.
+There will be a new resource - `DiscoveryConfig` - which will be used by the `discovery_service` to add extra matchers for that particular service.
 
-We'll create relations between those two entities using labels and label matchers.
-This is common for other type of services, eg `db_service` has the `resources.labels` labels matcher which allows users to define which Databases to proxy based on their labels.
+`discovery_service` must support having only the `discovery_group` and still run, even if no `DiscoveryConfig` matches that group.
 
 ### New `DiscoveryConfig` resource
 A new resource will be created to store the desired matchers.
 
-The `spec` schema of the `DiscoveryConfig` contains all the required fields for matching on resources on supported clouds.
+The `spec` schema will contain a `discovery_group` and a list of matchers.
 
-Currently, the schema is compose using the following matchers:
+The `discovery_group` will be used by `discovery_service` to include matchers from `DiscoveryConfig` that have the same group.
+
+The list of matchers is the same list that exists in `discovery_service` (for AWS, Azure and GCP).
+Currently, that list is composed using the following matchers:
 - `lib/config.AWSMatcher`
 - `lib/config.AzureMatcher`
 - `lib/config.GCPMatcher`
@@ -46,7 +48,7 @@ Currently, the schema is compose using the following matchers:
 In order to use those types, we must first define them as protobuf types and then import them in `lib/config`.
 
 This way, we have a single place where we define the matchers properties.
-They are then used for file reading or for defining `DiscoveryConfig` resources.
+They are then used when loading the configuration from file or when defining `DiscoveryConfig` resources.
 
 Example:
 ```yaml
@@ -54,10 +56,8 @@ kind: DiscoveryConfig
 version: v1
 metadata:
   name: production-resources
-  labels:
-    cloud: aws
-    env: prod
 spec:
+    discovery_group: prod-resources-all-clouds
     aws:
      - types: ["ec2"]
        regions: ["us-east-1","us-west-1"]
@@ -85,38 +85,9 @@ spec:
 ```
 
 ### Discovery Group
-The Discovery Group property will not be ported to `DiscoveryConfig` because it exists to ensure that multiple `discovery_services` don't step on each other.
+The Discovery Group is used to match between `discovery_service` and `DiscoveryConfig`.
 
-Running `discovery_service`s in high availability (multiple instances and same config) should yield the same result as before.
-
-### New `discovery_service` property: `selector`
-The configuration of the `discovery_service` has a new field: `selector`.
-
-This field works as a label matcher for `DiscoveryConfig` resources.
-Standard label matcher rules apply here (eg, Role's `node_labels` or Database Service's `resources.labels`).
-
-For each matching `DiscoveryConfig`, the list of matchers is appended to the `discovery_service` matchers.
-
-Example:
-```yaml
-discovery_service:
-  enabled: "yes"
-  discovery_group: my_group
-  selector:
-    cloud: aws
-    env: [qa, prod]
-  aws:
-  - types: ["ec2"]
-    regions: ["us-east-1","us-west-1"]
-    # ...
-  azure:
-  - types: ["aks"]
-    regions: ["eastus", "westus"]
-    # ...
-  gcp:
-  - types: ["gke"]
-    # ...
-```
+So, all `discovery_service`s with Group _X_ will include all the matchers from `DiscoveryConfig`s whose Group is also _X_.
 
 ### Hot-reloading `DiscoveryConfig` matchers
 When the `discovery_service` starts, it loads all the static matchers plus the dynamic ones (using `DiscoveryConfig` resources).
@@ -173,14 +144,18 @@ message DiscoveryConfigV1 {
 // DiscoveryConfigSpecV1 contains properties required to create matchers to be used by discovery_service.
 // Those matchers are used by discovery_service to watch for cloud resources and create them in Teleport.
 message DiscoveryConfigSpecV1 {
+  // DiscoveryGroup is used by discovery_service to add extra matchers.
+  // All the discovery_services that have the same discovery_group, will load the matchers of this resource.
+  string DiscoveryGroup = 1;
+
   // AWS is a list of AWSMatchers.
-  repeated AWSMatcher aws = 1;
+  repeated AWSMatcher aws = 2;
 
   // Azure is a list of AzureMatchers.
-  repeated AzureMatcher azure = 2;
+  repeated AzureMatcher azure = 3;
 
   // GCP is a list of GCPMatchers.
-  repeated GCPMatcher gcp = 3; 
+  repeated GCPMatcher gcp = 4;
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
@@ -275,25 +250,19 @@ message GCPMatcher {
 
 ### Backward Compatibility
 
-#### `discovery_service.selector`
-If the config has this field but Teleport version is no aware of that, the user must remove it before they can start the Discovery Service.
-
 #### Watcher on `DiscoveryConfig`
-If the `discovery_service` tries to set up a watcher over `DiscoveryConfig` but Teleport Auth/Proxy is not yet aware of this resource, then `discovery_service` will log a warning but continue with the static configuration.
+If the `discovery_service` tries to lookup `DiscoveryConfig` resources, but Teleport Auth/Proxy is not yet aware of this resource, then `discovery_service` will log a warning but continue with the static configuration.
 
 ### UX
 
 #### `discovery_service` new service configuration properties
-Users need to add the `selector` property and then a list of label matchers.
+Users need to ensure the `discovery_group` (which is optional) is set, in order for it to include extra matchers from `DiscoveryConfig`.
 
 Example:
 ```yaml
 discovery_service:
   enabled: "yes"
-  selector:
-    labelA: value1 # matches against a single value
-    labelB: [value2, value3] # matches against multiple values
-    labelC: "*" # matches on all values
+  discovery_group: "my-production-resources"
 ```
 
 #### gRPC: manage `DiscoveryConfig` resource
@@ -336,6 +305,7 @@ DELETE .../discoveryconfig/:id
 JSON representation:
 ```json
 {
+   "discovery_group": "prod-resources-all-clouds",
    "aws":[
       {
          "types":[
@@ -402,17 +372,14 @@ JSON representation:
 #### `tctl`: manage `DiscoveryConfig` resource
 Users must be able to create, list, read, update and delete `DiscoveryConfig`s using `tctl`.
 
-Example of `tctl get discovery_config`:
-```
-$ tctl get discovery_config
+Example of `$ tctl get discovery_config`:
+```yaml
 kind: DiscoveryConfig
 version: v1
 metadata:
   name: production-resources
-  labels:
-    cloud: aws
-    env: prod
 spec:
+    discovery_group: my-ec2
     aws:
      - types: ["ec2"]
        regions: ["us-east-1","us-west-1"]
