@@ -99,19 +99,6 @@ func TestPluginOpenAIValidation(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
-		{
-			name: "valid credentials (token file)",
-			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/openai_token",
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.NoError(t, err)
-			},
-		},
 	}
 
 	for _, tc := range testCases {
@@ -194,24 +181,6 @@ func TestPluginOktaValidation(t *testing.T) {
 				Credentials: &PluginCredentialsV1_BearerToken{
 					BearerToken: &PluginBearerTokenCredentials{
 						Token: "xxx-abc",
-					},
-				},
-			},
-			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.NoError(t, err)
-			},
-		},
-		{
-			name: "valid credentials (token file)",
-			settings: &PluginSpecV1_Okta{
-				Okta: &PluginOktaSettings{
-					OrgUrl: "https://test.okta.com",
-				},
-			},
-			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/okta_token",
 					},
 				},
 			},
