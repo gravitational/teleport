@@ -111,6 +111,23 @@ This release of Teleport contains a security Go upgrade as well as multiple impr
 * Proxy
   * Fixed issue with missing `Connection` header for ALPN connection upgrade. [#25411](https://github.com/gravitational/teleport/pull/25411)
 
+#### Helm chart uses `distroless`-based container image by default
+
+Starting with Teleport 13, the Helm charts `teleport-cluster` and `teleport-kube-agent`
+are deploying distroless Teleport images by default. Those images are slimmer
+and more secure but contain less tooling (e.g. neither `bash` nor
+`apt` are available).
+
+The debian-based images are deprecated and will be removed in Teleport 14.
+The chart image can be reverted back to the debian-based images by setting:
+```
+image: "public.ecr.aws/gravitational/teleport"
+```
+
+For debugging purposes, a "debug" image is available and contains busybox,
+which includes a shell and most common POSIX executables:
+`public.ecr.aws/gravitational/teleport-distroless`.
+
 ## 12.3.0 (05/01/23)
 
 *Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
