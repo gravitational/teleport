@@ -627,11 +627,6 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
 	}
 
-	c.LocalForwardPorts, err = ParsePortForwardSpec(profile.ForwardedPorts)
-	if err != nil {
-		log.Warnf("Unable to parse port forwarding in user profile: %v.", err)
-	}
-
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(profile.DynamicForwardedPorts)
 	if err != nil {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
@@ -659,7 +654,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
-		ForwardedPorts:                c.LocalForwardPorts.String(),
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
