@@ -43,10 +43,8 @@ This object has very strict access control requirements that will be explained i
 in the **Access Control** section. On creation, the plugin and static credentials will
 receive a UUID called the `plugin-label`. The static credentials will have an internal
 label that receives this value. Additionally, one plugin may have _many_ credentials
-that are disambiguated with an additional label `plugin-credentials-type`. This is an
-arbitrary plugin specific string that will allow plugin authors to refer to multiple
-static
-credentials if needed.
+that are disambiguated with arbitrary additional labels. These will allow plugin authors
+to refer to multiple static credentials if needed.
 
 ```mermaid
 flowchart LR
@@ -55,9 +53,9 @@ flowchart LR
   Slack[Slack Credentials]
   OpsGenie[OpsGenie Credentials]
 
-  Plugin-->|credentials type okta|Okta
-  Plugin-->|credentials type slack|Slack
-  Plugin-->|credentials type opsgenie|OpsGenie
+  Plugin-->|label "type: okta"|Okta
+  Plugin-->|label "type: slack"|Slack
+  Plugin-->|label "type: opsgenie"|OpsGenie
 ```
 
 ```yaml
@@ -66,8 +64,12 @@ version: v1
 metadata:
   name: credentials-name
   labels:
-    teleport.internal/plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155 # unique plugin label.
-    teleport.internal/plugin-credentials-type: slack # a unique type associated with the credentials
+    # this is a unique plugin label generated randomly at plugin creation.
+    teleport.internal/plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155
+    # additional labels to uniquely identify the credentials.
+    label1: value1 # additional labels
+    type: slack
+    teleport.internal/plugin-credentials-type
 spec:
   credentials:
     # Only one of these credential types must be defined at a time. All values in this
@@ -81,20 +83,22 @@ spec:
       client_secret: example-client-secret
 ```
 
-If a `Plugin` is using oauth, however, it will not need any `PluginStaticCredentials` objects.
+If a `Plugin` is using the oauth authorization code flow, however, it will not need any
+`PluginStaticCredentials` objects.
 
 ### Changes to the `Plugin` object
 
 The `Plugin` object's `Credentials` field will have a new type of credential called
-`PluginStaticCredentialsRefs` that contains a UUID and a list of plugin types.
+`PluginStaticCredentialsRefs` that contains a UUID and additional aribitrary labels.
 
 ```yaml
 plugin_static_credentials_refs:
-  label: 48398071-9860-4be6-9f29-ca6ca5bc7155
-  types:
-    - okta
-    - slack
-    - opsgenie
+  # this label is the same label generated at plugin creation. It cannot be modified
+  # by users in any way.
+  plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155
+  labels:
+    env: prod
+    type: slack
 ```
 
 ### Access control
@@ -106,6 +110,10 @@ is needed. Future work may determine that we want to open up writing through the
 The object will be only readable by the `RoleAdmin` role (with one exception).
 This is because plugins run on the auth server, so it's the only role that needs to be
 able to actually read the static credentials.
+
+One `Plugin` object can refer to multiple static credentials and a `Plugin` can't refer
+to existing static credentials. Static credentials must be associated with one and only
+one plugin.
 
 The one exception here is Teleport Assist, which runs in the proxy. The proxy will be
 able to read plugin credentials with the name of `openai-default`, which is the name of
@@ -142,6 +150,10 @@ A number of new audit events will be created as part of this effort:
 
 * Only the auth server is able to read plugin credentials. The proxy will be able to create
 them, and admins will be able to delete them.
+* The credentials will be stored in DynamoDB, which is encrypted at rest. This will provide
+a layer of protection for the stored credentials.
+* The credentials will not be cached, so they won't be sitting in an in-memory cache to be
+exfiltrated.
 
 ### Implementation plan
 
