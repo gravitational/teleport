@@ -27,14 +27,12 @@ import { ExecuteRemoteCommandContent } from 'teleport/Assist/services/messages';
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 import { Dots } from 'teleport/Assist/Dots';
 import cfg from 'teleport/config';
-import {
-  WebauthnAssertionResponse,
-} from 'teleport/services/auth';
+import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
 import { Message, MfaJson } from 'teleport/lib/tdp/codec';
-import AuthnDialog from "teleport/components/AuthnDialog";
-import {TermEvent} from "teleport/lib/term/enums";
+import AuthnDialog from 'teleport/components/AuthnDialog';
+import { TermEvent } from 'teleport/lib/term/enums';
 
 interface RunCommandProps {
   actions: ExecuteRemoteCommandContent;
@@ -83,7 +81,10 @@ class assistClient extends EventEmitterWebAuthnSender {
   private proto: Protobuf;
   encoder = new window.TextEncoder();
 
-  constructor(url: string, setState: React.Dispatch<React.SetStateAction<any[]>>) {
+  constructor(
+    url: string,
+    setState: React.Dispatch<React.SetStateAction<any[]>>
+  ) {
     super();
 
     this.proto = new Protobuf();
@@ -91,7 +92,7 @@ class assistClient extends EventEmitterWebAuthnSender {
     const refWS = useRef<WebSocket>();
 
     React.useEffect(() => {
-      if(refWS.current) {
+      if (refWS.current) {
         this.ws = refWS.current;
         return;
       }
@@ -155,7 +156,7 @@ class assistClient extends EventEmitterWebAuthnSender {
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
-    console.log("sendWebAuthn", data);
+    console.log('sendWebAuthn', data);
     const msg = this.encodeMfaJson({
       mfaType: 'n',
       jsonString: JSON.stringify(data),
@@ -169,7 +170,7 @@ class assistClient extends EventEmitterWebAuthnSender {
       return;
     }
 
-    console.log("send", data);
+    console.log('send', data);
     const msg = this.proto.encodeRawMessage(data);
     const bytearray = new Uint8Array(msg);
     this.ws.send(bytearray.buffer);
@@ -178,7 +179,7 @@ class assistClient extends EventEmitterWebAuthnSender {
   // | message type (10) | mfa_type byte | message_length uint32 | json []byte
   encodeMfaJson(mfaJson: MfaJson): Message {
     const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
-    return dataUtf8array
+    return dataUtf8array;
   }
 }
 
@@ -215,7 +216,7 @@ export function RunCommand(props: RunCommandProps) {
       {webauthn.requested && (
         <AuthnDialog
           onContinue={webauthn.authenticate}
-          onCancel={() => {} }
+          onCancel={() => {}}
           errorText={webauthn.errorText}
         />
       )}
