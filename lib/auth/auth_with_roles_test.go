@@ -4506,7 +4506,10 @@ func TestUnimplementedClients(t *testing.T) {
 
 // getTestHeadlessAuthenticationID returns the headless authentication resource
 // used across headless authentication tests.
-func getTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
+func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
+	_, sshPubKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{
@@ -4520,7 +4523,7 @@ func getTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *typ
 	}
 	headlessAuthn.SetExpiry(clock.Now().Add(time.Minute))
 
-	err := headlessAuthn.CheckAndSetDefaults()
+	err = headlessAuthn.CheckAndSetDefaults()
 	require.NoError(t, err)
 
 	return headlessAuthn
@@ -4530,6 +4533,12 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 	ctx := context.Background()
 	username := "teleport-user"
 	otherUsername := "other-user"
+
+	srv := newTestTLSServer(t)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
+	require.NoError(t, err)
 
 	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
@@ -4566,14 +4575,8 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			tc := tc
 			t.Parallel()
 
-			srv := newTestTLSServer(t)
-			_, _, err := CreateUserAndRole(srv.Auth(), username, nil, nil)
-			require.NoError(t, err)
-			_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
-			require.NoError(t, err)
-
 			// create headless authn
-			headlessAuthn := getTestHeadlessAuthn(t, username, srv.Auth().clock)
+			headlessAuthn := newTestHeadlessAuthn(t, username, srv.Auth().clock)
 			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
 			require.NoError(t, err)
 			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
@@ -4602,6 +4605,12 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	ctx := context.Background()
 	otherUsername := "other-user"
+
+	srv := newTestTLSServer(t)
+	mfa := configureForMFA(t, srv)
+
+	_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
+	require.NoError(t, err)
 
 	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
@@ -4663,15 +4672,11 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			srv := newTestTLSServer(t)
-			mfa := configureForMFA(t, srv)
-
-			_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
-			require.NoError(t, err)
+			tc := tc
+			t.Parallel()
 
 			// create headless authn
-			headlessAuthn := getTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
-
+			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
 			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
 			require.NoError(t, err)
 			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
