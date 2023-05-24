@@ -209,13 +209,11 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
-
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		appInstallMode:         false,
 		joinMethod:             r.URL.Query().Get("method"),
-		stableCloudChannelRepo: useStableCloudChannelRepo,
+		stableCloudChannelRepo: h.ClusterFeatures.Cloud,
 		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
@@ -253,14 +251,12 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
-
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		appInstallMode:         true,
 		appName:                name,
 		appURI:                 uri,
-		stableCloudChannelRepo: useStableCloudChannelRepo,
+		stableCloudChannelRepo: h.ClusterFeatures.Cloud,
 		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
@@ -283,12 +279,10 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
-	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
-
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		databaseInstallMode:    true,
-		stableCloudChannelRepo: useStableCloudChannelRepo,
+		stableCloudChannelRepo: h.ClusterFeatures.Cloud,
 		installUpdater:         automaticUpgrades(h.ClusterFeatures),
 	}
 
@@ -397,6 +391,8 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
+
+	// For Teleport Cloud installations, use the `stable/cloud` channel.
 	if settings.stableCloudChannelRepo {
 		repoChannel = stableCloudChannelRepo
 	}
