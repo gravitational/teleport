@@ -1589,9 +1589,8 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// By default, it uses the stable/v<majorVersion> channel.
 	repoChannel := fmt.Sprintf("stable/%s", version)
 
-	// However, when Automatic Upgrades are on and cluster is part of cloud,
-	// it will use the stable/cloud channel.
-	if feats.Cloud && feats.AutomaticUpgrades {
+	// For Teleport Cloud installations, use the `stable/cloud` channel.
+	if feats.Cloud {
 		repoChannel = stableCloudChannelRepo
 	}
 
