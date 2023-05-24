@@ -4510,7 +4510,7 @@ func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *typ
 	_, sshPubKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
-	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
@@ -4518,7 +4518,7 @@ func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *typ
 			},
 		},
 		User:            user,
-		PublicKey:       []byte(sshPubKey),
+		PublicKey:       sshPubKey,
 		ClientIpAddress: "0.0.0.0",
 	}
 	headlessAuthn.SetExpiry(clock.Now().Add(time.Minute))
