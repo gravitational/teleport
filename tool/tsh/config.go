@@ -42,7 +42,7 @@ func writeSSHConfig(sb *strings.Builder, params *openssh.SSHConfigParameters, ge
 
 // onConfig handles the `tsh config` command
 func onConfig(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
