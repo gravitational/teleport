@@ -72,7 +72,7 @@ func (f *FakeMacOSDevice) DeviceCredential() *devicepb.DeviceCredential {
 	}
 }
 
-func (f *FakeMacOSDevice) GetOSType() devicepb.OSType {
+func (f *FakeMacOSDevice) GetDeviceOSType() devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_MACOS
 }
 

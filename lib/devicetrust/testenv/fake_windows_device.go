@@ -40,7 +40,7 @@ func NewFakeWindowsDevice() *FakeWindowsDevice {
 	}
 }
 
-func (f *FakeWindowsDevice) GetOSType() devicepb.OSType {
+func (f *FakeWindowsDevice) GetDeviceOSType() devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_WINDOWS
 }
 
