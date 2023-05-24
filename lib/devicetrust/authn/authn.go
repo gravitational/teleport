@@ -16,23 +16,23 @@ package authn
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/types"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
 // vars below are used to swap native methods for fakes in tests.
 var (
-	getDeviceCredential     = native.GetDeviceCredential
-	collectDeviceData       = native.CollectDeviceData
-	signChallenge           = native.SignChallenge
-	solveTPMEnrollChallenge = native.SolveTPMEnrollChallenge
-	getDeviceOSType         = native.GetDeviceOSType
+	getDeviceCredential         = native.GetDeviceCredential
+	collectDeviceData           = native.CollectDeviceData
+	signChallenge               = native.SignChallenge
+	solveTPMAuthDeviceChallenge = native.SolveTPMAuthDeviceChallenge
+	getDeviceOSType             = native.GetDeviceOSType
 )
 
 // RunCeremony performs the client-side device authentication ceremony.
@@ -150,17 +150,17 @@ func authenticateDeviceWindows(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
 ) error {
-	chalResp := resp.GetTpmChallenge()
-	if chalResp == nil {
+	challenge := resp.GetTpmChallenge()
+	if challenge == nil {
 		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	sig, err := solveTPMEnrollChallenge()
+	challengeResponse, err := solveTPMAuthDeviceChallenge(challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
 		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: &devicepb.TPMAuthenticateDeviceChallengeResponse{},
+			TpmChallengeResponse: challengeResponse,
 		},
 	})
 	return trace.Wrap(err)

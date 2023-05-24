@@ -16,6 +16,7 @@ package enroll
 
 import (
 	"context"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 

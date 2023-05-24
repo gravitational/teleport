@@ -15,8 +15,9 @@
 package native
 
 import (
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"runtime"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // EnrollDeviceInit creates the initial enrollment data for the device.
@@ -46,6 +47,11 @@ func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
 // SolveTPMEnrollChallenge completes a TPM enrollment challenge.
 func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return solveTPMEnrollChallenge(challenge)
+}
+
+// SolveTPMAuthDeviceChallenge completes a TPM device authetication challenge.
+func SolveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return solveTPMAuthDeviceChallenge(challenge)
 }
 
 // GetDeviceOSType returns the devicepb.OSType for the current OS
