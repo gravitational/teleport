@@ -154,6 +154,10 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 
 // FindTeleportClusterForLocalProxy finds the Teleport kube cluster based on
 // provided cluster address and context name, and prepares a LocalProxyCluster.
+//
+// When the cluster has a ProxyURL set, it means the provided kubeconfig is
+// already pointing to a local proxy through this ProxyURL and thus can be
+// skipped as there is no need to create a new local proxy.
 func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, clusterAddr, contextName string) (LocalProxyCluster, bool) {
 	if contextName == "" {
 		contextName = defaultConfig.CurrentContext
@@ -164,7 +168,7 @@ func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, cluste
 		return LocalProxyCluster{}, false
 	}
 	cluster, found := defaultConfig.Clusters[context.Cluster]
-	if !found || cluster.Server != clusterAddr {
+	if !found || cluster.Server != clusterAddr || cluster.ProxyURL != "" {
 		return LocalProxyCluster{}, false
 	}
 	auth, found := defaultConfig.AuthInfos[context.AuthInfo]

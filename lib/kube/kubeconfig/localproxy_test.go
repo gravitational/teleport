@@ -88,6 +88,12 @@ func TestLocalProxy(t *testing.T) {
 	})
 
 	t.Run("FindTeleportClusterForLocalProxy", func(t *testing.T) {
+		inputConfig := configAfterLogins.DeepCopy()
+
+		// Simulate a scenario that kube3 is already pointing to a local proxy
+		// through ProxyURL.
+		inputConfig.Clusters[leafClusterName].ProxyURL = "https://localhost:8443"
+
 		tests := []struct {
 			name          string
 			selectContext string
@@ -100,7 +106,7 @@ func TestLocalProxy(t *testing.T) {
 				checkResult:   require.False,
 			},
 			{
-				name:          "not found",
+				name:          "context not found",
 				selectContext: "not-found",
 				checkResult:   require.False,
 			},
@@ -122,11 +128,16 @@ func TestLocalProxy(t *testing.T) {
 					KubeCluster:     "kube2",
 				},
 			},
+			{
+				name:          "skip local proxy config",
+				selectContext: leafClusterName + "-kube3",
+				checkResult:   require.False,
+			},
 		}
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				cluster, found := FindTeleportClusterForLocalProxy(configAfterLogins, rootKubeClusterAddr, test.selectContext)
+				cluster, found := FindTeleportClusterForLocalProxy(inputConfig, rootKubeClusterAddr, test.selectContext)
 				test.checkResult(t, found)
 				require.Equal(t, test.wantCluster, cluster)
 			})
