@@ -657,7 +657,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -678,12 +678,12 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// Daemon service for teleterm client
-	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
-	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
+	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
+	daemonStart := daemon.Command("start", "Starts tsh daemon service.").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 	daemonStart.Flag("prehog-addr", "URL where prehog events should be submitted").StringVar(&cf.DaemonPrehogAddr)
-	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it").Hidden()
+	daemonStop := daemon.Command("stop", "Gracefully stops a process on Windows by sending Ctrl-Break to it.").Hidden()
 	daemonStop.Flag("pid", "PID to be stopped").IntVar(&cf.DaemonPid)
 
 	// AWS.
@@ -745,11 +745,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	exportRecordings.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
-	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
-	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
+	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
+	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
+	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	// --cert-file and --key-file are deprecated in favor of --tunnel flag.
@@ -760,7 +760,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
-	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
+	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 
@@ -817,14 +817,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
-	join := app.Command("join", "Join the active SSH or Kubernetes session")
+	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
-	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App)")
+	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
@@ -832,7 +832,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Transfer files to a remote Node")
+	scp := app.Command("scp", "Transfer files to a remote Node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -840,7 +840,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
-	ls := app.Command("ls", "List remote SSH nodes")
+	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", defaults.FormatFlagDescription(
@@ -851,13 +851,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	// clusters
-	clusters := app.Command("clusters", "List available Teleport clusters")
+	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
+	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
@@ -877,10 +877,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
-	logout := app.Command("logout", "Delete a cluster certificate")
+	logout := app.Command("logout", "Delete a cluster certificate.")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
+	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
@@ -908,38 +908,38 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
 
 	// show key
-	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
+	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
 
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
-	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+	status := app.Command("status", "Display the list of proxy servers and retrieved certificates.")
 	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
-	environment := app.Command("env", "Print commands to set Teleport session environment variables")
+	environment := app.Command("env", "Print commands to set Teleport session environment variables.")
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
-	req := app.Command("request", "Manage access requests").Alias("requests")
+	req := app.Command("request", "Manage access requests.").Alias("requests")
 
-	reqList := req.Command("ls", "List access requests").Alias("list")
+	reqList := req.Command("ls", "List access requests.").Alias("list")
 	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
-	reqShow := req.Command("show", "Show request details").Alias("details")
+	reqShow := req.Command("show", "Show request details.").Alias("details")
 	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
-	reqCreate := req.Command("create", "Create a new access request").Alias("new")
+	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
@@ -948,13 +948,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 
-	reqReview := req.Command("review", "Review an access request")
+	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
-	reqSearch := req.Command("search", "Search for resources to request access to")
+	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
 		fmt.Sprintf("Resource kind to search for (%s)",
 			strings.Join(types.RequestableResourceKinds, ", ")),
@@ -971,9 +971,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
 	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
+	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
-	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster").Interspersed(false)
+	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster.").Interspersed(false)
 	// This hack is required in order to accept any args for tsh kubectl.
 	kubectl.Arg("", "").StringsVar(new([]string))
 	// Kubernetes subcommands.
@@ -981,7 +981,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
-	config := app.Command("config", "Print OpenSSH configuration details")
+	config := app.Command("config", "Print OpenSSH configuration details.")
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
