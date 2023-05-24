@@ -1,4 +1,4 @@
-.version: &version "12.4.3"
+.version: &version "12.4.4-argo.1"
 
 name: teleport-cluster
 apiVersion: v2
