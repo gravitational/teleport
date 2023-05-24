@@ -1280,7 +1280,17 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/"
+          "slug": "/database-access/rbac/",
+          "entries": [
+            {
+              "title": "Configuring Access",
+              "slug": "/database-access/rbac/configuring-access/"
+            },
+            {
+              "title": "Automatic User Provisioning (Preview)",
+              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+            }
+          ]
         },
         {
           "title": "Architecture",
