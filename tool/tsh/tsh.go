@@ -3243,7 +3243,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	c.Host = hostUser
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
 	}
@@ -3252,19 +3251,57 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
 	defer span.End()
 
+	// Force the use of proxy template below.
+	useProxyTemplate := strings.Contains(cf.ProxyJump, "{{proxy}}")
+	if useProxyTemplate {
+		// clear proxy jump so it can be overwritten below
+		cf.ProxyJump = ""
+	}
+
+	c.Host = hostUser
+	c.HostPort = int(cf.NodePort)
+
+	// Host may be either %h or %h:%p depending on the command. Proxy
+	// templates match on %h:%p, so we get the full host name here.
+	fullHostName := c.Host
+	if _, _, err := net.SplitHostPort(fullHostName); err != nil {
+		fullHostName = net.JoinHostPort(c.Host, strconv.Itoa(c.HostPort))
+	}
+
+	// Check if this host has a matching proxy template.
+	tProxy, tHost, tCluster, tMatched := cf.TshConfig.ProxyTemplates.Apply(fullHostName)
+	if !tMatched && useProxyTemplate {
+		return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
+	} else if tMatched {
+		if tHost != "" {
+			c.Host = tHost
+			log.Debugf("Will connect to host %q according to proxy template.", tHost)
+
+			if host, port, err := net.SplitHostPort(c.Host); err == nil {
+				c.Host = host
+				c.HostPort, err = strconv.Atoi(port)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+
+		// Don't overwrite proxy jump if explicitly provided
+		if cf.ProxyJump == "" && tProxy != "" {
+			cf.ProxyJump = tProxy
+			log.Debugf("Will connect to proxy %q according to proxy template.", tProxy)
+		}
+
+		// Don't overwrite cluster if explicitly provided
+		if cf.SiteName == "" && tCluster != "" {
+			cf.SiteName = tCluster
+			log.Debugf("Will connect to cluster %q according to proxy template.", tCluster)
+		}
+	}
+
 	// ProxyJump is an alias of Proxy flag
 	if cf.ProxyJump != "" {
-		proxyJump := cf.ProxyJump
-		if strings.Contains(cf.ProxyJump, "{{proxy}}") {
-			proxy, host, matched := cf.TshConfig.ProxyTemplates.Apply(c.Host)
-			if !matched {
-				return nil, trace.BadParameter("proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config")
-			}
-			proxyJump = strings.ReplaceAll(proxyJump, "{{proxy}}", proxy)
-			c.Host = host
-			log.Debugf("Will connect to proxy %q and host %q according to proxy templates.", proxyJump, host)
-		}
-		hosts, err := utils.ParseProxyJump(proxyJump)
+		hosts, err := utils.ParseProxyJump(cf.ProxyJump)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3351,7 +3388,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
 	}
-	c.HostPort = int(cf.NodePort)
 	c.Labels = labels
 	c.KeyTTL = time.Minute * time.Duration(cf.MinsToLive)
 	c.InsecureSkipVerify = cf.InsecureSkipVerify
