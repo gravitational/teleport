@@ -30,12 +30,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -72,6 +75,9 @@ type querierConfig struct {
 	clock  clockwork.Clock
 	awsCfg *aws.Config
 	logger log.FieldLogger
+
+	// tracer is used to create spans
+	tracer oteltrace.Tracer
 }
 
 func (cfg *querierConfig) CheckAndSetDefaults() error {
@@ -99,6 +105,10 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 		cfg.clock = clockwork.NewRealClock()
 	}
 
+	if cfg.tracer == nil {
+		cfg.tracer = tracing.NoopTracer(teleport.ComponentAthena)
+	}
+
 	return nil
 }
 
@@ -114,6 +124,16 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 }
 
 func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"events/athena/SearchEvents",
+		oteltrace.WithAttributes(
+			attribute.Int("limit", req.Limit),
+			attribute.String("from", req.From.Format(time.RFC3339)),
+			attribute.String("to", req.To.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
 	filter := searchEventsFilter{eventTypes: req.EventTypes}
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
 		fromUTC:   req.From.UTC(),
@@ -128,6 +148,16 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 }
 
 func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"events/athena/SearchSessionEvents",
+		oteltrace.WithAttributes(
+			attribute.Int("limit", req.Limit),
+			attribute.String("from", req.From.Format(time.RFC3339)),
+			attribute.String("to", req.To.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
@@ -309,6 +339,8 @@ func prepareQuery(params searchParams) (query string, execParams []string) {
 }
 
 func (q *querier) startQueryExecution(ctx context.Context, query string, params []string) (string, error) {
+	ctx, span := q.tracer.Start(ctx, "startQueryExecution")
+	defer span.End()
 	startQueryInput := &athena.StartQueryExecutionInput{
 		QueryExecutionContext: &athenaTypes.QueryExecutionContext{
 			Database: aws.String(q.database),
@@ -334,6 +366,8 @@ func (q *querier) startQueryExecution(ctx context.Context, query string, params 
 }
 
 func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
+	ctx, span := q.tracer.Start(ctx, "waitForSuccess")
+	defer span.End()
 	ctx, cancel := context.WithTimeout(ctx, getQueryResultsMaxTime)
 	defer cancel()
 
@@ -373,6 +407,8 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 // Athena API allows only fetch 1000 results, so if client asks for more, multiple
 // calls to GetQueryResults will be necessary.
 func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(ctx, "fetchResults")
+	defer span.End()
 	rb := &responseBuilder{}
 	// nextToken is used as offset to next calls for GetQueryResults.
 	var nextToken string
