@@ -1423,7 +1423,9 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			cfg := athena.Config{
 				Region:  auditConfig.Region(),
 				Backend: backend,
-				Tracer:  tracingProvider.Tracer(teleport.ComponentAthena),
+			}
+			if tracingProvider != nil {
+				cfg.Tracer = tracingProvider.Tracer(teleport.ComponentAthena)
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
