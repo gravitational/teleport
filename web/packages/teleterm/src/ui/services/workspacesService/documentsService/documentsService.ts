@@ -21,7 +21,6 @@ import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
-  CreateNewTerminalOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
@@ -182,7 +181,7 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal(opts: CreateNewTerminalOpts) {
+  openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
 
