@@ -47,7 +47,7 @@ func TestAutoEnroll(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
+			*enroll.GetDeviceOSType = test.dev.GetDeviceOSType
 			*enroll.CollectDeviceData = test.dev.CollectDeviceData
 			*enroll.EnrollInit = test.dev.EnrollDeviceInit
 			*enroll.SignChallenge = test.dev.SignChallenge

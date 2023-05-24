@@ -85,7 +85,7 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
+			*enroll.GetDeviceOSType = test.dev.GetDeviceOSType
 			*enroll.EnrollInit = test.dev.EnrollDeviceInit
 			*enroll.SignChallenge = test.dev.SignChallenge
 			*enroll.SolveTPMEnrollChallenge = test.dev.SolveTPMEnrollChallenge
@@ -106,12 +106,12 @@ func resetNative() func() {
 
 	collectDeviceData := *enroll.CollectDeviceData
 	enrollDeviceInit := *enroll.EnrollInit
-	getOSType := *enroll.GetOSType
+	getDeviceOSType := *enroll.GetDeviceOSType
 	signChallenge := *enroll.SignChallenge
 	return func() {
 		*enroll.CollectDeviceData = collectDeviceData
 		*enroll.EnrollInit = enrollDeviceInit
-		*enroll.GetOSType = getOSType
+		*enroll.GetDeviceOSType = getDeviceOSType
 		*enroll.SignChallenge = signChallenge
 		os.Unsetenv(guardKey)
 	}
@@ -120,7 +120,7 @@ func resetNative() func() {
 type fakeDevice interface {
 	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
-	GetOSType() devicepb.OSType
+	GetDeviceOSType() devicepb.OSType
 	SignChallenge(chal []byte) (sig []byte, err error)
 	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
 }
