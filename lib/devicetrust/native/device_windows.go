@@ -28,7 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
+	"path/filepath"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -48,8 +48,8 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err 
 		return "", trace.Wrap(err)
 	}
 
-	deviceStateDirPath := path.Join(home, deviceStateFolderName)
-	keyPath := path.Join(deviceStateDirPath, attestationKeyFileName)
+	deviceStateDirPath := filepath.Join(home, deviceStateFolderName)
+	keyPath := filepath.Join(deviceStateDirPath, attestationKeyFileName)
 
 	if _, err := os.Stat(deviceStateDirPath); err != nil {
 		if os.IsNotExist(err) {
