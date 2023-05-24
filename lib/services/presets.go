@@ -87,6 +87,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
+					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -181,6 +182,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
+					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
