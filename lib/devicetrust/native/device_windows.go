@@ -450,11 +450,7 @@ func solveTPMEnrollChallenge(
 	platformsParams, err := tpm.AttestPlatform(
 		ak,
 		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{
-			// EventLog == nil indicates that the `attest` package is
-			// responsible for providing the eventlog.
-			EventLog: nil,
-		},
+		&attest.PlatformAttestConfig{},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "attesting platform")
@@ -474,6 +470,48 @@ func solveTPMEnrollChallenge(
 	log.Debug("TPM: Enrollment challenge completed.")
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
+		PlatformParameters: devicetrust.PlatformParametersToProto(
+			platformsParams,
+		),
+	}, nil
+}
+
+func solveTPMAuthDeviceChallenge(
+	challenge *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "setting up device state directory")
+	}
+
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "opening tpm")
+	}
+	defer tpm.Close()
+
+	// Attempt to load the AK from well-known location.
+	ak, err := loadAK(tpm, akPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading ak")
+	}
+	defer ak.Close(tpm)
+
+	// Next perform a platform attestation using the AK.
+	log.Debug("TPM: Performing platform attestation.")
+	platformsParams, err := tpm.AttestPlatform(
+		ak,
+		challenge.AttestationNonce,
+		&attest.PlatformAttestConfig{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "attesting platform")
+	}
+
+	log.Debug("TPM: Authenticate device challenge completed.")
+	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
 		PlatformParameters: devicetrust.PlatformParametersToProto(
 			platformsParams,
 		),
