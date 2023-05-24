@@ -150,7 +150,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.handlePng2Frame(buffer);
           break;
         case MessageType.REMOTE_FX_FRAME:
-          this.handleFastPathFrame(buffer);
+          this.handleRDPFastPathPDU(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -270,17 +270,17 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleFastPathFrame(buffer: ArrayBuffer) {
-    let fastPathFrame = this.codec.decodeFastPathFrame(buffer);
+  handleRDPFastPathPDU(buffer: ArrayBuffer) {
+    let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
 
     this.fastPathProcessor.process(
-      fastPathFrame,
+      rdpFastPathPDU,
       this,
       (bmpFrame: BitmapFrame) => {
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
       },
       (responseFrame: ArrayBuffer) => {
-        this.sendFastPathResponseFrame(responseFrame);
+        this.sendRDPResponsePDU(responseFrame);
       }
     );
   }
@@ -600,8 +600,8 @@ export default class Client extends EventEmitterWebAuthnSender {
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
-  sendFastPathResponseFrame(responseFrame: ArrayBuffer) {
-    this.send(this.codec.encodeFastPathResponseFrame(responseFrame));
+  sendRDPResponsePDU(responseFrame: ArrayBuffer) {
+    this.send(this.codec.encodeRDPResponsePDU(responseFrame));
   }
 
   // Emits an errType event, closing the socket if the error was fatal.

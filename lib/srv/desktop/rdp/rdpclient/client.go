@@ -579,20 +579,20 @@ func (c *Client) start() {
 						return
 					}
 				}
-			case tdp.FastPathResponse:
-				var fastPathResponseLen uint32 = uint32(len(m))
-				var fastPathResponse *C.uint8_t
-				if fastPathResponseLen > 0 {
-					fastPathResponse = (*C.uint8_t)(unsafe.Pointer(&m[0]))
+			case tdp.RDPResponsePDU:
+				var rdpResponsePDULen uint32 = uint32(len(m))
+				var rdpResponsePDU *C.uint8_t
+				if rdpResponsePDULen > 0 {
+					rdpResponsePDU = (*C.uint8_t)(unsafe.Pointer(&m[0]))
 				} else {
-					c.cfg.Log.Error("FastPathResponse is empty")
+					c.cfg.Log.Error("RDPResponsePDU is empty")
 					return
 				}
 
 				if errCode := C.handle_tdp_fast_path_response(
-					c.rustClient, fastPathResponse, C.uint32_t(fastPathResponseLen),
+					c.rustClient, rdpResponsePDU, C.uint32_t(rdpResponsePDULen),
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Errorf("FastPathResponse failed: %v", errCode)
+					c.cfg.Log.Errorf("RDPResponsePDU failed: %v", errCode)
 					return
 				}
 			default:
@@ -640,17 +640,17 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	// TODO(isaiah): check if C.GoBytes is a copy or not.
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
-	return cgo.Handle(handle).Value().(*Client).handleFastPathFrame(goData)
+	return cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
 }
 
-func (c *Client) handleFastPathFrame(data []byte) C.CGOErrCode {
+func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
 	// from the fact that a png was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	if err := c.cfg.Conn.WriteMessage(tdp.FastPathFrame(data)); err != nil {
-		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
+	if err := c.cfg.Conn.WriteMessage(tdp.RDPFastPathPDU(data)); err != nil {
+		c.cfg.Log.Errorf("failed handling RDPFastPathPDU: %v", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

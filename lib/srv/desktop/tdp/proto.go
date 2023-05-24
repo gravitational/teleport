@@ -74,8 +74,8 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
-	TypeFastPathFrame                 = MessageType(29)
-	TypeFastPathResponse              = MessageType(30)
+	TypeRDPFastPathPDU                = MessageType(29)
+	TypeRDPResponsePDU                = MessageType(30)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -114,10 +114,10 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNGFrame(in)
 	case TypePNG2Frame:
 		return decodePNG2Frame(in)
-	case TypeFastPathFrame:
-		return decodeFastPathFrame(in)
-	case TypeFastPathResponse:
-		return decodeFastPathResponse(in)
+	case TypeRDPFastPathPDU:
+		return decodeRDPFastPathPDU(in)
+	case TypeRDPResponsePDU:
+		return decodeRDPResponsePDU(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -272,7 +272,7 @@ func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
 func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
-// FastPathFrame is a RemoteFX frame message
+// RDPFastPathPDU is a FastPath frame message.
 //
 // | message type (29) | data_length uint32 | data []byte |
 //
@@ -280,13 +280,13 @@ func (f PNG2Frame) Data() []byte   { return f[21:] }
 // the | data []byte | part of the message. Calling Encode() on this
 // type will return the full encoded message, including the
 // | message type (29) | data_length uint32 | parts.
-type FastPathFrame []byte
+type RDPFastPathPDU []byte
 
-func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
-	// Read PNG length so we can allocate buffer that will fit FastPathFrame message
+func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
+	// Read PNG length so we can allocate buffer that will fit RDPFastPathPDU message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
-		return FastPathFrame(nil), trace.Wrap(err)
+		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
 	// Allocate buffer that will fit the data
@@ -294,21 +294,21 @@ func decodeFastPathFrame(in byteReader) (FastPathFrame, error) {
 
 	// Write the data into the buffer
 	if _, err := io.ReadFull(in, data); err != nil {
-		return FastPathFrame(nil), trace.Wrap(err)
+		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
-	return FastPathFrame(data), nil
+	return RDPFastPathPDU(data), nil
 }
 
-func (f FastPathFrame) Encode() ([]byte, error) {
+func (f RDPFastPathPDU) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeFastPathFrame))
+	buf.WriteByte(byte(TypeRDPFastPathPDU))
 	writeUint32(buf, uint32(len(f)))
 	buf.Write(f)
 	return buf.Bytes(), nil
 }
 
-// FastPathResponse is a fast path response message.
+// RDPResponsePDU is a fast path response message.
 //
 // | message type (30) | data_length uint32 | data []byte |
 //
@@ -316,25 +316,25 @@ func (f FastPathFrame) Encode() ([]byte, error) {
 // the | data []byte | section of the message. Calling Encode() on
 // this type will return the full encoded message, including the
 // | message type (30) | data_length uint32 | parts.
-type FastPathResponse []byte
+type RDPResponsePDU []byte
 
-func decodeFastPathResponse(in byteReader) (FastPathResponse, error) {
+func decodeRDPResponsePDU(in byteReader) (RDPResponsePDU, error) {
 	var resFrameLength uint32
 	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
-		return FastPathResponse{}, trace.Wrap(err)
+		return RDPResponsePDU{}, trace.Wrap(err)
 	}
 
 	resFrame := make([]byte, resFrameLength)
 	if _, err := io.ReadFull(in, resFrame); err != nil {
-		return FastPathResponse{}, trace.Wrap(err)
+		return RDPResponsePDU{}, trace.Wrap(err)
 	}
 
 	return resFrame, nil
 }
 
-func (r FastPathResponse) Encode() ([]byte, error) {
+func (r RDPResponsePDU) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeFastPathResponse))
+	buf.WriteByte(byte(TypeRDPResponsePDU))
 	writeUint32(buf, uint32(len(r)))
 	buf.Write(r)
 	return buf.Bytes(), nil

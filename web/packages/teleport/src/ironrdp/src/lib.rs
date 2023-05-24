@@ -61,25 +61,28 @@ pub fn init_wasm_log(log_level: &str) {
     }
 }
 
+/// | message type (29) | data_length uint32 | data []byte |
+///
+/// This type is used in javascript pass raw RDP Server Fast-Path Update PDU data to Rust.
 #[wasm_bindgen]
-pub struct FastPathFrame {
+pub struct RDPFastPathPDU {
     data: Uint8Array,
 }
 
 #[wasm_bindgen]
-impl FastPathFrame {
+impl RDPFastPathPDU {
     #[wasm_bindgen(constructor)]
     pub fn new(data: Uint8Array) -> Self {
         Self { data }
     }
 }
 
-struct RustFastPathFrame {
+struct RustRDPFastPathPDU {
     data: Vec<u8>,
 }
 
-impl From<FastPathFrame> for RustFastPathFrame {
-    fn from(js_frame: FastPathFrame) -> Self {
+impl From<RDPFastPathPDU> for RustRDPFastPathPDU {
+    fn from(js_frame: RDPFastPathPDU) -> Self {
         Self {
             data: js_frame.data.to_vec(), // TODO(isaiah): is it possible to avoid copy?
         }
@@ -178,13 +181,13 @@ impl FastPathProcessor {
     /// respond_cb: (responseFrame: ArrayBuffer) => void
     pub fn process(
         &mut self,
-        tdp_fast_path_frame: FastPathFrame,
+        tdp_fast_path_frame: RDPFastPathPDU,
         cb_context: &JsValue,
         draw_cb: &js_sys::Function,
         respond_cb: &js_sys::Function,
     ) -> Result<(), JsValue> {
         let mut output = Vec::new();
-        let tdp_fast_path_frame: RustFastPathFrame = tdp_fast_path_frame.into();
+        let tdp_fast_path_frame: RustRDPFastPathPDU = tdp_fast_path_frame.into();
 
         let graphics_update_region = self
             .fast_path_processor

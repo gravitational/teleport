@@ -21,7 +21,7 @@ import {
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import { FastPathFrame } from 'teleport/ironrdp/pkg';
+import { RDPFastPathPDU } from 'teleport/ironrdp/pkg';
 
 // This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
 window.TextEncoder = window.TextEncoder || TestTextEncoder;
@@ -289,7 +289,7 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 }
 
 // // | message type (29) | data_length uint32 | data []byte |
-// export type FastPathFrame = {
+// export type RDPFastPathPDU = {
 //   data: Uint8Array;
 // };
 
@@ -806,7 +806,7 @@ export default class Codec {
   }
 
   // | message type (30) | data_length uint32 | data []byte |
-  encodeFastPathResponseFrame(responseFrame: ArrayBuffer): Message {
+  encodeRDPResponsePDU(responseFrame: ArrayBuffer): Message {
     const bufLen = byteLength + uint32Length + responseFrame.byteLength;
     const buffer = new ArrayBuffer(bufLen);
     const view = new DataView(buffer);
@@ -945,12 +945,12 @@ export default class Codec {
   }
 
   // | message type (29) | data_length uint32 | data []byte |
-  decodeFastPathFrame(buffer: ArrayBuffer): FastPathFrame {
+  decodeRDPFastPathPDU(buffer: ArrayBuffer): RDPFastPathPDU {
     let offset = 0;
     offset += byteLength; // eat message type
     offset += uint32Length; // eat data_length
     const data = buffer.slice(offset);
-    return new FastPathFrame(new Uint8Array(data));
+    return new RDPFastPathPDU(new Uint8Array(data));
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

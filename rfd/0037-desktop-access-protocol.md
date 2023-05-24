@@ -264,13 +264,21 @@ sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
 The only difference is that SSH sessions wrap the MFA JSON in a protobuf
 encoding, where desktop sessions wrap the MFA JSON in a TDP message.
 
-#### 29 - RemoteFX Frame
+#### 29 - RDP Fast-Path PDU
 
 ```
-| message type (29) | length uint32 | data []byte |
+| message type (29) | data_length uint32 | data []byte |
 ```
 
-Technically the data can be any RDP X224 or FastPath frame, but it is named RemoteFX Frame because in the context
-we're using this, we expect to receive primarily FastPath frames containing RemoteFX surface commands.
+This message carries a raw RDP [Server Fast-Path Update PDU](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/68b5ee54-d0d5-4d65-8d81-e1c4025f7597) in the data field.
+It is sent from TDP server to client. At the time of writing, the purpose of this message is to carry RemoteFX encoded bitmaps frames exclusively, but in theory it can be used for any Server Fast-Path Update PDU.
 
-TODO(isaiah): we may need to rename this
+#### 30 - RDP Response PDU
+
+```
+| message type (30) | data_length uint32 | data []byte |
+```
+
+Some messages passed to the TDP client via a FastPath Frame warrant a response, which can be sent from the TDP client to the server with this message.
+At the time of writing this message is used to send responses to RemoteFX frames, which occasionaly demand such, but in theory it can be used to carry
+any raw RDP response message intended to be written directly into the TDP server-side's RDP connection.
