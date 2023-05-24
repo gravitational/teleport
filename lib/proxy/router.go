@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -260,7 +261,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 
 			principals = append(principals, h)
 		case serverAddr == "" && target.GetUseTunnel():
-			serverAddr = reversetunnel.LocalNode
+			serverAddr = reversetunnelclient.LocalNode
 		}
 
 		targetTeleportVersion = target.GetTeleportVersion()
