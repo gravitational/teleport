@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-func startDummyHttpServer(t *testing.T, name string) string {
+func startDummyHTTPServer(t *testing.T, name string) string {
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", name)
 		_, _ = w.Write([]byte("hello"))
@@ -56,7 +56,6 @@ func startDummyHttpServer(t *testing.T, name string) string {
 }
 
 func TestAppLoginLeaf(t *testing.T) {
-	// start root and leaf clusters
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -76,7 +75,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	tunnel, ok := event.Payload.(reversetunnel.Server)
 	require.True(t, ok)
 
-	rootAppURL := startDummyHttpServer(t, "rootapp")
+	rootAppURL := startDummyHTTPServer(t, "rootapp")
 	rootAppServer := makeTestApplicationServer(t, rootAuth, rootProxy, servicecfg.App{Name: "rootapp", URI: rootAppURL})
 	_, err = rootAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)
@@ -103,7 +102,7 @@ func TestAppLoginLeaf(t *testing.T) {
 
 	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"))
 
-	leafAppURL := startDummyHttpServer(t, "leafapp")
+	leafAppURL := startDummyHTTPServer(t, "leafapp")
 	leafAppServer := makeTestApplicationServer(t, leafAuth, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
 	_, err = leafAppServer.WaitForEventTimeout(time.Second*10, service.TeleportReadyEvent)
 	require.NoError(t, err)

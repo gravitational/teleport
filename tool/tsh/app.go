@@ -269,10 +269,14 @@ Example command: tsh gcloud compute instances list
 
 // getRegisteredApp returns the registered application with the specified name.
 func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Application, err error) {
-	apps, err := tc.ListApps(cf.Context, &proto.ListResourcesRequest{
-		Namespace:           tc.Namespace,
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
+	var apps []types.Application
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
+			Namespace:           tc.Namespace,
+			ResourceType:        types.KindAppServer,
+			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
+		})
+		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
