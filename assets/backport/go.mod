@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/trace v1.1.15
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.3
 	golang.org/x/oauth2 v0.8.0
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -23,5 +23,5 @@ require (
 	golang.org/x/term v0.8.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
