@@ -1,18 +1,10 @@
-# This Dockerfile makes the "build box": the container used to build official
-# releases of Teleport and its documentation.
-#
-# Check the README to learn how to safely introduce changes to Dockerfiles.
-
-# Use Ubuntu 18.04 as base to get an older glibc version.
-# Using a newer base image will build against a newer glibc, which creates a
-# runtime requirement for the host to have newer glibc too. For example,
-# teleport built on any newer Ubuntu version will not run on Centos 7 because
-# of this.
+# This Dockerfile makes the "build box": the container used to
+# build Teleport Connect.
 
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:18.04 AS libfido2
+FROM buildpack-deps:22.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -64,7 +56,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:18.04 AS libbpf
+FROM buildpack-deps:22.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -96,7 +88,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:18.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -124,8 +116,8 @@ RUN apt-get -y update && \
         apt-utils \
         build-essential \
         ca-certificates \
-        clang-10 \
-        clang-format-10 \
+        clang \
+        clang-format \
         curl \
         default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
@@ -137,7 +129,7 @@ RUN apt-get -y update && \
         libpam-dev \
         libsqlite3-0 \
         libssl-dev \
-        llvm-10 \
+        llvm \
         locales \
         mingw-w64 \
         mingw-w64-x86-64-dev \
