@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -240,8 +241,8 @@ func TestEvaluate(t *testing.T) {
 			},
 			inputTraits: baseInputTraits,
 			errorContains: []string{
-				"failed to evaluate argument to set.add method",
-				"expected value of type string, got loginrule.set",
+				"parsing argument 2 to function (add)",
+				"expected type string, got expression returning type (loginrule.set)",
 			},
 		},
 		{
@@ -373,8 +374,8 @@ func TestEvaluate(t *testing.T) {
 				newLoginRuleWithTraitsExpression("rule", 0, `choose(external.groups.contains("devs"), external)`),
 			},
 			errorContains: []string{
-				"failed to evaluate argument to choose",
-				"expected value of type loginrule.option, got bool",
+				"parsing argument 1 to function (choose)",
+				"expected type loginrule.option, got expression returning type (bool)",
 			},
 		},
 		{
@@ -451,7 +452,7 @@ func TestEvaluate(t *testing.T) {
 				newLoginRuleWithTraitsExpression("rule", 0, `internal.groups`),
 			},
 			errorContains: []string{
-				`invalid namespace "internal"`,
+				`unknown identifier: "internal.groups"`,
 			},
 		},
 		{
@@ -475,7 +476,7 @@ func TestEvaluate(t *testing.T) {
 				}
 				return
 			}
-			require.NoError(t, err)
+			require.NoError(t, err, trace.DebugReport(err))
 
 			var ruleNames []string
 			for _, rule := range tc.rules {

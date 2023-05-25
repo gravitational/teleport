@@ -98,7 +98,7 @@ func TestRBAC(t *testing.T) {
 			Name: "test_rule",
 		},
 		Version:          types.V1,
-		TraitsExpression: "test",
+		TraitsExpression: "external",
 	}
 
 	for _, tc := range []struct {

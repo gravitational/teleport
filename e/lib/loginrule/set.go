@@ -1,7 +1,6 @@
 package loginrule
 
 import (
-	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 )
 
@@ -60,68 +59,4 @@ func union(sets ...set) set {
 		}
 	}
 	return result
-}
-
-func buildNewSetExpr(items ...any) (expr, error) {
-	itemExprs, err := validateExprs[string](items...)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse argument to set constructor")
-	}
-	return func(env *evaluationEnv) (any, error) {
-		items, err := validateExprResults[string](env, itemExprs...)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate argument to set constructor")
-		}
-		return newSet(items...), nil
-	}, nil
-}
-
-func buildSetAddExpr(recv expr, items ...any) (expr, error) {
-	itemExprs, err := validateExprs[string](items...)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse arguments to set.add method")
-	}
-	return func(env *evaluationEnv) (any, error) {
-		s, err := validateExprResult[set](env, recv)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate receiver for set.add method")
-		}
-		items, err := validateExprResults[string](env, itemExprs...)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate argument to set.add method")
-		}
-		return s.add(items...), nil
-	}, nil
-}
-
-func buildSetContainsExpr(recv expr, arg any) (expr, error) {
-	argExpr, err := validateExpr[string](arg)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse argument to set.contains method")
-	}
-	return func(env *evaluationEnv) (any, error) {
-		s, err := validateExprResult[set](env, recv)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate receiver for set.contains method")
-		}
-		arg, err := validateExprResult[string](env, argExpr)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate argument to set.contains method")
-		}
-		return s.contains(arg), nil
-	}, nil
-}
-
-func buildUnionExpr(sets ...any) (expr, error) {
-	setExprs, err := validateExprs[set](sets...)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse argument to union")
-	}
-	return func(env *evaluationEnv) (any, error) {
-		sets, err := validateExprResults[set](env, setExprs...)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to evaluate argument to union")
-		}
-		return union(sets...), nil
-	}, nil
 }

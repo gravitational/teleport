@@ -2,6 +2,7 @@ package loginrule
 
 import (
 	"context"
+	"errors"
 	"sort"
 
 	"github.com/gravitational/trace"
@@ -10,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/loginrule/storage"
 	oss "github.com/gravitational/teleport/lib/loginrule"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
 // Evaluator can be used to evaluate login rules for given inputs.
@@ -61,7 +63,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	for _, rule := range rules {
 		appliedRules = append(appliedRules, rule.Metadata.Name)
 		// Every rule gets the output of the previous rule as input.
-		env := &evaluationEnv{
+		env := evaluationEnv{
 			external: traits,
 		}
 		// Each rule should only have one of TraitsMap or TraitsExpression set,
@@ -99,7 +101,7 @@ func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	})
 }
 
-func evaluateTraitsMap(env *evaluationEnv, traitsMap map[string]*wrappers.StringValues) (dict, error) {
+func evaluateTraitsMap(env evaluationEnv, traitsMap map[string]*wrappers.StringValues) (dict, error) {
 	d, err := newDict()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -108,9 +110,23 @@ func evaluateTraitsMap(env *evaluationEnv, traitsMap map[string]*wrappers.String
 		for _, expr := range values.Values {
 			e, err := parseExpr(expr)
 			if err != nil {
+				var u typical.UnknownIdentifierError
+				if errors.As(err, &u) {
+					id := u.Identifier()
+					if id == expr {
+						// If the entire expression evaluates to a single unknown
+						// identifier, treat it as a string. This is to support rules like
+						//   groups: [devs]
+						// instead of requiring extra quotes like
+						//   groups: ['"devs"']
+						d[key] = union(d[key], newSet(id))
+						continue
+					}
+				}
 				return nil, trace.Wrap(err, "error parsing expression: %q", expr)
 			}
-			result, err := e(env)
+
+			result, err := e.Evaluate(env)
 			if err != nil {
 				return nil, trace.Wrap(err, "error evaluating expression: %q", expr)
 			}
@@ -128,13 +144,6 @@ func evaluateTraitsMap(env *evaluationEnv, traitsMap map[string]*wrappers.String
 
 func traitsMapResultToSet(result any, expr string) (set, error) {
 	switch v := result.(type) {
-	case unknownIdentifier:
-		// If the entire expression evaluates to a single unknown
-		// identifier, treat it as a string. This is to support rules like
-		//   groups: [devs]
-		// instead of requiring extra quotes like
-		//   groups: ['"devs"']
-		return newSet(string(v)), nil
 	case string:
 		return newSet(v), nil
 	case set:
@@ -144,12 +153,12 @@ func traitsMapResultToSet(result any, expr string) (set, error) {
 	}
 }
 
-func evaluateTraitsExpression(env *evaluationEnv, traitsExpression string) (dict, error) {
+func evaluateTraitsExpression(env evaluationEnv, traitsExpression string) (dict, error) {
 	expr, err := parseExpr(traitsExpression)
 	if err != nil {
 		return nil, trace.Wrap(err, "error parsing expression: %q", traitsExpression)
 	}
-	result, err := expr(env)
+	result, err := expr.Evaluate(env)
 	if err != nil {
 		return nil, trace.Wrap(err, "error evaluating expression: %q", traitsExpression)
 	}
