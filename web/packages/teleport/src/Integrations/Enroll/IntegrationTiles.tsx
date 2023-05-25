@@ -41,6 +41,7 @@ export function IntegrationTiles({
           ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
           : null
       }
+      data-testid="tile-aws-oidc"
     >
       <Image mt={3} mb={2} src={awsIcon} width="80px" height="80px" />
       <Text>
