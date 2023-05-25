@@ -242,6 +242,11 @@ func (p *resourceWatcher) runWatchLoop() {
 		case <-p.ctx.Done():
 			p.Log.Debug("Closed, returning from watch loop.")
 			return
+		case <-p.StaleC:
+			// Used for testing that the watch routine is waiting for the
+			// next restart attempt. We don't want to wait for the full
+			// retry period in tests so we trigger the restart immediately.
+			p.Log.Debug("Stale view, continue watch loop.")
 		}
 		if err != nil {
 			p.Log.Warningf("Restart watch on error: %v.", err)
