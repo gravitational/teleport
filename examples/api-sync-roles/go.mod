@@ -6,9 +6,9 @@ require (
 	github.com/gravitational/teleport/api v0.0.0-20230320182000-4099bf7d2364
 	github.com/gravitational/trace v1.2.1
 	google.golang.org/grpc v1.55.0
-	k8s.io/api v0.26.3
+	k8s.io/api v0.27.2
 	k8s.io/apimachinery v0.27.2
-	k8s.io/client-go v0.26.3
+	k8s.io/client-go v0.27.2
 )
 
 require (
