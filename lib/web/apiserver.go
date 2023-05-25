@@ -1190,19 +1190,13 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 	// TODO: This part should be removed once the plugin support is added to OSS.
 	if proxyConfig.AssistEnabled {
-		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
-		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-		if err != nil {
-			return webclient.AuthenticationSettings{}, trace.Wrap(err)
-		}
-		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
 		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 
-		// disable if per-session MFA is enabled and it's ok by the auth
-		proxyConfig.AssistEnabled = enabled.Enabled && !mfaRequired
+		// disable if auth doesn't support assist
+		proxyConfig.AssistEnabled = enabled.Enabled
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1676,9 +1670,8 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// By default, it uses the stable/v<majorVersion> channel.
 	repoChannel := fmt.Sprintf("stable/%s", version)
 
-	// However, when Automatic Upgrades are on and cluster is part of cloud,
-	// it will use the stable/cloud channel.
-	if feats.Cloud && feats.AutomaticUpgrades {
+	// For Teleport Cloud installations, use the `stable/cloud` channel.
+	if feats.Cloud {
 		repoChannel = stableCloudChannelRepo
 	}
 
@@ -3045,7 +3038,14 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 	}
 
 	searchEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchEvents(from, to, apidefaults.Namespace, eventTypes, limit, order, startKey)
+		return clt.SearchEvents(r.Context(), events.SearchEventsRequest{
+			From:       from,
+			To:         to,
+			EventTypes: eventTypes,
+			Limit:      limit,
+			Order:      order,
+			StartKey:   startKey,
+		})
 	}
 	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchEvents)
 }
@@ -3066,7 +3066,13 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 //	            If no order is provided it defaults to descending.
 func (h *Handler) clusterSearchSessionEvents(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	searchSessionEvents := func(clt auth.ClientI, from, to time.Time, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-		return clt.SearchSessionEvents(from, to, limit, order, startKey, nil, "")
+		return clt.SearchSessionEvents(r.Context(), events.SearchSessionEventsRequest{
+			From:     from,
+			To:       to,
+			Limit:    limit,
+			Order:    order,
+			StartKey: startKey,
+		})
 	}
 	return clusterEventsList(r.Context(), sctx, site, r.URL.Query(), searchSessionEvents)
 }

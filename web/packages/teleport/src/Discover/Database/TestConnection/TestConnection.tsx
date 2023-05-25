@@ -27,7 +27,7 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   ConnectionDiagnosticResult,
 } from '../../Shared';
 import { DatabaseEngine } from '../../SelectResource';
@@ -85,7 +85,7 @@ export function TestConnectionView({
           onClose={cancelMfaDialog}
         />
       )}
-      <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
+      <Header>Test Connection</Header>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the Database you
         just added.
@@ -161,7 +161,7 @@ export function TestConnectionView({
           <TextSelectCopy mt="1" text={tshDbCmd} />
         </Box>
       </StyledBox>
-      <ActionButtons onProceed={nextStep} lastStep={true} />
+      <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>
   );
 }

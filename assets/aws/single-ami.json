@@ -99,6 +99,10 @@
     "source": "files/",
     "destination": "/tmp/files"
   },{
+    "type": "file",
+    "source": "monitor-files/",
+    "destination": "/tmp/files"
+  },{
       "inline": [
         "sudo cp /tmp/files/system/* /etc/systemd/system/",
         "sudo cp /tmp/files/bin/* /usr/local/bin/"

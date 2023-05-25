@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 
 import { SwitchTransition, Transition } from 'react-transition-group';
@@ -87,11 +87,16 @@ const defaultStyle = {
   width: '100%',
 };
 
-const horizontalTransitionStyles = {
+const horizontalNextTransitionStyles = {
   entering: { opacity: 0, transform: 'translateX(50px)' },
   entered: { opacity: 1, transform: 'translateX(0%)' },
-  exiting: { opacity: 0, transform: 'translateX(-50px)' },
   exited: { opacity: 0, transform: 'translateX(-50px)' },
+};
+
+const horizontalPrevTransitionStyles = {
+  entering: { opacity: 0, transform: 'translateX(-50px)' },
+  entered: { opacity: 1, transform: 'translateX(0%)' },
+  exited: { opacity: 0, transform: 'translateX(50px)' },
 };
 
 enum InstructionStep {
@@ -104,14 +109,27 @@ enum InstructionStep {
   Seventh,
 }
 
+export type AwsOidc = {
+  thumbprint: string;
+  roleArn: string;
+  integrationName: string;
+};
+
 export function AwsOidc() {
   const ctx = useTeleport();
   let clusterPublicUri = getClusterPublicUri(
     ctx.storeUser.state.cluster.publicURL
   );
 
+  const transitionRef = useRef<'prev' | 'next'>('next');
+
   const [stage, setStage] = useState(Stage.Initial);
   const [showRestartAnimation, setShowRestartAnimation] = useState(false);
+  const [awsOidc, setAwsOidc] = useState<AwsOidc>({
+    thumbprint: '',
+    roleArn: '',
+    integrationName: '',
+  });
 
   const currentStageIndex = STAGES.findIndex(s => s.kind === stage);
   const currentStage = STAGES[currentStageIndex];
@@ -143,6 +161,23 @@ export function AwsOidc() {
     }
   }, [currentStage, currentStageIndex, showRestartAnimation]);
 
+  function updateState(nextStage: Stage, awsOidc?: AwsOidc) {
+    if (nextStage > stage) {
+      transitionRef.current = 'next';
+    } else {
+      transitionRef.current = 'prev';
+    }
+    if (awsOidc) {
+      setAwsOidc(awsOidc);
+    }
+    setStage(nextStage);
+  }
+
+  const transitionStyle =
+    transitionRef.current === 'next'
+      ? horizontalNextTransitionStyles
+      : horizontalPrevTransitionStyles;
+
   return (
     <Container>
       <Header>Set up your AWS account</Header>
@@ -155,33 +190,41 @@ export function AwsOidc() {
 
       <InstructionsContainer>
         <SwitchTransition mode="out-in">
-          <Transition
+          <Transition<undefined>
             key={currentStageConfig.instructionStep}
             timeout={250}
             mountOnEnter
             unmountOnExit
+            onExiting={(n: HTMLElement) => {
+              n.style.transform = `translateX(${
+                transitionRef.current === 'prev' ? '50px' : '-50px'
+              })`;
+            }}
           >
             {state => (
               <div
                 style={{
                   ...defaultStyle,
-                  ...horizontalTransitionStyles[state],
+                  ...transitionStyle[state],
                 }}
               >
                 {currentStageConfig.instructionStep ===
                   InstructionStep.First && (
                   <FirstStageInstructions
-                    onNext={() => {
-                      setStage(Stage.NewProviderFullScreen);
-                    }}
+                    onNext={() => updateState(Stage.NewProviderFullScreen)}
+                    onPrev={null}
                     clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Second && (
                   <SecondStageInstructions
-                    onNext={() => {
-                      setStage(Stage.AddProvider);
+                    awsOidc={awsOidc}
+                    onNext={updatedAwsOidc => {
+                      updateState(Stage.AddProvider, updatedAwsOidc);
+                    }}
+                    onPrev={updatedAwsOidc => {
+                      updateState(Stage.Initial, updatedAwsOidc);
                     }}
                     clusterPublicUri={clusterPublicUri}
                   />
@@ -189,41 +232,44 @@ export function AwsOidc() {
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Third && (
                   <ThirdStageInstructions
-                    onNext={() => {
-                      setStage(Stage.CreateNewRole);
-                    }}
+                    onNext={() => updateState(Stage.CreateNewRole)}
+                    onPrev={() => updateState(Stage.NewProviderFullScreen)}
                     clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Fourth && (
                   <FourthStageInstructions
-                    onNext={() => {
-                      setStage(Stage.CreatePolicy);
-                    }}
+                    onNext={() => updateState(Stage.CreatePolicy)}
+                    onPrev={() => updateState(Stage.AddProvider)}
                     clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Fifth && (
                   <FifthStageInstructions
-                    onNext={() => {
-                      setStage(Stage.AssignPolicyToRole);
-                    }}
+                    onNext={() => updateState(Stage.AssignPolicyToRole)}
+                    onPrev={() => updateState(Stage.CreateNewRole)}
                     clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Sixth && (
                   <SixthStageInstructions
-                    onNext={() => {
-                      setStage(Stage.ListRoles);
-                    }}
+                    onNext={() => updateState(Stage.ListRoles)}
+                    onPrev={() => updateState(Stage.CreatePolicy)}
                     clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
-                  InstructionStep.Seventh && <SeventhStageInstructions />}
+                  InstructionStep.Seventh && (
+                  <SeventhStageInstructions
+                    awsOidc={awsOidc}
+                    onPrev={updatedAwsOidc =>
+                      updateState(Stage.AssignPolicyToRole, updatedAwsOidc)
+                    }
+                  />
+                )}
               </div>
             )}
           </Transition>

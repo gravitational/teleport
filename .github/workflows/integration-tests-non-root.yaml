@@ -72,4 +72,4 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 40
-        run: runuser -u ci -g ci make rdpclient integration
+        run: runuser -u ci -g ci make integration RDPCLIENT_SKIP_BUILD=1

@@ -739,6 +739,7 @@ exports[`render DocumentNodes 1`] = `
   display: flex;
   flex: 1;
   max-width: 1024px;
+  height: fit-content;
 }
 
 .c2::after {

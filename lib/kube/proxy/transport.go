@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -116,7 +117,7 @@ func (f *Forwarder) transportForRequestWithoutImpersonation(sess *clusterSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	transport := newTransport(sess.DialWithContext, tlsConfig)
+	transport := newTransport(sess.DialWithContext(), tlsConfig)
 	if !sess.upgradeToHTTP2 {
 		return tracehttp.NewTransport(transport), nil
 	}
@@ -394,7 +395,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalKubernetes},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
@@ -419,7 +420,11 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName string) (*httpTrans
 // in a local Teleport cluster using the reverse tunnel.
 // The endpoints are fetched from the cached auth client and are shuffled
 // to avoid hotspots.
-func (f *Forwarder) localClusterDialer(kubeClusterName string) dialContextFunc {
+func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDialerOption) dialContextFunc {
+	opt := contextDialerOptions{}
+	for _, o := range opts {
+		o(&opt)
+	}
 	return func(ctx context.Context, _, _ string) (net.Conn, error) {
 		_, span := f.cfg.tracer.Start(
 			ctx,
@@ -459,7 +464,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string) dialContextFunc {
 		// Validate that the requested kube cluster is registered.
 		for _, s := range kubeServers {
 			kubeCluster := s.GetCluster()
-			if kubeCluster.GetName() != kubeClusterName {
+			if kubeCluster.GetName() != kubeClusterName || !opt.matches(s.GetHostID()) {
 				continue
 			}
 			// serverID is a unique identifier of the server in the cluster.
@@ -548,7 +553,7 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 // to the first available kubernetes service.
 // If the next hop is a local cluster, it returns a dialer that directly dials
 // to the next hop.
-func (f *Forwarder) getContextDialerFunc(s *clusterSession) dialContextFunc {
+func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDialerOption) dialContextFunc {
 	if s.kubeAPICreds != nil {
 		// If this is a kubernetes service, we need to connect to the kubernetes
 		// API server using a direct dialer.
@@ -560,8 +565,34 @@ func (f *Forwarder) getContextDialerFunc(s *clusterSession) dialContextFunc {
 	} else if f.cfg.ReverseTunnelSrv != nil {
 		// If this is a local cluster, we need to connect to the remote proxy
 		// and then forward the connection to the local cluster.
-		return f.localClusterDialer(s.kubeClusterName)
+		return f.localClusterDialer(s.kubeClusterName, opts...)
 	}
 
 	return new(net.Dialer).DialContext
+}
+
+// contextDialerOptions is a set of options that can be used to filter
+// the hosts that the dialer connects to.
+type contextDialerOptions struct {
+	hostID string
+}
+
+// matches returns true if the host matches the hostID of the dialer options or
+// if the dialer hostID is empty.
+func (c *contextDialerOptions) matches(hostID string) bool {
+	return c.hostID == "" || c.hostID == hostID
+}
+
+// contextDialerOption is a functional option for the contextDialerOptions.
+type contextDialerOption func(*contextDialerOptions)
+
+// withTargetHostID is a functional option that sets the hostID of the dialer.
+// If the hostID is empty, the dialer will connect to the first available host.
+// If the hostID is not empty, the dialer will connect to the host with the
+// specified hostID. If that host is not available, the dialer will return an
+// error.
+func withTargetHostID(hostID string) contextDialerOption {
+	return func(o *contextDialerOptions) {
+		o.hostID = hostID
+	}
 }

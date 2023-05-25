@@ -3,6 +3,10 @@ title: Architecture of the Okta Service
 description: An overview of the architecture of the Okta Service.
 ---
 
+<Admonition type="warning" title="Preview">
+Okta application access is currently in Preview mode.
+</Admonition>
+
 This document will go into details on how the Okta Service is organized and how
 it functions.
 
@@ -15,10 +19,6 @@ interactions with Okta. There are three main components of the Okta Service:
 - User access
 - Access Requests
 
-![Okta architecture](../../../img/application-access/okta/okta-architecture.png)
-
-{/*
-Uncomment this once mermaid support is in.
 ```mermaid
 flowchart TB
   Okta[Okta API]
@@ -36,7 +36,6 @@ flowchart TB
   UA-- Longer lived permissions-->Okta
   AR-- Short lived permissions-->Okta
 ```
-*/}
 
 The Okta Service uses an Okta API token and endpoint in order to interact
 with Okta's API. The API is used to import applications and user groups and
