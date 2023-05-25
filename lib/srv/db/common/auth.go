@@ -90,9 +90,9 @@ type Auth interface {
 	// attached to the current compute instance. If Teleport is not running on
 	// Azure VM returns an error.
 	GetAzureIdentityResourceID(ctx context.Context, identityName string) (string, error)
-	// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB
-	// Atlas instance.
-	GetAtlasIAMToken(ctx context.Context, sessionCtx *Session) (string, string, string, error)
+	// GetAWSIAMCreds returns the AWS IAM credentials, including access key,
+	// secret access key and session token.
+	GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -832,9 +832,9 @@ func (a *dbAuth) getCurrentAzureVM(ctx context.Context) (*libazure.VirtualMachin
 	return vm, nil
 }
 
-// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB Atlas
-// instance.
-func (a *dbAuth) GetAtlasIAMToken(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (string, string, string, error) {
 	dbAWS := sessionCtx.Database.GetAWS()
 	awsAccountID := dbAWS.AccountID
 

@@ -571,7 +571,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	}
 }
 
-func TestGetAtlasIAMToken(t *testing.T) {
+func TestGetAWSIAMCreds(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	ctx := context.Background()
@@ -616,7 +616,7 @@ func TestGetAtlasIAMToken(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			keyId, _, _, err := auth.GetAtlasIAMToken(ctx, &Session{
+			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, &Session{
 				Database:     db,
 				DatabaseUser: tt.username,
 			})

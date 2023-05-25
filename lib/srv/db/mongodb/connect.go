@@ -192,7 +192,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
 	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
 
-	username, password, sessToken, err := e.Auth.GetAtlasIAMToken(ctx, sessionCtx)
+	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

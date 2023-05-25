@@ -313,10 +313,10 @@ func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *c
 	return azureRedisToken, nil
 }
 
-// GetAtlasIAMToken returns the AWS IAM token used to connect to MongoDB Atlas
-// instance.
-func (a *testAuth) GetAtlasIAMToken(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
-	a.Infof("Generating Mongo Atlas auth token for %v.", sessionCtx)
+// GetAWSIAMCreds returns the AWS IAM credentials, including access key, secret
+// access key and session token.
+func (a *testAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *common.Session) (string, string, string, error) {
+	a.Infof("Generating AWS IAM credentials for %v.", sessionCtx)
 	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
 }
 
