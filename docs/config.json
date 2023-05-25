@@ -1657,6 +1657,10 @@
               "title": "How to Contribute",
               "slug": "/contributing/documentation/how-to-contribute/"
             },
+	    {
+	       "title": "Reviewing Documentation Changes",
+	       "slug": "/contributing/documentation/reviewing-docs/"
+	    },
             {
               "title": "Creating Documentation Issues",
               "slug": "/contributing/documentation/issues/"
