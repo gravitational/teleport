@@ -28,11 +28,14 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -113,6 +116,9 @@ type Config struct {
 	AWSConfig *aws.Config
 
 	Backend backend.Backend
+
+	// Tracer is used to create spans
+	Tracer oteltrace.Tracer
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
@@ -245,11 +251,16 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.AWSConfig = &awsCfg
 	}
 
 	if cfg.Backend == nil {
 		return trace.BadParameter("Backend cannot be nil")
+	}
+
+	if cfg.Tracer == nil {
+		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
 	}
 
 	return nil
@@ -370,6 +381,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		awsCfg:                  cfg.AWSConfig,
 		logger:                  cfg.LogEntry,
 		clock:                   cfg.Clock,
+		tracer:                  cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
