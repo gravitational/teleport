@@ -743,14 +743,14 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
-	tc, err := makeClient(&conf, true)
+	tc, err := makeClient(&conf)
 	require.Nil(t, tc)
 	require.Error(t, err)
 
 	// minimal configuration (with defaults)
 	conf.Proxy = "proxy:3080"
 	conf.UserHost = "localhost"
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, "proxy:3023", tc.Config.SSHProxyAddr)
@@ -768,7 +768,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root", tc.Config.HostLogin)
@@ -798,7 +798,7 @@ func TestMakeClient(t *testing.T) {
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root@example.com", tc.Config.HostLogin)
@@ -839,7 +839,7 @@ func TestMakeClient(t *testing.T) {
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
