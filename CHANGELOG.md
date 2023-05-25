@@ -179,13 +179,13 @@ are deploying distroless Teleport images by default. Those images are slimmer
 and more secure but contain less tooling (e.g. neither `bash` nor
 `apt` are available).
 
-The debian-based images are deprecated and will be removed in Teleport 14.
-The chart image can be reverted back to the debian-based images by setting:
-```
+The Debian-based images are deprecated and will be removed in Teleport 14.
+The chart image can be reverted back to the Debian-based images by setting:
+```yaml
 image: "public.ecr.aws/gravitational/teleport"
 ```
 
-For debugging purposes, a "debug" image is available and contains busybox,
+For debugging purposes, a "debug" image is available and contains BusyBox,
 which includes a shell and most common POSIX executables:
 `public.ecr.aws/gravitational/teleport-distroless`.
 
