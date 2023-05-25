@@ -54,11 +54,6 @@ the Teleport-recommended chart defaults for everything else.
 Also, note that many useful Teleport features can already be configured using chart values rather than custom YAML.
 Setting `publicAddr` is the same as setting `proxy.teleportConfig.proxy_service.public_addr`, for example.
 
-The chart automatically creates a Kubernetes join token, named after the Helm
-release, which will enable the proxy pods to seamlessly connect to the auth pods.
-If you do not want to use this automatic token, you must provide a valid
-Teleport join token in the proxy pods' configuration.
-
 <Admonition type="warning">
 When using `scratch` or `standalone` mode, you **must** use highly-available
 storage (e.g. etcd, DynamoDB, or Firestore) for multiple replicas to be supported.
