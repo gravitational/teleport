@@ -238,6 +238,6 @@ traffic:
 | 6379 | Database Service | Traffic to Redis instances.|
 | 3028 | Windows Desktop Service | Teleport Desktop Protocol traffic from Teleport clients.|
 
-For applications registered with the Teleport Application Service, the Teleport
-Proxy Service assigns a subdomain of its domain name to each registered
-application, routing traffic to the correct Application Service instance. 
+Applications registered with the Teleport Application Service can only be
+accessed via the Teleport Proxy Service, not directly via the Application
+Service.
