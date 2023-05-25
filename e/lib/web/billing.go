@@ -12,24 +12,6 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 )
 
-func (p *Plugin) listBillingCyclesHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
-	response, err := client.ListBillingCycles(r.Context(), &cloudapi.EmptyRequest{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return response.Cycles, nil
-}
-
-func (p *Plugin) listInvoicesHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
-	response, err := client.ListInvoices(r.Context(), &cloudapi.EmptyRequest{})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return response.Invoices, nil
-}
-
 func (p *Plugin) removeCardHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
 	var req *cloudapi.RemoveCardRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -65,20 +47,6 @@ func (p *Plugin) updateCardHandle(w http.ResponseWriter, r *http.Request, ctx *w
 	}
 
 	response, err := client.UpdateCard(r.Context(), req)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	return response, nil
-}
-
-func (p *Plugin) updateAccountHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, client cloud.Client) (interface{}, error) {
-	var req *cloudapi.UpdateAccountRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := client.UpdateAccount(r.Context(), req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

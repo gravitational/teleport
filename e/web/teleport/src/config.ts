@@ -13,11 +13,6 @@ const cfg = {
     requests: '/web/requests/:requestId?',
     requestNew: '/web/cluster/:clusterId/requests/new',
 
-    billing: '/web/billing',
-    billingUsage: '/web/billing/usage',
-    billingAccount: '/web/billing/account',
-    billingInvoices: '/web/billing/invoices',
-
     accountRecovery: '/web/account/recovery',
 
     recovery: '/web/recovery/',
@@ -53,19 +48,16 @@ const cfg = {
     authConnectorsListPath: '/v1/enterprise/authconnectors',
     samlConnectorsPath: '/v1/enterprise/saml/:name?',
     oidcConnectorsPath: '/v1/enterprise/oidc/:name?',
-    cyclesPath: '/v1/enterprise/cloud/cycles',
-    invoicesPath: '/v1/enterprise/cloud/invoices',
-    cardPath: '/v1/enterprise/cloud/card',
-    accountPath: '/v1/enterprise/cloud/account',
     addressPath: '/v1/enterprise/cloud/address',
 
-    setupIntentPath: '/v1/enterprise/cloud/setupintent',
     billingPath: '/v1/enterprise/cloud/billing',
     billingSummaryPath: '/v1/enterprise/cloud/billing-summary',
-    paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
-    invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',
+    cardPath: '/v1/enterprise/cloud/card',
     emailPath: '/v1/enterprise/cloud/billing-email',
+    invoiceSettingsPath: '/v1/enterprise/cloud/invoice-settings',
+    paymentsInvoicesPath: '/v1/enterprise/cloud/payments-invoices',
     poPath: '/v1/enterprise/cloud/billing-po',
+    setupIntentPath: '/v1/enterprise/cloud/setupintent',
 
     recoveryStartPath: '/v1/enterprise/cloud/recovery/start',
     recoveryVerifyUserPath: '/v1/enterprise/cloud/recovery/verify',

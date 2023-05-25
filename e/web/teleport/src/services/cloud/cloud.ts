@@ -4,26 +4,19 @@ import cfg from 'e-teleport/config';
 
 import {
   AddCardRequest,
-  BillingCycle,
   BillingInformation,
   BillingSummaryInformation,
-  Invoice,
   InvoiceSettingsInformation,
   PaymentsInvoicesInformation,
   RemoveCardRequest,
   SetupIntent,
   StripeBillingAddressRequest,
-  UpdateAccountRequest,
   UpdateCardRequest,
   UpdateEmailRequest,
   UpdatePurchaseOrderRequest,
 } from './types';
 
 class CloudService {
-  updateAccount(req: UpdateAccountRequest) {
-    return api.put(cfg.api.accountPath, req);
-  }
-
   updateAddress(req: StripeBillingAddressRequest) {
     return api.put(cfg.api.addressPath, req);
   }
@@ -38,14 +31,6 @@ class CloudService {
 
   updateCard(req: UpdateCardRequest) {
     return api.put(cfg.api.cardPath, req);
-  }
-
-  fetchInvoices(): Promise<Invoice[]> {
-    return api.get(cfg.api.invoicesPath).then((json: Invoice[]) => json || []);
-  }
-
-  fetchBillingCycles(): Promise<BillingCycle[]> {
-    return api.get(cfg.api.cyclesPath).then(makeBillingCycles);
   }
 
   createSetupIntent(): Promise<SetupIntent> {
@@ -88,15 +73,6 @@ class CloudService {
 }
 
 export default CloudService;
-
-function makeBillingCycles(json: any) {
-  json = json || [];
-
-  return json.map((cycle: BillingCycle) => ({
-    ...cycle,
-    itemsList: cycle.itemsList || [],
-  })) as BillingCycle[];
-}
 
 function makeBillingInformation(json: any) {
   json.cardsList = json.cardsList || [];

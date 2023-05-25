@@ -21,16 +21,6 @@ type cloudWithRoles struct {
 	plugin *Plugin
 }
 
-// ListBillingCycles lists billing cycles
-func (ac *cloudWithRoles) ListBillingCycles(ctx context.Context, req *v1.EmptyRequest) (*v1.ListBillingCyclesResponse, error) {
-	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbList)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ac.plugin.cloudClient.ListBillingCycles(ctx, req)
-}
-
 // RemoveCard removes a credit card from tenant account
 func (ac *cloudWithRoles) RemoveCard(ctx context.Context, req *v1.RemoveCardRequest) (*v1.EmptyResponse, error) {
 	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbDelete)
@@ -84,35 +74,6 @@ func (ac *cloudWithRoles) UpdateCard(ctx context.Context, req *v1.UpdateCardRequ
 			"user":         event.UserMetadata.User,
 			"impersonator": event.UserMetadata.Impersonator,
 		}).Warn("Failed to emit billing card update event.")
-	}
-
-	return res, nil
-}
-
-// UpdateAccount updates account information
-func (ac *cloudWithRoles) UpdateAccount(ctx context.Context, req *v1.UpdateAccountRequest) (*v1.EmptyResponse, error) {
-	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbUpdate)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	res, err := ac.plugin.cloudClient.UpdateAccount(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	event := &apievents.BillingInformationUpdate{
-		Metadata: apievents.Metadata{
-			Type: events.BillingInformationUpdateEvent,
-			Code: events.BillingInformationUpdateCode,
-		},
-		UserMetadata: authz.ClientUserMetadata(ctx),
-	}
-	if err := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, event); err != nil {
-		log.WithError(err).WithFields(logrus.Fields{
-			"user":         event.UserMetadata.User,
-			"impersonator": event.UserMetadata.Impersonator,
-		}).Warn("Failed to emit billing account update event.")
 	}
 
 	return res, nil
@@ -210,16 +171,6 @@ func (ac *cloudWithRoles) CreateSetupIntent(ctx context.Context, req *v1.EmptyRe
 // SubmitUsageReports submits usage report for processing
 func (ac *cloudWithRoles) SubmitUsageReports(ctx context.Context, req *v1.SubmitUsageReportsRequest) (*v1.EmptyResponse, error) {
 	return nil, trace.NotImplemented("SubmitUsageReports cannot be called via Auth Service.")
-}
-
-// ListInvoices lists tenant invoices
-func (ac *cloudWithRoles) ListInvoices(ctx context.Context, req *v1.EmptyRequest) (*v1.ListInvoicesResponse, error) {
-	err := ac.action(ctx, apidefaults.Namespace, types.KindBilling, types.VerbList)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ac.plugin.cloudClient.ListInvoices(ctx, req)
 }
 
 // SendAccountRecoveryLink sends an email with a recovery link to user.
@@ -364,6 +315,21 @@ func (ac *cloudWithRoles) UpdatePurchaseOrderPrefix(ctx context.Context, req *v1
 	}
 
 	return res, nil
+}
+
+// ListInvoices is deprecated
+func (ac *cloudWithRoles) ListInvoices(_ context.Context, _ *v1.EmptyRequest) (*v1.ListInvoicesResponse, error) {
+	return nil, trace.NotImplemented("ListInvoices is not implemented")
+}
+
+// UpdateAccount is deprecated
+func (ac *cloudWithRoles) UpdateAccount(_ context.Context, _ *v1.UpdateAccountRequest) (*v1.EmptyResponse, error) {
+	return nil, trace.NotImplemented("UpdateAccount is not implemented")
+}
+
+// ListBillingCycles is deprecated
+func (ac *cloudWithRoles) ListBillingCycles(_ context.Context, _ *v1.EmptyRequest) (*v1.ListBillingCyclesResponse, error) {
+	return nil, trace.NotImplemented("ListBillingCycles is not implemented")
 }
 
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
