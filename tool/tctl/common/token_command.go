@@ -112,7 +112,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 	// tctl tokens add ..."
-	c.tokenAdd = tokens.Command("add", "Create a invitation token")
+	c.tokenAdd = tokens.Command("add", "Create a invitation token.")
 	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
@@ -128,11 +128,11 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.
 	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
-	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
+	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
 	c.tokenDel.Arg("token", "Token to delete").StringVar(&c.value)
 
 	// "tctl tokens ls"
-	c.tokenList = tokens.Command("ls", "List node and user invitation tokens")
+	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
 	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
 
 	if c.stdout == nil {
