@@ -252,7 +252,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 			spec: types.OktaImportRuleSpecV1{
 				Mappings: []*types.OktaImportRuleMappingV1{
 					{
-						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch("(bad", ".*")},
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch("^(bad$", ".*")},
 						AddLabels: map[string]string{"label1": "value1"},
 					},
 					{
@@ -274,7 +274,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 						AddLabels: map[string]string{"label1": "value1"},
 					},
 					{
-						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", "(bad")},
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", "^(bad$")},
 						AddLabels: map[string]string{"label1": "value1"},
 					},
 				},
