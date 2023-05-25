@@ -205,9 +205,6 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
-	// StaleC is listened by multiple goroutines, so we need to close to ensure
-	// that all of them are unblocked.
-	close(asrv.LockWatcher.StaleC)
 
 	// ensure ResetC is drained
 	select {
@@ -222,6 +219,12 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher reset.")
 	}
+	// StaleC is listened by multiple goroutines, so we need to close to ensure
+	// that all of them are unblocked and the stale state is detected.
+	close(asrv.LockWatcher.StaleC)
+	require.Eventually(t, func() bool {
+		return asrv.LockWatcher.IsStale()
+	}, 15*time.Second, 100*time.Millisecond, "Timeout waiting for LockWatcher to be stale.")
 	select {
 	case <-conn.closedC:
 	case <-time.After(15 * time.Second):

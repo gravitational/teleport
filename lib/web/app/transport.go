@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -293,7 +294,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, cluste
 
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
 		From:                  from,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
 		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
 		ConnType:              server.GetTunnelType(),

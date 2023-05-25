@@ -4706,6 +4706,11 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // HostID is the target host id that created the session tracker.
+  // It's useful for Kubernetes moderated sessions when running in high availabilty
+  // otherwise kube proxy is not able to know which agent runs the session.
+  string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5190,13 +5195,8 @@ message PluginBearerTokenCredentials {
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
-  // TokenFile is a path to the local file containing a bearer token.
-  // This takes precedence over Token, and is currently only used by
-  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
-  // This avoids exposing the token itself to the cluster.
-  // The file must exist and be readable on whatever runs the plugin
-  // (in the OpenAI case, it is the Proxy).
-  string token_file = 2;
+  reserved 2; // token_file
+  reserved "token_file";
 }
 
 // PluginList represents a list of plugin resources
@@ -5391,6 +5391,10 @@ message OktaImportRuleMatchV1 {
   repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
   // GroupIDs is a list of group IDs to match against.
   repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+  // AppNameRegexes is a list of regexes to match against app names.
+  repeated string AppNameRegexes = 3 [(gogoproto.jsontag) = "app_name_regexes,omitempty"];
+  // GroupNameRegexes is a list of regexes to match against group names.
+  repeated string GroupNameRegexes = 4 [(gogoproto.jsontag) = "group_name_regexes,omitempty"];
 }
 
 // OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
