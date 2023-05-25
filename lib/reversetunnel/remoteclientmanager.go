@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -34,6 +35,7 @@ type remoteClientManagerConfig struct {
 	newNodeWatcherFunc func(context.Context, auth.RemoteProxyAccessPoint) (*services.NodeWatcher, error)
 	newCAWatcher       func(context.Context, auth.RemoteProxyAccessPoint) (*services.CertAuthorityWatcher, error)
 	log                logrus.FieldLogger
+	backoff            *retryutils.RetryV2
 }
 
 // remoteClientManager handles connecting remote cluster clients.
@@ -98,9 +100,18 @@ func (m *remoteClientManager) connect(ctx context.Context) error {
 		err         error
 	)
 
+	firstIteration := true
 	for {
 		if err := ctx.Err(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// Use backoff after first attempt.
+		if !firstIteration {
+			<-m.backoff.After()
+			m.backoff.Inc()
+		} else {
+			firstIteration = false
 		}
 
 		if client == nil {

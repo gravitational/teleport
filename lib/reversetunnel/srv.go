@@ -1112,6 +1112,23 @@ func newRemoteSite(srv *server, clusterName string, addConn func(*remoteSite) er
 		}
 	}
 
+	// instantiate a cache of host certificates for the forwarding server. the
+	// certificate cache is created in each site (instead of creating it in
+	// reversetunnel.server and passing it along) so that the host certificate
+	// is signed by the correct certificate authority.
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteSite.certificateCache = certificateCache
+
+	backoff, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  time.Millisecond * 100,
+		Driver: retryutils.NewExponentialDriver(time.Millisecond * 100),
+		Max:    time.Second * 5,
+		Jitter: retryutils.NewHalfJitter(), Clock: srv.Clock,
+		AutoReset: 3,
+	})
 	remoteClientManager, err := newRemoteClientManager(srv.ctx, remoteClientManagerConfig{
 		newClientFunc: remoteSite.getRemoteClient,
 		newAccessPointFunc: func(ctx context.Context, client auth.ClientI, version string) (auth.RemoteProxyAccessPoint, error) {
@@ -1151,7 +1168,8 @@ func newRemoteSite(srv *server, clusterName string, addConn func(*remoteSite) er
 			}
 			return caWatcher, nil
 		},
-		log: srv.log,
+		log:     srv.log,
+		backoff: backoff,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
