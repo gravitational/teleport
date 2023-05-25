@@ -1,0 +1,178 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package pgcommon
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/utils/retryutils"
+)
+
+// ConnectPostgres will open a single connection to the "postgres" database in
+// the database cluster specified in poolConfig.
+func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn, error) {
+	connConfig := poolConfig.ConnConfig.Copy()
+	connConfig.Database = "postgres"
+
+	if poolConfig.BeforeConnect != nil {
+		if err := poolConfig.BeforeConnect(ctx, connConfig); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	conn, err := pgx.ConnectConfig(ctx, connConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if poolConfig.AfterConnect != nil {
+		if err := poolConfig.AfterConnect(ctx, conn); err != nil {
+			conn.Close(ctx)
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return conn, nil
+}
+
+// TryEnsureDatabase will connect to the "postgres" database and attempt to
+// create the database named in the pool's configuration.
+func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logrus.FieldLogger) {
+	pgConn, err := ConnectPostgres(ctx, poolConfig)
+	if err != nil {
+		log.WithError(err).Warn("Failed to connect to the \"postgres\" database.")
+		return
+	}
+
+	// the database name is not a string but an identifier, so we can't use query parameters for it
+	createDB := fmt.Sprintf("CREATE DATABASE \"%v\" TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C'", poolConfig.ConnConfig.Database)
+	if _, err := pgConn.Exec(ctx, createDB, pgx.QueryExecModeExec); err != nil && !IsCode(err, pgerrcode.DuplicateDatabase) {
+		// CREATE will check permissions first and we may not have CREATEDB
+		// privileges in more hardened setups; the subsequent connection
+		// will fail immediately if we can't connect, anyway, so we can log
+		// permission errors at debug level here.
+		if IsCode(err, pgerrcode.InsufficientPrivilege) {
+			log.WithError(err).Debug("Error creating database.")
+		} else {
+			log.WithError(err).Warn("Error creating database.")
+		}
+	}
+	if err := pgConn.Close(ctx); err != nil {
+		log.WithError(err).Warn("Error closing connection to the \"postgres\" database.")
+	}
+}
+
+// Retry runs the closure potentially more than once, retrying quickly on
+// serialization or deadlock errors, and backing off more on other retryable
+// errors.
+func Retry[T any](ctx context.Context, log logrus.FieldLogger, f func() (T, error)) (T, error) {
+	var v T
+	var err error
+	v, err = f()
+	if err == nil {
+		return v, nil
+	}
+
+	retry, retryErr := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  0,
+		Step:   100 * time.Millisecond,
+		Max:    750 * time.Millisecond,
+		Jitter: retryutils.NewHalfJitter(),
+	})
+	if retryErr != nil {
+		var zeroT T
+		return zeroT, trace.Wrap(retryErr)
+	}
+
+	for i := 1; i < 10; i++ {
+		if ctx.Err() != nil {
+			var zeroT T
+			return zeroT, trace.Wrap(err)
+		}
+
+		if IsCode(err, pgerrcode.SerializationFailure) || IsCode(err, pgerrcode.DeadlockDetected) {
+			log.WithError(err).
+				WithField("attempt", i).
+				Debug("Operation failed due to conflicts, retrying quickly.")
+			retry.Reset()
+			// the very first attempt gets instant retry on serialization failure
+			if i > 1 {
+				retry.Inc()
+			}
+		} else if pgconn.SafeToRetry(err) {
+			log.WithError(err).
+				WithField("attempt", i).
+				Debug("Operation failed, retrying.")
+			retry.Inc()
+		} else {
+			var zeroT T
+			return zeroT, trace.Wrap(err)
+		}
+
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			var zeroT T
+			return zeroT, trace.Wrap(ctx.Err())
+		}
+
+		v, err = f()
+		if err == nil {
+			return v, nil
+		}
+	}
+
+	var zeroT T
+	return zeroT, trace.LimitExceeded("too many retries, last error: %v", err)
+}
+
+// Retry0 runs the closure like [retry], but without a returned value.
+func Retry0(ctx context.Context, log logrus.FieldLogger, f func() error) error {
+	_, err := Retry(ctx, log, func() (struct{}, error) {
+		return struct{}{}, trace.Wrap(f())
+	})
+	return trace.Wrap(err)
+}
+
+// RetryTx runs a closure like [retry], wrapped in [pgx.BeginTxFunc].
+func RetryTx(
+	ctx context.Context,
+	log logrus.FieldLogger,
+	db interface {
+		BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	},
+	txOptions pgx.TxOptions,
+	f func(tx pgx.Tx) error,
+) error {
+	return trace.Wrap(Retry0(ctx, log, func() error {
+		return trace.Wrap(pgx.BeginTxFunc(ctx, db, txOptions, f))
+	}))
+}
+
+// IsCode checks if the passed error is a Postgres error with the given code.
+func IsCode(err error, code string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == code
+}
