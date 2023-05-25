@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import styled from 'styled-components';
 
 import { useParams } from 'react-router';
@@ -175,6 +175,15 @@ export function RunCommand(props: RunCommandProps) {
   const [assistClt] = useState(() => new assistClient(url, setState));
   const webauthn = useWebAuthn(assistClt);
 
+  const cancelCallback = useCallback(() => {
+    webauthn.setState(prevState => {
+      return {
+        ...prevState,
+        requested: false,
+      };
+    });
+  }, [webauthn]);
+
   const nodes = state.map((item, index) => (
     <NodeOutput key={index} state={item} />
   ));
@@ -184,7 +193,7 @@ export function RunCommand(props: RunCommandProps) {
       {webauthn.requested && (
         <AuthnDialog
           onContinue={webauthn.authenticate}
-          onCancel={() => {}}
+          onCancel={cancelCallback}
           errorText={webauthn.errorText}
         />
       )}
