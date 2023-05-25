@@ -124,8 +124,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if bearer == nil {
 			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
 		}
 	case *PluginSpecV1_Jamf:
 		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
@@ -153,8 +153,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if bearer == nil {
 			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")

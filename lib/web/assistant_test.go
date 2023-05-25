@@ -17,6 +17,7 @@
 package web
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -168,7 +168,13 @@ func Test_runAssistant(t *testing.T) {
 				tc.setup(t, s)
 			}
 
-			ws, err := s.makeAssistant(t, s.authPack(t, "foo"))
+			ctx := context.Background()
+			authPack := s.authPack(t, "foo")
+			// Create the conversation
+			conversationID := s.makeAssistConversation(t, ctx, authPack)
+
+			// Make WS client and start the conversation
+			ws, err := s.makeAssistant(t, authPack, conversationID)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -186,10 +192,26 @@ func Test_runAssistant(t *testing.T) {
 			tc.act(t, ws)
 		})
 	}
-
 }
 
-func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack) (*websocket.Conn, error) {
+// makeAssistConversation creates a new assist conversation and returns its ID
+func (s *WebSuite) makeAssistConversation(t *testing.T, ctx context.Context, authPack *authPack) string {
+	clt := authPack.clt
+
+	resp, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "assistant", "conversations"), nil)
+	require.NoError(t, err)
+
+	convResp := struct {
+		ConversationID string `json:"id"`
+	}{}
+	err = json.Unmarshal(resp.Bytes(), &convResp)
+	require.NoError(t, err)
+
+	return convResp.ConversationID
+}
+
+// makeAssistant creates a new assistant websocket connection.
+func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID string) (*websocket.Conn, error) {
 	u := url.URL{
 		Host:   s.url().Host,
 		Scheme: client.WSS,
@@ -197,7 +219,7 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack) (*websocket.Conn,
 	}
 
 	q := u.Query()
-	q.Set("conversation_id", uuid.New().String())
+	q.Set("conversation_id", conversationID)
 	q.Set(roundtrip.AccessTokenQueryParam, pack.session.Token)
 	u.RawQuery = q.Encode()
 
