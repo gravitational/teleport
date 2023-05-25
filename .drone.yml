@@ -129,7 +129,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -243,7 +243,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -361,7 +361,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -475,7 +475,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -853,7 +853,7 @@ steps:
     path: /root/.aws
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -1203,7 +1203,7 @@ steps:
     - failure
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -1818,7 +1818,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2026,7 +2026,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2241,7 +2241,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2447,7 +2447,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -2724,7 +2724,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -3003,7 +3003,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -3276,7 +3276,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -3541,7 +3541,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -3747,7 +3747,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -4024,7 +4024,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -4297,7 +4297,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -4573,7 +4573,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -5151,7 +5151,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -5691,7 +5691,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -5905,7 +5905,7 @@ steps:
       from_secret: RELEASES_KEY
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -6487,7 +6487,7 @@ steps:
     path: /root/.docker
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -8446,7 +8446,7 @@ steps:
   - Tag and push image "teleport-operator:v12-arm64" to ECR - staging
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -10440,7 +10440,7 @@ steps:
   - Tag and push image "teleport-operator:v12-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -13534,7 +13534,7 @@ steps:
   - Tag and push image "teleport-operator:v12-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -16628,7 +16628,7 @@ steps:
   - Tag and push image "teleport-operator:v11-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -19722,7 +19722,7 @@ steps:
   - Tag and push image "teleport-operator:v10-arm64" to ECR - production
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: dockersock
@@ -19858,7 +19858,7 @@ steps:
     path: /root/.aws
 services:
 - name: Start Docker
-  image: docker:dind
+  image: docker:23.0-dind
   privileged: true
   volumes:
   - name: tmpfs
@@ -19879,6 +19879,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 97841e3100f5aae8b7e0643280d053f60ca8732b9dc34ca95a2f984d4e89fcd5
+hmac: 4d38dcf3ffbacdb75fce43eac6a9f436ada901b0ac74ad5c0d39bf0e96723423
 
 ...

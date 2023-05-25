@@ -1,5 +1,34 @@
 # Changelog
 
+## 12.4.4 (05/24/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Teleport Assist
+  * Fixed React error in when navigating between Assist and web UI other pages. [#26745](https://github.com/gravitational/teleport/pull/26745)
+* Server Access
+  * Fixed issue with SSH sessions sometimes failing to establish in enhanced session recording mode. [#26729](https://github.com/gravitational/teleport/pull/26729)
+  * Fixed issue with port forwarding silently failing when using a label based target. [#26703](https://github.com/gravitational/teleport/pull/26703)
+* Kubernetes Access
+  * Extended `kubectl auth can-i` support to account for `kubernetes_resources` RBAC rules. [#26586](https://github.com/gravitational/teleport/pull/26586)
+* Desktop Access
+  * Improved internal logging and Windows user lookup efficiency. [#26414](https://github.com/gravitational/teleport/pull/26414)
+* Web UI
+  * Restored the "Add application" dialog. [#26459](https://github.com/gravitational/teleport/pull/26459)
+
+## 12.4.3 (05/18/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Audit Log
+  * Updated login event to include the list of applied login rules. [#26475](https://github.com/gravitational/teleport/pull/26475)
+  * Updated Okta audit events to include extra apps and groups fields. [#26371](https://github.com/gravitational/teleport/pull/26371)
+* Database Access
+  * Fixed issue with connecting to active Cassandra database. [#26379](https://github.com/gravitational/teleport/pull/26379)
+* Web UI
+  * Improved error reporting in the RDS flow for some scenarios. [#26400](https://github.com/gravitational/teleport/pull/26400)
+  * Fixed issue with install script always installing latest instead of cluster version. [#26323](https://github.com/gravitational/teleport/pull/26323)
+
 ## 12.4.2 (05/16/23)
 
 ### Teleport Assist

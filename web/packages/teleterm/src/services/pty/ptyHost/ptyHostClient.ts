@@ -72,7 +72,7 @@ export function createPtyHostClient(
       const metadata = new Metadata();
       metadata.set('ptyId', ptyId);
       const stream = client.exchangeEvents(metadata);
-      return new PtyEventsStreamHandler(stream);
+      return new PtyEventsStreamHandler(stream, ptyId);
     },
   };
 }

@@ -42,13 +42,13 @@ import {
 import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
-import { InstructionsContainer } from './common';
+import { InstructionsContainer, PreviousStepProps } from './common';
 
-export function SeventhStageInstructions() {
+export function SeventhStageInstructions(props: PreviousStepProps) {
   const { attempt, setAttempt } = useAttempt('');
   const [showConfirmBox, setShowConfirmBox] = useState(false);
-  const [roleArn, setRoleArn] = useState('');
-  const [name, setName] = useState('');
+  const [roleArn, setRoleArn] = useState(props.awsOidc.roleArn);
+  const [name, setName] = useState(props.awsOidc.integrationName);
 
   function handleSubmit(validator: Validator) {
     if (!validator.validate()) {
@@ -112,6 +112,19 @@ export function SeventhStageInstructions() {
               >
                 Next
               </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                onClick={() =>
+                  props.onPrev({
+                    ...props.awsOidc,
+                    roleArn,
+                    integrationName: name,
+                  })
+                }
+                disabled={attempt.status === 'processing'}
+              >
+                Back
+              </ButtonSecondary>
             </Box>
           </>
         )}

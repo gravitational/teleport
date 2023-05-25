@@ -28,9 +28,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/kubectl/pkg/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -47,6 +49,18 @@ import (
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/operator/controllers/resources"
 )
+
+// scheme is our own test-specific scheme to avoid using the global
+// unprotected scheme.Scheme that triggers the race detector
+var scheme = apiruntime.NewScheme()
+
+func init() {
+	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv2.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
+	utilruntime.Must(resourcesv5.AddToScheme(scheme))
+}
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
@@ -163,7 +177,7 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	}
 
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
-		Scheme:             scheme.Scheme,
+		Scheme:             scheme,
 		MetricsBindAddress: "0",
 	})
 	require.NoError(t, err)
@@ -263,19 +277,7 @@ func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	err = resourcesv1.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv5.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv2.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	err = resourcesv3.AddToScheme(scheme.Scheme)
-	require.NoError(t, err)
-
-	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme.Scheme})
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme})
 	require.NoError(t, err)
 	require.NotNil(t, k8sClient)
 

@@ -72,7 +72,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		}
 
 		if len(tc.JumpHosts) > 0 {
-			err := setupJumpHost(cf, tc, *proxyParams)
+			err := setupJumpHost(cf, tc, proxyParams.clusterName)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -89,10 +89,6 @@ type sshProxyParams struct {
 	proxyHost string
 	// proxyPort is the Teleport proxy port.
 	proxyPort string
-	// targetHost is the target SSH node host name.
-	targetHost string
-	// targetPort is the target SSH node port.
-	targetPort string
 	// clusterName is the cluster where the SSH node resides.
 	clusterName string
 	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
@@ -101,11 +97,6 @@ type sshProxyParams struct {
 
 // getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
 func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
-	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Without jump hosts, we will be connecting to the current Teleport client
 	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
@@ -116,8 +107,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 		return &sshProxyParams{
 			proxyHost:   proxyHost,
 			proxyPort:   strconv.Itoa(proxyPort),
-			targetHost:  cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName),
-			targetPort:  targetPort,
 			clusterName: tc.SiteName,
 			tlsRouting:  tc.TLSRoutingEnabled,
 		}, nil
@@ -143,8 +132,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	return &sshProxyParams{
 		proxyHost:   sshProxyHost,
 		proxyPort:   sshProxyPort,
-		targetHost:  targetHost,
-		targetPort:  targetPort,
 		clusterName: ping.ClusterName,
 		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
 	}, nil
@@ -161,19 +148,19 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 }
 
 // setupJumpHost configures the client for connecting to the jump host's proxy.
-func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams) error {
+func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, clusterName string) error {
 	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
 		// Fetch certificate for the leaf cluster. This allows users to log
 		// in once into the root cluster and let the proxy handle fetching
 		// certificates for leaf clusters automatically.
-		err := tc.LoadKeyForClusterWithReissue(cf.Context, sp.clusterName)
+		err := tc.LoadKeyForClusterWithReissue(cf.Context, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
-		tc.LocalAgent().UpdateCluster(sp.clusterName)
+		tc.LocalAgent().UpdateCluster(clusterName)
 		return nil
 	})
 }
@@ -229,7 +216,15 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 		return trace.Wrap(err)
 	}
 
-	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	if err != nil {
+		targetHost = tc.Host
+		targetPort = strconv.Itoa(tc.HostPort)
+	}
+
+	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
+
+	sshUserHost := fmt.Sprintf("%s:%s", targetHost, targetPort)
 	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -389,7 +384,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, db, err := getDatabaseInfo(cf, tc)
+	dbInfo, err := getDatabaseInfo(cf, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -399,14 +394,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// 2. check if db login is required.
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
-	requires := getDBLocalProxyRequirement(tc, route)
+	requires := getDBLocalProxyRequirement(tc, dbInfo.RouteToDatabase)
 	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
-		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
+		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
 	}
-	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -422,7 +417,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
 
-	listener, err := createLocalProxyListener(addr, route, profile)
+	listener, err := createLocalProxyListener(addr, dbInfo.RouteToDatabase, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -438,8 +433,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		cf:               cf,
 		tc:               tc,
 		profile:          profile,
-		route:            *route,
-		database:         db,
+		dbInfo:           dbInfo,
 		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
 		tunnel:           tunnel,
 	})
@@ -468,11 +462,11 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
 		}
-		if opts, err = maybeAddDBUserPassword(db, opts); err != nil {
+		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(tc, profile, route, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
 			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
@@ -481,14 +475,14 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 		// shared template arguments
 		templateArgs := map[string]any{
-			"database":   route.ServiceName,
-			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
+			"database":   dbInfo.ServiceName,
+			"type":       defaults.ReadableDatabaseProtocol(dbInfo.Protocol),
 			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands, route.Protocol)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, dbInfo.Protocol)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -496,10 +490,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	} else {
 		err = dbProxyTpl.Execute(os.Stdout, map[string]any{
-			"database":   route.ServiceName,
+			"database":   dbInfo.ServiceName,
 			"address":    listener.Addr().String(),
 			"ca":         profile.CACertPathForCluster(rootCluster),
-			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, route.ServiceName),
+			"cert":       profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
 			"key":        profile.KeyPath(),
 			"randomPort": randomPort,
 		})
@@ -515,16 +509,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func maybeAddDBUserPassword(db types.Database, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	if db != nil && db.GetProtocol() == defaults.ProtocolCassandra && db.IsAWSHosted() {
-		// Cassandra client always prompt for password, so we need to provide it
-		// Provide an auto generated random password to skip the prompt in case of
-		// connection to AWS hosted cassandra.
-		password, err := utils.CryptoRandomHex(16)
+func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	if dbInfo.Protocol == defaults.ProtocolCassandra {
+		db, err := dbInfo.GetDatabase(cf, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return append(opts, dbcmd.WithPassword(password)), nil
+		if db.IsAWSHosted() {
+			// Cassandra client always prompt for password, so we need to provide it
+			// Provide an auto generated random password to skip the prompt in case of
+			// connection to AWS hosted cassandra.
+			password, err := utils.CryptoRandomHex(16)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return append(opts, dbcmd.WithPassword(password)), nil
+		}
 	}
 	return opts, nil
 }

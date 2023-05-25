@@ -894,24 +894,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
 
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				{
-					Kind:      KindKubePod,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-				},
-			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
-
 		// Allow unrestricted access to all pods.
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
+		if len(r.Spec.Allow.KubernetesResources) == 0 && len(r.Spec.Allow.KubernetesLabels) > 0 {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
 					Kind:      KindKubePod,
@@ -919,11 +906,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Name:      Wildcard,
 				},
 			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
 		}
+
+		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
 			return trace.Wrap(err)

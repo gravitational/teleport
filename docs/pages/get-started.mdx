@@ -58,7 +58,7 @@ This guide is not intended for local deployments. If your environment doesn't
 meet the prerequisites above, you can get started with Teleport by signing up
 for a [free trial of Teleport Enterprise Cloud](https://goteleport.com/signup/).
 
-## Step 1/6. Configure DNS
+## Step 1/4. Configure DNS
 
 Teleport uses TLS to provide secure access to its Proxy Service and Auth
 Service, and this requires a domain name that clients can use to verify
@@ -71,7 +71,7 @@ set up records for:
 |`teleport.example.com`|Traffic to the Proxy Service from users and services.|
 |`*.teleport.example.com`|Traffic to web applications registered with Teleport. Teleport issues a subdomain of your cluster's domain name to each application.|
 
-## Step 2/6. Set up Teleport on your Linux host
+## Step 2/4. Set up Teleport on your Linux host
 
 ### Install Teleport
 
@@ -98,7 +98,7 @@ following:
 
 ![Teleport Welcome Screen](../img/quickstart/welcome.png)
 
-## Step 3/6. Create a Teleport user and set up two-factor authentication
+## Step 3/4. Create a Teleport user and set up two-factor authentication
 
 In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
@@ -145,13 +145,10 @@ one-time passwords (OTP) and second-factor authenticators (WebAuthn). In this
 guide, you will need to enroll an OTP authenticator application using the QR
 code on the Teleport welcome screen.
 
-![Teleport UI Dashboard](../img/quickstart/teleport-nodes.png)
+<Details title="Logging in via the CLI">
 
-## Step 4/6. Log in using tsh
-
-`tsh` is our client tool. It helps you log in to Teleport clusters and obtain
-short-lived credentials. It can also be used to list resources registered with
-Teleport, such as servers, applications, and Kubernetes clusters.
+In addition to Teleport's Web UI, you can access resources in your
+infrastructure via the `tsh` client tool.
 
 Install `tsh` on your local workstation:
 
@@ -212,81 +209,46 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-## Step 5/6. Access your server
 
-Since You configured the Teleport SSH Service, you can easily access your Linux
-host after logging in to Teleport.
+</Details>
 
-See the logins you can use to access your server:
+## Step 4/4. Enroll your infrastructure
 
-```code
-$ tsh status
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       teleport-admin
-  Cluster:            teleport.example.com
-  Roles:              access, editor
-  Logins:             root, ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-04-26 04:55:59 -0400 EDT [valid for 11h38m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
+With Teleport, you can protect all of the resources in your infrastructure
+behind a single identity-aware access proxy, including servers, databases,
+applications, Kubernetes clusters, Windows desktops, and cloud provider APIs.
 
-List all SSH servers connected to Teleport:
+To enroll a resource with Teleport, visit the Web UI and click the name of a
+resource on the sidebar, e.g., **Servers**, **Applications**, and
+**Kubernetes**. The Web UI will show you the steps you can take to enroll that
+resource.
 
-```code
-$ tsh ls
-Node Name        Address        Labels
----------------- -------------- -------------------------------------
-mynode 127.0.0.1:3022 env=example,hostname=mynode
-```
+![Adding resources](../img/add-resources.png)
 
-SSH into `mynode` as `root`:
-
-```code
-$ tsh ssh root@mynode
-```
-
-Once you connect to your server, execute some commands in your shell so you can
-view a recording of your session later.
-
-## Step 6/6. Play back your session
-
-Servers you have registered with Teleport record the commands that users execute
-during their sessions so operators can play them back later to investigate
-issues.
-
-In the Teleport Web UI, click the dropdown menu on the upper left of the screen,
-then choose **Management**. click the **Activity** tab in the sidebar on the
-left of the screen, then click **Session Recordings**. You will see your session
-from the previous step:
-
-![Session
-recordings](../img/cloud/getting-started/session-recordings@2x.png)
-
-Click **PLAY**. You will see a full recording of your session.
+In the **Servers** tab, you can see that you have already enrolled your Linux
+server. 
 
 ## Next steps
 
-### Add resources
+Now that you have launched your Teleport cluster and added your first resources,
+see how to use Teleport to set up secure access to your infrastructure. 
 
-Now that you know how to set up a Teleport cluster, learn how to register all of the
-resources in your infrastructure with Teleport:
+Read the [Manage Access](./access-controls/introduction.mdx) documentation to
+get started setting up role-based access controls for all of the resources you
+registered.
 
-- [Applications](./application-access/getting-started.mdx)
-- [Databases](./database-access/getting-started.mdx)
-- [Kubernetes clusters](./kubernetes-access/getting-started.mdx)
-- [Servers](./server-access/getting-started.mdx)
-- [Windows desktops](./desktop-access/getting-started.mdx)
+To learn about common Day Two operations when managing a Teleport cluster, read
+the [Manage your Cluster](./management/introduction.mdx) guides.
+
+You can also read more about how to protect your infrastructure with Teleport,
+including:
+
+- [Applications](./application-access/introduction.mdx)
+- [Databases](./database-access/introduction.mdx)
+- [Kubernetes clusters](./kubernetes-access/introduction.mdx)
+- [Servers](./server-access/introduction.mdx)
+- [Windows desktops](./desktop-access/introduction.mdx)
 - [Service accounts](./machine-id/introduction.mdx) (via Machine ID)
-
-### Manage your cluster
-
-You can also check out our collection of step-by-step guides for common
-Teleport tasks, such as:
-
-- [Managing users](./management/admin/users.mdx)
-- [Setting up single sign-on with GitHub](./access-controls/sso/github-sso.mdx)
-- [Labeling Teleport resources](./management/admin/labels.mdx)
 
 ## Further reading
 
