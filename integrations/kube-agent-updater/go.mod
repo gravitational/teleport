@@ -11,7 +11,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33
 	github.com/sigstore/sigstore v1.6.3
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/mod v0.10.0
 	k8s.io/api v0.26.1
