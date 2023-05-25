@@ -959,6 +959,17 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
+	modes := []constants.HostUserMode{
+		constants.HostUserMode(""),
+		constants.HostUserModeOff,
+		constants.HostUserModeDrop,
+		constants.HostUserModeRemain,
+	}
+
+	if !slices.Contains(modes, r.Spec.Options.CreateHostUserMode) {
+		return trace.BadParameter("Invalid host user mode %q, expected one of %v", modes)
+	}
+
 	switch r.Version {
 	case V3:
 		if r.Spec.Allow.NodeLabels == nil {

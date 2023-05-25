@@ -800,6 +800,9 @@ type HostUsersInfo struct {
 	Groups []string
 	// Sudoers is a list of entries for a users sudoers file
 	Sudoers []string
+	// Mode determines if a host user should be deleted after a session
+	// ends or not.
+	Mode constants.HostUserMode
 }
 
 // RoleFromSpec returns new Role created from spec

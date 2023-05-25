@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
@@ -144,9 +145,12 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 		storage: pres,
 	}
 
-	userinfo := &services.HostUsersInfo{Groups: []string{"hello", "sudo"}}
+	userinfo := &services.HostUsersInfo{
+		Groups: []string{"hello", "sudo"},
+		Mode:   constants.HostUserModeDrop,
+	}
 	// create a user with some groups
-	_, closer, err := users.CreateUser("bob", userinfo)
+	closer, err := users.CreateUser("bob", userinfo)
 	require.NoError(t, err)
 	require.NotNil(t, closer, "user closer was nil")
 
@@ -156,7 +160,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	}, backend.users["bob"])
 
 	// try creat the same user again
-	_, secondCloser, err := users.CreateUser("bob", userinfo)
+	secondCloser, err := users.CreateUser("bob", userinfo)
 	require.True(t, trace.IsAlreadyExists(err))
 	require.NotNil(t, secondCloser)
 
@@ -168,7 +172,7 @@ func TestUserMgmt_CreateTemporaryUser(t *testing.T) {
 	backend.CreateUser("simon", []string{})
 
 	// try to create a temporary user for simon
-	_, closer, err = users.CreateUser("simon", userinfo)
+	closer, err = users.CreateUser("simon", userinfo)
 	require.True(t, trace.IsAlreadyExists(err))
 	require.Nil(t, closer)
 }
@@ -185,9 +189,10 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		storage: pres,
 	}
 
-	_, closer, err := users.CreateUser("bob", &services.HostUsersInfo{
+	closer, err := users.CreateUser("bob", &services.HostUsersInfo{
 		Groups:  []string{"hello", "sudo"},
 		Sudoers: []string{"validsudoers"},
+		Mode:    constants.HostUserModeDrop,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, closer)
@@ -196,9 +201,10 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 
 	require.NoError(t, closer.Close())
 	require.Empty(t, backend.sudoers)
-	_, _, err = users.CreateUser("bob", &services.HostUsersInfo{
+	_, err = users.CreateUser("bob", &services.HostUsersInfo{
 		Groups:  []string{"hello", "sudo"},
 		Sudoers: []string{"invalid"},
+		Mode:    constants.HostUserModeDrop,
 	})
 	require.Error(t, err)
 
@@ -211,11 +217,15 @@ func TestUserMgmtSudoers_CreateTemporaryUser(t *testing.T) {
 		// test user already exists but teleport-service group has not yet
 		// been created
 		backend.CreateUser("testuser", nil)
-		_, _, err := users.CreateUser("testuser", &services.HostUsersInfo{})
+		_, err := users.CreateUser("testuser", &services.HostUsersInfo{
+			Mode: constants.HostUserModeDrop,
+		})
 		require.True(t, trace.IsAlreadyExists(err))
 		backend.CreateGroup(types.TeleportServiceGroup)
 		// IsAlreadyExists error when teleport-service group now exists
-		_, _, err = users.CreateUser("testuser", &services.HostUsersInfo{})
+		_, err = users.CreateUser("testuser", &services.HostUsersInfo{
+			Mode: constants.HostUserModeDrop,
+		})
 		require.True(t, trace.IsAlreadyExists(err))
 	})
 }

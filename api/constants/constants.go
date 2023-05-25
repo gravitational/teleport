@@ -433,3 +433,14 @@ const (
 	// Multiple decisions can be sent for the same request if the policy requires it.
 	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )
+
+// HostUserMode determines whether host user creation should be
+// disabled, or if host users should be cleaned up or remain after
+// sessions end.
+type HostUserMode string
+
+const (
+	HostUserModeOff    = HostUserMode("off")
+	HostUserModeDrop   = HostUserMode("drop")
+	HostUserModeRemain = HostUserMode("remain")
+)

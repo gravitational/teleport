@@ -6866,7 +6866,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test:    "test exact match, one sudoer entry, one role",
+			test: "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
@@ -6874,7 +6874,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6946,7 +6946,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6971,7 +6971,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test:    "line deny",
+			test: "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
@@ -7122,15 +7122,44 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 
 func TestHostUsers_CanCreateHostUser(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		test      string
-		canCreate bool
-		roles     RoleSet
-		server    types.Server
-	}{
+	type testCase struct {
+		test         string
+		canCreate    bool
+		roles        RoleSet
+		server       types.Server
+		expectedMode constants.HostUserMode
+	}
+
+	createDefaultTCWithMode := func(name string, canCreate bool, mode constants.HostUserMode) testCase {
+		return testCase{
+			test:         name,
+			canCreate:    canCreate,
+			expectedMode: mode,
+			roles: NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: mode,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		}
+	}
+
+	for _, tc := range []testCase{
 		{
-			test:      "test exact match, one role, can create",
-			canCreate: true,
+			test:         "test exact match, one role, can create",
+			canCreate:    true,
+			expectedMode: constants.HostUserModeDrop,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7151,8 +7180,9 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			},
 		},
 		{
-			test:      "test two roles, 1 exact match, one can create",
-			canCreate: false,
+			test:         "test two roles, 1 exact match, one can create",
+			canCreate:    false,
+			expectedMode: constants.HostUserModeDrop,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7182,8 +7212,9 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			},
 		},
 		{
-			test:      "test three roles, 2 exact match, both can create",
-			canCreate: true,
+			test:         "test three roles, 2 exact match, both can create",
+			canCreate:    true,
+			expectedMode: constants.HostUserModeDrop,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
@@ -7221,11 +7252,129 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			},
 		},
+		{
+			test:      "test cant create when create host user is nil",
+			canCreate: false,
+			roles: NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: nil,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		createDefaultTCWithMode(
+			"test cant create when create host user mode is off",
+			false,
+			constants.HostUserModeOff,
+		),
+		createDefaultTCWithMode(
+			"test can create when create host user mode is drop",
+			true,
+			constants.HostUserModeDrop,
+		),
+		createDefaultTCWithMode(
+			"test can create when create host user mode is remain",
+			true,
+			constants.HostUserModeRemain,
+		),
+		{
+			test:      "test three roles, 3 exact match, one off",
+			canCreate: false,
+			roles: NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeRemain,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeOff,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeDrop,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:         "test three roles, 3 exact match, mode lowered to drop",
+			canCreate:    true,
+			expectedMode: constants.HostUserModeDrop,
+			roles: NewRoleSet(&types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeRemain,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeDrop,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}, &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUserMode: constants.HostUserModeRemain,
+					},
+					Allow: types.RoleConditions{
+						NodeLabels: types.Labels{"success": []string{"abc"}},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 			info, err := accessChecker.HostUsers(tc.server)
 			require.Equal(t, tc.canCreate, err == nil && info != nil)
+			if tc.canCreate {
+				require.Equal(t, tc.expectedMode, info.Mode)
+			}
 		})
 	}
 }

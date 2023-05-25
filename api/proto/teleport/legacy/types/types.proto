@@ -2482,6 +2482,13 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_db_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateHostUserMode allows users to be automatically created on a
+  // host when not set to off
+  string CreateHostUserMode = 28 [
+    (gogoproto.jsontag) = "create_host_user_mode,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/constants.HostUserMode"
+  ];
 }
 
 message RecordSession {
