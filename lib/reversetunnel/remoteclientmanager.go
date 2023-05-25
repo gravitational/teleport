@@ -80,7 +80,6 @@ func newRemoteClientManager(ctx context.Context, config remoteClientManagerConfi
 	if config.log == nil {
 		return nil, trace.BadParameter("missing logger")
 	}
-	config.log.Debugf("david: logger is working")
 
 	m := &remoteClientManager{
 		remoteClientManagerConfig: config,
