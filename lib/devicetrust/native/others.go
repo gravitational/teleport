@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -34,5 +34,11 @@ func signChallenge(chal []byte) (sig []byte, err error) {
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}
+
+func solveTPMEnrollChallenge(
+	_ *devicepb.TPMEnrollChallenge,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }

@@ -271,9 +271,21 @@ export function useUserTraits(props: AgentStepProps) {
     return initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits });
   }
 
+  // Only allow kind database's to be able to go back from
+  // this step. The prev screen for databases's atm are either
+  // IamPolicy or MutualTls, which is mostly an informational
+  // step.
+  // For server and kubernetes, the prev screen is the download
+  // script which wouldn't make sense to go back to.
+  let onPrev;
+  if (props.resourceSpec.kind === ResourceKind.Database) {
+    onPrev = props.prevStep;
+  }
+
   return {
     attempt,
     onProceed,
+    onPrev,
     fetchUserTraits,
     isSsoUser,
     canEditUser,
