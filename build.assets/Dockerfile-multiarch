@@ -232,11 +232,17 @@ ENV GOEXPERIMENT=boringcrypto
 
 # Install node.
 # Node is required to build teleterm. It does not work on 32-bit archs, and is not required for them.
-RUN yum install -y python3 ninja-build
+RUN git clone https://github.com/ninja-build/ninja.git && \
+    cd ninja && \
+    git checkout v1.9.0 && \
+    ./configure.py --bootstrap && \
+    mv ninja /usr/bin \
+
 ARG NODE_VERSION
 RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
     cd node && \
-    scl enable ${DEVTOOLSET} "./configure --ninja && NINJA='ninja-build' make install" && \
+    ./configure --ninja && \
+    make install && \
     make clean
 RUN node --version
 RUN corepack enable yarn
