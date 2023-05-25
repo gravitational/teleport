@@ -28,7 +28,7 @@ import Logger from 'shared/libs/logger';
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-interface Conversation {
+export interface Conversation {
   id: string;
   title: string;
 }
