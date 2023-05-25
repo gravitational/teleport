@@ -232,7 +232,7 @@ endif
 .PHONY:teleterm
 teleterm: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
-		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
+		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && DEBUG=electron-rebuild yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
 .PHONY:ui
