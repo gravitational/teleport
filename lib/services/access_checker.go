@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -41,6 +42,9 @@ type AccessChecker interface {
 
 	// RoleNames returns a list of role names
 	RoleNames() []string
+
+	// Traits returns the set of user traits
+	Traits() wrappers.Traits
 
 	// Roles returns the list underlying roles this AccessChecker is based on.
 	Roles() []types.Role
@@ -213,6 +217,18 @@ type AccessChecker interface {
 	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
 	// for a user.
 	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
+
+	// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
+	EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult
+
+	// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+	//
+	// Supports the following resource types:
+	//
+	// - types.Server with GetKind() == types.KindNode
+	//
+	// - types.KindWindowsDesktop
+	GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -275,6 +291,65 @@ func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet 
 	}
 }
 
+// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed
+// by NewAccessCheckerForRemoteCluster.
+type CurrentUserRoleGetter interface {
+	// GetCurrentUserRoles returns the remote cluster roles for the current
+	// user, traits have not been applied.
+	GetCurrentUserRoles(context.Context) ([]types.Role, error)
+	// GetCurrentUser returns the remote cluster's view of the current user.
+	GetCurrentUser(context.Context) (types.User, error)
+}
+
+// NewAccessCheckerForRemoteCluster returns an AccessChecker that can check
+// user's access to resources that may be located in remote/leaf Teleport
+// clusters.
+func NewAccessCheckerForRemoteCluster(ctx context.Context, localAccessInfo *AccessInfo, clusterName string, access CurrentUserRoleGetter) (AccessChecker, error) {
+	// Fetch the remote cluster's view of the current user's roles.
+	remoteRoles, err := access.GetCurrentUserRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the remote cluster's view of the current user's traits.
+	// These can technically be different than the local user's traits, see
+	// AccessInfoFromRemote(Certificate|Identity).
+	remoteUser, err := access.GetCurrentUser(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	remoteAccessInfo := &AccessInfo{
+		Traits: remoteUser.GetTraits(),
+		// Will fill this in with the names of the remote/mapped roles we got
+		// from GetCurrentUserRoles.
+		Roles: make([]string, 0, len(remoteRoles)),
+		// AllowedResourceIDs are always the same across clusters.
+		AllowedResourceIDs: localAccessInfo.AllowedResourceIDs,
+	}
+
+	for i := range remoteRoles {
+		remoteRoles[i], err = ApplyTraits(remoteRoles[i], remoteAccessInfo.Traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		remoteAccessInfo.Roles = append(remoteAccessInfo.Roles, remoteRoles[i].GetName())
+	}
+	roleSet := NewRoleSet(remoteRoles...)
+
+	return &accessChecker{
+		info: remoteAccessInfo,
+		// localCluster is a bit of a misnomer here, but it means the local
+		// cluster of the resources to which access will be checked, which in
+		// this case may be a remote cluster. localCluster is used for access
+		// checks involving Resource Access Requests, the cluster name is
+		// included in the unique ID of the resource, the accessChecker can only
+		// check access to resources in that cluster.
+		localCluster: clusterName,
+		RoleSet:      roleSet,
+	}, nil
+}
+
 func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 	if len(a.info.AllowedResourceIDs) == 0 {
 		// certificate does not contain a list of specifically allowed
@@ -322,17 +397,17 @@ func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matche
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, state, matchers...))
+	return trace.Wrap(a.RoleSet.checkAccess(r, a.info.Traits, state, matchers...))
 }
 
 // GetKubeResources returns the allowed and denied Kubernetes Resources configured
 // for a user.
 func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
 	if len(a.info.AllowedResourceIDs) == 0 {
-		return a.RoleSet.GetKubeResources(cluster)
+		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	}
 
-	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster)
+	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
 	// resources from the certificate.
@@ -422,6 +497,10 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) 
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
 	}, nil
+}
+
+func (a *accessChecker) Traits() wrappers.Traits {
+	return a.info.Traits
 }
 
 // AccessInfoFromRemoteCertificate returns a new AccessInfo populated from the

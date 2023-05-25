@@ -52,7 +52,7 @@ func (h *Handler) clusterKubesGet(w http.ResponseWriter, r *http.Request, p http
 	}
 
 	return listResourcesGetResponse{
-		Items:      ui.MakeKubeClusters(page.Resources, accessChecker.Roles()),
+		Items:      ui.MakeKubeClusters(page.Resources, accessChecker),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil
@@ -194,7 +194,7 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker.Roles())
+	uiDesktops, err := ui.MakeDesktops(page.Resources, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -258,7 +258,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 	// windowsDesktops may contain the same desktop multiple times
 	// if multiple Windows Desktop Services are in use. We only need
 	// to see the desktop once in the UI, so just take the first one.
-	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker.Roles())
+	uiDesktop, err := ui.MakeDesktop(windowsDesktops[0], accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
