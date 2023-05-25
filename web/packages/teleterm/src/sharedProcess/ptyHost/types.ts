@@ -23,12 +23,22 @@ export type PtyProcessOptions = {
 };
 
 export type IPtyProcess = {
+  start(cols: number, rows: number): void;
   write(data: string): void;
   resize(cols: number, rows: number): void;
   dispose(): void;
-  onData(cb: (data: string) => void): void;
-  onOpen(cb: () => void): void;
-  start(cols: number, rows: number): void;
-  onExit(cb: (ev: { exitCode: number; signal?: number }) => void): void;
   getCwd(): Promise<string>;
+  getPtyId(): string;
+  // The listener removal functions are used only on the frontend app side from the renderer process.
+  // They're not used in the shared process. However, IPtyProcess is a type shared between both, so
+  // both sides need to return them. In the future we should consider defining two separate types
+  // for both cases.
+  onData(cb: (data: string) => void): RemoveListenerFunction;
+  onOpen(cb: () => void): RemoveListenerFunction;
+  onStartError(cb: (message: string) => void): RemoveListenerFunction;
+  onExit(
+    cb: (ev: { exitCode: number; signal?: number }) => void
+  ): RemoveListenerFunction;
 };
+
+type RemoveListenerFunction = () => void;

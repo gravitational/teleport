@@ -51,6 +51,7 @@ message PtyServerEvent {
     PtyEventData data = 2;
     PtyEventOpen open = 3;
     PtyEventExit exit = 4;
+    PtyEventStartError start_error = 5;
   }
 }
 
@@ -73,6 +74,10 @@ message PtyEventOpen {}
 message PtyEventExit {
   uint32 exit_code = 1;
   optional uint32 signal = 2;
+}
+
+message PtyEventStartError {
+  string message = 1;
 }
 
 message PtyCwd {
