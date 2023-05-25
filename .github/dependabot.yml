@@ -73,7 +73,7 @@ updates:
       - zmb3
 
   - package-ecosystem: gomod
-    directory: "/build.assets/tooling/"
+    directory: "/build.assets/tooling"
     schedule:
       interval: weekly
       day: "sunday"
