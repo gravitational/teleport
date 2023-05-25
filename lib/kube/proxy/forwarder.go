@@ -83,6 +83,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -1264,18 +1265,23 @@ func (f *Forwarder) deleteSession(id uuid.UUID) {
 
 // remoteJoin forwards a join request to a remote cluster.
 func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params, sess *clusterSession) (resp any, err error) {
+	hostID, err := f.getSessionHostID(req.Context(), ctx, p)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	netDialer := sess.DialWithContext(withTargetHostID(hostID))
 	tlsConfig, impersonationHeaders, err := f.getTLSConfig(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	dialer := &websocket.Dialer{
 		TLSClientConfig: tlsConfig,
-		NetDialContext:  sess.DialWithContext,
+		NetDialContext:  netDialer,
 	}
 
-	headers := req.Header
+	headers := http.Header{}
 	if impersonationHeaders {
-		if headers, err = auth.IdentityForwardingHeaders(req.Context(), req.Header); err != nil {
+		if headers, err = auth.IdentityForwardingHeaders(req.Context(), headers); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -1288,6 +1294,10 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.DialContext(req.Context(), url, headers)
 	if err != nil {
+		if respTarget == nil {
+			return nil, trace.Wrap(err)
+		}
+		defer respTarget.Body.Close()
 		msg, err := io.ReadAll(respTarget.Body)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1297,7 +1307,6 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 		if err := json.Unmarshal(msg, &obj); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
@@ -1315,6 +1324,24 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 	}
 
 	return nil, nil
+}
+
+// getSessionHostID returns the host ID that controls the session being joined.
+// If the session is remote, returns an empty string, otherwise returns the host ID
+// from the session tracker.
+func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, p httprouter.Params) (string, error) {
+	if authCtx.teleportCluster.isRemote {
+		return "", nil
+	}
+	session := p.ByName("session")
+	if session == "" {
+		return "", trace.BadParameter("missing session ID")
+	}
+	sess, err := f.cfg.AuthClient.GetSessionTracker(ctx, session)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return sess.GetHostID(), nil
 }
 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
@@ -1637,7 +1664,8 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	// proxy.Close closes the underlying connection and releases the resources.
+	defer proxy.Close()
 	if sess.noAuditEvents {
 		// We're forwarding this to another kubernetes_service instance, let it handle multiplexing.
 		return f.remoteExec(authCtx, w, req, p, sess, request, proxy)
@@ -1645,20 +1673,30 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 
 	if !request.tty {
 		resp, err = f.execNonInteractive(authCtx, w, req, p, request, proxy, sess)
-		return
+		if err != nil {
+			// will hang waiting for the response.
+			proxy.sendStatus(err)
+		}
+		return nil, nil
 	}
 
 	client := newKubeProxyClientStreams(proxy)
 	party := newParty(*authCtx, types.SessionPeerMode, client)
 	session, err := newSession(*authCtx, f, req, p, party, sess)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	f.setSession(session.id, session)
 	err = session.join(party)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		// This error must be forwarded to SPDY error stream, otherwise the client
+		// will hang waiting for the response.
+		proxy.sendStatus(err)
+		return nil, nil
 	}
 
 	<-party.closeC
@@ -2021,7 +2059,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
-		dialWithContext:       sess.DialWithContext,
+		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
@@ -2052,7 +2090,7 @@ func (f *Forwarder) getSPDYDialer(ctx authContext, sess *clusterSession, req *ht
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		authCtx:               ctx,
-		dialWithContext:       sess.DialWithContext,
+		dialWithContext:       sess.DialWithContext(),
 		tlsConfig:             tlsConfig,
 		pingPeriod:            f.cfg.ConnPingPeriod,
 		originalHeaders:       req.Header,
@@ -2150,12 +2188,14 @@ func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
 	return s.monitorConn(s.dial(s.requestContext, network))
 }
 
-func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.dial(ctx, network))
+func (s *clusterSession) DialWithContext(opts ...contextDialerOption) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return s.monitorConn(s.dial(ctx, network, opts...))
+	}
 }
 
-func (s *clusterSession) dial(ctx context.Context, network string) (net.Conn, error) {
-	dialer := s.parent.getContextDialerFunc(s)
+func (s *clusterSession) dial(ctx context.Context, network string, opts ...contextDialerOption) (net.Conn, error) {
+	dialer := s.parent.getContextDialerFunc(s, opts...)
 
 	conn, err := dialer(ctx, network, s.targetAddr)
 
@@ -2191,7 +2231,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		targetAddr:     reversetunnel.LocalKubernetes,
+		targetAddr:     reversetunnelclient.LocalKubernetes,
 		requestContext: ctx,
 	}, nil
 }

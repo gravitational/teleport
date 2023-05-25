@@ -31,6 +31,13 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
+        },
+        {
+          "title": "Teleport Assist",
+          "slug": "/ai-assist/",
+          "forScopes": [
+            "oss"
+          ]
         }
       ]
     },
@@ -42,20 +49,15 @@
           "title": "Introduction",
           "slug": "/choose-an-edition/introduction/"
         },
+	{
+	  "title": "Teleport Team",
+	  "slug": "/choose-an-edition/teleport-team/"
+	},
         {
           "title": "Teleport Enterprise Cloud",
           "slug": "/choose-an-edition/teleport-cloud/introduction/",
-          "forScopes": [
-            "cloud"
-          ],
+          "forScopes": ["cloud"],
           "entries": [
-            {
-              "title": "Getting Started",
-              "slug": "/choose-an-edition/teleport-cloud/getting-started/",
-              "forScopes": [
-                "cloud"
-              ]
-            },
             {
               "title": "Architecture",
               "slug": "/choose-an-edition/teleport-cloud/architecture/",
@@ -204,6 +206,14 @@
             {
               "title": "AWS Terraform",
               "slug": "/deploy-a-cluster/deployments/aws-terraform/",
+              "forScopes": [
+                "oss",
+                "enterprise"
+              ]
+            },
+            {
+              "title": "AWS Multi-Region Proxy Deployment",
+              "slug": "/deploy-a-cluster/deployments/aws-gslb-proxy-peering-ha-deployment/",
               "forScopes": [
                 "oss",
                 "enterprise"
@@ -919,7 +929,7 @@
               "slug": "/application-access/guides/connecting-apps/"
             },
             {
-              "title": "TCP App Access (Preview)",
+              "title": "TCP App Access",
               "slug": "/application-access/guides/tcp/"
             },
             {
@@ -1673,7 +1683,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.4.2",
+      "version": "12.4.3",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2253,12 +2263,12 @@
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2523,12 +2533,12 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
-      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -2619,6 +2629,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-team/",
       "permanent": true
     },
     {

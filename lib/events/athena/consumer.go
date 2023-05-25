@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
@@ -133,9 +134,10 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-
-			// TODO(tobiaszheller): verify later acl, kms customer, object lock etc.
-			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil)
+			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
+				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

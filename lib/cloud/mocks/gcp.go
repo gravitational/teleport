@@ -19,8 +19,12 @@ package mocks
 import (
 	"context"
 	"crypto/tls"
+	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
@@ -47,4 +51,31 @@ func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db type
 
 func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, identity tlsca.Identity) (*tls.Certificate, error) {
 	return g.EphemeralCert, nil
+}
+
+// GKEClusterEntry is an entry in the GKEMock.Clusters list.
+type GKEClusterEntry struct {
+	gcp.ClusterDetails
+	Config *rest.Config
+	TTL    time.Duration
+}
+
+// GKEMock implements the gcp.GKEClient interface for tests.
+type GKEMock struct {
+	gcp.GKEClient
+	Clusters []GKEClusterEntry
+	Notify   chan struct{}
+	Clock    clockwork.Clock
+}
+
+func (g *GKEMock) GetClusterRestConfig(ctx context.Context, cfg gcp.ClusterDetails) (*rest.Config, time.Time, error) {
+	defer func() {
+		g.Notify <- struct{}{}
+	}()
+	for _, cluster := range g.Clusters {
+		if cluster.ClusterDetails == cfg {
+			return cluster.Config, g.Clock.Now().Add(cluster.TTL), nil
+		}
+	}
+	return nil, time.Now(), trace.NotFound("cluster not found")
 }

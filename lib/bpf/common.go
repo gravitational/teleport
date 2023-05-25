@@ -39,7 +39,7 @@ type BPF interface {
 	CloseSession(ctx *SessionContext) error
 
 	// Close will stop any running BPF programs.
-	Close() error
+	Close(restarting bool) error
 }
 
 // SessionContext contains all the information needed to track and emit
@@ -85,7 +85,7 @@ type NOP struct {
 }
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close() error {
+func (s *NOP) Close(bool) error {
 	return nil
 }
 

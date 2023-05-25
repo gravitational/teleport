@@ -19,10 +19,6 @@ interactions with Okta. There are three main components of the Okta Service:
 - User access
 - Access Requests
 
-![Okta architecture](../../../img/application-access/okta/okta-architecture.png)
-
-{/*
-Uncomment this once mermaid support is in.
 ```mermaid
 flowchart TB
   Okta[Okta API]
@@ -40,7 +36,6 @@ flowchart TB
   UA-- Longer lived permissions-->Okta
   AR-- Short lived permissions-->Okta
 ```
-*/}
 
 The Okta Service uses an Okta API token and endpoint in order to interact
 with Okta's API. The API is used to import applications and user groups and

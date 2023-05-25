@@ -205,11 +205,9 @@ func TestMonitorStaleLocks(t *testing.T) {
 	case <-time.After(15 * time.Second):
 		t.Fatal("Timeout waiting for LockWatcher loop check.")
 	}
-	select {
-	case asrv.LockWatcher.StaleC <- struct{}{}:
-	default:
-		t.Fatal("No staleness event should be scheduled yet. This is a bug in the test.")
-	}
+	// StaleC is listened by multiple goroutines, so we need to close to ensure
+	// that all of them are unblocked.
+	close(asrv.LockWatcher.StaleC)
 
 	// ensure ResetC is drained
 	select {

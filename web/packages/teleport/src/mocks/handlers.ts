@@ -34,4 +34,10 @@ export const handlersTeleport = [
   rest.post(cfg.api.captureUserEventPath, (req, res, ctx) => {
     return res(ctx.status(200));
   }),
+  rest.get(cfg.api.thumbprintPath, (req, res, ctx) => {
+    return res(ctx.json('examplevaluehere'));
+  }),
+  rest.post(cfg.getIntegrationsUrl(), (req, res, ctx) => {
+    return res(ctx.json({}));
+  }),
 ];

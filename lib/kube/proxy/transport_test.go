@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -160,8 +161,10 @@ func TestForwarderClusterDialer(t *testing.T) {
 		want          reversetunnel.DialParams
 	}{
 		{
-			name:          "local site",
-			dialerCreator: f.localClusterDialer,
+			name: "local site",
+			dialerCreator: func(kubeClusterName string) dialContextFunc {
+				return f.localClusterDialer(kubeClusterName)
+			},
 			want: reversetunnel.DialParams{
 				From: &utils.NetAddr{
 					Addr:        "0.0.0.0:0",
@@ -185,7 +188,7 @@ func TestForwarderClusterDialer(t *testing.T) {
 					AddrNetwork: "tcp",
 				},
 				To: &utils.NetAddr{
-					Addr:        reversetunnel.LocalKubernetes,
+					Addr:        reversetunnelclient.LocalKubernetes,
 					AddrNetwork: "tcp",
 				},
 				ConnType: types.KubeTunnel,

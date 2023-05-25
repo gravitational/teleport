@@ -1032,7 +1032,7 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1069,6 +1069,8 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
 	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
+	tconf.Proxy.Kube.Enabled = cfg.KubeAddr != ""
+	tconf.Proxy.Kube.ListenAddr.Addr = cfg.KubeAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
@@ -1076,7 +1078,10 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
-
+	// apply options
+	for _, o := range opts {
+		o(tconf)
+	}
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
@@ -1118,6 +1123,18 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	// in `StartAndWait()`.
 	return nil, nil, trace.Errorf("Missing expected %v event in %v",
 		service.ProxyReverseTunnelReady, receivedEvents)
+}
+
+// Option is a functional option for configuring a ProxyConfig
+type Option func(*servicecfg.Config)
+
+// WithLegacyKubeProxy enables the legacy kube proxy.
+func WithLegacyKubeProxy(kubeconfig string) Option {
+	return func(tconf *servicecfg.Config) {
+		tconf.Proxy.Kube.Enabled = true
+		tconf.Proxy.Kube.KubeconfigPath = kubeconfig
+		tconf.Proxy.Kube.LegacyKubeProxy = true
+	}
 }
 
 // Reset re-creates the teleport instance based on the same configuration

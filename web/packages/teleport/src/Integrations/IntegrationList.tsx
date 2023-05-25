@@ -21,6 +21,7 @@ import { Box, Flex, Image } from 'design';
 import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
+import jamfIcon from 'design/assets/images/icons/jamf.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -186,6 +187,10 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'openai':
         formattedText = 'OpenAI';
         icon = <IconContainer src={openaiIcon} />;
+        break;
+      case 'jamf':
+        formattedText = 'Jamf';
+        icon = <IconContainer src={jamfIcon} />;
         break;
     }
   } else {
