@@ -11,9 +11,6 @@ on:
     # stagger jobs.
     - cron: '17 7 * * *'  
 
-permissions:
-  contents: read
-
 jobs:
   build:
     strategy:
