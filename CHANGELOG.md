@@ -1,5 +1,21 @@
 # Changelog
 
+## 12.4.4 (05/24/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Teleport Assist
+  * Fixed React error in when navigating between Assist and web UI other pages. [#26745](https://github.com/gravitational/teleport/pull/26745)
+* Server Access
+  * Fixed issue with SSH sessions sometimes failing to establish in enhanced session recording mode. [#26729](https://github.com/gravitational/teleport/pull/26729)
+  * Fixed issue with port forwarding silently failing when using a label based target. [#26703](https://github.com/gravitational/teleport/pull/26703)
+* Kubernetes Access
+  * Extended `kubectl auth can-i` support to account for `kubernetes_resources` RBAC rules. [#26586](https://github.com/gravitational/teleport/pull/26586)
+* Desktop Access
+  * Improved internal logging and Windows user lookup efficiency. [#26414](https://github.com/gravitational/teleport/pull/26414)
+* Web UI
+  * Restored the "Add application" dialog. [#26459](https://github.com/gravitational/teleport/pull/26459)
+
 ## 12.4.3 (05/18/23)
 
 This release of Teleport contains multiple improvements and bug fixes.

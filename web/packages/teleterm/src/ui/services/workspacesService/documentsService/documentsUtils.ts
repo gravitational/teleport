@@ -19,6 +19,14 @@ import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { Document, isDocumentTshNodeWithServerId } from './types';
 
+/**
+ * getResourceUri returns the URI of the cluster resource that is the subject of the document.
+ *
+ * For example, for DocumentGateway it's targetUri rather than gatewayUri because the gateway
+ * doesn't belong to the cluster.
+ *
+ * At the moment it's used only to get the breadcrumbs for the status bar.
+ */
 export function getResourceUri(
   document: Document
 ): ClusterOrResourceUri | undefined {
@@ -26,6 +34,7 @@ export function getResourceUri(
     case 'doc.cluster':
       return document.clusterUri;
     case 'doc.gateway':
+    case 'doc.gateway_cli_client':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
       return isDocumentTshNodeWithServerId(document)

@@ -28,6 +28,14 @@ RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
+# Protogen related versions.
+BUF_VERSION ?= 1.19.0
+# Keep in sync with api/proto/buf.yaml (and buf.lock)
+GOGO_PROTO_TAG ?= v1.3.2
+NODE_GRPC_TOOLS_VERSION ?= 1.12.4
+NODE_PROTOC_TS_VERSION ?= 5.0.1
+PROTOC_VER ?= 3.20.3
+
 UID := $$(id -u)
 GID := $$(id -g)
 
@@ -38,12 +46,9 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-GOGO_PROTO_TAG ?= v1.3.2
-
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include images.mk
+include grpcbox.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -131,9 +136,12 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg BUF_VERSION=$(BUF_VERSION) \
+			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
+			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -170,7 +178,6 @@ buildbox-centos7:
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -242,17 +249,13 @@ ui: buildbox
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		$(DOCKERFLAGS) -u $(UID):$(GID) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport grpc/host
+grpc: grpcbox
+	$(GRPCBOX_RUN) make grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
 .PHONY: protos-up-to-date
-protos-up-to-date: buildbox
-	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
+protos-up-to-date: grpcbox
+	$(GRPCBOX_RUN) make protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
@@ -364,6 +367,13 @@ enter-root: buildbox
 enter/centos7: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+
+#
+# Starts a shell inside the grpcbox.
+#
+.PHONY: enter/grpcbox
+enter/grpcbox: grpcbox
+	$(GRPCBOX_RUN)
 
 #
 # Create a Teleport package using the build container.
