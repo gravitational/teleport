@@ -89,7 +89,7 @@ func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 		Protocol:              gateway.Protocol(),
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
-		CliCommand:            command,
+		GatewayCliCommand:     command,
 	}, nil
 }
 

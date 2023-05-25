@@ -1272,8 +1272,22 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name:       "jamf enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Jamf: servicecfg.JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildType := modules.BuildOSS

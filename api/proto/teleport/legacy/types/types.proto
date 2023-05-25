@@ -443,6 +443,8 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+  // Subnets is a list of subnets for the RDS instance.
+  repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -4945,6 +4947,9 @@ message GetClusterAlertsRequest {
   bool WithSuperseded = 4;
   // WithAcknowledged includes acknowledged alerts in the output of the request.
   bool WithAcknowledged = 5;
+  // WithUntargeted requests that alerts be included even if they are not specifically
+  // targeted toward the caller. This has no effect unless the caller has `cluster_alert:list`.
+  bool WithUntargeted = 6;
 }
 
 // AlertAcknowledgement marks a cluster alert as having been "acknowledged".
@@ -5343,6 +5348,10 @@ message OktaImportRuleMatchV1 {
   repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
   // GroupIDs is a list of group IDs to match against.
   repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+  // AppNameRegexes is a list of regexes to match against app names.
+  repeated string AppNameRegexes = 3 [(gogoproto.jsontag) = "app_name_regexes,omitempty"];
+  // GroupNameRegexes is a list of regexes to match against group names.
+  repeated string GroupNameRegexes = 4 [(gogoproto.jsontag) = "group_name_regexes,omitempty"];
 }
 
 // OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.

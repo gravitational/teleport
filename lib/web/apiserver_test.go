@@ -2458,6 +2458,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		// Variables must be injected
 		require.Contains(t, responseString, "echo Teleport-v")
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
+		require.NotContains(t, responseString, "echo Repository Channel: stable/cloud")
 		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
@@ -2514,9 +2515,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is stable/v<majorVersion>
-			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/cloud")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2524,9 +2523,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is stable/v<majorVersion>
-			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/cloud")
 		})
 	})
 }
