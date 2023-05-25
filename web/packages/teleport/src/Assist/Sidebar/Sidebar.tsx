@@ -83,6 +83,13 @@ const ChatHistoryItemTitle = styled.div`
   opacity: 0.7;
 `;
 
+const ChatHistoryItemIcon = styled.div`
+  flex: 0 0 14px;
+  margin-right: 10px;
+  padding-top: 4px;
+  opacity: 0.7;
+`;
+
 const ChatHistoryItem = styled(NavLink)`
   display: flex;
   color: ${props => props.theme.colors.text.main};
@@ -101,7 +108,7 @@ const ChatHistoryItem = styled(NavLink)`
     border-left-color: ${props => props.theme.colors.brand};
     font-weight: 700;
 
-    ${ChatHistoryItemTitle} {
+    ${ChatHistoryItemTitle}, ${ChatHistoryItemIcon} {
       opacity: 1;
     }
   }
@@ -139,12 +146,6 @@ const NewChatButton = styled.div`
   &:hover {
     background: ${p => p.theme.colors.buttons.primary.hover};
   }
-`;
-
-const ChatHistoryItemIcon = styled.div`
-  flex: 0 0 14px;
-  margin-right: 10px;
-  padding-top: 4px;
 `;
 
 const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
