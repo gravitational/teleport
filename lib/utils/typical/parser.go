@@ -631,7 +631,7 @@ func (e ternaryVariadicFuncExpr[TEnv, TArg1, TArg2, TVarArgs, TResult]) Evaluate
 	}
 	arg2, err := e.arg2Expr.Evaluate(env)
 	if err != nil {
-		return nul, trace.Wrap(err, "evaluating first argument to function (%s)", e.name)
+		return nul, trace.Wrap(err, "evaluating second argument to function (%s)", e.name)
 	}
 	varArgs := make([]TVarArgs, len(e.varArgExprs))
 	for i, argExpr := range e.varArgExprs {
