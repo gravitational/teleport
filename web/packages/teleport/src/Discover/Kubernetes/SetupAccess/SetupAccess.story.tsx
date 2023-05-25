@@ -57,6 +57,7 @@ const props: State = {
     statusText: '',
   },
   onProceed: () => null,
+  onPrev: () => null,
   fetchUserTraits: () => null,
   isSsoUser: false,
   canEditUser: true,
