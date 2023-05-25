@@ -457,7 +457,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			tc, err := makeClient(tt.InConf, true)
+			tc, err := makeClient(tt.InConf)
 			if tt.expectErr {
 				require.Error(t, err)
 				return
