@@ -7,7 +7,7 @@ require (
 	github.com/docker/distribution v2.8.2+incompatible
 	github.com/google/go-containerregistry v0.14.0
 	github.com/gravitational/trace v1.2.1
-	github.com/jonboulle/clockwork v0.3.0
+	github.com/jonboulle/clockwork v0.4.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33
 	github.com/sigstore/sigstore v1.6.3
