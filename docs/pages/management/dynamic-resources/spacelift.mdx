@@ -8,8 +8,6 @@ configuration resources via GitOps and infrastructure as code. This gives you an
 audit trail of changes to your Teleport configuration and a single source of
 truth for operators to examine.
 
-{/*Uncomment when we fix issues with Mermaid support:
-
 ```mermaid
 flowchart TB
 subgraph Spacelift
@@ -21,27 +19,18 @@ repo["GitHub Repo"]--"Configuration Resources (Terraform)"--->spacelift
 spacelift-->proxy["Teleport Proxy Service"]
 proxy-- "gRPC API Traffic" -->auth["Teleport Auth Service"]
 ```
-*/}
-
-<Figure
-  align="center"
-  width="500"
-  height="200"
->
-  ![Example](../../../img/management/spacelift/spacelift.svg)
-</Figure>
 
 This guide will show you how to set up the GitOps platform Spacelift with the
-Teleport Terraform provider. While following this guide, you will create a no-op
-Teleport user and role in order to demonstrate using Spacelift to create
-dynamic resources. 
+Teleport Terraform provider. While following this guide, you will create a
+Teleport user and role with no privileges in order to demonstrate using
+Spacelift to create dynamic resources. 
 
 If you are using another GitOps platform, the setup should be similar:
 
 - Create a Teleport user and role for the GitOps platform with permissions to
   manage configuration resources.
-- Upload a Teleport identify file to the GitOps platform that the GitOps
-  platform will use to authenticate as the Teleport user and role you created.
+- Upload a Teleport identify file to the GitOps platform that it will use to
+  authenticate as the Teleport user and role you created.
 - Configure the GitOps platform to read from a GitHub repository with a
   Terraform configuration that tells the Teleport provider where to find your
   identity file and Teleport Proxy Service.
@@ -66,12 +55,12 @@ If you are using another GitOps platform, the setup should be similar:
 
 For simplicity, the identify file we will export in this guide will have a long
 time to live. In a production environment, you will want to provision
-short-lived identify files via Machine ID. 
+short-lived identify files via Machine ID.
 
-After getting familiar with this guide, read our
-[documentation](../machine-id/getting-started.mdx) to get started with Machine
-ID. You will need to run your own compute workload to upload Teleport identity
-files to Spacelift using the `spacectl stack environment mount` command of the
+After getting familiar with this guide, read our [Machine ID Getting Started
+Guide](../../machine-id/getting-started.mdx) to get started with Machine ID. You
+will need to run your own compute workload to upload Teleport identity files to
+Spacelift using the `spacectl stack environment mount` command of the
 [`spacectl`](https://github.com/spacelift-io/spacectl) CLI (or another method
 that takes advantage of Spacelift's GraphQL API).
 
@@ -101,12 +90,12 @@ provider "teleport" {
 Change `proxy.example.com:443` to the host and HTTPS port of your Teleport Proxy
 Service.
 
-Commit the change and merge it to your `main` branch and push to your remote
+Commit the change, merge it to your `main` branch, and push to your remote
 repository (or use a pull request).
 
 ## Step 2/4. Create a Spacelift stack
 
-Visit Spacelift, then click **Stacks > Add stack**. 
+From the Spacelift web UI, click **Stacks > Add stack**.
 
 In the **NAME STACK** tab, for "Name", use "Teleport" and click **CONTINUE**. 
 
@@ -208,9 +197,9 @@ $ tctl create spacelift-impersonator.yaml
 
 ### Provide an identity file to Spacelift
 
-Click **Stacks > Teleport**. Click the **Environment** tab, then **Edit**. Set
-the dropdown menu that follows to **Mounted file**, and the path to
-`/mnt/workspace/auth.pem`.
+In the Spacelift web UI, click **Stacks > Teleport**. Click the **Environment**
+tab, then **Edit**. Set the dropdown menu that follows to **Mounted file**, and
+the path to `/mnt/workspace/auth.pem`.
 
 Click **Upload file** and select the file called `auth.pem` that you exported
 earlier.
@@ -221,8 +210,8 @@ Make sure you click **Secret** next to the entry for the mounted file:
 
 ## Step 4/4. Declare configuration resources
 
-In your clone of the GitHub repository you chose in order to follow this guide,
-check out a branch from your main branch and add the following to `main.tf`:
+In a clone of your GitHub repository, check out a branch from your main branch
+and add the following to `main.tf`:
 
 ```text
 resource "teleport_role" "terraform_test" {
@@ -251,13 +240,14 @@ resource "teleport_user" "terraform-test" {
 }
 ```
 
-Commit your changes and open a pull request against your repository. (Do not
-merge it just yet.)
+Commit your changes and push the branch to GitHub, then open a pull request
+against the `main` branch. (Do not merge it just yet.)
 
-Click **Stacks > Teleport > PRs**, then click the name of the PR you opened.
+In the Spacelift UI, click **Stacks > Teleport > PRs**, then click the name of
+the PR you opened.
 
 You should see a Terraform plan that includes the user and role you defined
-above.
+above:
 
 ![Terraform plan](../../../img/management/spacelift/pr-run.png)
 
@@ -272,7 +262,8 @@ You should see output indicating success:
 
 ![Successful apply](../../../img/management/spacelift/apply-success.png)
 
-Verify that Spacelift has created the new user and role:
+Verify that Spacelift has created the new user and role by running the following
+commands, which should return YAML data for each resource:
 
 ```code
 $ tctl get roles/terraform-test
