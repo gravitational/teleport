@@ -2953,6 +2953,10 @@ func setOverrideStdout(stdout io.Writer) cliOption {
 	}
 }
 
+func setCopyStdout(stdout io.Writer) cliOption {
+	return setOverrideStdout(io.MultiWriter(os.Stdout, stdout))
+}
+
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
