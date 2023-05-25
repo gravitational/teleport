@@ -1642,14 +1642,14 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case tracessh.TracingRequest:
 		return nil
 	case sshutils.ExecRequest:
-		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleExec(ctx, ch, req, serverContext)
 	case sshutils.PTYRequest:
 		return s.termHandlers.HandlePTYReq(ctx, ch, req, serverContext)
 	case sshutils.ShellRequest:
-		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			return trace.Wrap(err)
 		}
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
@@ -1674,7 +1674,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		// https://tools.ietf.org/html/draft-ietf-secsh-agent-02
 		// the open ssh proto spec that we implement is here:
 		// http://cvsweb.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ssh/PROTOCOL.agent
-		if _, err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
+		if err := s.termHandlers.SessionRegistry.TryCreateHostUser(serverContext); err != nil {
 			s.Logger.Warn(err)
 			return nil
 		}
