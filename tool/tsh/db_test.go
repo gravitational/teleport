@@ -317,7 +317,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
 			}
-			tc, err := makeClient(cf, false)
+			tc, err := makeClient(cf)
 			require.NoError(t, err)
 			if tt.setupTC != nil {
 				tt.setupTC(tc)
