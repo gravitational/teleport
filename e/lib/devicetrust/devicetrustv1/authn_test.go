@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -449,7 +450,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	authenticate := func() error {
 		stream, err := devices.AuthenticateDevice(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("init: %w", err)
 		}
 
 		// 1. Init.
@@ -466,7 +467,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 				},
 			},
 		}); err != nil {
-			return err
+			return fmt.Errorf("init Send: %w", err)
 		}
 
 		// 2. Challenge.
@@ -488,12 +489,14 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 				},
 			},
 		}); err != nil {
-			return err
+			return fmt.Errorf("challenge Send: %w", err)
 		}
 
 		// 3. Success.
-		_, err = stream.Recv()
-		return err
+		if _, err := stream.Recv(); err != nil && !errors.Is(err, io.EOF) {
+			return fmt.Errorf("success Recv: %w", err)
+		}
+		return nil
 	}
 
 	// Define a few roles with reasonable-looking allow rules for the following
