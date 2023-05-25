@@ -2081,7 +2081,7 @@ The flag `--teams-to-roles` can be provided multiple times to specify which GitH
 In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
 
 ```code
-$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 #### Arguments
