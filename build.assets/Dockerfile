@@ -126,6 +126,8 @@ RUN apt-get -y update && \
         ca-certificates \
         clang-10 \
         clang-format-10 \
+        gcc-8 \
+        g++-8 \
         curl \
         default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
@@ -142,6 +144,7 @@ RUN apt-get -y update && \
         mingw-w64 \
         mingw-w64-x86-64-dev \
         net-tools \
+        ninja-build \
         openssh-client \
         osslsigncode \
         python3-pip \
@@ -215,11 +218,11 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 USER root
 
 # Install Node.js.
-RUN yum install -y python3 ninja-build
 ARG NODE_VERSION
 RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
     cd node && \
-    scl enable ${DEVTOOLSET} "./configure --ninja && NINJA='ninja-build' make install" && \
+    CC="gcc-8" CXX="g++-8" ./configure --ninja && \
+    CC="gcc-8" CXX="g++-8" make install && \
     make clean
 RUN node --version
 RUN corepack enable yarn

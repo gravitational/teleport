@@ -134,7 +134,7 @@ RUN yum install -y python3 ninja-build
 ARG NODE_VERSION
 RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
     cd node && \
-    scl enable ${DEVTOOLSET} "./configure --ninja && NINJA='ninja-build' make install" && \
+    scl enable devtoolset-11 "./configure --ninja && NINJA='ninja-build' make install" && \
     make clean
 RUN node --version
 RUN corepack enable yarn
