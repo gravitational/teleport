@@ -40,13 +40,13 @@ Create a client secret to use along with the client ID in the next step.
 ## Step 2/3. Create a GitHub authentication connector
 
 Define a GitHub authentication connector using `tctl`. Update this example
-command with your Oauth app's client ID, client secret, and the roles you want
+command with your OAuth app's client ID, client secret, and the roles you want
 to map from your GitHub organization to Teleport roles. See [tctl sso configure
 github](../../reference/cli.mdx#tctl-sso-configure-github) for a full reference
 of flags for this command:
 
 ```code
-$ tctl ssh configure github \
+$ tctl sso configure github \
 --id=<Var name="GITHUB-CLIENT-ID"/>\
 --secret=<Var name="GITHUB-CLIENT-SECRET"/> \
 --teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
