@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
 
 import { useParams } from 'react-router';
@@ -30,7 +30,6 @@ import cfg from 'teleport/config';
 import { WebauthnAssertionResponse } from 'teleport/services/auth';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-import { Message, MfaJson } from 'teleport/lib/tdp/codec';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import { TermEvent } from 'teleport/lib/term/enums';
 
@@ -78,16 +77,14 @@ interface RawPayload {
 
 class assistClient extends EventEmitterWebAuthnSender {
   private ws: WebSocket;
-  private proto: Protobuf;
-  encoder = new window.TextEncoder();
+  readonly proto: Protobuf = new Protobuf();
+  readonly encoder = new window.TextEncoder();
 
   constructor(
     url: string,
     setState: React.Dispatch<React.SetStateAction<any[]>>
   ) {
     super();
-
-    this.proto = new Protobuf();
 
     const refWS = useRef<WebSocket>();
 
@@ -101,11 +98,9 @@ class assistClient extends EventEmitterWebAuthnSender {
       this.ws.binaryType = 'arraybuffer';
       refWS.current = this.ws;
 
-      const proto = new Protobuf();
-
       this.ws.onmessage = event => {
         const uintArray = new Uint8Array(event.data);
-        const msg = proto.decode(uintArray);
+        const msg = this.proto.decode(uintArray);
 
         switch (msg.type) {
           case MessageTypeEnum.RAW:
@@ -121,7 +116,7 @@ class assistClient extends EventEmitterWebAuthnSender {
                 });
               }
 
-              const s = state.map(item => {
+              return state.map(item => {
                 if (item.nodeId === data.node_id) {
                   if (!item.stdout) {
                     item.stdout = '';
@@ -135,8 +130,6 @@ class assistClient extends EventEmitterWebAuthnSender {
 
                 return item;
               });
-
-              return s;
             });
 
             break;
@@ -144,11 +137,7 @@ class assistClient extends EventEmitterWebAuthnSender {
             console.error(msg.payload);
             break;
           case MessageTypeEnum.WEBAUTHN_CHALLENGE:
-            //TODO: handle webauthn challenge
-            console.log(msg.payload);
-
             this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
-
             break;
         }
       };
@@ -156,30 +145,19 @@ class assistClient extends EventEmitterWebAuthnSender {
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
-    console.log('sendWebAuthn', data);
-    const msg = this.encodeMfaJson({
-      mfaType: 'n',
-      jsonString: JSON.stringify(data),
-    });
+    const msg = this.encoder.encode(JSON.stringify(data));
     this.send(msg);
   }
 
   send(data) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !data) {
-      console.log('websocket unavailable', this.ws, data);
+      console.warn('websocket unavailable', this.ws, data);
       return;
     }
 
-    console.log('send', data);
     const msg = this.proto.encodeRawMessage(data);
     const bytearray = new Uint8Array(msg);
     this.ws.send(bytearray.buffer);
-  }
-
-  // | message type (10) | mfa_type byte | message_length uint32 | json []byte
-  encodeMfaJson(mfaJson: MfaJson): Message {
-    const dataUtf8array = this.encoder.encode(mfaJson.jsonString);
-    return dataUtf8array;
   }
 }
 
