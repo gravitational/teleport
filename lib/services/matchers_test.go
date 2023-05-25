@@ -139,8 +139,9 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
 	server, err := types.NewServerWithLabels("banana", types.KindNode, types.ServerSpecV2{
-		Hostname: "foo",
-		Addr:     "bar",
+		Hostname:    "foo",
+		Addr:        "bar",
+		PublicAddrs: []string{"foo.example.com:3080"},
 	}, map[string]string{"env": "prod", "os": "mac"})
 	require.NoError(t, err)
 
@@ -176,6 +177,30 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 			},
 			assertErr:   require.NoError,
 			assertMatch: require.False,
+		},
+		{
+			name: "search keywords hostname match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"bar"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords public addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo.example.com"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
 		},
 		{
 			name: "expression match",

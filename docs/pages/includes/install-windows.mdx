@@ -11,7 +11,7 @@ To install `tsh` on Windows, run the following commands in PowerShell:
   # by default, so you need to convert it to a string
   $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
   # <checksum> <filename>
-  $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
   $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
   # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
   # <checksum>

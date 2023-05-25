@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -152,6 +151,10 @@ type OktaImportRuleMatch interface {
 	GetAppIDs() (bool, []string)
 	// GetGroupIDs returns whether or not this match contains a Group ID match and, if so, the list of app IDs.
 	GetGroupIDs() (bool, []string)
+	// GetAppNameRegexes returns whether or not this match contains app name regexes and, if so, the regexes.
+	GetAppNameRegexes() (bool, []string)
+	// GetGroupNameRegexes returns whether or not this match contains group name regexes and, if so, the regexes.
+	GetGroupNameRegexes() (bool, []string)
 }
 
 // GetAppIDs returns whether or not this match contains an App ID match and, if so, the list of app IDs.
@@ -164,6 +167,16 @@ func (o *OktaImportRuleMatchV1) GetGroupIDs() (bool, []string) {
 	return len(o.GroupIDs) > 0, o.GroupIDs
 }
 
+// GetAppNameRegexes returns whether or not this match contains app name regexes and, if so, the regexes.
+func (o *OktaImportRuleMatchV1) GetAppNameRegexes() (bool, []string) {
+	return len(o.AppNameRegexes) > 0, o.AppNameRegexes
+}
+
+// GetGroupNameRegexes returns whether or not this match contains group name regexes and, if so, the regexes.
+func (o *OktaImportRuleMatchV1) GetGroupNameRegexes() (bool, []string) {
+	return len(o.GroupNameRegexes) > 0, o.GroupNameRegexes
+}
+
 // CheckAndSetDefaults checks and sets default values
 func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 	if len(o.AppIDs) > 0 && len(o.GroupIDs) > 0 {
@@ -173,7 +186,9 @@ func (o *OktaImportRuleMatchV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
+// OktaAssignment is a representation of an action or set of actions taken by Teleport to assign Okta users
+// to applications or groups. When modifying this object, please make sure to update
+// tool/tctl/common/oktaassignment to reflect any new fields that were added.
 type OktaAssignment interface {
 	ResourceWithLabels
 
@@ -337,7 +352,7 @@ func (o *OktaAssignmentV1) SetFinalized(finalized bool) {
 
 // Copy returns a copy of this Okta assignment resource.
 func (o *OktaAssignmentV1) Copy() OktaAssignment {
-	return proto.Clone(o).(*OktaAssignmentV1)
+	return utils.CloneProtoMsg(o)
 }
 
 // String returns the Okta assignment rule string representation.

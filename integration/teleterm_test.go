@@ -222,8 +222,7 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
 	}, *creds)
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 	return tc
 }

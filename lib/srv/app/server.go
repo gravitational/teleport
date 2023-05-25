@@ -782,7 +782,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		err = s.serveHTTP(w, r)
 	}
 	if err != nil {
-		s.log.Warnf("Failed to serve request: %v.", err)
+		s.log.WithError(err).Warnf("Failed to serve request")
 
 		// Covert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
@@ -958,6 +958,7 @@ func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Ap
 		state,
 		matchers...)
 	if err != nil {
+		s.log.WithError(err).Warnf("access denied to application %v", app.GetName())
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 

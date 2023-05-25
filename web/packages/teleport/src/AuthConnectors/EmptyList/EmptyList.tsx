@@ -44,7 +44,7 @@ export default function EmptyList({ onCreate }: Props) {
           Open Source Teleport supports only GitHub connectors. Please{' '}
           <Text
             as="a"
-            color="text.primary"
+            color="text.main"
             href="https://goteleport.com/docs/setup/admin/github-sso/"
             target="_blank"
           >

@@ -29,7 +29,7 @@ const kinds = ({ theme, kind, shadow }) => {
 
   if (kind === 'secondary') {
     styles.background = theme.colors.spotBackground[0];
-    styles.color = theme.colors.text.primary;
+    styles.color = theme.colors.text.main;
   }
 
   if (kind === 'warning') {

@@ -130,6 +130,7 @@ func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
 	header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+	header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

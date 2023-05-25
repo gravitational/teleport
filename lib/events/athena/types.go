@@ -24,13 +24,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TODO(tobiaszheller): pass user at some point.
 type eventParquet struct {
 	EventType string `parquet:"name=event_type, type=BYTE_ARRAY, convertedtype=UTF8"`
 	// TODO(tobiaszheller): what precision of timestamp we want. AWS supports micros, maybe we can use it instead of mili?
 	EventTime int64  `parquet:"name=event_time, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
 	UID       string `parquet:"name=uid, type=BYTE_ARRAY, convertedtype=UTF8"`
 	SessionID string `parquet:"name=session_id, type=BYTE_ARRAY, convertedtype=UTF8"`
+	User      string `parquet:"name=user, type=BYTE_ARRAY, convertedtype=UTF8"`
 	EventData string `parquet:"name=event_data, type=BYTE_ARRAY, convertedtype=UTF8"`
 }
 
@@ -49,6 +49,7 @@ func auditEventToParquet(event apievents.AuditEvent) (*eventParquet, error) {
 		EventTime: event.GetTime().UnixMilli(),
 		UID:       event.GetID(),
 		SessionID: events.GetSessionID(event),
+		User:      events.GetTeleportUser(event),
 		EventData: string(jsonBlob),
 	}, nil
 }

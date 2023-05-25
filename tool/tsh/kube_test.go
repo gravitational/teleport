@@ -161,8 +161,8 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
 
 					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, ""},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "localhost", p.rootKubeCluster2, p.formatedLabels},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "localhost", p.rootKubeCluster1, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, p.formatedLabels},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, p.formatedLabels},
 				)
 				return table.AsBuffer().String()
 			},

@@ -25,7 +25,7 @@ export function Expired({ resetMode = false }) {
   return (
     <Card
       width="540px"
-      color="text.primary"
+      color="text.main"
       p={6}
       bg="levels.elevated"
       mt={6}

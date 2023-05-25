@@ -28,6 +28,7 @@ var (
 
 // StdinReader contains ContextReader methods applicable to stdin.
 type StdinReader interface {
+	IsTerminal() bool
 	Reader
 	SecureReader
 }

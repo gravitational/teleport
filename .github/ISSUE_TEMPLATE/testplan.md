@@ -100,8 +100,10 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Backends
   - [ ] Teleport runs with etcd
   - [ ] Teleport runs with dynamodb
+    - [ ] AWS integration tests are passing
   - [ ] Teleport runs with SQLite
   - [ ] Teleport runs with Firestore
+    - [ ] GCP integration tests are passing
 
 - [ ] Session Recording
   - [ ] Session recording can be disabled
@@ -123,6 +125,10 @@ as well as an upgrade of the previous version of Teleport.
   - [ ] Network request are blocked when a policy deny them.
 
 - [ ] Audit Log
+  - [ ] Audit log with dynamodb
+    - [ ] AWS integration tests are passing
+  - [ ] Audit log with Firestore
+    - [ ] GCP integration tests are passing
   - [ ] Failed login attempts are recorded
   - [ ] Interactive sessions have the correct Server ID
     - [ ] `server_id` is the ID of the node in "session_recording: node" mode
@@ -477,6 +483,9 @@ connectors are accepted, invalid are rejected with sensible error messages.
 [Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
 - [ ] Join a Teleport node running in an Azure VM
 
+### GCP Node Joining
+- [ ] Join a Teleport node running in a GCP VM.
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label
@@ -703,7 +712,7 @@ Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in you
   - [ ] Migrating a software cluster to YubiHSM2 works
   - [ ] CA rotation works
 - [ ] AWS CloudHSM Support
-  - [ ] Make sure docs/links are up to date (they currently aren't https://github.com/gravitational/teleport/issues/24503)
+  - [ ] Make sure docs/links are up to date
   - [ ] New cluster with CloudHSM CA works
   - [ ] Migrating a software cluster to CloudHSM works
   - [ ] CA rotation works
@@ -1143,6 +1152,16 @@ tsh bench web sessions --max=5000 --web user ls
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
+- Non-AD setup
+  - [ ] Installer in GUI mode finishes successfully on instance that is not part of domain
+  - [ ] Installer works correctly invoked from command line
+  - [ ] Non-AD instance can be added to `non_ad_hosts` section in config file and is visible in UI
+  - [ ] Non-AD can be added as dynamic resource and is visible in UI
+  - [ ] Non-AD instance has label `teleport.dev/ad: false`
+  - [ ] Connecting to non-AD instance works with Enterprise license
+  - [ ] Connecting to non-AD instance fails with OSS
+  - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
+  - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
 ## Binaries compatibility
 
@@ -1218,6 +1237,18 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 
+
+## Proxy Peering
+
+[Proxy Peering docs](https://goteleport.com/docs/architecture/proxy-peering/)
+
+- Verify that Proxy Peering works for the following protocols:
+  - [ ] SSH
+  - [ ] Kubernetes
+  - [ ] Database
+  - [ ] Windows Desktop
+  - [ ] App Access
+
 ## EC2 Discovery
 
 [EC2 Discovery docs](https://goteleport.com/docs/ver/11.0/server-access/guides/ec2-discovery/)
@@ -1279,35 +1310,37 @@ version switcher.
   - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/downloads/?scope=cloud
 
 - [ ] Verify getting started instructions are accurate:
-  - [ ] OSS: https://goteleport.com/docs/deploy-a-cluster/open-source/
-  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/getting-started/?scope=enterprise
-  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/?scope=cloud
-  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/?scope=enterprise
+  - [ ] OSS: https://goteleport.com/docs/get-started
+  - [ ] Enterprise: https://goteleport.com/docs/deploy-a-cluster/teleport-enterprise/introduction
+  - [ ] Cloud: https://goteleport.com/docs/deploy-a-cluster/teleport-cloud/introduction/
+  - [ ] Helm: https://goteleport.com/docs/deploy-a-cluster/helm-deployments/kubernetes-cluster/
 
 - [ ] Verify upcoming releases page is accurate:
-  - [ ] https://goteleport.com/docs/preview/upcoming-releases/?scope=enterprise
+  - [ ] https://goteleport.com/docs/upcoming-releases/
   - [ ] Only exists for the default docs version.
 
-- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release:
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1128
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1176-L1186
-  - [ ] https://github.com/gravitational/teleport/blob/v11.0.0/docs/config.json#L1146-L1153
+- [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release. Check `docs/config.json` for this.
 
-- [ ] Verify that all necessary documentation for the release was backported to release branch:
-  - [ ] Diff between master and release branch and make sure there are no missed PRs
-
-- [ ] Verify deprecated Teleport versions are added to the older versions page
-  - [ ] https://goteleport.com/docs/older-versions/
+- [ ] Verify that all necessary documentation for the release was backported to
+  the release branch:
+  - [ ] Diff between master and release branch and make sure there are no missed
+    PRs
+  - [ ] Ensure that the release branch's documentation content reflects all
+    changes introduced by the release. If not, plan to update the docs ASAP and
+    notify all relevant teams of the delay.
 
 - [ ] Verify `gravitational/docs` version configuration:
   - [ ] Verify latest version in `gravitational/docs/config.json`
   - [ ] Verify `gravitational/docs/.gitmodules` contains latest release
+  - [ ] Ensure that submodule directories in `gravitational/docs` correspond to
+    those in `.gitmodules` (remove the directory of the EOL release and create
+    one for the next release)
 
-- [ ] Verify changelog is up-to-date and complete for the default docs version:
-  - [ ] https://goteleport.com/docs/changelog/
+- [ ] Verify changelog is up-to-date and complete for the default docs version
+  (`CHANGELOG.md`). If one release branch has a more complete changelog than
+  others, copy that `CHANGELOG.md` to our other support release branches.
 
-- [ ] Verify supported versions table in FAQ:
-  - [ ] https://goteleport.com/docs/faq/#supported-versions
+- [ ] Verify supported versions table in FAQ (https://goteleport.com/docs/faq/#supported-versions)
 
 ## Resources
 

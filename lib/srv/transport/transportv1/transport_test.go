@@ -41,6 +41,7 @@ import (
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -109,7 +110,7 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcA
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
 	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
@@ -218,8 +219,8 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}
 }
 
-func fakeSigner(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
-	return func(context.Context) (ssh.Signer, error) {
+func fakeSigner(authzCtx *authz.Context, clusterName string) agentless.SignerCreator {
+	return func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
 		return nil, nil
 	}
 }
@@ -282,7 +283,7 @@ func TestService_ProxyCluster(t *testing.T) {
 			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn) {
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
@@ -300,7 +301,7 @@ func TestService_ProxyCluster(t *testing.T) {
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
 				require.NoError(t, conn.Close())
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
@@ -447,7 +448,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				require.Nil(t, resp.Frame)
 
 				require.NoError(t, conn.Close())
-				var msg = []byte("hello")
+				msg := []byte("hello")
 				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: msg}}}))
 
 				resp, err = stream.Recv()
@@ -504,7 +505,6 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			require.NoError(t, err)
 
 			test.fn(t, stream, conn)
-
 		})
 	}
 }
@@ -648,7 +648,7 @@ func TestService_ProxySSH(t *testing.T) {
 
 	// send an ssh request to our server which will echo the payload
 	// back in the response.
-	var msg = []byte("hello")
+	msg := []byte("hello")
 	ok, response, err := client.SendRequest("echo", true, msg)
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -777,7 +777,7 @@ func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcA
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, "", trace.Wrap(err)

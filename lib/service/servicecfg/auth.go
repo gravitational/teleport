@@ -19,7 +19,6 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -103,8 +102,9 @@ type AuthConfig struct {
 	// this during testing.
 	Clock clockwork.Clock
 
-	// ServerOptions is a list of auth.Init options used in test.
-	ServerOptions []auth.ServerOption
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

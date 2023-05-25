@@ -164,7 +164,7 @@ const CheckedBullet = styled(Bullet)`
 const StepsContainer = styled.div<{ active: boolean }>`
   display: flex;
   flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.secondary)};
+  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
   margin-right: 32px;
   position: relative;
 

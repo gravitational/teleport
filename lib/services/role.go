@@ -270,19 +270,20 @@ func validateRule(r types.Rule) error {
 }
 
 func filterInvalidUnixLogins(candidates []string) []string {
-	// The tests for `ApplyTraits()` require that an empty list is nil
-	// rather than a 0-size slice, and I don't understand the potential
-	// knock-on effects of changing that, so the  default value is `nil`
-	output := []string(nil)
+	var output []string
 
 	for _, candidate := range candidates {
-		if !cstrings.IsValidUnixUser(candidate) {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		if cstrings.IsValidUnixUser(candidate) {
+			// A valid variable was found in the traits, append it to the list of logins.
+			output = append(output, candidate)
 			continue
 		}
 
-		// A valid variable was found in the traits, append it to the list of logins.
-		output = append(output, candidate)
+		// Log any invalid logins which were added by a user but ignore any
+		// Teleport internal logins which are known to be invalid.
+		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		}
 	}
 	return output
 }
@@ -371,6 +372,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
+		// apply templates to database roles
+		inDbRoles := r.GetDatabaseRoles(condition)
+		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
+		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
+
 		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
 		if inLabels != nil {
@@ -418,6 +424,9 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 
 		r.SetHostSudoers(condition,
 			applyValueTraitsSlice(r.GetHostSudoers(condition), traits, "host_sudoers"))
+
+		r.SetDesktopGroups(condition,
+			applyValueTraitsSlice(r.GetDesktopGroups(condition), traits, "desktop_groups"))
 
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
@@ -520,7 +529,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 			switch name {
 			case constants.TraitLogins, constants.TraitWindowsLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
-				constants.TraitDBNames, constants.TraitDBUsers,
+				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
 			default:
@@ -924,12 +933,12 @@ func (result *EnumerationResult) filtered(value bool) []string {
 	return filtered
 }
 
-// Denied returns all explicitly denied users.
+// Denied returns all explicitly denied entities.
 func (result *EnumerationResult) Denied() []string {
 	return result.filtered(false)
 }
 
-// Allowed returns all known allowed users.
+// Allowed returns all known allowed entities.
 func (result *EnumerationResult) Allowed() []string {
 	if result.WildcardDenied() {
 		return nil
@@ -937,12 +946,12 @@ func (result *EnumerationResult) Allowed() []string {
 	return result.filtered(true)
 }
 
-// WildcardAllowed is true if there * username allowed for given rule set.
+// WildcardAllowed is true if the * entity is allowed for a given rule set.
 func (result *EnumerationResult) WildcardAllowed() bool {
 	return result.wildcardAllowed && !result.wildcardDenied
 }
 
-// WildcardDenied is true if there * username deny for given rule set.
+// WildcardDenied is true if the * entity is denied for a given rule set.
 func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
@@ -956,52 +965,84 @@ func NewEnumerationResult() EnumerationResult {
 	}
 }
 
-// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
-// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
-// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
-//
-// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
-// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
-// This extra set of users may be sourced e.g. from user connection history.
+// EnumerateDatabaseUsers specializes EnumerateEntities to enumerate db_users.
 func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		return role.GetDatabaseUsers(condition)
+	}
+	newMatcher := func(user string) RoleMatcher {
+		return NewDatabaseUserMatcher(database, user)
+	}
+	return set.EnumerateEntities(database, listFn, newMatcher, extraUsers...)
+}
+
+// EnumerateDatabaseNames specializes EnumerateEntities to enumerate db_names.
+func (set RoleSet) EnumerateDatabaseNames(database types.Database, extraNames ...string) EnumerationResult {
+	listFn := func(role types.Role, condition types.RoleConditionType) []string {
+		return role.GetDatabaseNames(condition)
+	}
+	newMatcher := func(dbName string) RoleMatcher {
+		return &DatabaseNameMatcher{Name: dbName}
+	}
+	return set.EnumerateEntities(database, listFn, newMatcher, extraNames...)
+}
+
+// roleEntitiesListFn is used for listing a role's allowed/denied entities.
+type roleEntitiesListFn func(types.Role, types.RoleConditionType) []string
+
+// roleMatcherFactoryFn is used for making a role matcher for a given entity.
+type roleMatcherFactoryFn func(entity string) RoleMatcher
+
+// EnumerateEntities works on a given role set to return a minimal description
+// of allowed set of entities (db_users, db_names, etc). It is biased towards
+// *allowed* entities; It is meant to describe what the user can do, rather than
+// cannot do. For that reason if the user isn't allowed to pick *any* entities,
+// the output will be empty.
+//
+// In cases where * is listed in set of allowed entities, it may be hard for
+// users to figure out the expected entity to use. For this reason the parameter
+// extraEntities provides an extra set of entities to be checked against
+// RoleSet. This extra set of entities may be sourced e.g. from user connection
+// history.
+func (set RoleSet) EnumerateEntities(resource AccessCheckable, listFn roleEntitiesListFn, newMatcher roleMatcherFactoryFn, extraEntities ...string) EnumerationResult {
 	result := NewEnumerationResult()
 
-	// gather users for checking from the roles, check wildcards.
-	var users []string
+	// gather entities for checking from the roles, check wildcards.
+	var entities []string
 	for _, role := range set {
 		wildcardAllowed := false
 		wildcardDenied := false
 
-		for _, user := range role.GetDatabaseUsers(types.Allow) {
-			if user == types.Wildcard {
+		for _, e := range listFn(role, types.Allow) {
+			if e == types.Wildcard {
 				wildcardAllowed = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, e)
 			}
 		}
 
-		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			if user == types.Wildcard {
+		for _, e := range listFn(role, types.Deny) {
+			if e == types.Wildcard {
 				wildcardDenied = true
 			} else {
-				users = append(users, user)
+				entities = append(entities, e)
 			}
 		}
 
 		result.wildcardDenied = result.wildcardDenied || wildcardDenied
 
-		if err := NewRoleSet(role).checkAccess(database, AccessState{MFAVerified: true}); err == nil {
+		if err := NewRoleSet(role).checkAccess(resource, AccessState{MFAVerified: true}); err == nil {
 			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
 		}
 
 	}
 
-	users = apiutils.Deduplicate(append(users, extraUsers...))
+	entities = apiutils.Deduplicate(append(entities, extraEntities...))
 
-	// check each individual user against the database.
-	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
-		result.allowedDeniedMap[user] = err == nil
+	// check each individual role spec entity against the resource.
+	for _, e := range entities {
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newMatcher(e))
+		result.allowedDeniedMap[e] = err == nil
 	}
 
 	return result
@@ -1409,6 +1450,56 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 		}
 	}
 	return disconnect
+}
+
+// CheckDatabaseRoles returns whether a user should be auto-created in the
+// database and a list of database roles to assign.
+func (set RoleSet) CheckDatabaseRoles(database types.Database) (create bool, roles []string, err error) {
+	// First, collect roles from this roleset that have "create_db_user" option.
+	var autoCreateRoles RoleSet
+	for _, role := range set {
+		if role.GetCreateDatabaseUserOption() {
+			autoCreateRoles = append(autoCreateRoles, role)
+		}
+	}
+	// If there are no "auto-create user" roles, nothing to do.
+	if len(autoCreateRoles) == 0 {
+		return false, nil, nil
+	}
+	// Otherwise, iterate over auto-create roles matching the database user
+	// is connecting to and compile a list of roles database user should be
+	// assigned.
+	rolesMap := make(map[string]struct{})
+	var matched bool
+	for _, role := range autoCreateRoles {
+		match, _, err := MatchLabels(role.GetDatabaseLabels(types.Allow), database.GetAllLabels())
+		if err != nil {
+			return false, nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
+		}
+		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
+			rolesMap[dbRole] = struct{}{}
+		}
+		matched = true
+	}
+	for _, role := range autoCreateRoles {
+		match, _, err := MatchLabels(role.GetDatabaseLabels(types.Deny), database.GetAllLabels())
+		if err != nil {
+			return false, nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
+		}
+		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
+			delete(rolesMap, dbRole)
+		}
+	}
+	// The collected role list can be empty and that should be ok, we want to
+	// leave the behavior of what happens when a user is created with default
+	// "no roles" configuration up to the target database.
+	return matched, utils.StringsSliceFromSet(rolesMap), nil
 }
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
@@ -2711,6 +2802,45 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	}
 
 	return m
+}
+
+// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
+func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
+	groups := make(map[string]struct{})
+	labels := s.GetAllLabels()
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Allow), labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// skip nodes that dont have matching labels
+		if !result {
+			continue
+		}
+		createDesktopUser := role.GetOptions().CreateDesktopUser
+		// if any of the matching roles do not enable create host
+		// user, the user should not be allowed on
+		if createDesktopUser == nil || !createDesktopUser.Value {
+			return nil, trace.AccessDenied("user is not allowed to create host users")
+		}
+		for _, group := range role.GetDesktopGroups(types.Allow) {
+			groups[group] = struct{}{}
+		}
+	}
+	for _, role := range set {
+		result, _, err := MatchLabels(role.GetWindowsDesktopLabels(types.Deny), labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !result {
+			continue
+		}
+		for _, group := range role.GetDesktopGroups(types.Deny) {
+			delete(groups, group)
+		}
+	}
+
+	return utils.StringsSliceFromSet(groups), nil
 }
 
 // HostUsers returns host user information matching a server or nil if

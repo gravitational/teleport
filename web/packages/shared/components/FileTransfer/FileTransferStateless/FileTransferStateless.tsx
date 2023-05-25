@@ -96,9 +96,4 @@ const Container = styled.div`
   box-sizing: border-box;
   border-radius: ${props => props.theme.radii[2]}px;
   padding: 8px 16px 16px;
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  width: 500px;
-  z-index: 10;
 `;

@@ -20,17 +20,18 @@ import {
   makeEmptyAttempt,
   makeProcessingAttempt,
   makeErrorAttempt,
+  makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 
-import { Gateway } from 'teleterm/services/tshd/types';
+import { makeGateway } from 'teleterm/services/tshd/testHelpers';
 
-import { DocumentGateway } from './DocumentGateway';
+import { DocumentGateway, DocumentGatewayProps } from './DocumentGateway';
 
 export default {
   title: 'Teleterm/DocumentGateway',
 };
 
-const gateway: Gateway = {
+const gateway = makeGateway({
   uri: '/gateways/bar',
   targetName: 'sales-production',
   targetUri: '/clusters/bar/dbs/foo',
@@ -38,30 +39,31 @@ const gateway: Gateway = {
   localAddress: 'localhost',
   localPort: '1337',
   protocol: 'postgres',
-  cliCommand: 'connect-me-to-db-please',
   targetSubresourceName: 'bar',
+});
+gateway.gatewayCliCommand.preview = 'connect-me-to-db-please';
+
+const onlineDocumentGatewayProps: DocumentGatewayProps = {
+  gateway: gateway,
+  defaultPort: gateway.localPort,
+  disconnect: async () => [undefined, null],
+  connected: true,
+  reconnect: async () => [undefined, null],
+  connectAttempt: makeSuccessAttempt(undefined),
+  disconnectAttempt: makeEmptyAttempt(),
+  runCliCommand: () => {},
+  changeDbName: async () => [undefined, null],
+  changeDbNameAttempt: makeEmptyAttempt(),
+  changePort: async () => [undefined, null],
+  changePortAttempt: makeEmptyAttempt(),
 };
 
 export function Online() {
-  return (
-    <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
-    />
-  );
+  return <DocumentGateway {...onlineDocumentGatewayProps} />;
 }
 
 export function OnlineWithLongValues() {
-  const gateway: Gateway = {
+  const gateway = makeGateway({
     uri: '/gateways/bar',
     targetName: 'sales-production',
     targetUri: '/clusters/bar/dbs/foo',
@@ -70,25 +72,17 @@ export function OnlineWithLongValues() {
     localAddress: 'localhost',
     localPort: '13337',
     protocol: 'postgres',
-    cliCommand:
-      'connect-me-to-db-please-baz-quux-quuz-foo-baz-quux-quuz-foo-baz-quux-quuz-foo',
     targetSubresourceName:
       'foo-bar-baz-quux-quuz-foo-bar-baz-quux-quuz-foo-bar-baz-quux-quuz',
-  };
+  });
+  gateway.gatewayCliCommand.preview =
+    'connect-me-to-db-please-baz-quux-quuz-foo-baz-quux-quuz-foo-baz-quux-quuz-foo';
 
   return (
     <DocumentGateway
+      {...onlineDocumentGatewayProps}
       gateway={gateway}
       defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
     />
   );
 }
@@ -96,19 +90,10 @@ export function OnlineWithLongValues() {
 export function OnlineWithFailedDbNameAttempt() {
   return (
     <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
+      {...onlineDocumentGatewayProps}
       changeDbNameAttempt={makeErrorAttempt<void>(
         'Something went wrong with setting database name.'
       )}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
     />
   );
 }
@@ -116,16 +101,7 @@ export function OnlineWithFailedDbNameAttempt() {
 export function OnlineWithFailedPortAttempt() {
   return (
     <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
+      {...onlineDocumentGatewayProps}
       changePortAttempt={makeErrorAttempt<void>(
         'Something went wrong with setting port.'
       )}
@@ -136,18 +112,10 @@ export function OnlineWithFailedPortAttempt() {
 export function OnlineWithFailedDbNameAndPortAttempts() {
   return (
     <DocumentGateway
-      gateway={gateway}
-      defaultPort={gateway.localPort}
-      disconnect={() => Promise.resolve([undefined, null])}
-      connected={true}
-      reconnect={() => {}}
-      connectAttempt={{ status: 'success', data: undefined, statusText: null }}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
+      {...onlineDocumentGatewayProps}
       changeDbNameAttempt={makeErrorAttempt<void>(
         'Something went wrong with setting database name.'
       )}
-      changePort={() => Promise.resolve([undefined, null])}
       changePortAttempt={makeErrorAttempt<void>(
         'Something went wrong with setting port.'
       )}
@@ -158,39 +126,25 @@ export function OnlineWithFailedDbNameAndPortAttempts() {
 export function Offline() {
   return (
     <DocumentGateway
+      {...onlineDocumentGatewayProps}
       gateway={undefined}
       defaultPort="1337"
-      disconnect={() => Promise.resolve([undefined, null])}
       connected={false}
-      reconnect={() => {}}
       connectAttempt={makeEmptyAttempt()}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
     />
   );
 }
 
 export function OfflineWithFailedConnectAttempt() {
-  const connectAttempt = makeErrorAttempt<void>(
-    'listen tcp 127.0.0.1:62414: bind: address already in use'
-  );
-
   return (
     <DocumentGateway
+      {...onlineDocumentGatewayProps}
       gateway={undefined}
       defaultPort="62414"
-      disconnect={() => Promise.resolve([undefined, null])}
       connected={false}
-      reconnect={() => {}}
-      connectAttempt={connectAttempt}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
+      connectAttempt={makeErrorAttempt<void>(
+        'listen tcp 127.0.0.1:62414: bind: address already in use'
+      )}
     />
   );
 }
@@ -198,17 +152,11 @@ export function OfflineWithFailedConnectAttempt() {
 export function Processing() {
   return (
     <DocumentGateway
+      {...onlineDocumentGatewayProps}
       gateway={undefined}
       defaultPort="1337"
-      disconnect={() => Promise.resolve([undefined, null])}
       connected={false}
-      reconnect={() => {}}
       connectAttempt={makeProcessingAttempt()}
-      runCliCommand={() => {}}
-      changeDbName={() => Promise.resolve([undefined, null])}
-      changeDbNameAttempt={makeEmptyAttempt()}
-      changePort={() => Promise.resolve([undefined, null])}
-      changePortAttempt={makeEmptyAttempt()}
     />
   );
 }

@@ -32,7 +32,7 @@ exports[`render DocumentNodes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -44,7 +44,6 @@ exports[`render DocumentNodes 1`] = `
 .c33:hover,
 .c33:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c33:active {
@@ -69,15 +68,102 @@ exports[`render DocumentNodes 1`] = `
   color: #FFFFFF;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c37 {
+.c39 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c37 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c37 .c26 {
+  color: inherit;
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c37:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c37:hover:enabled,
+.c37:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c37:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c40 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c40 .c26 {
+  color: inherit;
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c40:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c40:hover:enabled,
+.c40:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c40:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c25 {
@@ -97,7 +183,7 @@ exports[`render DocumentNodes 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c5 {
@@ -158,7 +244,7 @@ exports[`render DocumentNodes 1`] = `
   flex-wrap: wrap;
 }
 
-.c35 {
+.c36 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -169,6 +255,7 @@ exports[`render DocumentNodes 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -231,7 +318,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c30 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c30 tbody tr:hover {
@@ -246,6 +333,19 @@ exports[`render DocumentNodes 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c35 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c10 {
@@ -274,29 +374,12 @@ exports[`render DocumentNodes 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c36 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c36 .c26 {
+.c38 .c26 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c36:hover .c26,
-.c36:focus .c26 {
-  opacity: 1;
-}
-
-.c36:disabled {
-  cursor: default;
-}
-
-.c36:disabled .c26 {
-  opacity: 0.1;
+.c38 .c26:before {
+  padding-left: 1px;
 }
 
 .c19 {
@@ -361,7 +444,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c17::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -476,7 +559,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c9::placeholder {
   opacity: 1;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -501,20 +584,20 @@ exports[`render DocumentNodes 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c6 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__control:hover,
 .c6 .react-select__control:focus,
 .c6 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -535,7 +618,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -549,7 +632,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c6 .react-select__multi-value {
@@ -595,7 +678,7 @@ exports[`render DocumentNodes 1`] = `
 }
 
 .c6 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c6 .react-select__clear-indicator:hover,
@@ -629,20 +712,20 @@ exports[`render DocumentNodes 1`] = `
 
 .c6 .react-select--is-disabled,
 .c6 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__single-value,
 .c6 .react-select__control--is-disabled .react-select__single-value,
 .c6 .react-select--is-disabled .react-select__placeholder,
 .c6 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c6 .react-select--is-disabled .react-select__indicator,
 .c6 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c2 {
@@ -656,6 +739,7 @@ exports[`render DocumentNodes 1`] = `
   display: flex;
   flex: 1;
   max-width: 1024px;
+  height: fit-content;
 }
 
 .c2::after {
@@ -770,7 +854,7 @@ exports[`render DocumentNodes 1`] = `
           </div>
           <input
             class="c9"
-            color="text.primary"
+            color="text.main"
             placeholder="login@host:port"
           />
         </div>
@@ -849,7 +933,7 @@ exports[`render DocumentNodes 1`] = `
             >
               <div
                 class="c29"
-                color="text.contrast"
+                color="text.main"
                 style="text-transform: uppercase;"
               >
                 Showing 
@@ -935,7 +1019,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -977,7 +1061,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -989,10 +1073,10 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <span
-                  style="cursor: default;"
+                  style="cursor: default; white-space: nowrap;"
                   title="This node is connected to cluster through reverse tunnel"
                 >
-                  ⟵ tunnel
+                  ← tunnel
                 </span>
               </td>
               <td>
@@ -1024,7 +1108,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1036,10 +1120,10 @@ exports[`render DocumentNodes 1`] = `
               </td>
               <td>
                 <span
-                  style="cursor: default;"
+                  style="cursor: default; white-space: nowrap;"
                   title="This node is connected to cluster through reverse tunnel"
                 >
-                  ⟵ tunnel
+                  ← tunnel
                 </span>
               </td>
               <td>
@@ -1071,7 +1155,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1137,7 +1221,7 @@ exports[`render DocumentNodes 1`] = `
                   CONNECT
                   <span
                     class="c26 c34 icon icon-caret-down "
-                    color="text.secondary"
+                    color="text.slightlyMuted"
                     font-size="2"
                   />
                 </button>
@@ -1146,32 +1230,32 @@ exports[`render DocumentNodes 1`] = `
           </tbody>
         </table>
         <nav
-          class="c11"
+          class="c35"
         >
           <div
-            class="c35"
+            class="c36"
             width="100%"
           >
             <div
               class="c28"
             >
               <button
-                class="c36"
+                class="c37 c38"
                 disabled=""
                 title="Previous page"
               >
                 <span
-                  class="c26 c37 icon icon-arrow-left-circle "
+                  class="c26 c39 icon icon-arrow-left-circle "
                   font-size="3"
                 />
               </button>
               <button
-                class="c36"
+                class="c40 c38"
                 disabled=""
                 title="Next page"
               >
                 <span
-                  class="c26 c37 icon icon-arrow-right-circle "
+                  class="c26 c39 icon icon-arrow-right-circle "
                   font-size="3"
                 />
               </button>

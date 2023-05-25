@@ -74,12 +74,13 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to querier - part 2",
-			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRate=0.642&limiterBurst=3",
+			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRefillAmount=2&&limiterRefillTime=2s&limiterBurst=3",
 			want: Config{
 				TableName:               "tbl",
 				Database:                "db",
 				GetQueryResultsInterval: 200 * time.Millisecond,
-				LimiterRate:             0.642,
+				LimiterRefillAmount:     2,
+				LimiterRefillTime:       2 * time.Second,
 				LimiterBurst:            3,
 			},
 		},
@@ -100,9 +101,9 @@ func TestConfig_SetFromURL(t *testing.T) {
 			wantErr: "invalid athena address, supported format is 'athena://database.table'",
 		},
 		{
-			name:    "invalid limiterRate format",
-			url:     "athena://db.tbl/?limiterRate=abc",
-			wantErr: "invalid limiterRate value (it must be float32)",
+			name:    "invalid limiterRefillAmount format",
+			url:     "athena://db.tbl/?limiterRefillAmount=abc",
+			wantErr: "invalid limiterRefillAmount value (it must be int)",
 		},
 	}
 	for _, tt := range tests {
@@ -161,6 +162,33 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				BatchMaxInterval:        1 * time.Minute,
 				AWSConfig:               &aws.Config{},
 				Backend:                 mockBackend{},
+			},
+		},
+		{
+			name: "valid config with limiter, check defaults refillTime",
+			input: func() Config {
+				cfg := validConfig
+				cfg.LimiterBurst = 10
+				cfg.LimiterRefillAmount = 5
+				return cfg
+			},
+			want: Config{
+				Database:                "db",
+				TableName:               "tbl",
+				TopicARN:                "arn:topic",
+				LargeEventsS3:           "s3://large-payloads-bucket",
+				largeEventsBucket:       "large-payloads-bucket",
+				LocationS3:              "s3://events-bucket",
+				locationS3Bucket:        "events-bucket",
+				QueueURL:                "https://queue-url",
+				GetQueryResultsInterval: 100 * time.Millisecond,
+				BatchMaxItems:           20000,
+				BatchMaxInterval:        1 * time.Minute,
+				AWSConfig:               &aws.Config{},
+				Backend:                 mockBackend{},
+				LimiterRefillTime:       1 * time.Second,
+				LimiterBurst:            10,
+				LimiterRefillAmount:     5,
 			},
 		},
 		{
@@ -227,24 +255,24 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "QueueURL must be valid url and start with https",
 		},
 		{
-			name: "invalid LimiterBurst and LimiterRate combination",
+			name: "invalid LimiterBurst and LimiterRefillAmount combination",
 			input: func() Config {
 				cfg := validConfig
 				cfg.LimiterBurst = 0
-				cfg.LimiterRate = 2.5
+				cfg.LimiterRefillAmount = 2
 				return cfg
 			},
-			wantErr: "LimiterBurst must be greater than 0 if LimiterRate is used",
+			wantErr: "LimiterBurst must be greater than 0 if LimiterRefillAmount is used",
 		},
 		{
-			name: "invalid LimiterRate and LimiterBurst combination",
+			name: "invalid LimiterRefillAmount and LimiterBurst combination",
 			input: func() Config {
 				cfg := validConfig
 				cfg.LimiterBurst = 3
-				cfg.LimiterRate = 0
+				cfg.LimiterRefillAmount = 0
 				return cfg
 			},
-			wantErr: "LimiterRate must be greater than 0 if LimiterBurst is used",
+			wantErr: "LimiterRefillAmount must be greater than 0 if LimiterBurst is used",
 		},
 	}
 	for _, tt := range tests {
@@ -253,7 +281,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}

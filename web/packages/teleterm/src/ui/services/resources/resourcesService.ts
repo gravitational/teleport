@@ -70,14 +70,20 @@ export class ResourcesService {
    * The results need to be wrapped in SearchResult because if we returned raw types (Server,
    * Database, Kube) then there would be no easy way to differentiate between them on type level.
    */
-  async searchResources(
-    clusterUri: uri.ClusterUri,
-    search: string,
+  async searchResources({
+    clusterUri,
+    search,
+    filter,
+    limit,
+  }: {
+    clusterUri: uri.ClusterUri;
+    search: string;
     // TODO(ravicious): Accept just `server | database | kube` as searchFilter here, wrap it in a
     // variant of a discriminated union in searchResult.ts.
-    searchFilter: ResourceTypeSearchFilter | undefined
-  ): Promise<PromiseSettledResult<SearchResult[]>[]> {
-    const params = { search, clusterUri, sort: null, limit: 100 };
+    filter: ResourceTypeSearchFilter | undefined;
+    limit: number;
+  }): Promise<PromiseSettledResult<SearchResult[]>[]> {
+    const params = { search, clusterUri, sort: null, limit };
 
     const getServers = () =>
       this.fetchServers(params).then(
@@ -109,11 +115,11 @@ export class ResourcesService {
         err => Promise.reject(new ResourceSearchError(clusterUri, 'kube', err))
       );
 
-    const promises = searchFilter
+    const promises = filter
       ? [
-          searchFilter.resourceType === 'servers' && getServers(),
-          searchFilter.resourceType === 'databases' && getDatabases(),
-          searchFilter.resourceType === 'kubes' && getKubes(),
+          filter.resourceType === 'servers' && getServers(),
+          filter.resourceType === 'databases' && getDatabases(),
+          filter.resourceType === 'kubes' && getKubes(),
         ].filter(Boolean)
       : [getServers(), getDatabases(), getKubes()];
 

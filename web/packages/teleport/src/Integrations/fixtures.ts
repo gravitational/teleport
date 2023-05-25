@@ -59,6 +59,14 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.SlackNotInChannel,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'openai',
+    details: '',
+    kind: 'openai',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [

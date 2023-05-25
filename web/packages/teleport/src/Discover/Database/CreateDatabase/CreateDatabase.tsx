@@ -27,7 +27,7 @@ import {
   HeaderSubtitle,
   LabelsCreater,
   Mark,
-  HeaderWithBackBtn,
+  Header,
 } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
 import {
@@ -95,9 +95,7 @@ export function CreateDatabaseView({
     <Validation>
       {({ validator }) => (
         <Box maxWidth="800px">
-          <HeaderWithBackBtn onPrev={prevStep}>
-            Register a Database
-          </HeaderWithBackBtn>
+          <Header>Register a Database</Header>
           <HeaderSubtitle>
             Create a new database resource for the database server.
           </HeaderSubtitle>
@@ -160,7 +158,7 @@ export function CreateDatabaseView({
                     <Text mb={2}>
                       Labels make this new database discoverable by the database
                       service. <br />
-                      Not defining labels is equivalent to asteriks (any
+                      Not defining labels is equivalent to asterisks (any
                       database service can discover this database).
                     </Text>
                     <LabelsCreater
@@ -176,6 +174,7 @@ export function CreateDatabaseView({
             </>
           )}
           <ActionButtons
+            onPrev={prevStep}
             onProceed={() => handleOnProceed(validator)}
             // On failure, allow user to attempt again.
             disableProceed={

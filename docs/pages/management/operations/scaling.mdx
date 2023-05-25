@@ -42,6 +42,21 @@ teleport:
     max_users: 1000
 ```
 
+## Agent configuration
+
+Agents cache roles and other configuration locally in order to make access-control decisions quickly.
+By default agents are fairly aggressive in trying to re-initialize their caches if they lose connectivity
+to the Auth Service. In very large clusters, this can contribute to a "thundering herd" effect,
+where control plane elements experience excess load immediately after restart. Setting the `max_backoff`
+parameter to something in the 8-16 minute range can help mitigate this effect:
+
+```yaml
+teleport:
+  cache:
+    enabled: yes
+    max_backoff: 12m
+```
+
 ## Kernel parameters
 
 Tweak Teleport's systemd unit parameters to allow a higher amount of open

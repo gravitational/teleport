@@ -228,9 +228,11 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 

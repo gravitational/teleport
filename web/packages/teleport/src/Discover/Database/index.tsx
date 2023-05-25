@@ -32,6 +32,7 @@ import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 import { ConnectAwsAccount } from 'teleport/Discover/Database/ConnectAwsAccount';
 import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
+import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 
 export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
@@ -69,6 +70,11 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
               title: 'Deploy Database Service',
               component: DownloadScript,
               eventName: DiscoverEvent.DeployService,
+            },
+            {
+              title: 'Configure IAM Policy',
+              component: IamPolicy,
+              eventName: DiscoverEvent.DatabaseConfigureIAMPolicy,
             },
           ];
 

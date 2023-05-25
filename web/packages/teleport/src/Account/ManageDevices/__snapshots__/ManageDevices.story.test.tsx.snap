@@ -61,7 +61,7 @@ exports[`render device dashboard 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -72,7 +72,6 @@ exports[`render device dashboard 1`] = `
 .c16:hover,
 .c16:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c16:active {
@@ -143,6 +142,7 @@ exports[`render device dashboard 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -207,7 +207,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c11 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c11 tbody tr:hover {
@@ -292,7 +292,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -605,7 +605,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -616,7 +616,6 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 .c17:hover,
 .c17:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c17:active {
@@ -687,6 +686,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -751,7 +751,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c12 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c12 tbody tr:hover {
@@ -836,7 +836,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 

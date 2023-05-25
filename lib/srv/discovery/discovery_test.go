@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 type mockSSMClient struct {
@@ -303,7 +304,7 @@ func TestDiscoveryServer(t *testing.T) {
 			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
 				scanner := bufio.NewScanner(logs)
 				instances := genEC2Instances(58)
-				findAll := []string{genEC2InstancesLogStr(instances[:50]), genEC2InstancesLogStr(instances[50:])}
+				findAll := []string{genEC2InstancesLogStr(server.ToEC2Instances(instances[:50])), genEC2InstancesLogStr(server.ToEC2Instances(instances[50:]))}
 				index := 0
 				for scanner.Scan() {
 					if index == len(findAll) {
@@ -368,6 +369,9 @@ func TestDiscoveryServer(t *testing.T) {
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 					SSM:     &services.AWSSSM{DocumentName: "document"},
+					Params: services.InstallerParams{
+						InstallTeleport: true,
+					},
 				}},
 				Emitter: tc.emitter,
 				Log:     logger,
@@ -422,6 +426,8 @@ func TestDiscoveryKube(t *testing.T) {
 		gcpMatchers                   []services.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
+		expectedAssumedRoles          []string
+		expectedExternalIDs           []string
 	}{
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from EKS",
@@ -437,6 +443,36 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
+		},
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from EKS with assumed roles",
+			existingKubeClusters: []types.KubeCluster{},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: services.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
+					},
+				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: services.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role2",
+						ExternalID: "external-id2",
+					},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+			},
+			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/teleport-role", "arn:aws:iam::123456789012:role/teleport-role2"},
+			expectedExternalIDs:  []string{"external-id", "external-id2"},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 stg clusters from EKS",
@@ -580,8 +616,9 @@ func TestDiscoveryKube(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
+			sts := &mocks.STSMock{}
 			testClients := cloud.TestCloudClients{
+				STS:            sts,
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
@@ -691,6 +728,9 @@ func TestDiscoveryKube(t *testing.T) {
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
+
+			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 		})
 	}
 }
@@ -1196,6 +1236,7 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := services.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
 	staticLabels := database.GetStaticLabels()
 	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	database.SetStaticLabels(staticLabels)

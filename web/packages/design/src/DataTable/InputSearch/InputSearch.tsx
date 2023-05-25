@@ -111,21 +111,21 @@ const StyledInput = styled.input`
 
 function fromTheme(props) {
   return {
-    color: props.theme.colors.text.primary,
+    color: props.theme.colors.text.main,
     background:
       props.theme.name === 'dark'
         ? props.theme.colors.levels.sunken
         : props.theme.colors.levels.deep,
 
     '&:hover, &:focus, &:active': {
-      color: props.theme.colors.text.primary,
+      color: props.theme.colors.text.main,
       background:
         props.theme.name === 'dark'
           ? props.theme.colors.spotBackground[0]
           : props.theme.colors.levels.sunken,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

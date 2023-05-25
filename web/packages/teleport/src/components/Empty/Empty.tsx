@@ -58,7 +58,7 @@ export default function Empty(props: Props) {
         mx="auto"
         maxWidth="664px"
         textAlign="center"
-        color="text.primary"
+        color="text.main"
         borderRadius="12px"
       >
         <Text typography="h2" mb="3">

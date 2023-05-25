@@ -60,8 +60,6 @@ const (
 	currentProfileFilename = "current-profile"
 	// profileFileExt is the suffix of a profile file.
 	profileFileExt = ".yaml"
-	// fileLocalCA is the filename where a self-signed localhost CA cert is stored.
-	fileLocalCA = "localca.pem"
 	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
 	oracleWalletDirSuffix = "-wallet"
 )
@@ -248,14 +246,6 @@ func AppCertPath(baseDir, proxy, username, cluster, appname string) string {
 // <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
 func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 	return filepath.Join(AppCertDir(baseDir, proxy, username, cluster), appname+fileExtLocalCA)
-}
-
-// KubeLocalCAPath returns the path to a self-signed localhost CA for the given
-// proxy, cluster, and app.
-//
-// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/localca.pem
-func KubeLocalCAPath(baseDir, proxy, username, cluster string) string {
-	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), fileLocalCA)
 }
 
 // DatabaseDir returns the path to the user's database directory

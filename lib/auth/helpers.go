@@ -142,7 +142,7 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
 	}
 	if tlsCfg.APIConfig.Emitter == nil {
-		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer
 	}
 	if tlsCfg.AcceptedUsage == nil {
 		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
@@ -583,7 +583,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		AuthServer: a.AuthServer,
 		Authorizer: a.Authorizer,
 		AuditLog:   a.AuditLog,
-		Emitter:    a.AuthServer.emitter,
+		Emitter:    a.AuthServer,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,

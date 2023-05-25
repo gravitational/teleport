@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -43,8 +42,6 @@ export function ShareFeedbackFormFields({
     setFormValues({ ...formValues, [field]: value });
   }
 
-  const theme = useTheme();
-
   return (
     <>
       <FieldInput
@@ -55,6 +52,7 @@ export function ShareFeedbackFormFields({
         readonly={disabled}
         css={`
           input {
+            background: inherit;
             font-size: 14px;
           }
         `}
@@ -67,6 +65,7 @@ export function ShareFeedbackFormFields({
         readonly={disabled}
         css={`
           input {
+            background: inherit;
             font-size: 14px;
           }
         `}
@@ -76,19 +75,7 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-        font-size: 14px;
-        outline: none;
-        color: ${theme.colors.text.primary};
-        background: ${theme.colors.levels.surface};
-        border: 1px solid ${theme.colors.text.placeholder};
-        ::placeholder {
-          color: ${theme.colors.text.placeholder};
-        }
-        &:hover,
-        &:focus,
-        &:active {
-          border: 1px solid ${theme.colors.text.secondary};
-        }
+            font-size: 14px;
         `}
         rule={requiredField('Suggestions are required')}
         readOnly={disabled}
@@ -103,7 +90,7 @@ export function ShareFeedbackFormFields({
           updateFormField('newsletterEnabled', !formValues.newsletterEnabled);
         }}
       >
-        <Text ml={2} color="text.primary">
+        <Text ml={2} color="text.main">
           Sign me up for the newsletter
         </Text>
       </Toggle>
@@ -119,7 +106,7 @@ export function ShareFeedbackFormFields({
       >
         <Text
           ml={2}
-          color="text.primary"
+          color="text.main"
           css={`
             line-height: 18px;
           `}
