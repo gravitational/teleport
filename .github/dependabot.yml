@@ -29,6 +29,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -38,12 +39,62 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
-    ignore:
-      # Forked/replaced dependencies
-      - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+
+  - package-ecosystem: gomod
+    directory: "/assets/aws"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+
+  - package-ecosystem: gomod
+    directory: "/assets/backport"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+
+  - package-ecosystem: gomod
+    directory: "/build.assets/tooling"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - zmb3
+
+  - package-ecosystem: gomod
+    directory: "/integrations/kube-agent-updater"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -56,6 +107,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - jentfoo
       - rosstimothy
       - zmb3
 
@@ -68,5 +120,6 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - jentfoo
       - rosstimothy
       - zmb3
