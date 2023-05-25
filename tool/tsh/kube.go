@@ -414,7 +414,7 @@ type kubeExecCommand struct {
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c := &kubeExecCommand{
-		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod"),
+		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
@@ -763,7 +763,7 @@ type kubeLSCommand struct {
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters"),
+		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters."),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
@@ -994,7 +994,7 @@ type kubeLoginCommand struct {
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
-		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
+		CmdClause: parent.Command("login", "Login to a Kubernetes cluster."),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
