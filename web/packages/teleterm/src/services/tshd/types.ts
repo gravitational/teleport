@@ -47,8 +47,8 @@ export interface Server extends apiServer.Server.AsObject {
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
-  // The type of cliCommand was repeated here just to refer to the type with the JSDoc.
-  cliCommand: GatewayCLICommand;
+  // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
+  gatewayCliCommand: GatewayCLICommand;
 }
 
 /**

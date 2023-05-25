@@ -29,14 +29,28 @@ export class MockPtyProcess implements IPtyProcess {
 
   dispose() {}
 
-  onData() {}
+  onData() {
+    return () => {};
+  }
 
-  onExit() {}
+  onExit() {
+    return () => {};
+  }
 
-  onOpen() {}
+  onOpen() {
+    return () => {};
+  }
+
+  onStartError() {
+    return () => {};
+  }
 
   getPid() {
     return 0;
+  }
+
+  getPtyId() {
+    return '1234';
   }
 
   async getCwd() {

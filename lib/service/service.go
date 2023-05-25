@@ -108,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -272,13 +273,13 @@ type Connector struct {
 
 // TunnelProxyResolver if non-nil, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
-func (c *Connector) TunnelProxyResolver() reversetunnel.Resolver {
+func (c *Connector) TunnelProxyResolver() reversetunnelclient.Resolver {
 	if c.Client == nil || c.Client.Dialer() == nil {
 		return nil
 	}
 
 	switch dialer := c.Client.Dialer().(type) {
-	case *reversetunnel.TunnelAuthDialer:
+	case *reversetunnelclient.TunnelAuthDialer:
 		return dialer.Resolver
 	default:
 		return nil
@@ -1184,7 +1185,8 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 // enterpriseServicesEnabled will return true of any enterprise services are enabled.
 func (process *TeleportProcess) enterpriseServicesEnabled() bool {
-	return modules.GetModules().BuildType() == modules.BuildEnterprise && (process.Config.Okta.Enabled)
+	return modules.GetModules().BuildType() == modules.BuildEnterprise &&
+		(process.Config.Okta.Enabled || process.Config.Jamf.Enabled())
 }
 
 // notifyParent notifies parent process that this process has started
@@ -1368,7 +1370,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 }
 
 // initAuthExternalAuditLog initializes the auth server's audit log.
-func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.AuditLogger, error) {
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider) (events.AuditLogger, error) {
 	var hasNonFileLog bool
 	var loggers []events.AuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1422,6 +1424,9 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			cfg := athena.Config{
 				Region:  auditConfig.Region(),
 				Backend: backend,
+			}
+			if tracingProvider != nil {
+				cfg.Tracer = tracingProvider.Tracer(teleport.ComponentAthena)
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
@@ -1544,7 +1549,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
@@ -2269,6 +2274,12 @@ func (process *TeleportProcess) initSSH() error {
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
+		// restartingOnGracefulShutdown will be set to true before the function
+		// exits if the function is exiting because Teleport is gracefully
+		// shutting down as a consequence of internally-triggered reloading or
+		// being signaled to restart.
+		var restartingOnGracefulShutdown bool
+
 		conn, err := process.WaitForConnector(SSHIdentityEvent, log)
 		if conn == nil {
 			return trace.Wrap(err)
@@ -2321,7 +2332,7 @@ func (process *TeleportProcess) initSSH() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer func() { warnOnErr(ebpf.Close(), log) }()
+		defer func() { warnOnErr(ebpf.Close(restartingOnGracefulShutdown), log) }()
 
 		// Start access control programs. This is blocking and if the BPF programs fail to
 		// load, the node will not start. If access control is not enabled, this will simply
@@ -2532,7 +2543,9 @@ func (process *TeleportProcess) initSSH() error {
 			warnOnErr(s.Close(), log)
 		} else {
 			log.Infof("Shutting down gracefully.")
-			warnOnErr(s.Shutdown(payloadContext(event.Payload, log)), log)
+			ctx := payloadContext(event.Payload, log)
+			restartingOnGracefulShutdown = services.IsProcessReloading(ctx) || services.HasProcessForked(ctx)
+			warnOnErr(s.Shutdown(ctx), log)
 		}
 
 		s.Wait()
@@ -2974,7 +2987,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
@@ -3019,7 +3032,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+			utils.NetAddr{Addr: reversetunnelclient.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 	case types.RoleApp, types.RoleOkta:
@@ -3029,7 +3042,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
 			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
-			utils.NetAddr{Addr: reversetunnel.LocalWindowsDesktop},
+			utils.NetAddr{Addr: reversetunnelclient.LocalWindowsDesktop},
 			utils.NetAddr{Addr: desktop.WildcardServiceDNS},
 		)
 		addrs = append(addrs, process.Config.WindowsDesktop.PublicAddrs...)
@@ -5235,7 +5248,7 @@ func (process *TeleportProcess) initDebugApp() {
 
 // SingleProcessModeResolver returns the reversetunnel.Resolver that should be used when running all components needed
 // within the same process. It's used for development and demo purposes.
-func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnel.Resolver {
+func (process *TeleportProcess) SingleProcessModeResolver(mode types.ProxyListenerMode) reversetunnelclient.Resolver {
 	return func(context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
 		addr, ok := process.singleProcessMode(mode)
 		if !ok {
