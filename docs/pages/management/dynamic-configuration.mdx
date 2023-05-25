@@ -22,10 +22,10 @@ There are two ways to configure a Teleport cluster:
   local users, and registered infrastructure resources.
 
 This approach makes it possible to incrementally adjust your Teleport
-configuration without redeploying Teleport instances. 
+configuration without restarting Teleport instances. 
 
 ```mermaid
-flowchart LR
+flowchart TB
 subgraph backend["Cluster state backend"]
   direction LR
   resources["Dynamic config resources"]
@@ -50,10 +50,9 @@ terraform & operator & tctl-- "API calls" -->proxy
 proxy-.->auth
 ```
 
-Teleport borrows the concept of a dynamic configuration resource from the REST
-programming pattern. A cluster is composed of different objects (i.e.,
-resources) and there are three common operations that can be performed on them:
-`get` , `create` , and `remove` .
+A cluster is composed of different objects (i.e., resources) and there are three
+common operations that can be performed on them: `get` , `create` , and `remove`
+.
 
 Every resource in Teleport has three required fields:
 
@@ -116,7 +115,7 @@ resource. For example:
 ```text
 resource "teleport_role" "developer" {
   metadata = {
-    name        = "developer"
+    name = "developer"
   }
 
   spec = {
@@ -130,6 +129,7 @@ resource "teleport_role" "developer" {
     }
   }
 }
+
 ```
 
 [Get started with the Terraform provider](./dynamic-configuration/terraform-provider.mdx).
@@ -187,12 +187,12 @@ static configuration file:
 |`spec.second_factor`|`auth_service.authentication.second_factor`|
 |`spec.connector_name`|`auth_service.authentication.connector_name`
 |`spec.u2f`|`auth_service.authentication.u2f`|
-|`spec.disconnect_expired_cert`|`auth_service.disconnect_expired_cert`|
+|<nobr>`spec.disconnect_expired_cert`</nobr>|`auth_service.disconnect_expired_cert`|
 |`spec.allow_local_auth`|`auth_service.authentication.local_auth`|
 |`spec.message_of_the_day`|`auth_service.message_of_the_day`|
 |`spec.locking_mode`|`auth_service.authentication.locking_mode`|
 |`spec.webauthn`|`auth_service.authentication.webauthn`|
-|`spec.require_session_mfa`|`auth_service.authentication.require_session_mfa`|
+|`spec.require_session_mfa`|<nobr>`auth_service.authentication.require_session_mfa`</nobr>|
 |`spec.allow_passwordless`|`auth_service.authentication.passwordless`|
 |`spec.device_trust`|`auth_service.authentication.device_trust`|
 |`spec.idp`|`proxy_service.idp`|
