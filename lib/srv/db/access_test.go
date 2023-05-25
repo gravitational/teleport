@@ -2536,10 +2536,10 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
-			Name:             name,
-			AuthClient:       testCtx.authClient,
-			AuthUser:         authUser,
-			AuthSessionToken: authSession,
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authSession,
 		})
 		require.NoError(t, err)
 		go mongoServer.Serve()

@@ -361,7 +361,7 @@ func (s *TestServer) handleAWSIAMSaslContinue(conversationID int32, opmsg *proto
 		return nil, trace.AccessDenied("invalid username")
 	}
 
-	if s.cfg.AuthSessionToken != doc.Lookup("t").StringValue() {
+	if s.cfg.AuthToken != doc.Lookup("t").StringValue() {
 		return nil, trace.AccessDenied("invalid session token")
 	}
 

@@ -45,8 +45,6 @@ type TestServerConfig struct {
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
 	AuthToken string
-	// AuthSessionToken is used in tests simulating IAM token authentication.
-	AuthSessionToken string
 	// CN allows setting specific CommonName in the database server certificate.
 	//
 	// Used when simulating test Cloud SQL database which should contains
