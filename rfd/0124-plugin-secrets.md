@@ -43,20 +43,7 @@ This object has very strict access control requirements that will be explained i
 in the **Access Control** section. On creation, the plugin and static credentials will
 receive a UUID called the `plugin-label`. The static credentials will have an internal
 label that receives this value. Additionally, one plugin may have _many_ credentials
-that are disambiguated with arbitrary additional labels. These will allow plugin authors
-to refer to multiple static credentials if needed.
-
-```mermaid
-flowchart LR
-  Plugin
-  Okta[Okta Credentials]
-  Slack[Slack Credentials]
-  OpsGenie[OpsGenie Credentials]
-
-  Plugin-->|label "type: okta"|Okta
-  Plugin-->|label "type: slack"|Slack
-  Plugin-->|label "type: opsgenie"|OpsGenie
-```
+for the purposes of credentials rotation.
 
 ```yaml
 kind: plugin_static_credentials
@@ -64,12 +51,12 @@ version: v1
 metadata:
   name: credentials-name
   labels:
-    # this is a unique plugin label generated randomly at plugin creation.
+    # This is a unique plugin label generated randomly at plugin creation.
+    # It cannot be modified by the user.
     teleport.internal/plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155
     # additional labels to uniquely identify the credentials.
-    label1: value1 # additional labels
+    label1: value1
     type: slack
-    teleport.internal/plugin-credentials-type
 spec:
   credentials:
     # Only one of these credential types must be defined at a time. All values in this
@@ -89,14 +76,16 @@ If a `Plugin` is using the oauth authorization code flow, however, it will not n
 ### Changes to the `Plugin` object
 
 The `Plugin` object's `Credentials` field will have a new type of credential called
-`PluginStaticCredentialsRefs` that contains a UUID and additional aribitrary labels.
+`PluginStaticCredentialsRef` that contains a reference to a static plugin label. More than
+one static credential may match this label, in which case when starting the plugin, the most
+recently created credential will be used.
 
 ```yaml
-plugin_static_credentials_refs:
-  # this label is the same label generated at plugin creation. It cannot be modified
-  # by users in any way.
-  plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155
+plugin_static_credentials_ref:
   labels:
+    # This label is the same label generated at plugin creation. This field will be
+    # injected by Teleport at creation.
+    teleport.dev/plugin-label: 48398071-9860-4be6-9f29-ca6ca5bc7155
     env: prod
     type: slack
 ```
