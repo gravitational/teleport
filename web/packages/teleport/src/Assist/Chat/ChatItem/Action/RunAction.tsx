@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { useParams } from 'react-router';
@@ -76,7 +76,7 @@ interface RawPayload {
 }
 
 class assistClient extends EventEmitterWebAuthnSender {
-  private ws: WebSocket;
+  private readonly ws: WebSocket;
   readonly proto: Protobuf = new Protobuf();
   readonly encoder = new window.TextEncoder();
 
@@ -86,62 +86,52 @@ class assistClient extends EventEmitterWebAuthnSender {
   ) {
     super();
 
-    const refWS = useRef<WebSocket>();
+    this.ws = new WebSocket(url);
+    this.ws.binaryType = 'arraybuffer';
 
-    React.useEffect(() => {
-      if (refWS.current) {
-        this.ws = refWS.current;
-        return;
-      }
+    this.ws.onmessage = event => {
+      const uintArray = new Uint8Array(event.data);
+      const msg = this.proto.decode(uintArray);
 
-      this.ws = new WebSocket(url);
-      this.ws.binaryType = 'arraybuffer';
-      refWS.current = this.ws;
+      switch (msg.type) {
+        case MessageTypeEnum.RAW:
+          const data = JSON.parse(msg.payload) as RawPayload;
+          const payload = atob(data.payload);
 
-      this.ws.onmessage = event => {
-        const uintArray = new Uint8Array(event.data);
-        const msg = this.proto.decode(uintArray);
+          setState(state => {
+            const results = state.find(node => node.nodeId == data.node_id);
+            if (!results) {
+              state.push({
+                nodeId: data.node_id,
+                status: RunActionStatus.Connecting,
+              });
+            }
 
-        switch (msg.type) {
-          case MessageTypeEnum.RAW:
-            const data = JSON.parse(msg.payload) as RawPayload;
-            const payload = atob(data.payload);
-
-            setState(state => {
-              const results = state.find(node => node.nodeId == data.node_id);
-              if (!results) {
-                state.push({
-                  nodeId: data.node_id,
-                  status: RunActionStatus.Connecting,
-                });
+            return state.map(item => {
+              if (item.nodeId === data.node_id) {
+                if (!item.stdout) {
+                  item.stdout = '';
+                }
+                return {
+                  ...item,
+                  status: RunActionStatus.Finished,
+                  stdout: item.stdout + payload,
+                };
               }
 
-              return state.map(item => {
-                if (item.nodeId === data.node_id) {
-                  if (!item.stdout) {
-                    item.stdout = '';
-                  }
-                  return {
-                    ...item,
-                    status: RunActionStatus.Finished,
-                    stdout: item.stdout + payload,
-                  };
-                }
-
-                return item;
-              });
+              return item;
             });
+          });
 
-            break;
-          case MessageTypeEnum.ERROR:
-            console.error(msg.payload);
-            break;
-          case MessageTypeEnum.WEBAUTHN_CHALLENGE:
-            this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
-            break;
-        }
-      };
-    }, [refWS.current]);
+          break;
+        case MessageTypeEnum.ERROR:
+          console.error(msg.payload);
+          break;
+        case MessageTypeEnum.WEBAUTHN_CHALLENGE:
+          this.emit(TermEvent.WEBAUTHN_CHALLENGE, msg.payload);
+          break;
+      }
+    };
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
@@ -182,7 +172,7 @@ export function RunCommand(props: RunCommandProps) {
     execParams
   );
 
-  const assistClt = new assistClient(url, setState);
+  const [assistClt] = useState(() => new assistClient(url, setState));
   const webauthn = useWebAuthn(assistClt);
 
   const nodes = state.map((item, index) => (
