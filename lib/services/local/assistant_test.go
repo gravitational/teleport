@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -139,5 +140,19 @@ func TestAssistantCRUD(t *testing.T) {
 		require.Len(t, conversations.Conversations, 2)
 		require.Equal(t, conversationID, conversations.Conversations[0].Id)
 		require.Equal(t, conversationResp.Id, conversations.Conversations[1].Id)
+	})
+
+	t.Run("refuse to add messages if conversion does not exist", func(t *testing.T) {
+		msg := &assist.CreateAssistantMessageRequest{
+			Username:       username,
+			ConversationId: uuid.New().String(),
+			Message: &assist.AssistantMessage{
+				CreatedTime: timestamppb.New(time.Now()),
+				Payload:     "foo",
+				Type:        "USER_MSG",
+			},
+		}
+		err := identity.CreateAssistantMessage(ctx, msg)
+		require.Error(t, err)
 	})
 }
