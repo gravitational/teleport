@@ -250,13 +250,7 @@ func (a *BaseApp) onPendingRequest(ctx context.Context, req types.AccessRequest)
 	switch {
 	case err == nil:
 		// This is a new access-request, we have to broadcast it first.
-		if a.Conf.GetUsersAsRecipients() {
-			if err := a.broadcastMessages(ctx, nil, reqID, reqData); err != nil {
-				return trace.Wrap(err)
-			}
-			// If the recipients of the access request are not valid recipients
-			// grab message recipients.
-		} else if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
+		if recipients := a.getMessageRecipients(ctx, req); len(recipients) > 0 {
 			if err := a.broadcastMessages(ctx, recipients, reqID, reqData); err != nil {
 				return trace.Wrap(err)
 			}
@@ -391,6 +385,20 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := NewRecipientSet()
+
+	switch a.Conf.GetPluginType() {
+	case types.PluginTypeOpsgenie:
+		if recipients, ok := req.GetResolveAnnotations()[ReqAnnotationRespondersKey]; ok {
+			for _, recipient := range recipients {
+				rec, err := a.bot.FetchRecipient(ctx, recipient)
+				if err != nil {
+					log.Warning(err)
+				}
+				recipientSet.Add(*rec)
+			}
+			return recipientSet.ToSlice()
+		}
+	}
 
 	validEmailSuggReviewers := []string{}
 	for _, reviewer := range req.GetSuggestedReviewers() {

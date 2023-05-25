@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/auth"
 )
@@ -65,6 +66,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Log.Severity = "info"
 	}
 
+	c.PluginType = types.PluginTypeOpsgenie
 	return nil
 }
 
@@ -77,7 +79,6 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 	c.ClientConfig.WebProxyURL = webProxyURL
 	c.ClientConfig.ClusterName = clusterName
 	c.ClientConfig.APIKey = c.Opsgenie.Token
-	c.UsersAsRecipients = true
 	client, err := NewClient(c.ClientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)

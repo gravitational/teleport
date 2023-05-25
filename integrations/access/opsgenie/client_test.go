@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 )
 
 func TestCreateAlert(t *testing.T) {
@@ -54,7 +55,7 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		ResolveAnnotations: map[string][]string{
-			ReqAnnotationRespondersKey: {"responder@teleport.com"},
+			common.ReqAnnotationRespondersKey: {"responder@teleport.com"},
 		},
 	})
 	assert.NoError(t, err)

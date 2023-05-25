@@ -28,10 +28,6 @@ import (
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 )
 
-const (
-	ScheduleRecipientKind = "schedule"
-)
-
 // Bot is a opsgenie client that works with AccessRequest.
 // It's responsible for formatting and Opsgenie alerts when an
 // action occurs with an access request: a new request popped up, or a
@@ -48,12 +44,12 @@ func (b *Bot) CheckHealth(ctx context.Context) error {
 }
 
 // Broadcast creates an alert for the provided recipients (schedules)
-func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
+func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (data common.SentMessages, err error) {
 	schedules := []string{}
-
-	if recipients, ok := reqData.ResolveAnnotations[ReqAnnotationRespondersKey]; ok {
-		schedules = append(schedules, recipients...)
-	} else {
+	for _, recipient := range recipients {
+		schedules = append(schedules, recipient.Name)
+	}
+	if len(recipients) == 0 {
 		for _, recipient := range b.client.DefaultSchedules {
 			schedules = append(schedules, recipient)
 		}
@@ -69,7 +65,7 @@ func (b *Bot) Broadcast(ctx context.Context, _ []common.Recipient, reqID string,
 			Reason: reqData.ResolutionReason,
 		},
 		ResolveAnnotations: map[string][]string{
-			ReqAnnotationRespondersKey: schedules,
+			common.ReqAnnotationRespondersKey: schedules,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)
@@ -107,7 +103,11 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 	return trace.NewAggregate(errs...)
 }
 
-// FetchRecipient is not used for bots where the recipients are on-call schedules.
+// FetchRecipient returns the recipient for the given raw recipient.
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
-	return nil, trace.NotImplemented("FetchRecipient is not used for bots where the recipients are on-call schedules")
+	return &common.Recipient{
+		Name: recipient,
+		ID:   recipient,
+		Kind: common.RecipientKindSchedule,
+	}, nil
 }

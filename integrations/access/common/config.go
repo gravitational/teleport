@@ -25,6 +25,7 @@ import (
 	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
@@ -35,16 +36,14 @@ type PluginConfiguration interface {
 	GetTeleportClient(ctx context.Context) (teleport.Client, error)
 	GetRecipients() RawRecipientsMap
 	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
-	GetUsersAsRecipients() bool
+	GetPluginType() types.PluginType
 }
 
 type BaseConfig struct {
 	Teleport   lib.TeleportConfig
 	Recipients RawRecipientsMap `toml:"role_to_recipients"`
 	Log        logger.Config
-	// UsersAsRecipients is set for bots where the individual assigned
-	// reviewers on the access requests should be considered valid recipients.
-	UsersAsRecipients bool
+	PluginType types.PluginType
 }
 
 func (c BaseConfig) GetRecipients() RawRecipientsMap {
@@ -83,9 +82,9 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 	return clt, nil
 }
 
-// GetUsersAsRecipients is used to mark wether the recipients of alerts are on-call schedules.
-func (c BaseConfig) GetUsersAsRecipients() bool {
-	return c.UsersAsRecipients
+// GetPluginType returns the type of plugin this config is for.
+func (c BaseConfig) GetPluginType() types.PluginType {
+	return c.PluginType
 }
 
 // GenericAPIConfig holds common configuration use by a messaging service.

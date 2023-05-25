@@ -95,7 +95,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	} else if len(c.Recipients[types.Wildcard]) == 0 {
 		return trace.BadParameter("missing required value role_to_recipients[%v].", types.Wildcard)
 	}
-
+	c.PluginType = types.PluginTypeSlack
 	return nil
 }
 
