@@ -798,11 +798,24 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 	return utils.StringsSliceFromSet(groups), nil
 }
 
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	// Groups is the list of groups to include host users in
+	Groups []string
+	// Sudoers is a list of entries for a users sudoers file
+	Sudoers []string
+	// Mode determines if a host user should be deleted after a session
+	// ends or not.
+	Mode types.CreateHostUserMode
+}
+
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
 func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	var sudoers []string
+	var mode types.CreateHostUserMode
 
 	roleSet := make([]types.Role, len(a.RoleSet))
 	copy(roleSet, a.RoleSet)
@@ -820,12 +833,30 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		if !result {
 			continue
 		}
+
+		createHostUserMode := role.GetOptions().CreateHostUserMode
 		createHostUser := role.GetOptions().CreateHostUser
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
+			if createHostUser != nil && createHostUser.Value {
+				createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
+			}
+		}
+
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
-		if createHostUser == nil || !createHostUser.Value {
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
+
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			mode = createHostUserMode
+		}
+		// prefer to use HostUserModeKeep over Drop if mode has already been set.
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_DROP && createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
@@ -869,6 +900,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
 		Sudoers: sudoers,
+		Mode:    mode,
 	}, nil
 }
 
