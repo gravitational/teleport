@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -33,6 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -46,7 +48,9 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
@@ -183,6 +187,8 @@ func (h *Handler) executeCommand(
 
 	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
+	mfaCacheFn := getMFACacheFn()
+
 	for _, host := range hosts {
 		err := func() error {
 			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
@@ -204,6 +210,7 @@ func (h *Handler) executeCommand(
 				Router:             h.cfg.Router,
 				TracerProvider:     h.cfg.TracerProvider,
 				LocalAuthProvider:  h.auth.accessPoint,
+				mfaFuncCache:       mfaCacheFn,
 			}
 
 			handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -255,6 +262,27 @@ func (h *Handler) executeCommand(
 	return nil, nil
 }
 
+// getMFACacheFn returns a function that caches the result of the given
+// get function. The cache is protected by a mutex, so it is safe to call
+// the returned function from multiple goroutines.
+func getMFACacheFn() mfaFuncCache {
+	var mutex sync.Mutex
+	var authMethods []ssh.AuthMethod
+
+	return func(issueMfaAuthFn func() ([]ssh.AuthMethod, error)) ([]ssh.AuthMethod, error) {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		if authMethods != nil {
+			return authMethods, nil
+		}
+
+		var err error
+		authMethods, err = issueMfaAuthFn()
+		return authMethods, trace.Wrap(err)
+	}
+}
+
 func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandHandler, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -280,6 +308,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			localAuthProvider:  cfg.LocalAuthProvider,
 			tracer:             cfg.tracer,
 		},
+		mfaAuthCache: cfg.mfaFuncCache,
 	}, nil
 }
 
@@ -308,6 +337,8 @@ type CommandHandlerConfig struct {
 	LocalAuthProvider agentless.AuthProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
+	// mfaFuncCache is used to cache the MFA auth method
+	mfaFuncCache mfaFuncCache
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -346,10 +377,18 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
+	if t.mfaFuncCache == nil {
+		return trace.BadParameter("mfaFuncCache must be provided")
+	}
+
 	t.tracer = t.TracerProvider.Tracer("webcommand")
 
 	return nil
 }
+
+// mfaFuncCache is a function type that caches the result of a function that
+// returns a list of ssh.AuthMethods.
+type mfaFuncCache func(func() ([]ssh.AuthMethod, error)) ([]ssh.AuthMethod, error)
 
 // commandHandler is a handler for executing commands on a remote node.
 type commandHandler struct {
@@ -360,6 +399,11 @@ type commandHandler struct {
 
 	// ws a raw websocket connection to the client.
 	ws WSConn
+
+	// mfaAuthCache is a function that caches the result of a function that
+	// returns a list of ssh.AuthMethods. It is used to cache the result of
+	// the MFA challenge.
+	mfaAuthCache mfaFuncCache
 }
 
 // sendError sends an error message to the client using the provided websocket.
@@ -471,6 +515,26 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	}
 
 	t.log.Debug("Sent close event to web client.")
+}
+
+// connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
+// host with the retrieved single use certs.
+// If called multiple times, the mfa ceremony will only be performed once.
+func (t *commandHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	authMethods, err := t.mfaAuthCache(func() ([]ssh.AuthMethod, error) {
+		// perform mfa ceremony and retrieve new certs
+		authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return authMethods, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
 }
 
 // Close is no-op as we never want to close the connection to the client.

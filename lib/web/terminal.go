@@ -788,39 +788,12 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, t
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig := &ssh.ClientConfig{
-		User:            tc.HostLogin,
-		Auth:            authMethods,
-		HostKeyCallback: tc.HostKeyCallback,
-	}
-
-	// connect to the node again with the new certs
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	nc, err := client.NewNodeClient(ctx, sshConfig, conn,
-		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
-		t.sessionData.ServerHostname,
-		tc, modules.GetModules().IsBoringBinary())
-	if err != nil {
-		return nil, trace.NewAggregate(err, conn.Close())
-	}
-
-	return nc, nil
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
 }
 
-// connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
-// host with the retrieved single use certs.
-// TODO(jakule): remove duplication between this and the above connectToNodeWithMFA
-func (t *commandHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+// connectToNodeWithMFABase attempts to dial the host with the provided auth
+// methods.
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,
