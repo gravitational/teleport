@@ -43,6 +43,7 @@ const (
 	awsSecretTokenKey = "AWS_SESSION_TOKEN"
 	// awsIAMSource is the authenticator source value used when authenticating
 	// using AWS IAM.
+	// https://www.mongodb.com/docs/manual/reference/connection-string/#mongodb-urioption-urioption.authSource
 	awsIAMSource = "$external"
 )
 
