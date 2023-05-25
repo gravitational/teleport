@@ -20,10 +20,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // remoteClientManagerConfig configures a remote client manager.
@@ -46,7 +47,7 @@ type remoteClientManager struct {
 	parentCtx context.Context
 	// wg ensures a single call to connect runs at a time.
 	wg sync.WaitGroup
-	// stop canceles the context used by connect.
+	// stop cancels the context used by connect.
 	stop func()
 	// closing is set to false when close is called.
 	closing bool

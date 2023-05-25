@@ -1220,37 +1220,6 @@ func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName 
 	return accessPoint, nil
 }
 
-// getRemoteAuthVersion sends a version request to the remote agent.
-func getRemoteAuthVersion(ctx context.Context, sconn ssh.Conn) (string, error) {
-	errorCh := make(chan error, 1)
-	versionCh := make(chan string, 1)
-
-	go func() {
-		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
-		if err != nil {
-			errorCh <- err
-			return
-		}
-		if !ok {
-			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
-			return
-		}
-
-		versionCh <- string(payload)
-	}()
-
-	select {
-	case ver := <-versionCh:
-		return ver, nil
-	case err := <-errorCh:
-		return "", trace.Wrap(err)
-	case <-time.After(defaults.WaitCopyTimeout):
-		return "", trace.BadParameter("timeout waiting for version")
-	case <-ctx.Done():
-		return "", trace.Wrap(ctx.Err())
-	}
-}
-
 const (
 	extHost      = "host@teleport"
 	extAuthority = "auth@teleport"

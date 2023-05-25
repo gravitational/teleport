@@ -5,11 +5,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 )
 
 func (m mockAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
@@ -49,7 +50,7 @@ func TestRemoteClientManagerRace(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Ignore errors, we expect some when the context gets cancelled before connect finishes.
+			// Ignore errors, we expect some when the context gets canceled before connect finishes.
 			_ = cm.Connect()
 		}()
 	}
