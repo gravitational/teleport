@@ -126,7 +126,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.2
-	github.com/snowflakedb/gosnowflake v1.6.20
+	github.com/snowflakedb/gosnowflake v1.6.21
 	github.com/stretchr/testify v1.8.3
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -206,7 +206,6 @@ require (
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
-	github.com/apache/arrow/go/v10 v10.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.33 // indirect
@@ -248,7 +247,7 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/fvbommel/sortorder v1.0.1 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.1 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -257,7 +256,7 @@ require (
 	github.com/go-openapi/jsonreference v0.20.1 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-webauthn/revoke v0.1.6 // indirect
-	github.com/goccy/go-json v0.9.11 // indirect
+	github.com/goccy/go-json v0.10.0 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
@@ -265,7 +264,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/certificate-transparency-go v1.1.2 // indirect
-	github.com/google/flatbuffers v22.11.23+incompatible // indirect
+	github.com/google/flatbuffers v23.1.21+incompatible // indirect
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/go-tpm v0.3.3 // indirect
 	github.com/google/go-tspi v0.2.1-0.20190423175329-115dea689aad // indirect
@@ -383,6 +382,11 @@ require (
 	sigs.k8s.io/kustomize/kustomize/v5 v5.0.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.14.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
+)
+
+require (
+	github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c // indirect
+	github.com/apache/arrow/go/v12 v12.0.0 // indirect
 )
 
 // Update also `ignore` in .github/dependabot.yml.
