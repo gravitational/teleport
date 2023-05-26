@@ -642,6 +642,10 @@
               ]
             },
             {
+              "title": "Joining Services via GCP",
+              "slug": "/management/join-services-to-your-cluster/gcp/"
+            },
+            {
               "title": "Via a Join Token",
               "slug": "/management/join-services-to-your-cluster/join-token/"
             }
