@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
+	defaults2 "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -56,6 +57,14 @@ func startDummyHTTPServer(t *testing.T, name string) string {
 }
 
 func TestAppLoginLeaf(t *testing.T) {
+	// TODO(tener): changing ResyncInterval defaults speeds up the tests considerably.
+	// 	It may be worth making the change global either for tests or production.
+	// 	See also SetTestTimeouts() in integration/helpers/timeouts.go
+	oldResyncInterval := defaults2.ResyncInterval
+	defaults2.ResyncInterval = time.Millisecond * 100
+	t.Cleanup(func() {
+		defaults2.ResyncInterval = oldResyncInterval
+	})
 
 	isInsecure := lib.IsInsecureDevMode()
 	lib.SetInsecureDevMode(true)
@@ -69,7 +78,12 @@ func TestAppLoginLeaf(t *testing.T) {
 	require.NoError(t, err)
 	alice.SetRoles([]string{"access"})
 
-	rootAuth, rootProxy := makeTestServers(t, withClusterName(t, "root"), withBootstrap(connector, alice))
+	// TODO(tener): consider making this default for tests.
+	configStorage := func(cfg *servicecfg.Config) {
+		cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
+	}
+
+	rootAuth, rootProxy := makeTestServers(t, withClusterName(t, "root"), withBootstrap(connector, alice), withConfig(configStorage))
 	event, err := rootAuth.WaitForEventTimeout(time.Second, service.ProxyReverseTunnelReady)
 	require.NoError(t, err)
 	tunnel, ok := event.Payload.(reversetunnel.Server)
@@ -100,7 +114,7 @@ func TestAppLoginLeaf(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"))
+	leafAuth, leafProxy := makeTestServers(t, withClusterName(t, "leaf"), withConfig(configStorage))
 
 	leafAppURL := startDummyHTTPServer(t, "leafapp")
 	leafAppServer := makeTestApplicationServer(t, leafAuth, leafProxy, servicecfg.App{Name: "leafapp", URI: leafAppURL})
@@ -203,6 +217,8 @@ func TestAppLoginLeaf(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			login, tsh := getHelpers(t)
 
 			login(tt.loginCluster)
