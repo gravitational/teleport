@@ -248,7 +248,7 @@ $ kubectl logs "$PROXY_POD" -c operator
 ### Cluster instability after enabling the Operator
 
 If enabling the Teleport Kubernetes Operator leads to cluster instability such as degraded proxy state, inability to log into the Teleport cluster,
-or loss of access to the Teleport Web UI, confirm where your auth pods are deployed.  All Operator sidecars connecting to the same
+or loss of access to the Teleport Web UI, check where your auth pods are deployed.  All Operator sidecars connecting to the same
 shared backend must belong to the same `teleport-cluster` chart release to support the leader election process.
 Failing to do so can lead to a degraded Teleport cluster and errors such as:
 
@@ -257,7 +257,7 @@ Failing to do so can lead to a degraded Teleport cluster and errors such as:
 has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.
 ```
 In order to resolve this issue, remove any Teleport Kubernetes Operator sidecars connecting to the shared backend that are not in the same
-Kubernetes cluster or namespace.  Then redeploy the auth pods.  When the Operator starts, it deletes the cached information and recreates all required resources.
+Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the operator starts, it deletes the cached information and recreates all required resources.
 
 ## Next steps
 
