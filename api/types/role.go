@@ -73,10 +73,10 @@ type Role interface {
 
 	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
-	GetLabelMatchers(condition RoleConditionType, kind string) (LabelMatchers, error)
+	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
 	// SetLabelMatchers sets the LabelMatchers that match labels of resources of
 	// type [kind] this role is allowed or denied access to.
-	SetLabelMatchers(condition RoleConditionType, kind string, labelMatchers LabelMatchers) error
+	SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error
 
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
 	GetNodeLabels(RoleConditionType) Labels
@@ -1580,9 +1580,9 @@ func (l LabelMatchers) Empty() bool {
 
 // GetLabelMatchers gets the LabelMatchers that match labels of resources of
 // type [kind] this role is allowed or denied access to.
-func (r *RoleV6) GetLabelMatchers(condition RoleConditionType, kind string) (LabelMatchers, error) {
+func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error) {
 	var cond *RoleConditions
-	if condition {
+	if rct == Allow {
 		cond = &r.Spec.Allow
 	} else {
 		cond = &r.Spec.Deny
@@ -1612,9 +1612,9 @@ func (r *RoleV6) GetLabelMatchers(condition RoleConditionType, kind string) (Lab
 
 // SetLabelMatchers sets the LabelMatchers that match labels of resources of
 // type [kind] this role is allowed or denied access to.
-func (r *RoleV6) SetLabelMatchers(condition RoleConditionType, kind string, labelMatchers LabelMatchers) error {
+func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error {
 	var cond *RoleConditions
-	if condition {
+	if rct == Allow {
 		cond = &r.Spec.Allow
 	} else {
 		cond = &r.Spec.Deny
