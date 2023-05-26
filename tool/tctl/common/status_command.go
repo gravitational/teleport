@@ -42,7 +42,7 @@ type StatusCommand struct {
 // Initialize allows StatusCommand to plug itself into the CLI parser.
 func (c *StatusCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
-	c.status = app.Command("status", "Report cluster status")
+	c.status = app.Command("status", "Report cluster status.")
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
