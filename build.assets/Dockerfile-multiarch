@@ -230,22 +230,23 @@ ENV BORING_BSSL_PATH=/opt/boringssl
 ENV BORING_BSSL_INCLUDE_PATH=/opt/boringssl/include
 ENV GOEXPERIMENT=boringcrypto
 
+# NOT USED
 # Install node.
 # Node is required to build teleterm. It does not work on 32-bit archs, and is not required for them.
-RUN git clone https://github.com/ninja-build/ninja.git && \
-    cd ninja && \
-    git checkout v1.9.0 && \
-    ./configure.py --bootstrap && \
-    mv ninja /usr/bin \
-
-ARG NODE_VERSION
-RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
-    cd node && \
-    ./configure --ninja && \
-    make install && \
-    make clean
-RUN node --version
-RUN corepack enable yarn
+#RUN git clone https://github.com/ninja-build/ninja.git && \
+#    cd ninja && \
+#    git checkout v1.9.0 && \
+#    ./configure.py --bootstrap && \
+#    mv ninja /usr/bin \
+#
+#ARG NODE_VERSION
+#RUN git clone --depth=1 https://github.com/nodejs/node -b "v${NODE_VERSION}" && \
+#    cd node && \
+#    ./configure --ninja && \
+#    make install && \
+#    make clean
+#RUN node --version
+#RUN corepack enable yarn
 
 ## Final target image with go #################################################
 #
