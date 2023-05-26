@@ -93,13 +93,13 @@ provider "teleport" {
 
 Metadata is the app resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -109,8 +109,8 @@ Spec is the app resource spec.
 |----------------------|--------|----------|--------------------------------------------------------------------------|
 | aws                  | object |          | AWS contains additional options for AWS applications.                    |
 | cloud                | string |          | Cloud identifies the cloud instance the app represents.                  |
-| dynamic_labels       | object |          | DynamicLabels are the app&#39;s command labels.                          |
-| insecure_skip_verify | bool   |          | InsecureSkipVerify disables app&#39;s TLS certificate verification.      |
+| dynamic_labels       | object |          | DynamicLabels are the app's command labels.                              |
+| insecure_skip_verify | bool   |          | InsecureSkipVerify disables app's TLS certificate verification.          |
 | public_addr          | string |          | PublicAddr is the public address the application is accessible at.       |
 | rewrite              | object |          | Rewrite is a list of rewriting rules to apply to requests and responses. |
 | uri                  | string |          | URI is the web app endpoint.                                             |
@@ -137,10 +137,10 @@ DynamicLabels are the app's command labels.
 
 Rewrite is a list of rewriting rules to apply to requests and responses.
 
-|   Name   |       Type       | Required |                                                                    Description                                                                    |
-|----------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| headers  | object           |          | Headers is a list of headers to inject when passing the request over to the application.                                                          |
-| redirect | array of strings |          | Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the &#34;Location&#34; header. |
+|   Name   |       Type       | Required |                                                                Description                                                                |
+|----------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| headers  | object           |          | Headers is a list of headers to inject when passing the request over to the application.                                                  |
+| redirect | array of strings |          | Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the "Location" header. |
 
 ##### spec.rewrite.headers
 
@@ -184,12 +184,12 @@ resource "teleport_app" "example" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -216,10 +216,10 @@ Spec is an AuthPreference specification
 
 DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.
 
-|    Name     |  Type  | Required |                                                                                                                                                                                                                                             Description                                                                                                                                                                                                                                              |
-|-------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| auto_enroll | bool   |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode=&#34;off&#34;.                                                                                                                                                          |
-| mode        | string |          | Mode of verification for trusted devices.  The following modes are supported:  - &#34;off&#34;: disables both device authentication and authorization. - &#34;optional&#34;: allows both device authentication and authorization, but doesn&#39;t enforce the presence of device extensions for sensitive endpoints. - &#34;required&#34;: enforces the presence of device extensions for sensitive endpoints.  Mode is always &#34;off&#34; for OSS. Defaults to &#34;optional&#34; for Enterprise. |
+|    Name     |  Type  | Required |                                                                                                                                                                                                                       Description                                                                                                                                                                                                                        |
+|-------------|--------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| auto_enroll | bool   |          | Enable device auto-enroll. Auto-enroll lets any user issue a device enrollment token for a known device that is not already enrolled. `tsh` takes advantage of auto-enroll to automatically enroll devices on user login, when appropriate. The effective cluster Mode still applies: AutoEnroll=true is meaningless if Mode="off".                                                                                                                      |
+| mode        | string |          | Mode of verification for trusted devices.  The following modes are supported:  - "off": disables both device authentication and authorization. - "optional": allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - "required": enforces the presence of device extensions for sensitive endpoints.  Mode is always "off" for OSS. Defaults to "optional" for Enterprise. |
 
 #### spec.idp
 
@@ -251,11 +251,11 @@ U2F are the settings for the U2F device.
 
 Webauthn are the settings for server-side Web Authentication support.
 
-|          Name           |       Type       | Required |                                                                                                                                                                                                                       Description                                                                                                                                                                                                                       |
-|-------------------------|------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| attestation_allowed_cas | array of strings |          | Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.         |
-| attestation_denied_cas  | array of strings |          | Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don&#39;t match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied. |
-| rp_id                   | string           |          | RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it&#39;s recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.                                     |
+|          Name           |       Type       | Required |                                                                                                                                                                                                                     Description                                                                                                                                                                                                                     |
+|-------------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| attestation_allowed_cas | array of strings |          | Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.     |
+| attestation_denied_cas  | array of strings |          | Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don't match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied. |
+| rp_id                   | string           |          | RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it's recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.                                     |
 
 Example:
 
@@ -344,12 +344,12 @@ resource "teleport_bot" "example" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -426,13 +426,13 @@ resource "teleport_cluster_networking_config" "example" {
 
 Metadata is the database metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -508,12 +508,13 @@ MemoryDB contains AWS MemoryDB specific metadata.
 
 RDS contains RDS specific metadata.
 
-|    Name     |  Type  | Required |                            Description                            |
-|-------------|--------|----------|-------------------------------------------------------------------|
-| cluster_id  | string |          | ClusterID is the RDS cluster (Aurora) identifier.                 |
-| iam_auth    | bool   |          | IAMAuth indicates whether database IAM authentication is enabled. |
-| instance_id | string |          | InstanceID is the RDS instance identifier.                        |
-| resource_id | string |          | ResourceID is the RDS instance resource identifier (db-xxx).      |
+|    Name     |       Type       | Required |                            Description                            |
+|-------------|------------------|----------|-------------------------------------------------------------------|
+| cluster_id  | string           |          | ClusterID is the RDS cluster (Aurora) identifier.                 |
+| iam_auth    | bool             |          | IAMAuth indicates whether database IAM authentication is enabled. |
+| instance_id | string           |          | InstanceID is the RDS instance identifier.                        |
+| resource_id | string           |          | ResourceID is the RDS instance resource identifier (db-xxx).      |
+| subnets     | array of strings |          | Subnets is a list of subnets for the RDS instance.                |
 
 ##### spec.aws.rdsproxy
 
@@ -642,13 +643,13 @@ resource "teleport_database" "example" {
 
 Metadata holds resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -735,13 +736,13 @@ resource "teleport_github_connector" "github" {
 
 Metadata is resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         |          | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         |          | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### traits_map
 
@@ -796,13 +797,13 @@ resource "teleport_login_rule" "example" {
 
 Metadata holds resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -824,7 +825,7 @@ Spec is an OIDC connector specification.
 | provider                   | string           |          | Provider is the external identity provider.                                                                                                   |
 | redirect_url               | array of strings |          |                                                                                                                                               |
 | scope                      | array of strings |          | Scope specifies additional scopes set by provider.                                                                                            |
-| username_claim             | string           |          | UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user&#39;s username.                                  |
+| username_claim             | string           |          | UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user's username.                                      |
 
 #### spec.claims_to_roles
 
@@ -882,44 +883,44 @@ resource "teleport_oidc_connector" "example" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   | *        | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         |          | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   | *        | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         |          | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
 Spec is a provisioning token V2 spec
 
-|              Name              |         Type         | Required |                                                                        Description                                                                         |
-|--------------------------------|----------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| allow                          | object               |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                         |
-| aws_iid_ttl                    | duration             |          | AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.                                              |
-| azure                          | object               |          | Azure allows the configuration of options specific to the &#34;azure&#34; join method.                                                                     |
-| bot_name                       | string               |          | BotName is the name of the bot this token grants access to, if any                                                                                         |
-| circleci                       | object               |          | CircleCI allows the configuration of options specific to the &#34;circleci&#34; join method.                                                               |
-| gcp                            | object               |          | GCP allows the configuration of options specific to the &#34;gcp&#34; join method.                                                                         |
-| github                         | object               |          | GitHub allows the configuration of options specific to the &#34;github&#34; join method.                                                                   |
-| gitlab                         | object               |          | GitLab allows the configuration of options specific to the &#34;gitlab&#34; join method.                                                                   |
-| join_method                    | string               |          | JoinMethod is the joining method required in order to use this token. Supported joining methods include &#34;token&#34;, &#34;ec2&#34;, and &#34;iam&#34;. |
-| kubernetes                     | object               |          | Kubernetes allows the configuration of options specific to the &#34;kubernetes&#34; join method.                                                           |
-| roles                          | array of strings     | *        | Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token    |
-| suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                            |
-| suggested_labels               | map of string arrays |          |                                                                                                                                                            |
+|              Name              |         Type         | Required |                                                                       Description                                                                       |
+|--------------------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| allow                          | object               |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                      |
+| aws_iid_ttl                    | duration             |          | AWSIIDTTL is the TTL to use for AWS EC2 Instance Identity Documents used to join the cluster with this token.                                           |
+| azure                          | object               |          | Azure allows the configuration of options specific to the "azure" join method.                                                                          |
+| bot_name                       | string               |          | BotName is the name of the bot this token grants access to, if any                                                                                      |
+| circleci                       | object               |          | CircleCI allows the configuration of options specific to the "circleci" join method.                                                                    |
+| gcp                            | object               |          | GCP allows the configuration of options specific to the "gcp" join method.                                                                              |
+| github                         | object               |          | GitHub allows the configuration of options specific to the "github" join method.                                                                        |
+| gitlab                         | object               |          | GitLab allows the configuration of options specific to the "gitlab" join method.                                                                        |
+| join_method                    | string               |          | JoinMethod is the joining method required in order to use this token. Supported joining methods include "token", "ec2", and "iam".                      |
+| kubernetes                     | object               |          | Kubernetes allows the configuration of options specific to the "kubernetes" join method.                                                                |
+| roles                          | array of strings     | *        | Roles is a list of roles associated with the token, that will be converted to metadata in the SSH and X509 certificates issued to the user of the token |
+| suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                         |
+| suggested_labels               | map of string arrays |          |                                                                                                                                                         |
 
 #### spec.allow
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
 
-|    Name     |       Type       | Required |                                                                  Description                                                                   |
-|-------------|------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                              |
-| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards &#34;*&#34; and &#34;?&#34;. |
-| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                        |
-| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API.      |
+|    Name     |       Type       | Required |                                                                Description                                                                |
+|-------------|------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| aws_account | string           |          | AWSAccount is the AWS account ID.                                                                                                         |
+| aws_arn     | string           |          | AWSARN is used for the IAM join method, the AWS identity of joining nodes must match this ARN. Supports wildcards "*" and "?".            |
+| aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                   |
+| aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API. |
 
 #### spec.azure
 
@@ -968,11 +969,11 @@ GCP allows the configuration of options specific to the "gcp" join method.
 
 Allow is a list of Rules, nodes using this token must match one allow rule to use this token.
 
-|       Name       |       Type       | Required |                                                            Description                                                             |
-|------------------|------------------|----------|------------------------------------------------------------------------------------------------------------------------------------|
-| locations        | array of strings |          | Locations is a list of regions (e.g. &#34;us-west1&#34;) and/or zones (e.g. &#34;us-west1-b&#34;).                                 |
-| project_ids      | array of strings |          | ProjectIDs is a list of project IDs (e.g. &#34;&lt;example-id-123456&gt;&#34;).                                                    |
-| service_accounts | array of strings |          | ServiceAccounts is a list of service account emails (e.g. &#34;&lt;project-number&gt;-compute@developer.gserviceaccount.com&#34;). |
+|       Name       |       Type       | Required |                                                        Description                                                         |
+|------------------|------------------|----------|----------------------------------------------------------------------------------------------------------------------------|
+| locations        | array of strings |          | Locations is a list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").                                         |
+| project_ids      | array of strings |          | ProjectIDs is a list of project IDs (e.g. "&lt;example-id-123456&gt;").                                                    |
+| service_accounts | array of strings |          | ServiceAccounts is a list of service account emails (e.g. "&lt;project-number&gt;-compute@developer.gserviceaccount.com"). |
 
 #### spec.github
 
@@ -992,7 +993,7 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 | actor            | string |          | The personal account that initiated the workflow run.                                                                                                      |
 | environment      | string |          | The name of the environment used by the job.                                                                                                               |
 | ref              | string |          | The git ref that triggered the workflow run.                                                                                                               |
-| ref_type         | string |          | The type of ref, for example: &#34;branch&#34;.                                                                                                            |
+| ref_type         | string |          | The type of ref, for example: "branch".                                                                                                                    |
 | repository       | string |          | The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`                                        |
 | repository_owner | string |          | The name of the organization in which the repository is stored.                                                                                            |
 | sub              | string |          | Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run. |
@@ -1014,7 +1015,7 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 |      Name       |  Type  | Required |                                                                                    Description                                                                                     |
 |-----------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | environment     | string |          | Environment limits access by the environment the job deploys to (if one is associated)                                                                                             |
-| namespace_path  | string |          | NamespacePath is used to limit access to jobs in a group or user&#39;s projects. Example: `mygroup`                                                                                |
+| namespace_path  | string |          | NamespacePath is used to limit access to jobs in a group or user's projects. Example: `mygroup`                                                                                    |
 | pipeline_source | string |          | PipelineSource limits access by the job pipeline source type. https://docs.gitlab.com/ee/ci/jobs/job_control.html#common-if-clauses-for-rules Example: `web`                       |
 | project_path    | string |          | ProjectPath is used to limit access to jobs belonging to an individual project. Example: `mygroup/myproject`                                                                       |
 | ref             | string |          | Ref allows access to be limited to jobs triggered by a specific git ref. Ensure this is used in combination with ref_type.                                                         |
@@ -1033,9 +1034,9 @@ Kubernetes allows the configuration of options specific to the "kubernetes" join
 
 Allow is a list of Rules, nodes using this token must match one allow rule to use this token.
 
-|      Name       |  Type  | Required |                                                         Description                                                         |
-|-----------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------|
-| service_account | string |          | ServiceAccount is the namespaced name of the Kubernetes service account. Its format is &#34;namespace:service-account&#34;. |
+|      Name       |  Type  | Required |                                                     Description                                                     |
+|-----------------|--------|----------|---------------------------------------------------------------------------------------------------------------------|
+| service_account | string |          | ServiceAccount is the namespaced name of the Kubernetes service account. Its format is "namespace:service-account". |
 
 Example:
 
@@ -1073,13 +1074,13 @@ resource "teleport_provision_token" "example" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -1150,11 +1151,11 @@ JoinSessions specifies policies to allow users to join other sessions.
 
 KubernetesResources is the Kubernetes Resources this Role grants access to.
 
-|   Name    |  Type  | Required |                                         Description                                         |
-|-----------|--------|----------|---------------------------------------------------------------------------------------------|
-| kind      | string |          | Kind specifies the Kubernetes Resource type. At the moment only &#34;pod&#34; is supported. |
-| name      | string |          | Name is the resource name. It supports wildcards.                                           |
-| namespace | string |          | Namespace is the resource namespace. It supports wildcards.                                 |
+|   Name    |  Type  | Required |                                     Description                                     |
+|-----------|--------|----------|-------------------------------------------------------------------------------------|
+| kind      | string |          | Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported. |
+| name      | string |          | Name is the resource name. It supports wildcards.                                   |
+| namespace | string |          | Namespace is the resource namespace. It supports wildcards.                         |
 
 ##### spec.allow.request
 
@@ -1194,14 +1195,14 @@ Thresholds is a list of thresholds, one of which must be met in order for review
 
 RequireSessionJoin specifies policies for required users to start a session.
 
-|   Name   |       Type       | Required |                                             Description                                             |
-|----------|------------------|----------|-----------------------------------------------------------------------------------------------------|
-| count    | number           |          | Count is the amount of people that need to be matched for this policy to be fulfilled.              |
-| filter   | string           |          | Filter is a predicate that determines what users count towards this policy.                         |
-| kinds    | array of strings |          | Kinds are the session kinds this policy applies to.                                                 |
-| modes    | array of strings |          | Modes is the list of modes that may be used to fulfill this policy.                                 |
-| name     | string           |          | Name is the name of the policy.                                                                     |
-| on_leave | string           |          | OnLeave is the behaviour that&#39;s used when the policy is no longer fulfilled for a live session. |
+|   Name   |       Type       | Required |                                           Description                                           |
+|----------|------------------|----------|-------------------------------------------------------------------------------------------------|
+| count    | number           |          | Count is the amount of people that need to be matched for this policy to be fulfilled.          |
+| filter   | string           |          | Filter is a predicate that determines what users count towards this policy.                     |
+| kinds    | array of strings |          | Kinds are the session kinds this policy applies to.                                             |
+| modes    | array of strings |          | Modes is the list of modes that may be used to fulfill this policy.                             |
+| name     | string           |          | Name is the name of the policy.                                                                 |
+| on_leave | string           |          | OnLeave is the behaviour that's used when the policy is no longer fulfilled for a live session. |
 
 ##### spec.allow.review_requests
 
@@ -1294,11 +1295,11 @@ JoinSessions specifies policies to allow users to join other sessions.
 
 KubernetesResources is the Kubernetes Resources this Role grants access to.
 
-|   Name    |  Type  | Required |                                         Description                                         |
-|-----------|--------|----------|---------------------------------------------------------------------------------------------|
-| kind      | string |          | Kind specifies the Kubernetes Resource type. At the moment only &#34;pod&#34; is supported. |
-| name      | string |          | Name is the resource name. It supports wildcards.                                           |
-| namespace | string |          | Namespace is the resource namespace. It supports wildcards.                                 |
+|   Name    |  Type  | Required |                                     Description                                     |
+|-----------|--------|----------|-------------------------------------------------------------------------------------|
+| kind      | string |          | Kind specifies the Kubernetes Resource type. At the moment only "pod" is supported. |
+| name      | string |          | Name is the resource name. It supports wildcards.                                   |
+| namespace | string |          | Namespace is the resource namespace. It supports wildcards.                         |
 
 ##### spec.deny.request
 
@@ -1338,14 +1339,14 @@ Thresholds is a list of thresholds, one of which must be met in order for review
 
 RequireSessionJoin specifies policies for required users to start a session.
 
-|   Name   |       Type       | Required |                                             Description                                             |
-|----------|------------------|----------|-----------------------------------------------------------------------------------------------------|
-| count    | number           |          | Count is the amount of people that need to be matched for this policy to be fulfilled.              |
-| filter   | string           |          | Filter is a predicate that determines what users count towards this policy.                         |
-| kinds    | array of strings |          | Kinds are the session kinds this policy applies to.                                                 |
-| modes    | array of strings |          | Modes is the list of modes that may be used to fulfill this policy.                                 |
-| name     | string           |          | Name is the name of the policy.                                                                     |
-| on_leave | string           |          | OnLeave is the behaviour that&#39;s used when the policy is no longer fulfilled for a live session. |
+|   Name   |       Type       | Required |                                           Description                                           |
+|----------|------------------|----------|-------------------------------------------------------------------------------------------------|
+| count    | number           |          | Count is the amount of people that need to be matched for this policy to be fulfilled.          |
+| filter   | string           |          | Filter is a predicate that determines what users count towards this policy.                     |
+| kinds    | array of strings |          | Kinds are the session kinds this policy applies to.                                             |
+| modes    | array of strings |          | Modes is the list of modes that may be used to fulfill this policy.                             |
+| name     | string           |          | Name is the name of the policy.                                                                 |
+| on_leave | string           |          | OnLeave is the behaviour that's used when the policy is no longer fulfilled for a live session. |
 
 ##### spec.deny.review_requests
 
@@ -1516,13 +1517,13 @@ resource "teleport_role" "example" {
 
 Metadata holds resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -1530,7 +1531,7 @@ Spec is an SAML connector specification.
 
 |          Name           |  Type  | Required |                                                                            Description                                                                            |
 |-------------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| acs                     | string | *        | AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport&#39;s side).                                                   |
+| acs                     | string | *        | AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).                                                       |
 | allow_idp_initiated     | bool   |          | AllowIDPInitiated is a flag that indicates if the connector can be used for IdP-initiated logins.                                                                 |
 | assertion_key_pair      | object |          | EncryptionKeyPair is a key pair used for decrypting SAML assertions.                                                                                              |
 | attributes_to_roles     | object | *        | AttributesToRoles is a list of mappings of attribute statements to roles.                                                                                         |
@@ -1543,7 +1544,7 @@ Spec is an SAML connector specification.
 | provider                | string |          | Provider is the external identity provider.                                                                                                                       |
 | service_provider_issuer | string |          | ServiceProviderIssuer is the issuer of the service provider (Teleport).                                                                                           |
 | signing_key_pair        | object |          | SigningKeyPair is an x509 key pair used to sign AuthnRequest.                                                                                                     |
-| sso                     | string |          | SSO is the URL of the identity provider&#39;s SSO service.                                                                                                        |
+| sso                     | string |          | SSO is the URL of the identity provider's SSO service.                                                                                                            |
 
 #### spec.assertion_key_pair
 
@@ -1634,12 +1635,12 @@ resource "teleport_saml_connector" "example" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -1683,13 +1684,13 @@ resource "teleport_session_recording_config" "example" {
 
 Metadata holds resource metadata.
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -1754,13 +1755,13 @@ resource "teleport_trusted_cluster" "cluster" {
 
 Metadata is resource metadata
 
-|    Name     |      Type      | Required |                                                  Description                                                   |
-|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
-| description | string         |          | Description is object description                                                                              |
-| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
-| labels      | map of strings |          | Labels is a set of labels                                                                                      |
-| name        | string         | *        | Name is an object name                                                                                         |
-| namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
 
 ### spec
 
@@ -1778,28 +1779,28 @@ Spec is a user specification
 
 GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                    Description                                    |
-|--------------|--------|----------|-----------------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
-| username     | string |          | Username is username supplied by external identity provider                       |
+|     Name     |  Type  | Required |                                Description                                |
+|--------------|--------|----------|---------------------------------------------------------------------------|
+| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
+| username     | string |          | Username is username supplied by external identity provider               |
 
 #### spec.oidc_identities
 
 OIDCIdentities lists associated OpenID Connect identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                    Description                                    |
-|--------------|--------|----------|-----------------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
-| username     | string |          | Username is username supplied by external identity provider                       |
+|     Name     |  Type  | Required |                                Description                                |
+|--------------|--------|----------|---------------------------------------------------------------------------|
+| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
+| username     | string |          | Username is username supplied by external identity provider               |
 
 #### spec.saml_identities
 
 SAMLIdentities lists associated SAML identities that let user log in using externally verified identity
 
-|     Name     |  Type  | Required |                                    Description                                    |
-|--------------|--------|----------|-----------------------------------------------------------------------------------|
-| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
-| username     | string |          | Username is username supplied by external identity provider                       |
+|     Name     |  Type  | Required |                                Description                                |
+|--------------|--------|----------|---------------------------------------------------------------------------|
+| connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. 'google-example.com' |
+| username     | string |          | Username is username supplied by external identity provider               |
 
 Example:
 
