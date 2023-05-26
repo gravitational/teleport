@@ -45,7 +45,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 		d.Metadata.Name = uuid.NewString()
 	}
 	if d.Spec.EnrollStatus == "" {
-		d.Spec.EnrollStatus = ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
+		d.Spec.EnrollStatus = ResourceDeviceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
 	}
 
 	// Validate Header/Metadata.
@@ -65,7 +65,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if _, err := ResourceOSTypeFromString(d.Spec.OsType); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := ResourceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
+	if _, err := ResourceDeviceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -99,7 +99,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	enrollStatus, err := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
+	enrollStatus, err := ResourceDeviceEnrollStatusFromString(res.Spec.EnrollStatus)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -186,7 +186,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			AssetTag:      dev.AssetTag,
 			CreateTime:    toTimePtr(dev.CreateTime),
 			UpdateTime:    toTimePtr(dev.UpdateTime),
-			EnrollStatus:  ResourceEnrollStatusToString(dev.EnrollStatus),
+			EnrollStatus:  ResourceDeviceEnrollStatusToString(dev.EnrollStatus),
 			Credential:    cred,
 			CollectedData: collectedData,
 		},
@@ -199,6 +199,8 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 // for use in resource fields.
 func ResourceOSTypeToString(osType devicepb.OSType) string {
 	switch osType {
+	case devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return "unspecified"
 	case devicepb.OSType_OS_TYPE_LINUX:
 		return "linux"
 	case devicepb.OSType_OS_TYPE_MACOS:
@@ -214,6 +216,8 @@ func ResourceOSTypeToString(osType devicepb.OSType) string {
 // for resource fields to OSType.
 func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	switch osType {
+	case "", "unspecified":
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED, nil
 	case "linux":
 		return devicepb.OSType_OS_TYPE_LINUX, nil
 	case "macos":
@@ -225,9 +229,9 @@ func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	}
 }
 
-// ResourceEnrollStatusToString converts DeviceEnrollStatus to a string
+// ResourceDeviceEnrollStatusToString converts DeviceEnrollStatus to a string
 // representation suitable for use in resource fields.
-func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) string {
+func ResourceDeviceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) string {
 	switch enrollStatus {
 	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
 		return "enrolled"
@@ -240,9 +244,9 @@ func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) stri
 	}
 }
 
-// ResourceEnrollStatusFromString converts a string representation of
+// ResourceDeviceEnrollStatusFromString converts a string representation of
 // DeviceEnrollStatus suitable for resource fields to DeviceEnrollStatus.
-func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
+func ResourceDeviceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
 	switch enrollStatus {
 	case "enrolled":
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, nil

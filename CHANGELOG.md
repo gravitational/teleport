@@ -1,5 +1,16 @@
 # Changelog
 
+## 12.4.5 (05/25/23)
+
+* SSO
+  * Fixed issue with Github Enterprise SSO not respecting custom API endpoint path. [#26864](https://github.com/gravitational/teleport/pull/26864)
+* Server Access
+  * Extended Proxy Templates to support `tsh ssh`. [#26853](https://github.com/gravitational/teleport/pull/26853)
+* CLI
+  * Added ability to run `tctl alert` commands remotely. [#26791](https://github.com/gravitational/teleport/pull/26791)
+* Web UI
+  * Added back buttons to integrations and resource adding dialogs. [#26726](https://github.com/gravitational/teleport/pull/26726)
+
 ## 12.4.4 (05/24/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
