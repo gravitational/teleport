@@ -60,7 +60,8 @@ metadata:
 spec:
   credentials:
     # Only one of these credential types must be defined at a time. All values in this
-    # are string literals and not file locations.
+    # are string literals and not file locations. None of the existing credentials objects
+    # will be used for this, and all new objects will be created.
     api_token: example-token
     basic_auth:
       username: example-user
