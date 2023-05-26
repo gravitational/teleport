@@ -282,13 +282,6 @@ func (p *PluginV1) SetCredentials(creds PluginCredentials) error {
 	return nil
 }
 
-func (c *PluginBearerTokenCredentials) CheckAndSetDefaults() error {
-	if (c.Token == "") == (c.TokenFile == "") {
-		return trace.BadParameter("exactly one of Token and TokenFile must be specified")
-	}
-	return nil
-}
-
 // GetStatus implements Plugin
 func (p *PluginV1) GetStatus() PluginStatus {
 	return p.Status
