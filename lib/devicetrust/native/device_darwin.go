@@ -189,7 +189,7 @@ func getJamfBinaryVersion() (string, error) {
 		return "", fmt.Errorf("unexpected jamf version string: %q", s)
 	}
 
-	return string(tmp[1]), nil
+	return tmp[1], nil
 }
 
 func getMacosEnrollmentProfiles() (string, error) {
