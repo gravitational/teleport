@@ -17,8 +17,8 @@ reach the desired state.
 
 The teleport-cluster Helm chart deploys the Teleport Kubernetes Operator as a sidecar in the auth pods.  
 The Operator supports multiple auth pod replicas within a single cluster by electing a leader with a Kubernetes lease. 
-In order to elect a leader, the Operator does not support multiple auth pod replicas that are not in the same Kubernetes
-cluster and namespace.
+If multiple `teleport-cluster` releases are using the same backend, only one should have the operator enabled.
+Multiple operators from different leases will conflict and lock themselves.
 
 Currently supported Teleport resources are:
 - users
@@ -249,7 +249,7 @@ $ kubectl logs "$PROXY_POD" -c operator
 
 If enabling the Teleport Kubernetes Operator leads to cluster instability such as degraded proxy state, inability to log into the Teleport cluster,
 or loss of access to the Teleport Web UI, confirm where your auth pods are deployed.  All Operator sidecars connecting to the same
-shared backend must be within the same teleport-cluster deployment and namespace to support the leader election process.
+shared backend must belong to the same `teleport-cluster` chart release to support the leader election process.
 Failing to do so can lead to a degraded Teleport cluster and errors such as:
 
 ```text
