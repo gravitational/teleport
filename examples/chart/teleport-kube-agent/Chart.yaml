@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev.ubuntudocker"
+.version: &version "14.0.0-dev.ubuntudocker1"
 
 name: teleport-kube-agent
 apiVersion: v2
