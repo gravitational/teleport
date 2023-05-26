@@ -5327,16 +5327,18 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 
 // getPublicAddr waits for a proxy to be registered with Teleport.
 func getPublicAddr(authClient auth.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
+
+	// first run
+	ticker.Reset(time.Millisecond * 10)
 
 	for {
 		select {
 		case <-ticker.C:
 			publicAddr, err := app.FindPublicAddr(authClient, a.PublicAddr, a.Name)
-
 			if err == nil {
 				return publicAddr, nil
 			}

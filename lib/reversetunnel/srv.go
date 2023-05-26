@@ -392,6 +392,9 @@ func (s *server) periodicFunctions() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
+	// first run
+	ticker.Reset(time.Millisecond * 10)
+
 	if err := s.fetchClusterPeers(); err != nil {
 		s.log.Warningf("Failed to fetch cluster peers: %v.", err)
 	}

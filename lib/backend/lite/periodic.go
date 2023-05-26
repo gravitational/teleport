@@ -31,6 +31,9 @@ func (l *Backend) runPeriodicOperations() {
 	t := time.NewTicker(l.PollStreamPeriod)
 	defer t.Stop()
 
+	// first run
+	t.Reset(time.Millisecond * 10)
+
 	rowid := int64(notSet)
 	for {
 		select {

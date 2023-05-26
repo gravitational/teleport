@@ -157,6 +157,9 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
+	// first run
+	ticker.Reset(time.Millisecond * 10)
+
 	for {
 		select {
 		case <-ctx.Done():
