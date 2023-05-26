@@ -1193,7 +1193,7 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 	// create a TeleportClient and generate a provider that forwards
 	// spans to Auth
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1276,7 +1276,7 @@ func fetchProxyVersion(cf *CLIConf) (string, string, error) {
 		return "", "", nil
 	}
 
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -1345,7 +1345,7 @@ func exportSession(cf *CLIConf) error {
 		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1389,7 +1389,7 @@ func playSession(cf *CLIConf) error {
 		}
 		return nil
 	}
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1453,7 +1453,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1821,7 +1821,7 @@ func onLogout(cf *CLIConf) error {
 	switch {
 	// Proxy and username for key to remove.
 	case proxyHost != "" && cf.Username != "":
-		tc, err := makeClient(cf, true)
+		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1874,7 +1874,7 @@ func onLogout(cf *CLIConf) error {
 		// because the user will be logged out from all proxies. Pass a dummy value
 		// to allow creation of the TeleportClient.
 		cf.Proxy = "dummy:1234"
-		tc, err := makeClient(cf, true)
+		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1920,7 +1920,7 @@ func onListNodes(cf *CLIConf) error {
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2747,7 +2747,7 @@ func formatActiveDB(active tlsca.RouteToDatabase) string {
 
 // onListClusters executes 'tsh clusters' command
 func onListClusters(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2997,7 +2997,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3046,7 +3046,7 @@ func onSSH(cf *CLIConf) error {
 
 // onBenchmark executes benchmark
 func onBenchmark(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3096,7 +3096,7 @@ func onJoin(cf *CLIConf) error {
 	}
 
 	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3115,7 +3115,7 @@ func onJoin(cf *CLIConf) error {
 
 // onSCP executes 'tsh scp' command
 func onSCP(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3142,14 +3142,14 @@ func onSCP(cf *CLIConf) error {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
-	tc, err := makeClientForProxy(cf, cf.Proxy, useProfileLogin)
+func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
+	tc, err := makeClientForProxy(cf, cf.Proxy)
 	return tc, trace.Wrap(err)
 }
 
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object
-func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*client.TeleportClient, error) {
+func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -3360,10 +3360,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 	if cf.DatabaseService != "" {
 		c.DatabaseService = cf.DatabaseService
-	}
-	// if host logins stored in profiles must be ignored...
-	if !useProfileLogin {
-		c.HostLogin = ""
 	}
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
@@ -3802,7 +3798,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
 		return nil
@@ -4191,7 +4187,7 @@ func onApps(cf *CLIConf) error {
 	if cf.ListAll {
 		return trace.Wrap(listAppsAllClusters(cf))
 	}
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4329,7 +4325,7 @@ func onRecordings(cf *CLIConf) error {
 	if err != nil {
 		return trace.Errorf("cannot request recordings: %v", err)
 	}
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4469,7 +4465,7 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		errMsgFormat         = "This server does not implement this feature yet. Likely the client version you are using is newer than the server. The server version: %v, the client version: %v. Please upgrade the server."
 		unknownServerVersion = "unknown"
 	)
-	tc, err := makeClient(&cf, false)
+	tc, err := makeClient(&cf)
 	if err != nil {
 		log.WithError(err).Warning("Failed to create client.")
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
@@ -4506,7 +4502,7 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
 			continue
 		}
-		tc, err := makeClientForProxy(cf, proxyAddr, true)
+		tc, err := makeClientForProxy(cf, proxyAddr)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -4540,7 +4536,7 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 		}
 
 		group.Go(func() error {
-			tc, err := makeClientForProxy(cf, proxyAddr, true)
+			tc, err := makeClientForProxy(cf, proxyAddr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
