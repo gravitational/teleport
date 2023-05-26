@@ -26,8 +26,8 @@ type SAMLCommand struct {
 func (cmd *SAMLCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	cmd.config = cfg
 
-	saml := app.Command("saml", "Operations on SAML auth connectors")
-	cmd.exportCmd = saml.Command("export", "Export a SAML signing key in .crt format")
+	saml := app.Command("saml", "Operations on SAML auth connectors.")
+	cmd.exportCmd = saml.Command("export", "Export a SAML signing key in .crt format.")
 	cmd.exportCmd.Arg("connector_name", "name of the SAML connector to export the key from").Required().StringVar(&cmd.connectorName)
 }
 

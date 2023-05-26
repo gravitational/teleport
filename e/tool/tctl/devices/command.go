@@ -46,7 +46,7 @@ type Command struct {
 func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
 
-	addCmd := devicesCmd.Command("add", "Register managed devices")
+	addCmd := devicesCmd.Command("add", "Register managed devices.")
 	addCmd.Flag("os", "Operating system").
 		Required().
 		EnumVar(&c.add.os, osTypes...)
@@ -56,17 +56,17 @@ func (c *Command) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
 	addCmd.Flag("enroll", "If set, creates a device enrollment token").
 		BoolVar(&c.add.enroll)
 
-	_ = devicesCmd.Command("ls", "Lists managed devices")
+	_ = devicesCmd.Command("ls", "Lists managed devices.")
 
-	rmCmd := devicesCmd.Command("rm", "Removes a managed device")
+	rmCmd := devicesCmd.Command("rm", "Removes a managed device.")
 	rmCmd.Flag("device-id", "Device identifier").StringVar(&c.rm.deviceID)
 	rmCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.rm.assetTag)
 
-	enrollCmd := devicesCmd.Command("enroll", "Creates a new device enrollment token")
+	enrollCmd := devicesCmd.Command("enroll", "Creates a new device enrollment token.")
 	enrollCmd.Flag("device-id", "Device identifier").StringVar(&c.enroll.deviceID)
 	enrollCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.enroll.assetTag)
 
-	lockCmd := devicesCmd.Command("lock", "Locks a device")
+	lockCmd := devicesCmd.Command("lock", "Locks a device.")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
 	lockCmd.Flag("asset-tag", "Inventory identifier for the device").StringVar(&c.lock.assetTag)
 	lockCmd.Flag("message", "Message to display to locked-out users").StringVar(&c.lock.message)

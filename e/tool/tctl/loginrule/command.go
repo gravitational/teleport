@@ -74,7 +74,7 @@ type testCommand struct {
 }
 
 func (t *testCommand) initialize(parent *kingpin.CmdClause, cfg *servicecfg.Config) {
-	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules")
+	t.cmd = parent.Command("test", "Test the parsing and evaluation of login rules.")
 	t.cmd.Flag("resource-file", "login rule resource file name (YAML or JSON)").StringsVar(&t.inputResourceFiles)
 	t.cmd.Flag("load-from-cluster", "load existing login rules from the connected Teleport cluster").BoolVar(&t.loadFromCluster)
 	t.cmd.Flag("format", "Output format: 'yaml' or 'json'").Default(teleport.YAML).StringVar(&t.outputFormat)
