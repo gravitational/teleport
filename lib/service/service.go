@@ -1369,7 +1369,7 @@ func initAuthUploadHandler(ctx context.Context, auditConfig types.ClusterAuditCo
 }
 
 // initAuthExternalAuditLog initializes the auth server's audit log.
-func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend) (events.AuditLogger, error) {
+func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAuditConfig, backend backend.Backend, tracingProvider *tracing.Provider) (events.AuditLogger, error) {
 	var hasNonFileLog bool
 	var loggers []events.AuditLogger
 	for _, eventsURI := range auditConfig.AuditEventsURIs() {
@@ -1423,6 +1423,9 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			cfg := athena.Config{
 				Region:  auditConfig.Region(),
 				Backend: backend,
+			}
+			if tracingProvider != nil {
+				cfg.Tracer = tracingProvider.Tracer(teleport.ComponentAthena)
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
@@ -1545,7 +1548,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend)
+		externalLog, err := initAuthExternalAuditLog(process.ExitContext(), cfg.Auth.AuditConfig, process.backend, process.TracingProvider)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

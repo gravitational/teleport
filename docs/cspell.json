@@ -556,6 +556,7 @@
     "pagerdutyapikey",
     "pagerdutyapikeyfromsecret",
     "pastable",
+    "parquetlog",
     "pasteable",
     "pgaadauth",
     "pidof",
