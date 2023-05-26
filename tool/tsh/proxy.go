@@ -60,7 +60,7 @@ import (
 // from destination node address to support multiple platform where 'cut -d' command is not provided.
 // For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
 func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -72,7 +72,7 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		}
 
 		if len(tc.JumpHosts) > 0 {
-			err := setupJumpHost(cf, tc, *proxyParams)
+			err := setupJumpHost(cf, tc, proxyParams.clusterName)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -89,10 +89,6 @@ type sshProxyParams struct {
 	proxyHost string
 	// proxyPort is the Teleport proxy port.
 	proxyPort string
-	// targetHost is the target SSH node host name.
-	targetHost string
-	// targetPort is the target SSH node port.
-	targetPort string
 	// clusterName is the cluster where the SSH node resides.
 	clusterName string
 	// tlsRouting is true if the Teleport proxy has TLS routing enabled.
@@ -101,11 +97,6 @@ type sshProxyParams struct {
 
 // getSSHProxyParams prepares parameters for establishing an SSH proxy connection.
 func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyParams, error) {
-	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Without jump hosts, we will be connecting to the current Teleport client
 	// proxy the user is logged into.
 	if len(tc.JumpHosts) == 0 {
@@ -116,8 +107,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 		return &sshProxyParams{
 			proxyHost:   proxyHost,
 			proxyPort:   strconv.Itoa(proxyPort),
-			targetHost:  cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName),
-			targetPort:  targetPort,
 			clusterName: tc.SiteName,
 			tlsRouting:  tc.TLSRoutingEnabled,
 		}, nil
@@ -143,8 +132,6 @@ func getSSHProxyParams(cf *CLIConf, tc *libclient.TeleportClient) (*sshProxyPara
 	return &sshProxyParams{
 		proxyHost:   sshProxyHost,
 		proxyPort:   sshProxyPort,
-		targetHost:  targetHost,
-		targetPort:  targetPort,
 		clusterName: ping.ClusterName,
 		tlsRouting:  ping.Proxy.TLSRoutingEnabled,
 	}, nil
@@ -161,19 +148,19 @@ func cleanTargetHost(targetHost, proxyHost, siteName string) string {
 }
 
 // setupJumpHost configures the client for connecting to the jump host's proxy.
-func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, sp sshProxyParams) error {
+func setupJumpHost(cf *CLIConf, tc *libclient.TeleportClient, clusterName string) error {
 	return tc.WithoutJumpHosts(func(tc *libclient.TeleportClient) error {
 		// Fetch certificate for the leaf cluster. This allows users to log
 		// in once into the root cluster and let the proxy handle fetching
 		// certificates for leaf clusters automatically.
-		err := tc.LoadKeyForClusterWithReissue(cf.Context, sp.clusterName)
+		err := tc.LoadKeyForClusterWithReissue(cf.Context, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// We'll be connecting directly to the leaf cluster so make sure agent
 		// loads correct host CA.
-		tc.LocalAgent().UpdateCluster(sp.clusterName)
+		tc.LocalAgent().UpdateCluster(clusterName)
 		return nil
 	})
 }
@@ -229,7 +216,15 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 		return trace.Wrap(err)
 	}
 
-	sshUserHost := fmt.Sprintf("%s:%s", sp.targetHost, sp.targetPort)
+	targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+	if err != nil {
+		targetHost = tc.Host
+		targetPort = strconv.Itoa(tc.HostPort)
+	}
+
+	targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), tc.SiteName)
+
+	sshUserHost := fmt.Sprintf("%s:%s", targetHost, targetPort)
 	if err = sess.RequestSubsystem(ctx, proxySubsystemName(sshUserHost, sp.clusterName)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -362,7 +357,7 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -550,7 +545,7 @@ func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

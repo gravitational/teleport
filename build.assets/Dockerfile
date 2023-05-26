@@ -20,9 +20,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.2 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
+    [ "$(git rev-parse HEAD)" = '04a727df50fde3f69127aed4bc48e6cff5430175' ] && \
     make install-static && \
     make clean
 
