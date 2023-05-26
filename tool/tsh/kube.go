@@ -121,7 +121,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	cf.SiteName = c.siteName
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -492,7 +492,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	if c.siteName != "" {
 		cf.SiteName = c.siteName
 	}
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -574,7 +574,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 }
 
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -777,7 +777,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(c.runAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -969,7 +969,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	cf.kubeNamespace = c.namespace
 	cf.ListAll = c.all
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
