@@ -515,7 +515,7 @@ func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCe
 	ca, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
 
-	listener, err := alpnproxy.NewKubeListener(map[string]tls.Certificate{
+	listener, err := alpnproxy.NewKubeListenerWithRandomPort(map[string]tls.Certificate{
 		teleportCluster: ca,
 	})
 	require.NoError(t, err)
@@ -563,7 +563,7 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
 	t.Helper()
 
-	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
+	fp, err := alpnproxy.NewKubeForwardProxyWithPort(context.Background(), "", lpAddr)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		fp.Close()

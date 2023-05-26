@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
-func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
+func TestDBMiddleware_OnNewConnection(t *testing.T) {
 	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"})
 	require.NoError(t, err)
 	tlsCert, err := keys.X509KeyPair(testCert.Cert, testCert.PrivateKey)
@@ -103,7 +103,7 @@ func TestLocalProxyMiddleware_OnNewConnection(t *testing.T) {
 
 			hasCalledOnExpiredCert := false
 
-			middleware := &localProxyMiddleware{
+			middleware := &dbMiddleware{
 				onExpiredCert: func(context.Context) error {
 					hasCalledOnExpiredCert = true
 					return nil

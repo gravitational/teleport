@@ -184,6 +184,10 @@ func (r *mockDBCertReissuer) ReissueDBCerts(context.Context, tlsca.RouteToDataba
 	return err
 }
 
+func (r *mockDBCertReissuer) ReissueKubeCerts(context.Context, string) error {
+	return nil
+}
+
 type mockCLICommandProvider struct{}
 
 func (m mockCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {

@@ -130,6 +130,52 @@ func TestGetDbName(t *testing.T) {
 	}
 }
 
+func TestGetKubeName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uri.ResourceURI
+		out  string
+	}{
+		{
+			name: "returns root cluster kube name",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
+			out:  "k8s",
+		},
+		{
+			name: "returns leaf cluster kube name",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			out:  "k8s",
+		},
+		{
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given root cluster non-kube resource URI",
+			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster non-kube resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetKubeName()
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
 func TestGetServerUUID(t *testing.T) {
 	tests := []struct {
 		name string

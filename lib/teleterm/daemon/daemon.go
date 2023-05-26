@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -171,6 +172,10 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if gateway, ok := s.findGatewayByTargetURI(params.TargetURI); ok {
+		return gateway, nil
+	}
+
 	gateway, err := s.createGateway(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -185,13 +190,12 @@ type GatewayCreator interface {
 
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		CLICommandProvider:    cliCommandProvider,
+		CLICommandProvider:    s.createCLICommandProvider(params.TargetURI),
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
 		OnExpiredCert:         s.onExpiredGatewayCert,
 	}
@@ -210,6 +214,16 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
+}
+
+func (s *Service) createCLICommandProvider(targetURI string) gateway.CLICommandProvider {
+	switch {
+	case uri.IsDB(targetURI):
+		return clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
+	case uri.IsKube(targetURI):
+		return new(clusters.KubeCLICommandProvider)
+	}
+	return nil
 }
 
 func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
@@ -258,6 +272,17 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	}
 
 	return nil, trace.NotFound("gateway is not found: %v", gatewayURI)
+}
+
+// findGatewayByTargetURI assumes that mu is already help by a public method
+// and there is at most one gateway per targetURI.
+func (s *Service) findGatewayByTargetURI(targetURI string) (*gateway.Gateway, bool) {
+	for _, gateway := range s.gateways {
+		if gateway.TargetURI() == targetURI {
+			return gateway, true
+		}
+	}
+	return nil, false
 }
 
 // ListGateways lists gateways

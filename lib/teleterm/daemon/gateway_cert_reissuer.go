@@ -43,12 +43,14 @@ type GatewayCertReissuer struct {
 	Log       *logrus.Entry
 }
 
-// DBCertReissuer lets us pass a mock in tests and clusters.Cluster (which makes calls to the
+// CertReissuer lets us pass a mock in tests and clusters.Cluster (which makes calls to the
 // cluster) in production code.
-type DBCertReissuer interface {
+type CertReissuer interface {
 	// ReissueDBCerts reaches out to the cluster to get a cert for the specific tlsca.RouteToDatabase
 	// and saves it to disk.
 	ReissueDBCerts(context.Context, tlsca.RouteToDatabase) error
+	// TODO
+	ReissueKubeCerts(context.Context, string) error
 }
 
 // TSHDEventsClient takes only those methods from api.TshdEventsServiceClient that
@@ -78,8 +80,8 @@ type TSHDEventsClient interface {
 // Any error ReissueCert returns is also forwarded to the Electron app so that it can show an error
 // notification. GatewayCertReissuer is typically called from within a goroutine that handles the
 // gateway, so without forwarding the error to the app, it would be visible only in the logs.
-func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	if err := r.reissueCert(ctx, gateway, dbCertReissuer); err != nil {
+func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, certReissuer CertReissuer) error {
+	if err := r.reissueCert(ctx, gateway, certReissuer); err != nil {
 		r.notifyAppAboutError(ctx, err, gateway)
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -89,16 +91,16 @@ func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.
 	return nil
 }
 
-func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	// Make the first attempt at reissuing the db cert.
+func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, certReissuer CertReissuer) error {
+	// Make the first attempt at reissuing the cert.
 	//
-	// It might happen that the db cert has expired but the user cert is still active, allowing us to
-	// obtain a new db cert without having to relogin first.
+	// It might happen that the cert has expired but the user cert is still active, allowing us to
+	// obtain a new cert without having to relogin first.
 	//
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	err := r.reissueAndReloadGatewayCert(ctx, gateway, dbCertReissuer)
+	err := r.reissueAndReloadGatewayCert(ctx, gateway, certReissuer)
 
 	if err == nil {
 		return nil
@@ -129,7 +131,7 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 		return trace.Wrap(err)
 	}
 
-	err = r.reissueAndReloadGatewayCert(ctx, gateway, dbCertReissuer)
+	err = r.reissueAndReloadGatewayCert(ctx, gateway, certReissuer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -137,10 +139,22 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 	return nil
 }
 
-func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	err := dbCertReissuer.ReissueDBCerts(ctx, gateway.RouteToDatabase())
-	if err != nil {
-		return trace.Wrap(err)
+func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, gateway *gateway.Gateway, certReissuer CertReissuer) error {
+	switch {
+	case uri.IsDB(gateway.TargetURI()):
+		err := certReissuer.ReissueDBCerts(ctx, gateway.RouteToDatabase())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	case uri.IsKube(gateway.TargetURI()):
+		err := certReissuer.ReissueKubeCerts(ctx, gateway.TargetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.NotImplemented("gateway not supported for %v", gateway.URI())
 	}
 
 	return trace.Wrap(gateway.ReloadCert())

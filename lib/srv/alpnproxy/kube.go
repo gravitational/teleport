@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/http"
@@ -37,6 +38,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -238,8 +241,20 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 	}
 }
 
-// NewKubeListener creates a listener for kube local proxy.
-func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Listener, error) {
+// NewKubeListenerWithRandomPort creates a listener for kube local proxy using a
+// random localhost port.
+func NewKubeListenerWithRandomPort(casByTeleportCluster map[string]tls.Certificate) (net.Listener, error) {
+	inner, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	listener, err := NewKubeListener(inner, casByTeleportCluster)
+	return listener, trace.Wrap(err)
+}
+
+// NewKubeListener creates a TLS listener for kube local proxy using provided
+// inner listener.
+func NewKubeListener(inner net.Listener, casByTeleportCluster map[string]tls.Certificate) (net.Listener, error) {
 	configs := make(map[string]*tls.Config)
 	for teleportCluster, ca := range casByTeleportCluster {
 		caLeaf, err := utils.TLSCertLeaf(ca)
@@ -258,7 +273,7 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 			ClientCAs:    clientCAs,
 		}
 	}
-	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
+	return tls.NewListener(inner, &tls.Config{
 		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, ok := configs[common.TeleportClusterFromKubeLocalProxySNI(hello.ServerName)]
 			if !ok {
@@ -266,12 +281,12 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 			}
 			return config, nil
 		},
-	})
-	return listener, trace.Wrap(err)
+	}), nil
 }
 
-// NewKubeForwardProxy creates a forward proxy for kube access.
-func NewKubeForwardProxy(ctx context.Context, listenPort, forwardAddr string) (*ForwardProxy, error) {
+// NewKubeForwardProxyWithPort creates a forward proxy for kube access with
+// provided port.
+func NewKubeForwardProxyWithPort(ctx context.Context, listenPort, forwardAddr string) (*ForwardProxy, error) {
 	listenAddr := "localhost:0"
 	if listenPort != "" {
 		listenAddr = "localhost:" + listenPort
@@ -282,6 +297,13 @@ func NewKubeForwardProxy(ctx context.Context, listenPort, forwardAddr string) (*
 		return nil, trace.Wrap(err)
 	}
 
+	fp, err := NewKubeForwardProxy(ctx, listener, forwardAddr)
+	return fp, trace.Wrap(err)
+}
+
+// NewKubeForwardProxy creates a forward proxy for kube access with provided
+// net.listener.
+func NewKubeForwardProxy(ctx context.Context, listener net.Listener, forwardAddr string) (*ForwardProxy, error) {
 	fp, err := NewForwardProxy(ForwardProxyConfig{
 		Listener:     listener,
 		CloseContext: ctx,
@@ -296,4 +318,39 @@ func NewKubeForwardProxy(ctx context.Context, listenPort, forwardAddr string) (*
 		return nil, trace.NewAggregate(listener.Close(), err)
 	}
 	return fp, nil
+}
+
+// CreateKubeLocalCAs generate local CAs used for kube local proxy with provided key.
+func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
+	cas := make(map[string]tls.Certificate)
+	for _, teleportCluster := range teleportClusters {
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cas[teleportCluster] = ca
+	}
+	return cas, nil
+}
+
+func createLocalCA(key *keys.PrivateKey, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    dnsNames,
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         time.Until(validUntil),
+	})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	tlsCert, err := keys.X509KeyPair(cert, key.PrivateKeyPEM())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }

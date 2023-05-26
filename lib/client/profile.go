@@ -510,6 +510,15 @@ func (p *ProfileStatus) KubeConfigPath(name string) string {
 	return keypaths.KubeConfigPath(p.Dir, p.Name, p.Username, p.Cluster, name)
 }
 
+// TODO
+func (p *ProfileStatus) KubeCertPath(name string) string {
+	if path, ok := p.virtualPathFromEnv(VirtualPathKubernetes, VirtualPathKubernetesParams(name)); ok {
+		return path
+	}
+
+	return keypaths.KubeCertPath(p.Dir, p.Name, p.Username, p.Cluster, name)
+}
+
 // DatabaseServices returns a list of database service names for this profile.
 func (p *ProfileStatus) DatabaseServices() (result []string) {
 	for _, db := range p.Databases {

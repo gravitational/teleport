@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -42,6 +43,21 @@ type CreateGatewayParams struct {
 
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	switch {
+	case uri.IsDB(params.TargetURI):
+		gw, err := c.createDatabaseGateway(ctx, params)
+		return gw, trace.Wrap(err)
+
+	case uri.IsKube(params.TargetURI):
+		gw, err := c.createKubeGateway(ctx, params)
+		return gw, trace.Wrap(err)
+
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", params.TargetURI)
+	}
+}
+
+func (c *Cluster) createDatabaseGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
 	db, err := c.GetDatabase(ctx, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -67,6 +83,7 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		KeyPath:                       c.status.KeyPath(),
 		CertPath:                      c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
+		ClusterName:                   c.Name,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
 		CLICommandProvider:            params.CLICommandProvider,
@@ -81,4 +98,35 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	return gw, nil
+}
+
+func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	kubeCluster := uri.New(params.TargetURI).GetKubeName()
+	if kubeCluster == "" {
+		return nil, trace.BadParameter("invalid TargetURI %v for Kube gateway", params.TargetURI)
+	}
+
+	if err := c.ReissueKubeCerts(ctx, kubeCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO support TargetUser (--as), TargetGroups (--as-groups), TargetSubresourceName (--kube-namespace)
+	gw, err := gateway.New(gateway.Config{
+		LocalPort:                     params.LocalPort,
+		TargetURI:                     params.TargetURI,
+		TargetName:                    kubeCluster,
+		KeyPath:                       c.status.KeyPath(),
+		CertPath:                      c.status.KubeCertPath(kubeCluster),
+		Insecure:                      c.clusterClient.InsecureSkipVerify,
+		ClusterName:                   c.Name,
+		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
+		Log:                           c.Log,
+		CLICommandProvider:            params.CLICommandProvider,
+		TCPPortAllocator:              params.TCPPortAllocator,
+		OnExpiredCert:                 params.OnExpiredCert,
+		Clock:                         c.clock,
+		TLSRoutingConnUpgradeRequired: c.clusterClient.TLSRoutingConnUpgradeRequired,
+		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
+	})
+	return gw, trace.Wrap(err)
 }

@@ -98,6 +98,32 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	}, nil
 }
 
+// TODO
+func (c *Cluster) ReissueKubeCerts(ctx context.Context, kubeCluster string) error {
+	return trace.Wrap(addMetadataToRetryableError(ctx, func() error {
+		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
+		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+			RouteToCluster: c.clusterClient.SiteName,
+			AccessRequests: c.status.ActiveRequests.AccessRequests,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Fetch the certs for the database.
+		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
+			RouteToCluster:    c.clusterClient.SiteName,
+			KubernetesCluster: kubeCluster,
+			AccessRequests:    c.status.ActiveRequests.AccessRequests,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}))
+}
+
 type GetKubesResponse struct {
 	Kubes []Kube
 	// StartKey is the next key to use as a starting point.
