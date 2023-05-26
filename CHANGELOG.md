@@ -17,6 +17,7 @@ option enabled, then the Teleport user's username will be chosen as the default
 for `--db-user`.
 Otherwise, a default is chosen by examining the allowed `db_users` and
 `db_names` in the user's role(s) that apply for the given database.
+
 If, after applying user traits, only one non-wildcard db name/user is allowed,
 `tsh` will use it as the default value for the corresponding flag.
 Prior versions of Teleport would return an error from `tsh db` commands if those
