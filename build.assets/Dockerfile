@@ -1,5 +1,9 @@
-# This Dockerfile makes the "build box": the container used to
-# build Teleport Connect.
+# This Dockerfile makes the "build box" the container used to:
+# * build Teleport Connect
+# * run test and linters in CI
+# * building other Docker images
+#
+# Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## LIBFIDO2 ###################################################################
 
