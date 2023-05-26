@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport-ami-update
 
-go 1.19
+go 1.20
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced

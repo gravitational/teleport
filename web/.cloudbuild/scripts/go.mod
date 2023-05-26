@@ -1,6 +1,6 @@
 module github.com/gravitational/webapps/.cloudbuild/scripts
 
-go 1.17
+go 1.20
 
 require github.com/gravitational/trace v1.1.15
 

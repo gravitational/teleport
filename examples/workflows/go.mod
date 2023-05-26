@@ -1,6 +1,6 @@
 module workflows
 
-go 1.18
+go 1.20
 
 require (
 	github.com/gravitational/teleport/api v0.0.0-20220330155827-83a32f49e14e

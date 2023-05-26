@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/api
 
-go 1.19
+go 1.20
 
 require (
 	github.com/coreos/go-semver v0.3.1
