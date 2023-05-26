@@ -22,6 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
@@ -37,6 +38,9 @@ type AWSClientRequest struct {
 
 	// Region where the API call should be made.
 	Region string
+
+	// httpClient used in tests.
+	httpClient aws.HTTPClient
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -63,6 +67,10 @@ func newAWSConfig(ctx context.Context, req *AWSClientRequest) (*aws.Config, erro
 		return nil, trace.Wrap(err)
 	}
 
+	if req.httpClient != nil {
+		cfg.HTTPClient = req.httpClient
+	}
+
 	cfg.Credentials = stscreds.NewWebIdentityRoleProvider(
 		sts.NewFromConfig(cfg),
 		req.RoleARN,
@@ -80,6 +88,16 @@ func newRDSClient(ctx context.Context, req *AWSClientRequest) (*rds.Client, erro
 	}
 
 	return rds.NewFromConfig(*cfg), nil
+}
+
+// newECSClient creates an [ecs.Client] using the provided Token, RoleARN and Region.
+func newECSClient(ctx context.Context, req *AWSClientRequest) (*ecs.Client, error) {
+	cfg, err := newAWSConfig(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ecs.NewFromConfig(*cfg), nil
 }
 
 // IdentityToken is an implementation of [stscreds.IdentityTokenRetriever] for returning a static token.

@@ -37,6 +37,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.98.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.33.1
@@ -167,6 +168,7 @@ require (
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+	gopkg.in/dnaeon/go-vcr.v3 v3.1.2
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0

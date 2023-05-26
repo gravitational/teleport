@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -107,5 +108,47 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 		Token:   token,
 		RoleARN: awsoidcSpec.RoleARN,
 		Region:  region,
+	}, nil
+}
+
+// awsOIDCDeployDBService deploys a Discovery Service and a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployDBServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployDBServiceClient, err := awsoidc.NewDeployDBServiceClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployDBServiceResp, err := awsoidc.DeployDBService(ctx, deployDBServiceClient, awsoidc.DeployDBServiceRequest{
+		Region:              req.Region,
+		SubnetIDs:           req.SubnetIDs,
+		ClusterName:         req.ClusterName,
+		ServiceName:         req.ServiceName,
+		TaskName:            req.TaskName,
+		TaskRoleARN:         req.TaskRoleARN,
+		DiscoveryGroupName:  req.DiscoveryGroupName,
+		ProxyServerHostPort: h.PublicProxyAddr(),
+		TeleportVersion:     teleport.Version,
+		TeleportClusterName: h.auth.clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployDBServiceResponse{
+		ClusterARN:        deployDBServiceResp.ClusterARN,
+		ServiceARN:        deployDBServiceResp.ServiceARN,
+		TaskDefinitionARN: deployDBServiceResp.TaskDefinitionARN,
 	}, nil
 }

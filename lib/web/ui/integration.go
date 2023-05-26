@@ -126,3 +126,48 @@ type AWSOIDCListDatabasesResponse struct {
 	// If non-empty, it can be used to request the next page.
 	NextToken string `json:"nextToken,omitempty"`
 }
+
+// AWSOIDCDeployDBServiceRequest contains the required fields to perform a DeployDBService request.
+type AWSOIDCDeployDBServiceRequest struct {
+	// Region is the AWS Region for the Service.
+	Region string `json:"region"`
+
+	// SubnetIDs associated with the Database Service.
+	// These SubnetIDs come from the AWS OIDC ListDatabases response.
+	SubnetIDs []string `json:"subnetIds"`
+
+	// ClusterName is the ECS Cluster to be used.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport, eg. acme-teleport
+	ClusterName *string `json:"clusterName"`
+
+	// ServiceName is the ECS Service that should be used.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport-database-service, eg acme-teleport-database-service
+	ServiceName *string `json:"serviceName"`
+
+	// TaskName is the ECS Task Definition family name.
+	// Optional.
+	// Defaults to <teleport-cluster-name>-teleport-database-service, eg acme-teleport-database-service
+	TaskName *string `json:"taskName"`
+
+	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
+	// Ensure the AWS Client's Role has `iam:PassRole` for this Role's ARN.
+	// This can be either the ARN or the short name of the AWS Role.
+	TaskRoleARN string `json:"taskRoleArn"`
+
+	// DiscoveryGroupName is the DiscoveryGroup to be used by the `discovery_service`.
+	DiscoveryGroupName string
+}
+
+// AWSOIDCDeployDBServiceResponse contains the resources that were used to create the Database and Discovery Service.
+type AWSOIDCDeployDBServiceResponse struct {
+	// ClusterARN is the Amazon ECS Cluster ARN where the task was started.
+	ClusterARN string `json:"clusterArn"`
+
+	// ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
+	ServiceARN string `json:"serviceArn"`
+
+	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Database and Discovery services.
+	TaskDefinitionARN string `json:"taskDefinitionArn"`
+}
