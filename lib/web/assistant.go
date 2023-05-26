@@ -319,7 +319,11 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.BadParameter("conversation ID is required")
 	}
 
-	authClient, err := sctx.GetClient()
+	// Create a new remote client to the auth server instead of using the one
+	// from the session context. This is because the session context client
+	// expires after with the web session, and we need a client that will
+	// persist for the duration of the chat session.
+	authClient, err := newRemoteClient(r.Context(), sctx, site)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -431,7 +435,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		// We can not know how many tokens we will consume in advance.
-		// Try to consume a small amount of tokens first.
+		// Try to consume a small number of tokens first.
 		const lookaheadTokens = 100
 		if !h.assistantLimiter.AllowN(time.Now(), lookaheadTokens) {
 			err := onMessageFn(assist.MessageKindError, []byte("You have reached the rate limit. Please try again later."), h.clock.Now().UTC())
