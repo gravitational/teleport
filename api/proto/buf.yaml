@@ -55,4 +55,4 @@ lint:
       - teleport/proxy/v1/proxy_service.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON
