@@ -62,7 +62,6 @@ type Client struct {
 
 	client *resty.Client
 
-	heartbeatCreated bool
 }
 
 // ClientConfig is the config for the opsgenie client.
