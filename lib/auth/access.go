@@ -61,7 +61,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user %v.", name, u.GetName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
+				return trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
 			}
 		}
 	}
@@ -77,7 +77,7 @@ func (a *Server) DeleteRole(ctx context.Context, name string) error {
 				// Mask the actual error here as it could be used to enumerate users
 				// within the system.
 				log.Warnf("Failed to delete role: role %v is used by user cert authority %v", name, a.GetClusterName())
-				return trace.BadParameter("failed to delete role that still in use by a user. Check system server logs for more details.")
+				return trace.BadParameter("failed to delete a role that is still in use by a user, check the system server logs for more details")
 			}
 		}
 	}
