@@ -135,6 +135,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.mongodb.org/mongo-driver v1.10.6
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
+	go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws v0.40.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0
 	go.opentelemetry.io/otel v1.14.0
@@ -212,8 +213,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.26 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.33 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.18.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.8 // indirect
