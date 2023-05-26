@@ -82,6 +82,40 @@ spec:
 version: v3
 ```
 
+<Details title="Mapping multiple roles">
+You can add multiple instances of the `--teams-to-roles` flag or edit the connector
+file to define multiple mappings. For example:
+
+```code
+$  tctl sso configure github \
+--id=<Var name="GITHUB-CLIENT-ID"/>\
+--secret=<Var name="GITHUB-CLIENT-SECRET"/> \
+--teams-to-roles=<Var name="ORG-NAME,GITHUB-TEAM,access,editor"/> \
+--teams-to-roles="ORG-NAME,administrators,admins \
+--teams-to-roles="DIFFERENT-ORG,developers,dev \
+> github.yaml
+```
+
+```yaml
+spec.
+  teams_to_roles:
+    - organization: ORG-NAME
+      roles:
+        - access
+        - editor
+      team: GITHUB-TEAM
+    - organization: ORG-NAME
+      roles:
+        - admins
+      team: administrators
+    - organization: DIFFERENT-ORG
+      roles:
+        - devs
+      team: developers
+```
+
+</Details>
+
 <Details title="Self-hosting GitHub Enterprise?" scope={["enterprise", "cloud"]} opened>
 
 For self-hosted GitHub Enterprise servers, add `spec.endpoint_url` pointing to your server instance:
