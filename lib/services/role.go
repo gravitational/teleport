@@ -488,6 +488,10 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			// Only labelMatchers.Labels is templated, if empty we can skip
+			// these label matchers. labelMatchers.Expression can reference user
+			// traits later during the access check through the expression
+			// environment, they are not templated in here.
 			if len(labelMatchers.Labels) == 0 {
 				continue
 			}
