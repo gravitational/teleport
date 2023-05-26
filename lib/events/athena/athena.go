@@ -27,12 +27,17 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -113,6 +118,9 @@ type Config struct {
 	AWSConfig *aws.Config
 
 	Backend backend.Backend
+
+	// Tracer is used to create spans
+	Tracer oteltrace.Tracer
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
@@ -245,11 +253,16 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.AWSConfig = &awsCfg
 	}
 
 	if cfg.Backend == nil {
 		return trace.BadParameter("Backend cannot be nil")
+	}
+
+	if cfg.Tracer == nil {
+		cfg.Tracer = tracing.NoopTracer(teleport.ComponentAthena)
 	}
 
 	return nil
@@ -361,6 +374,14 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// metricConsumerBatchProcessingDuration is defined after checking config, because
+	// its bucket depends on batchMaxInterval.
+	metricConsumerBatchProcessingDuration := metricConsumerBatchProcessingDuration(cfg.BatchMaxInterval)
+
+	if err := metrics.RegisterPrometheusCollectors(append(prometheusCollectors, metricConsumerBatchProcessingDuration)...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	querier, err := newQuerier(querierConfig{
 		tablename:               cfg.TableName,
 		database:                cfg.Database,
@@ -370,6 +391,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		awsCfg:                  cfg.AWSConfig,
 		logger:                  cfg.LogEntry,
 		clock:                   cfg.Clock,
+		tracer:                  cfg.Tracer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -377,7 +399,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 
 	consumerCtx, consumerCancel := context.WithCancel(ctx)
 
-	consumer, err := newConsumer(cfg, consumerCancel)
+	consumer, err := newConsumer(cfg, consumerCancel, metricConsumerBatchProcessingDuration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -425,3 +447,91 @@ func isValidUrlWithScheme(s string) (string, bool) {
 	}
 	return u.Scheme, true
 }
+
+func metricConsumerBatchProcessingDuration(batchInterval time.Duration) prometheus.Histogram {
+	batchSeconds := batchInterval.Seconds()
+	return prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchPorcessingDuration,
+			Help:      "Duration of processing single batch of events in parquetlog",
+			// For 60s batch interval it will look like:
+			// 6.00, 12.00, 30.00, 45.00, 54.00, 59.01, 64.48, 70.47, 77.01, 84.15, 91.96, 100.49, 109.81, 120.00
+			// We want some visibility if batch takes very small amount of time, but we are mostly interested
+			// in range from 0.9*batch to 2*batch.
+			Buckets: append([]float64{0.1 * batchSeconds, 0.2 * batchSeconds, 0.5 * batchSeconds, 0.75 * batchSeconds}, prometheus.ExponentialBucketsRange(0.9*batchSeconds, 2*batchSeconds, 10)...),
+		},
+	)
+}
+
+var (
+	consumerS3parquetFlushDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerS3FlushDuration,
+			Help:      "Duration of flush and close of s3 parquet files in parquetlog",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+
+	consumerDeleteMessageDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
+			Help:      "Duration of delation of events on SQS in parquetlog",
+			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
+			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
+			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
+
+	consumerBatchSize = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchSize,
+			Help:      "Size of single batch of events in parquetlog",
+			Buckets:   prometheus.ExponentialBucketsRange(200, 100*1024*1024 /* 100 MB*/, 10),
+		},
+	)
+
+	consumerBatchCount = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerBatchCount,
+			Help:      "Number of events in single batch in parquetlog",
+		},
+	)
+
+	consumerLastProcessedTimestamp = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerLastProcessedTimestamp,
+			Help:      "Timestamp of last finished consumer execution",
+		},
+	)
+
+	consumerAgeOfOldestProcessedMessage = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerOldestProcessedMessage,
+			Help:      "Age of oldest processed message in seconds",
+		},
+	)
+
+	consumerNumberOfErrorsFromSQSCollect = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricParquetlogConsumerCollectFailed,
+			Help:      "Number of errors received from sqs collect",
+		},
+	)
+
+	prometheusCollectors = []prometheus.Collector{
+		consumerS3parquetFlushDuration, consumerDeleteMessageDuration,
+		consumerBatchSize, consumerBatchCount,
+		consumerLastProcessedTimestamp, consumerAgeOfOldestProcessedMessage,
+		consumerNumberOfErrorsFromSQSCollect,
+	}
+)
