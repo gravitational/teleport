@@ -1557,10 +1557,10 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
+| `--format` | none | `text`, `json`, `yaml` | Output format |
+| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
-| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
