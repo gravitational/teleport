@@ -966,7 +966,7 @@ type TeleportClient struct {
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
+	// Defaults to [dtauthn.NewCeremony().Run].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
 
 	// dtAutoEnroll allows tests to override the default device auto-enroll
@@ -3395,7 +3395,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.RunCeremony
+		runCeremony = dtauthn.NewCeremony().Run
 	}
 
 	// Login without a previous auto-enroll attempt.
