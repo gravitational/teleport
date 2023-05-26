@@ -1825,44 +1825,33 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if autoRequest && cf.DesiredRoles == "" && cf.RequestID == "" {
-		var requireReason, auto bool
-		var prompt string
-		roleNames, err := key.CertRoles()
-		if err != nil {
-			logoutErr := tc.Logout()
-			return trace.NewAggregate(err, logoutErr)
-		}
-		// load all roles from root cluster and collect relevant options.
-		// the normal one-off TeleportClient methods don't re-use the auth server
-		// connection, so we use WithRootClusterClient to speed things up.
+		var capabailities *types.AccessCapabilities
 		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			for _, roleName := range roleNames {
-				role, err := clt.GetRole(cf.Context, roleName)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				requireReason = requireReason || role.GetOptions().RequestAccess.RequireReason()
-				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
-				if prompt == "" {
-					prompt = role.GetOptions().RequestPrompt
-				}
+			cap, err := clt.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
+				User: cf.Username,
+			})
+			if err != nil {
+				return trace.Wrap(err)
 			}
+
+			capabailities = cap
+
 			return nil
 		})
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if requireReason && cf.RequestReason == "" {
+		if capabailities.RequireReason && cf.RequestReason == "" {
 			msg := "--request-reason must be specified"
-			if prompt != "" {
-				msg = msg + ", prompt=" + prompt
+			if capabailities.RequestPrompt != "" {
+				msg = msg + ", prompt=" + capabailities.RequestPrompt
 			}
 			err := trace.BadParameter(msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if auto {
+		if capabailities.AutoRequest {
 			cf.DesiredRoles = "*"
 		}
 	}
