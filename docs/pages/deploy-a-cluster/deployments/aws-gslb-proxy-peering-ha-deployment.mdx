@@ -24,8 +24,8 @@ entry while also ensuring minimal latency when accessing connected resources.
 - High-availability Auto Scaling group of Proxy Service instances deployed across multiple regions
 - [AWS Route 53 latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
 - [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
-- [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
-- [Teleport Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) for reducing the number of resource connections
+- [Teleport TLS Routing](./../architecture/tls-routing.mdx) to reduce the number of ports needed to use Teleport
+- [Teleport Proxy Peering](../../architecture/proxy-peering.mdx) for reducing the number of resource connections
 - [AWS Network Load Balancing](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
 - [AWS DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html) for cluster state storage
 - [AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for session recording storage
@@ -174,12 +174,12 @@ teleport:
         enabled: yes
     ...
 ```
-Review the [configuration reference](https://goteleport.com/docs/reference/config/) page for 
+Review the [configuration reference](../../reference/config.mdx) page for 
 additional settings.       
 
 ## Configure Proxy Peering
 
-In this deployment architecture, [Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) is used to restrict the number of connections made from 
+In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
 
 This guide covers the necessary Proxy Peering settings for deploying an HA Teleport Cluster routing resource
@@ -196,7 +196,7 @@ auth_service:
   type: proxy_peering
   agent_connection_count: 2
 ```
-Reference the [Auth Server configuration](https://goteleport.com/docs/reference/config/#auth-service) reference page 
+Reference the [Auth Server configuration](../../reference/config.mdx#auth-service) reference page 
 for additional settings.
 
 ### Proxy Service Proxy Peering configuration 
@@ -243,5 +243,5 @@ proxy_service:
 the likelihood of agents being unavailable.
 </Admonition>
 
-Reference the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
+Reference the [Proxy Service configuration](../../reference/config.mdx#proxy-service) reference page 
 for additional settings.
