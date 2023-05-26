@@ -1,5 +1,5 @@
 [Unit]
-Description=Teleport SSH Service
+Description=Teleport Service
 After=network.target
 
 [Service]
