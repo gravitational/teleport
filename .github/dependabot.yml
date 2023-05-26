@@ -57,6 +57,7 @@ updates:
       - codingllama
       - jentfoo
       - rosstimothy
+      - tcsc
       - zmb3
 
   - package-ecosystem: gomod
@@ -81,6 +82,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - fheinecke
       - jentfoo
       - rosstimothy
       - zmb3
@@ -94,6 +96,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - hugoShaka
       - jentfoo
       - rosstimothy
       - zmb3
@@ -107,6 +110,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3
@@ -120,6 +124,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3
