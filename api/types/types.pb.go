@@ -6879,6 +6879,7 @@ var xxx_messageInfo_SessionJoinPolicy proto.InternalMessageInfo
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
 // access-requests.
+// Please remember to update IsEmpty when updating this message.
 type AccessRequestConditions struct {
 	// Roles is the name of roles which will match the request rule.
 	Roles []string `protobuf:"bytes,1,rep,name=Roles,proto3" json:"roles,omitempty"`
@@ -6944,6 +6945,7 @@ var xxx_messageInfo_AccessRequestConditions proto.InternalMessageInfo
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
 // access reviews.
+// Please remember to update IsEmpty when updating this message.
 type AccessReviewConditions struct {
 	// Roles is the name of roles which may be reviewed.
 	Roles []string `protobuf:"bytes,1,rep,name=Roles,proto3" json:"roles,omitempty"`

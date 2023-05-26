@@ -568,6 +568,22 @@ const (
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.
 	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
+
+	// TeleportInternalResourceType indicates the type of internal Teleport resource a resource is.
+	// Valid values are:
+	// - system: These resources will be automatically created and overwritten on startup. Users should
+	//           not change these resources.
+	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
+	//           but user changes to these resources will be preserved.
+	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
+
+	// SystemResource are resources that will be automatically created and overwritten on startup. Users
+	// should not change these resources.
+	SystemResource = "system"
+
+	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// to them, but user changes to these resources will be preserved.
+	PresetResource = "preset"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
