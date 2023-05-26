@@ -35,15 +35,21 @@ scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
 Instructions for creating a GitHub OAuth app are available in [GitHub's
 documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
 
-Create a client secret to use along with the client ID in the next step.
+Create a client secret to use along with the client ID in the next step:
+
+![A GitHub Oauth App, highlighting Client ID and secret](../../../img/sso/github-app-vars.png)
 
 ## Step 2/3. Create a GitHub authentication connector
 
 Define a GitHub authentication connector using `tctl`. Update this example
-command with your OAuth app's client ID, client secret, and the roles you want
-to map from your GitHub organization to Teleport roles. See [tctl sso configure
-github](../../reference/cli.mdx#tctl-sso-configure-github) for a full reference
-of flags for this command:
+command with:
+- Your OAuth app's client ID and client secret created during the previous step.
+- The roles you want to map from your GitHub organization to Teleport roles.
+  Roles are defined in the **Repository roles** section of your organization's
+  settings.
+
+See [tctl sso configure github](../../reference/cli.mdx#tctl-sso-configure-github)
+for a full reference of flags for this command:
 
 ```code
 $ tctl sso configure github \
