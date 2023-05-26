@@ -1889,7 +1889,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 		}
 		if matchLabels {
 			// This condition avoids formatting calls on large scale.
-			debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
+			debugf("Access to cluster %v denied, deny rule in %v matched; match(%s)",
 				rc.GetName(), role.GetName(), labelsMessage)
 			return trace.AccessDenied("access to cluster denied")
 		}
@@ -1914,7 +1914,7 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 			return nil
 		}
 		if isDebugEnabled {
-			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
+			deniedError := trace.AccessDenied("role=%v, match(%s)",
 				role.GetName(), labelsMessage)
 			errs = append(errs, deniedError)
 		}
@@ -2675,7 +2675,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			return trace.Wrap(err)
 		}
 		if matchLabels {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
@@ -2721,7 +2721,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 
 		if !matchLabels {
 			if isDebugEnabled {
-				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
+				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
 					role.GetName(), labelsMessage))
 			}
 			continue
@@ -2844,7 +2844,7 @@ func checkLabelsMatch(
 			return false, "", trace.Wrap(err)
 		}
 		matches = append(matches, match)
-		messages = append(messages, "labels: "+message)
+		messages = append(messages, "label="+message)
 	}
 
 	if len(labelMatchers.Expression) > 0 {
@@ -2853,10 +2853,10 @@ func checkLabelsMatch(
 			return false, "", trace.Wrap(err)
 		}
 		matches = append(matches, match)
-		messages = append(messages, "expression: "+message)
+		messages = append(messages, "expression="+message)
 	}
 
-	message := strings.Join(messages, " ")
+	message := strings.Join(messages, ", ")
 
 	// Deny rules are greedy, if either matched, it's a match.
 	if condition == types.Deny {
@@ -2878,7 +2878,7 @@ func matchLabelExpression(labelExpression string, resource LabelGetter) (bool, s
 		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)
 	}
 	if match {
-		return true, "match", nil
+		return true, "matched", nil
 	}
 	return false, "no match", nil
 }
