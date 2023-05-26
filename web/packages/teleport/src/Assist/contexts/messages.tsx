@@ -221,16 +221,25 @@ async function convertServerMessage(
       sid: payload.session_id,
     });
 
-    // The offset here is set base on A/B test that was run between me, myself and I.
-    const resp = await api.fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
-      Accept: 'text/plain',
-      'Content-Type': 'text/plain; charset=utf-8',
-    });
+    const sessionResp = await api.fetch(sessionUrl + '/events');
+    const sessionExists = sessionResp.status === 200;
 
     let msg;
     let errorMsg;
-    if (resp.status === 200) {
-      msg = await resp.text();
+    if (sessionExists) {
+      // The offset here is set base on A/B test that was run between me, myself and I.
+      const stream = await api.fetch(
+        sessionUrl + '/stream?offset=0&bytes=4096',
+        {
+          Accept: 'text/plain',
+          'Content-Type': 'text/plain; charset=utf-8',
+        }
+      );
+      if (stream.status === 200) {
+        msg = await stream.text();
+      } else {
+        msg = ''; // Empty output, handled in <Output>
+      }
     } else {
       errorMsg = 'No session recording. The command execution failed.';
     }
