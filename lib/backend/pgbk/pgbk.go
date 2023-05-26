@@ -149,6 +149,7 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 		latestVersion = 2
 	)
 	var version int
+	var migrateErr error
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			CREATE TABLE IF NOT EXISTS migrate (
@@ -201,12 +202,16 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 		case latestVersion:
 			// nothing to do
 		default:
-			return trace.BadParameter("unsupported schema version %v", version)
+			migrateErr = trace.BadParameter("unsupported schema version %v", version)
 		}
 
 		return nil
 	}); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if migrateErr != nil {
+		return migrateErr
 	}
 
 	if version != latestVersion {
