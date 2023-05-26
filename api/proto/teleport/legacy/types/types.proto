@@ -5252,6 +5252,52 @@ message PluginListV1 {
   repeated PluginV1 plugins = 1;
 }
 
+// PluginStaticCredentialsV1 is a representation of static credentials for plugins.
+message PluginStaticCredentialsV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the plugin static credentials object.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec contains the actual credentials for the object.
+  PluginStaticCredentialsSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
+message PluginStaticCredentialsSpecV1 {
+  oneof credentials {
+    string APIToken = 1 [(gogoproto.jsontag) = "api_token"];
+    PluginStaticCredentialsBasicAuth BasicAuth = 2 [(gogoproto.jsontag) = "basic_auth"];
+    PluginStaticCredentialsOAuthClientSecret OauthClientSecret = 3 [(gogoproto.jsontag) = "oauth_client_secret"];
+  }
+}
+
+// PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
+message PluginStaticCredentialsBasicAuth {
+  // Username is the username to use for basic auth.
+  string Username = 1 [(gogoproto.jsontag) = "username"];
+
+  // Password is the password to use for basic auth.
+  string Password = 2 [(gogoproto.jsontag) = "password"];
+}
+
+// PluginStaticCredentialsOAuthClientSecret represents an oauth client and secret.
+message PluginStaticCredentialsOAuthClientSecret {
+  // ClientId is the client ID to use for OAuth client secret.
+  string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
+
+  // ClientSecret is the client secret to use.
+  string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
+}
+
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
@@ -5748,4 +5794,19 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+}
+
+// MessageWithheader is a message with a resource header. This is used primarily
+// for parsing of resource headers and isn't expected to be used directly by any
+// resources.
+message MessageWithHeader {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for a resource.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
 }
