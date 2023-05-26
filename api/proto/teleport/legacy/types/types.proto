@@ -5252,6 +5252,54 @@ message PluginListV1 {
   repeated PluginV1 plugins = 1;
 }
 
+// PluginStaticCredentialsV1 is a representation of static credentials for plugins.
+message PluginStaticCredentialsV1 {
+  // Header is the resource header for the plugin static credentials object.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec contains the actual credentials for the object.
+  PluginStaticCredentialsSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
+message PluginStaticCredentialsSpecV1 {
+  oneof credentials {
+    PluginStaticCredentialsAPIToken APIToken = 1;
+    PluginStaticCredentialsBasicAuth BasicAuth = 2;
+    PluginStaticCredentialsOAuthClientSecret OauthClientSecret = 3;
+  }
+}
+
+// PluginStaticCredentialsAPIToken represents raw API token credentials for a plugin.
+message PluginStaticCredentialsAPIToken {
+  string APIToken = 1;
+}
+
+// PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
+message PluginStaticCredentialsBasicAuth {
+  // Username is the username to use for basic auth.
+  string Username = 1;
+
+  // Password is the password to use for basic auth.
+  string Password = 2;
+}
+
+// PluginStaticCredentialsOAuthClientSecret represents an oauth client and secret.
+message PluginStaticCredentialsOAuthClientSecret {
+  // ClientId is the client ID to use for OAuth client secret.
+  string ClientId = 1;
+
+  // ClientSecret is the client secret to use.
+  string ClientSecret = 2;
+}
+
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
 message SAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
