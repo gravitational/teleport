@@ -141,7 +141,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 
 func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
-	if reqSchedules, ok := reqData.ResolveAnnotations[common.ReqAnnotationRespondersKey]; ok {
+	if reqSchedules, ok := reqData.ResolveAnnotations[common.ReqAnnotationSchedulesKey]; ok {
 		schedules = reqSchedules
 	}
 	responders := make([]Responder, 0, len(schedules))

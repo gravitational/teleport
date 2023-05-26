@@ -29,8 +29,8 @@ const (
 )
 
 const (
-	// ReqAnnotationRespondersKey is the request annotation key at which alternate responders are stored.
-	ReqAnnotationRespondersKey = "teleport.dev/responder"
+	// ReqAnnotationSchedulesKey is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationSchedulesKey = "teleport.dev/schedules"
 )
 
 // RawRecipientsMap is a mapping of roles to recipient(s).

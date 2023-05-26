@@ -65,7 +65,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 			Reason: reqData.ResolutionReason,
 		},
 		ResolveAnnotations: map[string][]string{
-			common.ReqAnnotationRespondersKey: schedules,
+			common.ReqAnnotationSchedulesKey: schedules,
 		},
 	}
 	opsgenieData, err := b.client.CreateAlert(ctx, reqID, opsgenieReqData)

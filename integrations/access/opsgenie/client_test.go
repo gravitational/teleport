@@ -55,7 +55,7 @@ func TestCreateAlert(t *testing.T) {
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
 		ResolveAnnotations: map[string][]string{
-			common.ReqAnnotationRespondersKey: {"responder@teleport.com"},
+			common.ReqAnnotationSchedulesKey: {"responder@teleport.com"},
 		},
 	})
 	assert.NoError(t, err)
