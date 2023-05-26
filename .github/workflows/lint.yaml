@@ -43,3 +43,20 @@ jobs:
       - name: Check if protobufs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      - name: printf debugging lol
+        run: |
+          echo github.event.merge_group.base_sha: ${{ github.event.merge_group.base_sha }}
+          echo github.event.pull_request.base.sha: ${{ github.event.pull_request.base.sha }}
+          echo parent sha: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          echo
+          echo github.base_ref = ${{ github.base_ref }}
+          echo github.event.merge_group.base_ref = ${{ github.event.merge_group.base_ref }}
+          echo master check: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+
+      - name: Check protos for breakage against parent
+        run: buf breaking . --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+
+      - name: Check protos for breakage from master
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        run: buf breaking "https://github.com/${{ github.repository }}.git#branch=master" --against .
