@@ -1862,17 +1862,14 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
 	// matchers and the cluster has no labels, assume that the role set has
 	// access to the cluster.
 	usesLabels := false
-outer:
 	for _, role := range set {
-		for _, cond := range []types.RoleConditionType{types.Allow, types.Deny} {
-			labelMatchers, err := role.GetLabelMatchers(cond, types.KindRemoteCluster)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if !labelMatchers.Empty() {
-				usesLabels = true
-				break outer
-			}
+		unset, err := labelMatchersUnset(role, types.KindRemoteCluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !unset {
+			usesLabels = true
+			break
 		}
 	}
 
