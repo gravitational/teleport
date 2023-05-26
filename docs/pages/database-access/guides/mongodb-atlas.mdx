@@ -236,7 +236,7 @@ You must provide the Teleport Database Service access to AWS credentials.
 
 (!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
 
-### Create MongoDB IAM role
+### Create a MongoDB IAM role
 
 Create an AWS IAM role that will be used as a MongoDB user. In this guide
 example, we will use the name `teleport-access`.
@@ -263,10 +263,10 @@ MongoDB:
 }
 ```
 
-### Create MongoDB User
+### Create a MongoDB User
 
 On the Security / Database Access page add a new database user with **AWS IAM**
-authentication method, choose "IAM Role" as the **IAM User type**. Then, fill in
+authentication method, and choose "IAM Role" as the **IAM User type**. Then, fill in
 the AWS ARN field with the ARN of the newly created IAM role. In the **Database
 User Privileges** section, give the user sufficient privileges to access the
 desired database data.
