@@ -17,21 +17,6 @@ You will need the following tools to use Teleport with Ansible.
 - `ansible` >= (=ansible.min_version=)
 - Optional tool `jq` to process `JSON` output
 
-<Admonition type="note" title="Machine ID and TLS Routing">
-TLS Routing support will be added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). Until
-that time, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
 In addition, if you already have not done so, follow the
 [Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
 user and start Machine ID.
