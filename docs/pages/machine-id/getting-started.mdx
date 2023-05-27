@@ -22,26 +22,6 @@ Here's an overview of what you will do:
 
 (!/docs/pages/includes/tctl.mdx!)
 
-<Admonition 
-type="note" 
-title="Machine ID and TLS Routing" 
-scopeOnly scope={["oss", "enterprise"]}
->
-
-TLS Routing support was added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). For
-earlier versions, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
