@@ -38,7 +38,7 @@ func TestAutoEnroll(t *testing.T) {
 
 	tests := []struct {
 		name string
-		dev  fakeDevice
+		dev  testenv.FakeDevice
 	}{
 		{
 			name: "macOS device",

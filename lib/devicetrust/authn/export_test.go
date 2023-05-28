@@ -15,7 +15,9 @@
 package authn
 
 var (
-	GetDeviceCredential = &getDeviceCredential
-	CollectDeviceData   = &collectDeviceData
-	SignChallenge       = &signChallenge
+	GetDeviceCredential         = &getDeviceCredential
+	CollectDeviceData           = &collectDeviceData
+	SignChallenge               = &signChallenge
+	GetDeviceOSType             = &getDeviceOSType
+	SolveTPMAuthDeviceChallenge = &solveTPMAuthDeviceChallenge
 )

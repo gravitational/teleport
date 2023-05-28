@@ -91,6 +91,25 @@ func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 	}, nil
 }
 
+func (f *FakeWindowsDevice) SolveTPMAuthDeviceChallenge(
+	challenge *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	// This fake is similar to the one used in SolveTPMEnrollChallenge except
+	// only the PlatformAttestation is faked, as CredentialActivation is not
+	// used in device authentication.
+	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
+		PlatformParameters: &devicepb.TPMPlatformParameters{
+			EventLog: challenge.AttestationNonce,
+		},
+	}, nil
+}
+
 func (f *FakeWindowsDevice) SignChallenge(_ []byte) (sig []byte, err error) {
 	return nil, trace.NotImplemented("windows does not implement SignChallenge")
+}
+
+func (f *FakeWindowsDevice) GetDeviceCredential() *devicepb.DeviceCredential {
+	return &devicepb.DeviceCredential{
+		Id: f.CredentialID,
+	}
 }
