@@ -28,7 +28,7 @@ import (
 // RunCeremony performs the client-side device enrollment ceremony.
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
-	// for non-supported OSes.
+	// for unsupported OSes.
 	osType := getDeviceOSType()
 	if !slices.Contains([]devicepb.OSType{
 		devicepb.OSType_OS_TYPE_MACOS,

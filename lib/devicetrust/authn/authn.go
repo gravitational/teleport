@@ -49,6 +49,8 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	case certs == nil:
 		return nil, trace.BadParameter("certs required")
 	}
+	// Start by checking the OSType, this lets us exit early with a nicer message
+	// for unsupported OSes.
 	osType := getDeviceOSType()
 	if !slices.Contains([]devicepb.OSType{
 		devicepb.OSType_OS_TYPE_MACOS,
