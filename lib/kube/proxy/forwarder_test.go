@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1012,7 +1013,7 @@ func TestNewClusterSessionDirect(t *testing.T) {
 
 	// multiple kube services for kube cluster
 	publicKubeService := newKubeServer("public", "k8s.example.com", "kube-cluster")
-	tunnelKubeService := newKubeServer("tunnel", reversetunnel.LocalKubernetes, "kube-cluster")
+	tunnelKubeService := newKubeServer("tunnel", reversetunnelclient.LocalKubernetes, "kube-cluster")
 
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},

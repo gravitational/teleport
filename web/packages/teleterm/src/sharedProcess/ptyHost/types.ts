@@ -19,7 +19,6 @@ export type PtyProcessOptions = {
   path: string;
   args: string[];
   cwd?: string;
-  initCommand?: string;
 };
 
 export type IPtyProcess = {

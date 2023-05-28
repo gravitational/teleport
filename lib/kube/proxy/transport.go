@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -394,7 +395,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			// and the targetKubernetes cluster endpoint is determined from the identity
 			// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 			// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalKubernetes},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalKubernetes},
 			ConnType: types.KubeTunnel,
 		})
 	}
