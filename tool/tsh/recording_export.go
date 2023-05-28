@@ -40,7 +40,7 @@ const (
 )
 
 func onExportRecording(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

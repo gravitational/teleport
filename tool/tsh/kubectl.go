@@ -215,7 +215,7 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 // createKubeAccessRequest creates an access request to the denied resources
 // if the user's roles allow search_as_role.
 func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []string) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
