@@ -42,7 +42,7 @@ func TestRunCeremony(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		dev             fakeDevice
+		dev             testenv.FakeDevice
 		assertErr       func(t *testing.T, err error)
 		assertGotDevice func(t *testing.T, device *devicepb.Device)
 	}{
@@ -108,19 +108,13 @@ func resetNative() func() {
 	enrollDeviceInit := *enroll.EnrollInit
 	getDeviceOSType := *enroll.GetDeviceOSType
 	signChallenge := *enroll.SignChallenge
+	solveTPMEnrollChallenge := *enroll.SolveTPMEnrollChallenge
 	return func() {
 		*enroll.CollectDeviceData = collectDeviceData
 		*enroll.EnrollInit = enrollDeviceInit
 		*enroll.GetDeviceOSType = getDeviceOSType
 		*enroll.SignChallenge = signChallenge
+		*enroll.SolveTPMEnrollChallenge = solveTPMEnrollChallenge
 		os.Unsetenv(guardKey)
 	}
-}
-
-type fakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
-	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
-	GetDeviceOSType() devicepb.OSType
-	SignChallenge(chal []byte) (sig []byte, err error)
-	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
 }

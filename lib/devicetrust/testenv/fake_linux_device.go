@@ -47,3 +47,11 @@ func (d *FakeLinuxDevice) SignChallenge(_ []byte) (sig []byte, err error) {
 func (d *FakeLinuxDevice) SolveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
+
+func (d *FakeLinuxDevice) GetDeviceCredential() *devicepb.DeviceCredential {
+	return nil
+}
+
+func (f *FakeLinuxDevice) SolveTPMAuthDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.NotImplemented("linux device fake unimplemented")
+}

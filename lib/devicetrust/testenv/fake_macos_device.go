@@ -65,7 +65,7 @@ func (f *FakeMacOSDevice) CollectDeviceData() (*devicepb.DeviceCollectedData, er
 	}, nil
 }
 
-func (f *FakeMacOSDevice) DeviceCredential() *devicepb.DeviceCredential {
+func (f *FakeMacOSDevice) GetDeviceCredential() *devicepb.DeviceCredential {
 	return &devicepb.DeviceCredential{
 		Id:           f.ID,
 		PublicKeyDer: f.PubKeyDER,
@@ -97,4 +97,8 @@ func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
 	_ *devicepb.TPMEnrollChallenge,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
+}
+
+func (d *FakeMacOSDevice) SolveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.NotImplemented("mac device does not implement SolveTPMAuthDeviceChallenge")
 }

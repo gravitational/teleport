@@ -114,3 +114,13 @@ func New() (*E, error) {
 	ok = true
 	return e, nil
 }
+
+type FakeDevice interface {
+	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
+	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
+	GetDeviceOSType() devicepb.OSType
+	SignChallenge(chal []byte) (sig []byte, err error)
+	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
+	SolveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
+	GetDeviceCredential() *devicepb.DeviceCredential
+}
