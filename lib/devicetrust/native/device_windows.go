@@ -68,7 +68,7 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err 
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
-func getMarshaledEK(tpm *attest.TPM) (ekPub []byte, ekCert []byte, err error) {
+func getMarshaledEK(tpm *attest.TPM) (ekKey []byte, ekCert []byte, err error) {
 	eks, err := tpm.EKs()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -84,15 +84,15 @@ func getMarshaledEK(tpm *attest.TPM) (ekPub []byte, ekCert []byte, err error) {
 	// EK cert. On Windows, ECC certs may also be returned following this. At
 	// this time, we are only interested in RSA certs, so we just consider the
 	// first thing returned.
-	encodedEKPub, err := x509.MarshalPKIXPublicKey(eks[0].Public)
+	encodedEKKey, err := x509.MarshalPKIXPublicKey(eks[0].Public)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	if eks[0].Certificate == nil {
-		return encodedEKPub, nil, nil
+		return encodedEKKey, nil, nil
 	}
-	return encodedEKPub, eks[0].Certificate.Raw, nil
+	return encodedEKKey, eks[0].Certificate.Raw, nil
 }
 
 // loadAK attempts to load an AK from disk. A NotFound error will be
