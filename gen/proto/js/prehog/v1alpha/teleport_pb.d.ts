@@ -1274,6 +1274,83 @@ export namespace AssistCompletionEvent {
     }
 }
 
+export class IntegrationEnrollMetadata extends jspb.Message { 
+    getId(): string;
+    setId(value: string): IntegrationEnrollMetadata;
+
+    getKind(): IntegrationEnrollKind;
+    setKind(value: IntegrationEnrollKind): IntegrationEnrollMetadata;
+
+    getUserName(): string;
+    setUserName(value: string): IntegrationEnrollMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): IntegrationEnrollMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: IntegrationEnrollMetadata): IntegrationEnrollMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: IntegrationEnrollMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): IntegrationEnrollMetadata;
+    static deserializeBinaryFromReader(message: IntegrationEnrollMetadata, reader: jspb.BinaryReader): IntegrationEnrollMetadata;
+}
+
+export namespace IntegrationEnrollMetadata {
+    export type AsObject = {
+        id: string,
+        kind: IntegrationEnrollKind,
+        userName: string,
+    }
+}
+
+export class UIIntegrationEnrollStartEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollStartEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollStartEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollStartEvent): UIIntegrationEnrollStartEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollStartEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollStartEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollStartEvent, reader: jspb.BinaryReader): UIIntegrationEnrollStartEvent;
+}
+
+export namespace UIIntegrationEnrollStartEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
+export class UIIntegrationEnrollCompleteEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollCompleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollCompleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollCompleteEvent): UIIntegrationEnrollCompleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollCompleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollCompleteEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollCompleteEvent, reader: jspb.BinaryReader): UIIntegrationEnrollCompleteEvent;
+}
+
+export namespace UIIntegrationEnrollCompleteEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1525,6 +1602,18 @@ export class SubmitEventRequest extends jspb.Message {
     setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
 
 
+    hasUiIntegrationEnrollStartEvent(): boolean;
+    clearUiIntegrationEnrollStartEvent(): void;
+    getUiIntegrationEnrollStartEvent(): UIIntegrationEnrollStartEvent | undefined;
+    setUiIntegrationEnrollStartEvent(value?: UIIntegrationEnrollStartEvent): SubmitEventRequest;
+
+
+    hasUiIntegrationEnrollCompleteEvent(): boolean;
+    clearUiIntegrationEnrollCompleteEvent(): void;
+    getUiIntegrationEnrollCompleteEvent(): UIIntegrationEnrollCompleteEvent | undefined;
+    setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1581,6 +1670,8 @@ export namespace SubmitEventRequest {
         uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
         uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
         assistCompletion?: AssistCompletionEvent.AsObject,
+        uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
+        uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1665,6 +1756,10 @@ export namespace SubmitEventRequest {
     UI_CALL_TO_ACTION_CLICK_EVENT = 42,
 
     ASSIST_COMPLETION = 43,
+
+    UI_INTEGRATION_ENROLL_START_EVENT = 44,
+
+    UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
 
     }
 
@@ -1827,4 +1922,19 @@ export enum CTA {
     CTA_PREMIUM_SUPPORT = 4,
     CTA_TRUSTED_DEVICES = 5,
     CTA_UPGRADE_BANNER = 6,
+}
+
+export enum IntegrationEnrollKind {
+    INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0,
+    INTEGRATION_ENROLL_KIND_SLACK = 1,
+    INTEGRATION_ENROLL_KIND_AWS_OIDC = 2,
+    INTEGRATION_ENROLL_KIND_PAGERDUTY = 3,
+    INTEGRATION_ENROLL_KIND_EMAIL = 4,
+    INTEGRATION_ENROLL_KIND_JIRA = 5,
+    INTEGRATION_ENROLL_KIND_DISCORD = 6,
+    INTEGRATION_ENROLL_KIND_MATTERMOST = 7,
+    INTEGRATION_ENROLL_KIND_MS_TEAMS = 8,
+    INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
+    INTEGRATION_ENROLL_KIND_OKTA = 10,
+    INTEGRATION_ENROLL_KIND_JAMF = 11,
 }
