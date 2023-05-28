@@ -39,7 +39,7 @@ import (
 var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
 
 func onRequestList(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,7 +134,7 @@ func serializeAccessRequests(reqs []types.AccessRequest, format string) (string,
 }
 
 func onRequestShow(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -268,7 +268,7 @@ func printRequest(req types.AccessRequest) error {
 }
 
 func onRequestCreate(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -282,7 +282,7 @@ func onRequestCreate(cf *CLIConf) error {
 }
 
 func onRequestReview(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -372,7 +372,7 @@ func showRequestTable(reqs []types.AccessRequest) error {
 }
 
 func onRequestSearch(cf *CLIConf) error {
-	tc, err := makeClient(cf, false /* useProfileLogin */)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -446,7 +446,7 @@ To request access to these resources, run
 }
 
 func onRequestDrop(cf *CLIConf) error {
-	tc, err := makeClient(cf, false /* useProfileLogin */)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

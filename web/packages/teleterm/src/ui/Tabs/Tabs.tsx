@@ -87,13 +87,7 @@ export function Tabs(props: Props) {
 }
 
 function getIsLoading(doc: Document): boolean {
-  switch (doc.kind) {
-    case 'doc.terminal_tsh_kube':
-    case 'doc.terminal_tsh_node':
-      return doc.status === 'connecting';
-    default:
-      return false;
-  }
+  return 'status' in doc && doc.status === 'connecting';
 }
 
 type Props = {

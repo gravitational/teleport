@@ -92,7 +92,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
-	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
+	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout.")
 	a.authExport.Flag("keys", "if set, will print private keys").BoolVar(&a.exportPrivateKeys)
 	a.authExport.Flag("fingerprint", "filter authority by fingerprint").StringVar(&a.exportAuthorityFingerprint)
 	a.authExport.Flag("compat", "export certificates compatible with specific version of Teleport").StringVar(&a.compatVersion)
@@ -102,7 +102,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authGenerate.Flag("pub-key", "path to the public key").Required().StringVar(&a.genPubPath)
 	a.authGenerate.Flag("priv-key", "path to the private key").Required().StringVar(&a.genPrivPath)
 
-	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
+	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user.")
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
 	a.authSign.Flag("out", "Identity output").Short('o').Required().StringVar(&a.output)
@@ -129,7 +129,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
 
-	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
+	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster.")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.").
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
@@ -137,7 +137,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authRotate.Flag("type", "Certificate authority to rotate, rotates host, user and database CA by default").StringVar(&a.rotateType)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
-	a.authLS = auth.Command("ls", "List connected auth servers")
+	a.authLS = auth.Command("ls", "List connected auth servers.")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 }
 

@@ -97,7 +97,7 @@ func TestFetchInstallMethods(t *testing.T) {
 					return nil, trace.NotFound("command does not exist")
 				}
 				output := `
-● teleport.service - Teleport SSH Service
+● teleport.service - Teleport Service
 Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
 Active: active (running) since Wed 2022-11-09 10:52:49 UTC; 3 months 22 days ago
 Main PID: 1815 (teleport)
