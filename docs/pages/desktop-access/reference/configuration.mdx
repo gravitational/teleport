@@ -20,6 +20,10 @@ The Windows Desktop Service can be deployed in two modes.
 
 ### Direct mode
 
+<Admonition type="note">
+Direct mode is only available for self-hosted Teleport clusters.
+</Admonition>
+
 In *direct* mode, Windows Desktop Services registers directly with the Teleport
 Auth Server, and listens for desktop connections from the Teleport Proxy. To
 enable direct mode, set `windows_desktop_service.listen_addr` in
