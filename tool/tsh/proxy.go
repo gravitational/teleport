@@ -60,7 +60,7 @@ import (
 // from destination node address to support multiple platform where 'cut -d' command is not provided.
 // For more details please look at: Generate Windows-compatible OpenSSH config https://github.com/gravitational/teleport/pull/7848
 func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -376,7 +376,7 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -564,7 +564,7 @@ func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

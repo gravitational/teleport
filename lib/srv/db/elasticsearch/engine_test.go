@@ -34,86 +34,86 @@ func Test_parsePath(t *testing.T) {
 		{
 			path:         "",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL,
 		},
 		{
 			path:         "/",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL,
 		},
 		{
 			path:         "/bah",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL,
 		},
 		{
 			path:         "/foo/bar/baz",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL,
 		},
 
 		{
 			path:         "/_security",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SECURITY,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SECURITY,
 		},
 		{
 			path:         "/_security/foo",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SECURITY,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SECURITY,
 		},
 
 		{
 			path:         "/_search",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 		{
 			path:         "/_search/",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 		{
 			path:         "/_search/asd",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 		{
 			path:         "/blah/_search/asd",
 			wantTarget:   "blah",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 
 		{
 			path:         "/_async_search/",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 		{
 			path:         "/_async_search/asd",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 		{
 			path:         "/blah/_async_search/asd",
 			wantTarget:   "blah",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH,
 		},
 
 		{
 			path:         "/_sql/",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SQL,
 		},
 		{
 			path:         "/_sql",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SQL,
 		},
 		{
 			path:         "/_sql/asd",
 			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
+			wantCategory: events.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SQL,
 		},
 	}
 
