@@ -379,7 +379,9 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 			return unlock, trace.Wrap(err)
 		}
 		defer authClient.Close()
-		newIdentity, err = b.renewIdentityViaAuth(ctx, loadedIdent, authClient)
+		newIdentity, err = botIdentityFromAuth(
+			ctx, b.log, loadedIdent, authClient, b.cfg.CertificateTTL,
+		)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
@@ -387,7 +389,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		// If using a non-renewable join method, or we weren't able to load an
 		// identity from the store, let's get a new identity using the
 		// configured token.
-		newIdentity, err = b.getIdentityFromToken()
+		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}

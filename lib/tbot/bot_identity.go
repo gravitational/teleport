@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/sirupsen/logrus"
 	"math"
 	"time"
 
@@ -137,14 +139,16 @@ func (b *Bot) renewBotIdentity(
 	if b.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
-		newIdentity, err = b.renewIdentityViaAuth(ctx, b.ident(), b.Client())
+		newIdentity, err = botIdentityFromAuth(
+			ctx, b.log, b.ident(), b.Client(), b.cfg.CertificateTTL,
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
-		newIdentity, err = b.getIdentityFromToken()
+		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -169,12 +173,16 @@ func (b *Bot) renewBotIdentity(
 	return nil, nil
 }
 
-func (b *Bot) renewIdentityViaAuth(
+// botIdentityFromAuth uses an existing identity to request a new from the auth
+// server using GenerateUserCerts. This only works for renewable join types.
+func botIdentityFromAuth(
 	ctx context.Context,
+	log logrus.FieldLogger,
 	ident *identity.Identity,
 	client auth.ClientI,
+	ttl time.Duration,
 ) (*identity.Identity, error) {
-	b.log.Info("Fetching bot identity using existing bot identity.")
+	log.Info("Fetching bot identity using existing bot identity.")
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
@@ -183,7 +191,7 @@ func (b *Bot) renewIdentityViaAuth(
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: ident.PublicKeyBytes,
 		Username:  ident.X509Cert.Subject.CommonName,
-		Expires:   time.Now().Add(b.cfg.CertificateTTL),
+		Expires:   time.Now().Add(ttl),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,11 +209,13 @@ func (b *Bot) renewIdentityViaAuth(
 	return newIdentity, nil
 }
 
-func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
-	b.log.Info("Fetching bot identity using token.")
-	addr, err := utils.ParseAddr(b.cfg.AuthServer)
+// botIdentityFromToken uses a join token to request a bot identity from an auth
+// server using auth.Register.
+func botIdentityFromToken(log logrus.FieldLogger, cfg *config.BotConfig) (*identity.Identity, error) {
+	log.Info("Fetching bot identity using token.")
+	addr, err := utils.ParseAddr(cfg.AuthServer)
 	if err != nil {
-		return nil, trace.Wrap(err, "invalid auth server address %+v", b.cfg.AuthServer)
+		return nil, trace.Wrap(err, "invalid auth server address %+v", cfg.AuthServer)
 	}
 
 	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
@@ -213,12 +223,12 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		return nil, trace.Wrap(err, "unable to generate new keypairs")
 	}
 
-	token, err := b.cfg.Onboarding.Token()
+	token, err := cfg.Onboarding.Token()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	expires := time.Now().Add(b.cfg.CertificateTTL)
+	expires := time.Now().Add(cfg.CertificateTTL)
 	params := auth.RegisterParams{
 		Token: token,
 		ID: auth.IdentityID{
@@ -227,17 +237,17 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		AuthServers:        []utils.NetAddr{*addr},
 		PublicTLSKey:       tlsPublicKey,
 		PublicSSHKey:       sshPublicKey,
-		CAPins:             b.cfg.Onboarding.CAPins,
-		CAPath:             b.cfg.Onboarding.CAPath,
+		CAPins:             cfg.Onboarding.CAPins,
+		CAPath:             cfg.Onboarding.CAPath,
 		GetHostCredentials: client.HostCredentials,
-		JoinMethod:         b.cfg.Onboarding.JoinMethod,
+		JoinMethod:         cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
-		FIPS:               b.cfg.FIPS,
-		CipherSuites:       b.cfg.CipherSuites(),
+		FIPS:               cfg.FIPS,
+		CipherSuites:       cfg.CipherSuites(),
 	}
 	if params.JoinMethod == types.JoinMethodAzure {
 		params.AzureParams = auth.AzureParams{
-			ClientID: b.cfg.Onboarding.Azure.ClientID,
+			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	}
 

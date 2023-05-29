@@ -101,7 +101,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	b := New(botConfig, log)
 
-	ident, err := b.getIdentityFromToken()
+	ident, err := b.identityFromToken()
 	require.NoError(t, err)
 	botClient := testhelpers.MakeBotAuthClient(t, fc, ident)
 	b._ident = ident

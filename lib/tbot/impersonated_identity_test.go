@@ -53,7 +53,7 @@ func TestOnboardViaToken(t *testing.T) {
 	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
 	b := New(botConfig, log)
-	ident, err := b.getIdentityFromToken()
+	ident, err := botIdentityFromToken(b.log, b.cfg)
 	require.NoError(t, err)
 
 	tlsIdent, err := tlsca.FromSubject(ident.X509Cert.Subject, ident.X509Cert.NotAfter)
@@ -142,7 +142,7 @@ func TestDatabaseRequest(t *testing.T) {
 
 	// Onboard the bot.
 	b := New(botConfig, log)
-	ident, err := b.getIdentityFromToken()
+	ident, err := botIdentityFromToken(b.log, b.cfg)
 	require.NoError(t, err)
 
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
@@ -219,7 +219,7 @@ func TestAppRequest(t *testing.T) {
 
 	// Onboard the bot.
 	b := New(botConfig, log)
-	ident, err := b.getIdentityFromToken()
+	ident, err := botIdentityFromToken(b.log, b.cfg)
 	require.NoError(t, err)
 
 	b._client = testhelpers.MakeBotAuthClient(t, fc, ident)
