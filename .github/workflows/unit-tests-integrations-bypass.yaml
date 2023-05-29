@@ -8,38 +8,18 @@
 #
 # Note both workflows must have the same name.
 
-name: Unit Tests (Integrations)
-run-name: Skip Unit Tests (Integrations) - ${{ github.run_id }} - @${{ github.actor }}
+name: Unit Tests (Operator)
+run-name: Skip Unit Tests (Operator) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
   pull_request:
     paths-ignore:
-      - '/go.mod'
-      - '/go.sum'
-      - 'integrations/**'
-      - 'api/types/**'
-      - 'gen/**'
-      - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
+
   merge_group:
-    paths-ignore:
-      - '/go.mod'
-      - '/go.sum'
-      - 'integrations/**'
-      - 'api/types/**'
-      - 'gen/**'
-      - 'lib/tbot/**'
-      - 'Makefile'
-      - '.github/workflows/unit-tests-integrations.yaml'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
 
 jobs:
   test:
-    name: Unit Tests (Integrations)
+    name: Unit Tests (Operator)
     runs-on: ubuntu-latest
 
     permissions:
