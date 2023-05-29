@@ -71,7 +71,7 @@ func TestRunCeremony(t *testing.T) {
 			*authn.CollectDeviceData = test.dev.CollectDeviceData
 			*authn.SignChallenge = test.dev.SignChallenge
 			*authn.GetDeviceOSType = test.dev.GetDeviceOSType
-			*authn.SolveTPMAuthDeviceChallenge = test.dev.SolveTPMAuthDeviceChallenge
+			*authn.SolveTPMAuthnDeviceChallenge = test.dev.SolveTPMAuthnDeviceChallenge
 
 			// We need to enroll the device before we can test device auth
 			require.NoError(
@@ -92,13 +92,13 @@ func resetNative() func() {
 	collectDeviceData := authn.CollectDeviceData
 	signChallenge := authn.SignChallenge
 	getDeviceOSType := authn.GetDeviceOSType
-	solveTPMAuthDeviceChallenge := authn.SolveTPMAuthDeviceChallenge
+	solveTPMAuthnDeviceChallenge := authn.SolveTPMAuthnDeviceChallenge
 	return func() {
 		authn.GetDeviceCredential = getDeviceCredential
 		authn.CollectDeviceData = collectDeviceData
 		authn.SignChallenge = signChallenge
 		authn.GetDeviceOSType = getDeviceOSType
-		authn.SolveTPMAuthDeviceChallenge = solveTPMAuthDeviceChallenge
+		authn.SolveTPMAuthnDeviceChallenge = solveTPMAuthnDeviceChallenge
 	}
 }
 

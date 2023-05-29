@@ -99,6 +99,6 @@ func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
 	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
 }
 
-func (d *FakeMacOSDevice) SolveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return nil, trace.NotImplemented("mac device does not implement SolveTPMAuthDeviceChallenge")
+func (d *FakeMacOSDevice) SolveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.NotImplemented("mac device does not implement SolveTPMAuthnDeviceChallenge")
 }

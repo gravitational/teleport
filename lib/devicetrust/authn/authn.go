@@ -28,11 +28,11 @@ import (
 
 // vars below are used to swap native methods for fakes in tests.
 var (
-	getDeviceCredential         = native.GetDeviceCredential
-	collectDeviceData           = native.CollectDeviceData
-	signChallenge               = native.SignChallenge
-	solveTPMAuthDeviceChallenge = native.SolveTPMAuthDeviceChallenge
-	getDeviceOSType             = native.GetDeviceOSType
+	getDeviceCredential          = native.GetDeviceCredential
+	collectDeviceData            = native.CollectDeviceData
+	signChallenge                = native.SignChallenge
+	solveTPMAuthnDeviceChallenge = native.SolveTPMAuthnDeviceChallenge
+	getDeviceOSType              = native.GetDeviceOSType
 )
 
 // RunCeremony performs the client-side device authentication ceremony.
@@ -156,7 +156,7 @@ func authenticateDeviceWindows(
 	if challenge == nil {
 		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	challengeResponse, err := solveTPMAuthDeviceChallenge(challenge)
+	challengeResponse, err := solveTPMAuthnDeviceChallenge(challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
