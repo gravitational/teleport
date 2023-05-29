@@ -20,17 +20,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 )
 
-var (
-	txReadWrite = pgx.TxOptions{
-		IsoLevel:   pgx.Serializable,
-		AccessMode: pgx.ReadWrite,
-	}
-	txReadOnly = pgx.TxOptions{
-		IsoLevel:   pgx.Serializable,
-		AccessMode: pgx.ReadOnly,
-	}
-)
-
 const deleteBatchSize = 1000
 
 func New(ctx context.Context, params backend.Params) (*Backend, error) {
@@ -51,6 +40,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 			return nil, trace.Wrap(err)
 		}
 		poolConfig.BeforeConnect = bc
+	}
+
+	poolConfig.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
+		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable")
+		return trace.Wrap(err)
 	}
 
 	log.Info("Setting up backend.")
@@ -101,10 +95,10 @@ func (b *Backend) Close() error {
 	return nil
 }
 
-func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error {
+func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error {
 	retrySerialization := func() error {
 		for i := 0; i < 20; i++ {
-			err := b.pool.BeginTxFunc(ctx, txOptions, f)
+			err := f(b.pool)
 			if err == nil || (!isCode(err, pgerrcode.SerializationFailure) && !isCode(err, pgerrcode.DeadlockDetected)) {
 				return trace.Wrap(err)
 			}
@@ -143,13 +137,19 @@ func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f fu
 	return trace.LimitExceeded("too many retries, last error: %v", err)
 }
 
+func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error {
+	return b.retry(ctx, func(p *pgxpool.Pool) error {
+		return p.BeginTxFunc(ctx, txOptions, f)
+	})
+}
+
 func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	const (
 		latestVersion = 2
 	)
 	var version int
 	var migrateErr error
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
+	if err := b.beginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			CREATE TABLE IF NOT EXISTS migrate (
 				version int PRIMARY KEY,
@@ -208,8 +208,8 @@ var _ backend.Backend = (*Backend)(nil)
 // Create writes item if key doesn't exist
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		tag, err := p.Exec(ctx, `
 			INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3)
 			ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires
 			WHERE kv.expires IS NOT NULL AND kv.expires <= now()`,
@@ -231,8 +231,8 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Put writes item
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		_, err := p.Exec(ctx, `
 			INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3)
 			ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires`,
 			i.Key, i.Value, toPgTime(i.Expires))
@@ -249,8 +249,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var r int64
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		tag, err := p.Exec(ctx,
 			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND value = $4 AND (expires IS NULL OR expires > now())",
 			replaceWith.Key, replaceWith.Value, toPgTime(replaceWith.Expires), expected.Value)
 		if err != nil {
@@ -271,8 +271,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 // Update writes item if key exists
 func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		tag, err := p.Exec(ctx,
 			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			i.Key, i.Value, toPgTime(i.Expires))
 		if err != nil {
@@ -295,9 +295,9 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	found := false
 	var value []byte
 	var expires pgtype.Timestamp
-	if err := b.beginTxFunc(ctx, txReadOnly, func(tx pgx.Tx) error {
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		found, value, expires.Time = false, nil, time.Time{}
-		err := tx.QueryRow(ctx, `
+		err := p.QueryRow(ctx, `
 			SELECT value, expires FROM kv
 			WHERE key = $1 AND (expires IS NULL OR expires > now())`,
 			key).Scan(&value, &expires)
@@ -329,11 +329,11 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		limit = backend.DefaultRangeLimit
 	}
 	r := backend.GetResult{}
-	if err := b.beginTxFunc(ctx, txReadOnly, func(tx pgx.Tx) error {
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		r.Items = nil
 		var k, v []byte
 		var e pgtype.Timestamp
-		_, err := tx.QueryFunc(ctx, `
+		_, err := p.QueryFunc(ctx, `
 			SELECT key, value, expires FROM kv
 			WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now())
 			LIMIT $3`,
@@ -358,8 +358,8 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 // Delete implements backend.Backend
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	var r int64
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		tag, err := p.Exec(ctx,
 			"DELETE FROM kv WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			key)
 		if err != nil {
@@ -386,8 +386,8 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 	// in which we do transactions that affect more than one row
 	for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
 		var r int64
-		if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-			tag, err := tx.Exec(ctx,
+		if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+			tag, err := p.Exec(ctx,
 				"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE key BETWEEN $1 AND $2 LIMIT $3))",
 				startKey, endKey, deleteBatchSize)
 			if err != nil {
@@ -410,8 +410,8 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 // KeepAlive implements backend.Backend
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	var r int64
-	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx,
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		tag, err := p.Exec(ctx,
 			"UPDATE kv SET expires = $2 WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			lease.Key, toPgTime(expires))
 		if err != nil {

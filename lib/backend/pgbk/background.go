@@ -7,9 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -28,8 +27,8 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
 			t0 := time.Now()
 			var n int64
-			if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-				tag, err := tx.Exec(ctx,
+			if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+				tag, err := p.Exec(ctx,
 					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= now() LIMIT $1))",
 					deleteBatchSize,
 				)
@@ -108,9 +107,6 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
 	if _, err := conn.Exec(ctx,
 		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)", slotName); err != nil {
-		if isCode(err, pgerrcode.UndefinedFunction) {
-			return trace.Wrap(b.runChangeFeedCRDB(ctx, conn))
-		}
 		return trace.Wrap(err)
 	}
 
@@ -195,65 +191,4 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		case <-time.After(backend.DefaultPollStreamPeriod):
 		}
 	}
-}
-
-// runChangeFeedCRDB will use a connection to the database to start a change
-// feed for CockroachDB and emit events. Assumes that b.buf is not initialized
-// but not closed, and will reset it before returning.
-func (b *Backend) runChangeFeedCRDB(ctx context.Context, conn *pgx.Conn) error {
-	b.log.Info("Failed to create replication slot, starting CRDB change feed.")
-	rows, err := conn.Query(ctx, `
-		SELECT
-			(j.k->>0)::bytea,
-			(j.v->'after'->>'value')::bytea,
-			(j.v->'after'->>'expires')::timestamp
-		FROM (
-			WITH cf AS (
-				EXPERIMENTAL CHANGEFEED FOR kv WITH resolved, no_initial_scan
-			) SELECT
-				convert_from(cf.key, 'LATIN1')::jsonb AS k,
-				convert_from(cf.value, 'LATIN1')::jsonb AS v
-			FROM cf
-		) AS j;`)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	b.log.Info("Change feed started.")
-	b.buf.SetInit()
-	defer b.buf.Reset()
-
-	for rows.Next() {
-		var key, value []byte
-		var expires pgtype.Timestamp
-		if err := rows.Scan(&key, &value, &expires); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// slices are nil iff the SQL bytea value was NULL
-		if key == nil {
-			b.log.Debug("Got service message (resolved timestamp).")
-			continue
-		}
-
-		if value != nil {
-			b.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: backend.Item{
-					Key:     key,
-					Value:   value,
-					Expires: expires.Time,
-				},
-			})
-		} else {
-			b.buf.Emit(backend.Event{
-				Type: types.OpDelete,
-				Item: backend.Item{
-					Key: key,
-				},
-			})
-		}
-	}
-
-	return trace.Wrap(rows.Err())
 }
