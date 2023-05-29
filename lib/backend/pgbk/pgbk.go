@@ -145,7 +145,6 @@ func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f fu
 
 func (b *Backend) setupAndMigrate(ctx context.Context) error {
 	const (
-		legacyVersion = 1
 		latestVersion = 2
 	)
 	var version int
@@ -154,14 +153,14 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 		if _, err := tx.Exec(ctx, `
 			CREATE TABLE IF NOT EXISTS migrate (
 				version int PRIMARY KEY,
-				created timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+				created timestamptz NOT NULL DEFAULT now()
 			)`,
 		); err != nil && !isCode(err, pgerrcode.InsufficientPrivilege) {
 			return trace.Wrap(err)
 		}
 
 		if err := tx.QueryRow(ctx,
-			"SELECT coalesce(max(version), 0) FROM migrate",
+			"SELECT COALESCE(max(version), 0) FROM migrate",
 		).Scan(&version); err != nil {
 			return trace.Wrap(err)
 		}
@@ -175,26 +174,6 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 					expires timestamp
 				);
 				CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
-				INSERT INTO migrate (version) VALUES (2);`,
-			); err != nil {
-				return trace.Wrap(err)
-			}
-		case legacyVersion:
-			// this will fail with an error if somehow we ended up with a row in
-			// lease that's referencing a missing item
-			if _, err := tx.Exec(ctx, `
-				CREATE TABLE kv (
-					key bytea PRIMARY KEY,
-					value bytea NOT NULL,
-					expires timestamp
-				);
-				CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
-				INSERT INTO kv (key, value, expires)
-					SELECT key, value, expires
-					FROM
-						lease
-						LEFT JOIN item USING (key, id);
-				DROP TABLE item, lease, event;
 				INSERT INTO migrate (version) VALUES (2);`,
 			); err != nil {
 				return trace.Wrap(err)
@@ -233,8 +212,8 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 		tag, err := tx.Exec(ctx, `
 			INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3)
 			ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires
-			WHERE kv.expires IS NOT NULL AND kv.expires <= $4`,
-			i.Key, i.Value, toPgTime(i.Expires), time.Now().UTC())
+			WHERE kv.expires IS NOT NULL AND kv.expires <= now()`,
+			i.Key, i.Value, toPgTime(i.Expires))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -271,12 +250,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	}
 	var r int64
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		if err := deleteExpired(ctx, tx, expected.Key); err != nil {
-			return trace.Wrap(err)
-		}
-
 		tag, err := tx.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND value = $4",
+			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND value = $4 AND (expires IS NULL OR expires > now())",
 			replaceWith.Key, replaceWith.Value, toPgTime(replaceWith.Expires), expected.Value)
 		if err != nil {
 			return trace.Wrap(err)
@@ -297,11 +272,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		if err := deleteExpired(ctx, tx, i.Key); err != nil {
-			return trace.Wrap(err)
-		}
 		tag, err := tx.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1",
+			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			i.Key, i.Value, toPgTime(i.Expires))
 		if err != nil {
 			return trace.Wrap(err)
@@ -327,8 +299,8 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		found, value, expires.Time = false, nil, time.Time{}
 		err := tx.QueryRow(ctx, `
 			SELECT value, expires FROM kv
-			WHERE key = $1 AND (expires IS NULL OR expires > $2)`,
-			key, time.Now().UTC()).Scan(&value, &expires)
+			WHERE key = $1 AND (expires IS NULL OR expires > now())`,
+			key).Scan(&value, &expires)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		} else if err != nil {
@@ -363,9 +335,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		var e pgtype.Timestamp
 		_, err := tx.QueryFunc(ctx, `
 			SELECT key, value, expires FROM kv
-			WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > $3)
-			LIMIT $4`,
-			[]any{startKey, endKey, time.Now().UTC(), limit}, []any{&k, &v, &e},
+			WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now())
+			LIMIT $3`,
+			[]any{startKey, endKey, limit}, []any{&k, &v, &e},
 			func(pgx.QueryFuncRow) error {
 				r.Items = append(r.Items, backend.Item{
 					Key:     k,
@@ -387,11 +359,8 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	var r int64
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		if err := deleteExpired(ctx, tx, key); err != nil {
-			return trace.Wrap(err)
-		}
 		tag, err := tx.Exec(ctx,
-			"DELETE FROM kv WHERE key = $1",
+			"DELETE FROM kv WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			key)
 		if err != nil {
 			return trace.Wrap(err)
@@ -442,11 +411,8 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	var r int64
 	if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
-		if err := deleteExpired(ctx, tx, lease.Key); err != nil {
-			return trace.Wrap(err)
-		}
 		tag, err := tx.Exec(ctx,
-			"UPDATE kv SET expires = $2 WHERE key = $1",
+			"UPDATE kv SET expires = $2 WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			lease.Key, toPgTime(expires))
 		if err != nil {
 			return trace.Wrap(err)

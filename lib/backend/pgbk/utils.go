@@ -90,10 +90,3 @@ func newLease(i backend.Item) *backend.Lease {
 	}
 	return &lease
 }
-
-func deleteExpired(ctx context.Context, tx pgx.Tx, key []byte) error {
-	_, err := tx.Exec(ctx,
-		"DELETE FROM kv WHERE key = $1 AND expires IS NOT NULL AND expires <= $2",
-		key, time.Now().UTC())
-	return trace.Wrap(err)
-}

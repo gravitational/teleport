@@ -30,8 +30,8 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 			var n int64
 			if err := b.beginTxFunc(ctx, txReadWrite, func(tx pgx.Tx) error {
 				tag, err := tx.Exec(ctx,
-					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= $1 LIMIT $2))",
-					time.Now().UTC(), deleteBatchSize,
+					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= now() LIMIT $1))",
+					deleteBatchSize,
 				)
 				if err != nil {
 					return trace.Wrap(err)
