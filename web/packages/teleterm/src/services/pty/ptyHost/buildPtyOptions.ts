@@ -93,7 +93,6 @@ export function getPtyProcessOptions(
         args: [],
         cwd: cmd.cwd,
         env,
-        initCommand: cmd.initCommand,
       };
     }
 
