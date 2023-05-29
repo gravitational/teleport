@@ -18,7 +18,24 @@ cluster to Teleport.
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-## Step 1/6. Add the Teleport Helm chart repository
+## Choose a Kubernetes namespace and Helm release name
+
+<Admonition type="note">
+  Before starting, setting your Kubernetes namespace and Helm release name here will
+  enable easier copy/pasting of commands for installation.
+
+  If you don't know what to put here, use `teleport` for both values.
+
+  Namespace: <Var name="namespace" description="Kubernetes namespace" />
+
+  Release name: <Var name="release-name" description="Helm release name" />
+</Admonition>
+
+## Step 1/7. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/7. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -42,7 +59,8 @@ access.
 
 ## Step 3/6. Configure TLS certificates for Teleport
 
-The `teleport-cluster` chart deploys a Kubernetes `LoadBalancer` to handle incoming connections to the Teleport Proxy Service.
+The `teleport-cluster` chart can deploy either a Kubernetes `LoadBalancer` or Kubernetes `Ingress` to handle
+incoming connections to the Teleport Proxy Service.
 
 We now need to configure TLS certificates for Teleport to secure its
 communications and allow external clients to connect.
@@ -54,36 +72,33 @@ these options:
 
 #### Using `cert-manager`
 
-You can use `cert-manager` to provision and automatically renew TLS credentials
-by completing ACME challenges via Let's Encrypt. We recommend this approach if
-you require CLI access to web applications using client certificates via
-the Teleport Application Service.
+You can use [`cert-manager`](https://cert-manager.io/docs/) to provision and automatically renew TLS credentials
+by completing ACME challenges via Let's Encrypt.
+
+This method uses a Kubernetes `LoadBalancer`, which will provision an underlying
+[AWS Network Load Balancer (NLB)](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
+to handle incoming traffic.
 
 #### Using AWS Certificate Manager
 
-You can use AWS Certificate Manager to handle TLS termination with AWS-managed
-certificates.
+You can use AWS Certificate Manager to handle TLS termination with AWS-managed certificates.
 
-You should be aware of the limitations for using AWS Certificate Manager to
-provision TLS credentials for Teleport:
+This method uses a Kubernetes `Ingress`, which can provision an underlying
+[AWS Application Load Balancer (ALB)](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
+to handle incoming traffic if one does not already exist. It also requires the installation and setup of the [AWS Load Balancer controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller).
 
-- This will prevent the Teleport Application Service from working via CLI using
-  client certificates. Application access will still work via a browser.
-- Command-line application access does not work with ACM. Using ACM will prevent
-  Teleport from facilitating application access via CLI (using client
-  certificates), as Teleport will not be handling its own TLS termination.
-- Using ACM through a AWS Load Balancer prevents the required traffic for
-  Postgres or MongoDB through Teleport's web port. If you choose to use the ACM
-  approach, we will show you how to configure a separate listener for Postgres
-  or MongoDB.
+You should be aware of these potential limitations when using Layer 7 load balancers with Teleport:
 
-<Notice type="warning">
+- Connecting to Kubernetes clusters or databases at the command line via `tsh` requires the use
+  of the `tsh proxy kube` and `tsh proxy db` commands respectively. It is not possible to connect `kubectl`
+  directly to the Teleport Kubernetes listener in this mode.
+- The use of `tsh` v13 or higher is required.
 
-If you would like the Teleport Application Service and Database Service to
-function as expected, you should use the `cert-manager` approach unless there is
-a specific reason to use ACM.
-
-</Notice>
+<Admonition type="warning">
+  This method requires that your cluster has a fully functional installation of the AWS Load Balancer
+  controller with required IAM permissions. This documentation links to AWS-managed documentation to provide
+  installation instructions below.
+</Admonition>
 
 #### Using your own TLS credentials
 
@@ -91,7 +106,8 @@ With this approach, you are responsible for determining how to obtain a TLS
 certificate and private key for your Teleport cluster, and for renewing your
 credentials periodically. Use this approach if you would like to use a trusted
 internal certificate authority instead of Let's Encrypt or AWS Certificate
-Manager.
+Manager. This method uses a Kubernetes `LoadBalancer` and will provision an
+underlying AWS NLB.
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -189,9 +205,9 @@ EOF
 After you have created the `Issuer` and updated the values, add it to your cluster using `kubectl`:
 
 ```code
-$ kubectl create namespace teleport
+$ kubectl create namespace <Var name="namespace" />
 $ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
-$ kubectl --namespace teleport create -f aws-issuer.yaml
+$ kubectl --namespace <Var name="namespace" /> create -f aws-issuer.yaml
 ```
 
 </TabItem>
@@ -199,38 +215,49 @@ $ kubectl --namespace teleport create -f aws-issuer.yaml
 In this step, you will configure Teleport to use AWS Certificate Manager (ACM)
 to provision your Teleport instances with TLS credentials.
 
+<Admonition type="warning" title="Prerequisite: Install and configure the AWS Load Balancer controller">
+  You must either follow the [AWS-maintained documentation on installing the AWS Load Balancer Controller](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
+  or already have a working installation of the AWS LB controller before continuing with these instructions. Failure to do this will result in an unusable Teleport cluster.
+</Admonition>
+
 To use ACM to handle TLS, add annotations to the chart specifying the ACM
-certificate ARN to use and the port it should be served on.
+certificate ARN to use, the port it should be served on and other ALB configuration
+parameters.
 
 Replace
 `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece`
 with your actual ACM certificate ARN.
 
-Edit your `values.yaml` file to complete the `annotations.service` field as
-follows:
+Edit your `values.yaml` file to complete the `annotations.ingress` field as follows:
 
   ```yaml
   annotations:
-    service:
-      service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
-      service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
-      service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+    ingress:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/backend-protocol: HTTPS
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
+      alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+      alb.ingress.kubernetes.io/success-codes: 200,301,302
+      # Replace with your AWS certificate ARN
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
   ```
 
-To use an internal AWS network load balancer (as opposed to the default
-internet-facing NLB), you should add two annotations:
+To use an internal AWS application load balancer (as opposed to an internet-facing ALB), you should
+edit the `alb.ingress.kubernetes.io/scheme` annotation:
 
   ```yaml
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
-    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    alb.ingress.kubernetes.io/scheme: internal
   ```
 
-If you plan to use Postgres or MongoDB with Teleport, add the following options,
-depending on whether you are running PostgreSQL or MongoDB, to your values file:
+To automatically redirect HTTP requests on port 80 to HTTPS requests on port 443, you
+can also optionally provide these two values under `annotations.ingress`:
 
   ```yaml
-  separatePostgresListener: true
-  separateMongoListener: true
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
   ```
 
 </TabItem>
@@ -242,7 +269,7 @@ UI using existing TLS credentials within a Kubernetes secret.
 Use the following command to create your secret:
 
 ```code
-$ kubectl -n teleport create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
+$ kubectl -n <Var name="namespace" /> create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
 ```
 
 Edit your `values.yaml` file to refer to the name of your secret:
@@ -268,7 +295,7 @@ Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
 
 ```code
-$ kubectl -n teleport create secret generic license --from-file=license.pem
+$ kubectl -n <Var name="namespace" /> create secret generic license --from-file=license.pem
 ```
 
 </ScopedBlock>
@@ -283,6 +310,7 @@ a file called `aws-values.yaml` and write the values you've chosen above to it:
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+proxyListenerMode: multiplex
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
@@ -305,6 +333,7 @@ podSecurityPolicy:
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+proxyListenerMode: multiplex
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
@@ -316,11 +345,17 @@ aws:
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
 annotations:
-  service:
+  ingress:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+    alb.ingress.kubernetes.io/success-codes: 200,301,302
     # Replace with your AWS certificate ARN
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
@@ -336,6 +371,7 @@ podSecurityPolicy:
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+proxyListenerMode: multiplex
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
@@ -371,11 +407,17 @@ highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
 annotations:
-  service:
+  ingress:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+    alb.ingress.kubernetes.io/success-codes: 200,301,302
     # Replace with your AWS certificate ARN
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
-    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
 # If you are running Kubernetes 1.23 or above, disable PodSecurityPolicies
 podSecurityPolicy:
   enabled: false
@@ -388,9 +430,9 @@ podSecurityPolicy:
 Install the chart with the values from your `aws-values.yaml` file using this command:
 
 ```code
-$ helm install teleport teleport/teleport-cluster \
+$ helm install <Var name="release-name" /> teleport/teleport-cluster \
   --create-namespace \
-  --namespace teleport \
+  --namespace <Var name="namespace" /> \
   -f aws-values.yaml
 ```
 
@@ -398,10 +440,10 @@ $ helm install teleport teleport/teleport-cluster \
   You cannot change the `clusterName` after the cluster is configured, so make sure you choose wisely. You should use the fully-qualified domain name that you'll use for external access to your Teleport cluster.
 </Admonition>
 
-Once the chart is installed, you can use `kubectl` commands to view the deployment:
+Once the chart is installed, you can use `kubectl` commands to view the deployment (example using `cert-manager`):
 
 ```code
-$ kubectl --namespace teleport get all
+$ kubectl --namespace <Var name="namespace" /> get all
 
 NAME                                 READY   STATUS    RESTARTS   AGE
 pod/teleport-auth-57989d4cbd-4q2ds   1/1     Running   0          22h
@@ -434,10 +476,13 @@ You'll need to set up a DNS `A` record for `teleport.example.com`. In our exampl
 
 Here's how to do this in a hosted zone with AWS Route 53:
 
+<Tabs>
+<TabItem label="cert-manager">
+
 ```code
 # Change these parameters if you altered them above
-$ NAMESPACE='teleport'
-$ RELEASE_NAME='teleport'
+$ NAMESPACE='<Var name="namespace" />'
+$ RELEASE_NAME='<Var name="release-name" />'
 
 # DNS settings (change as necessary)
 $ MYZONE_DNS='example.com'
@@ -446,7 +491,7 @@ $ MY_CLUSTER_REGION='us-west-2'
 
 # Find AWS Zone ID and ELB Zone ID
 $ MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
-$ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
+$ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "service/${RELEASE_NAME?}-proxy" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
 $ MYELB_NAME="${MYELB%%-*}"
 $ MYELB_ZONE="$(aws elbv2 describe-load-balancers --region "${MY_CLUSTER_REGION?}" --names "${MYELB_NAME?}" | jq -r '.LoadBalancers[0].CanonicalHostedZoneId')"
 
@@ -492,14 +537,79 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 # "INSYNC"
 ```
 
-## Step 6/6. Create a Teleport user
+</TabItem>
+<TabItem label="AWS Certificate Manager">
+
+```code
+# Change these parameters if you altered them above
+$ NAMESPACE='<Var name="namespace" />'
+$ RELEASE_NAME='<Var name="release-name" />'
+
+# DNS settings (change as necessary)
+$ MYZONE_DNS='example.com'
+$ MYDNS='teleport.example.com'
+$ MY_CLUSTER_REGION='us-west-2'
+
+# Find AWS Zone ID and Ingress Controller ALB Zone ID
+$ MYZONE="$(aws route53 list-hosted-zones-by-name --dns-name="${MYZONE_DNS?}" | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)"
+$ MYELB="$(kubectl --namespace "${NAMESPACE?}" get "ingress/${RELEASE_NAME?}-proxy" -o jsonpath='{.status.loadBalancer.ingress[*].hostname}')"
+$ MYELB_ROOT="${MYELB%%.*}"
+$ MYELB_NAME="${MYELB_ROOT%-*}"
+$ MYELB_ZONE="$(aws elbv2 describe-load-balancers --region "${MY_CLUSTER_REGION?}" --names "${MYELB_NAME?}" | jq -r '.LoadBalancers[0].CanonicalHostedZoneId')"
+
+# Create a JSON file changeset for AWS.
+$ jq -n --arg dns "${MYDNS?}" --arg elb "${MYELB?}" --arg elbz "${MYELB_ZONE?}" \
+    '{
+        "Comment": "Create records",
+        "Changes": [
+          {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+              "Name": $dns,
+              "Type": "A",
+              "AliasTarget": {
+                "HostedZoneId": $elbz,
+                "DNSName": ("dualstack." + $elb),
+                "EvaluateTargetHealth": false
+              }
+            }
+          },
+          {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+              "Name": ("*." + $dns),
+              "Type": "A",
+              "AliasTarget": {
+                "HostedZoneId": $elbz,
+                "DNSName": ("dualstack." + $elb),
+                "EvaluateTargetHealth": false
+              }
+            }
+          }
+      ]
+    }' > myrecords.json
+
+# Review records before applying.
+$ cat myrecords.json | jq
+# Apply the records and capture change id
+$ CHANGEID="$(aws route53 change-resource-record-sets --hosted-zone-id "${MYZONE?}" --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')"
+
+# Verify that change has been applied
+$ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
+# "INSYNC"
+```
+
+</TabItem>
+</Tabs>
+
+## Step 7/7. Create a Teleport user
 
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
 <ScopedBlock scope={["oss"]}>
 ```code
-$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor
+$ kubectl --namespace <Var name="namespace" /> exec deploy/<Var name="release-name" />-auth -- tctl users add test --roles=access,editor
 
 User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
@@ -534,29 +644,20 @@ version of Teleport. You can make sure that the repo is up to date by running `h
 
 Here's an example where we set the chart to use 3 replicas:
 
-<Tabs>
-  <TabItem label="Using values.yaml">
-  Edit your `aws-values.yaml` file from above and make the appropriate changes.
+Edit your `aws-values.yaml` file from above and make the appropriate changes:
 
-  Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
+```yaml
+highAvailability:
+  replicaCount: 3
+```
 
-  ```code
-  $ helm upgrade teleport teleport/teleport-cluster \
-    --namespace teleport \
-    -f aws-values.yaml
-  ```
+Upgrade the deployment with the values from your `aws-values.yaml` file using this command:
 
-  </TabItem>
-  <TabItem label="Using --set via CLI">
-  Run this command, editing your command line parameters as appropriate:
-
-  ```code
-  $ helm upgrade teleport teleport/teleport-cluster \
-    --namespace teleport \
-    --set highAvailability.replicaCount=3
-  ```
-  </TabItem>
-</Tabs>
+```code
+$ helm upgrade <Var name="release-name" /> teleport/teleport-cluster \
+  --namespace <Var name="namespace" /> \
+  -f aws-values.yaml
+```
 
 <Admonition type="note">
   To change `chartMode`, `clusterName`, or any `aws` settings, you must first uninstall the existing chart and then install a new version with the appropriate values.
@@ -592,8 +693,8 @@ aws:
 Then perform a cluster upgrade with the new values:
 
 ```code
-$ helm upgrade teleport teleport/teleport-cluster \
-  --namespace teleport \
+$ helm upgrade <Var name="release-name" /> teleport/teleport-cluster \
+  --namespace <Var name="namespace" /> \
   -f aws-values.yaml
 ```
 
@@ -602,7 +703,7 @@ $ helm upgrade teleport teleport/teleport-cluster \
 To uninstall the `teleport-cluster` chart, use `helm uninstall <release-name>`. For example:
 
 ```code
-$ helm --namespace teleport uninstall teleport
+$ helm --namespace <Var name="namespace" /> uninstall <Var name="release-name" />
 ```
 
 ### Uninstalling cert-manager
