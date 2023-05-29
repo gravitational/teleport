@@ -115,6 +115,8 @@ func New() (*E, error) {
 	return e, nil
 }
 
+// FakeDevice is implemented by the platform-native fakes and is used in tests
+// for device authentication and enrollment.
 type FakeDevice interface {
 	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
