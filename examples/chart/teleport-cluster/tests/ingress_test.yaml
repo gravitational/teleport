@@ -480,3 +480,24 @@ tests:
                 pathType: Prefix
       - matchSnapshot:
           path: spec.tls
+
+  - it: sets spec when passed
+    set:
+      clusterName: teleport.example.com
+      proxyListenerMode: multiplex
+      ingress:
+        enabled: true
+        spec:
+          ingressClassName: nginx
+          otherSpecStuff: lint
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: nginx
+      - equal:
+          path: spec.otherSpecStuff
+          value: lint
