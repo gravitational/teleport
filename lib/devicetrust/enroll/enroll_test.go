@@ -19,6 +19,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,14 +38,49 @@ func TestRunCeremony(t *testing.T) {
 
 	macOSDev1, err := testenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
+	windowsDev1 := testenv.NewFakeWindowsDevice()
 
 	tests := []struct {
-		name string
-		dev  fakeDevice
+		name            string
+		dev             fakeDevice
+		assertErr       func(t *testing.T, err error)
+		assertGotDevice func(t *testing.T, device *devicepb.Device)
 	}{
 		{
-			name: "macOS device",
+			name: "macOS device succeeds",
 			dev:  macOSDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.NotNil(t, d, "RunCeremony returned nil device")
+			},
+		},
+		{
+			name: "windows device succeeds",
+			dev:  windowsDev1,
+			assertErr: func(t *testing.T, err error) {
+				assert.NoError(t, err, "RunCeremony returned an error")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				require.NotNil(t, d, "RunCeremony returned nil device")
+				require.NotNil(t, d.Credential, "device credential is nil")
+				assert.Equal(t, windowsDev1.CredentialID, d.Credential.Id, "device credential mismatch")
+			},
+		},
+		{
+			name: "linux device fails",
+			dev:  testenv.NewFakeLinuxDevice(),
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				assert.True(
+					t, trace.IsBadParameter(err), "RunCeremony did not return a BadParameter error",
+				)
+				assert.ErrorContains(t, err, "linux", "RunCeremony error mismatch")
+			},
+			assertGotDevice: func(t *testing.T, d *devicepb.Device) {
+				assert.Nil(t, d, "RunCeremony returned an unexpected, non-nil device")
+			},
 		},
 	}
 	for _, test := range tests {
@@ -52,10 +88,11 @@ func TestRunCeremony(t *testing.T) {
 			*enroll.GetOSType = test.dev.GetOSType
 			*enroll.EnrollInit = test.dev.EnrollDeviceInit
 			*enroll.SignChallenge = test.dev.SignChallenge
+			*enroll.SolveTPMEnrollChallenge = test.dev.SolveTPMEnrollChallenge
 
 			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
-			assert.NoError(t, err, "RunCeremony failed")
-			assert.NotNil(t, got, "RunCeremony returned nil device")
+			test.assertErr(t, err)
+			test.assertGotDevice(t, got)
 		})
 	}
 }
@@ -67,19 +104,23 @@ func resetNative() func() {
 	}
 	os.Setenv(guardKey, "1")
 
-	getOSType := *enroll.GetOSType
+	collectDeviceData := *enroll.CollectDeviceData
 	enrollDeviceInit := *enroll.EnrollInit
+	getOSType := *enroll.GetOSType
 	signChallenge := *enroll.SignChallenge
 	return func() {
-		*enroll.GetOSType = getOSType
+		*enroll.CollectDeviceData = collectDeviceData
 		*enroll.EnrollInit = enrollDeviceInit
+		*enroll.GetOSType = getOSType
 		*enroll.SignChallenge = signChallenge
 		os.Unsetenv(guardKey)
 	}
 }
 
 type fakeDevice interface {
-	GetOSType() devicepb.OSType
+	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
+	GetOSType() devicepb.OSType
 	SignChallenge(chal []byte) (sig []byte, err error)
+	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
 }

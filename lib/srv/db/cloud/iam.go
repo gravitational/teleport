@@ -18,7 +18,6 @@ package cloud
 
 import (
 	"context"
-	"encoding/base64"
 	"sync"
 	"time"
 
@@ -246,10 +245,6 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		return trace.Wrap(err)
 	}
 
-	// Encode the identity as base64 without padding, since the backend Sanetizer
-	// will reject any semaphor with "//" in it.
-	semName := configurator.cfg.identity.String()
-	encodedName := base64.RawStdEncoding.EncodeToString([]byte(semName))
 	// Acquire a semaphore before making changes to the shared IAM policy.
 	//
 	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
@@ -258,9 +253,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		Service: c.cfg.AccessPoint,
 		Request: types.AcquireSemaphoreRequest{
 			SemaphoreKind: configurator.cfg.policyName,
-			// Use full identity string as the semaphore name, since two roles
-			// may have the same name in different AWS accounts.
-			SemaphoreName: encodedName,
+			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
 			Holder:        c.cfg.HostID,
 

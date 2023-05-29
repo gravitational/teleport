@@ -25,7 +25,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -78,15 +78,15 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	c.config = config
 
 	// add node command
-	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster")
-	c.nodeAdd = nodes.Command("add", "Generate a node invitation token")
+	nodes := app.Command("nodes", "Issue invites for other nodes to join the cluster.")
+	c.nodeAdd = nodes.Command("add", "Generate a node invitation token.")
 	c.nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&c.roles)
 	c.nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&c.ttl)
 	c.nodeAdd.Flag("token", "Override the default random generated token with a specified value").StringVar(&c.token)
 	c.nodeAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 	c.nodeAdd.Alias(AddNodeHelp)
 
-	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster")
+	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster.")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Default(apidefaults.Namespace).StringVar(&c.namespace)
 	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default(teleport.Text).StringVar(&c.lsFormat)
 	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
@@ -234,25 +234,18 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var nodes []types.Server
-	resources, err := client.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+	nodes, err := client.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindNode,
 		Namespace:           c.namespace,
 		Labels:              labels,
 		PredicateExpression: c.predicateExpr,
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
 		}
 		return trace.Wrap(err)
-	default:
-		nodes, err = types.ResourcesWithLabels(resources).AsServers()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	coll := &serverCollection{servers: nodes, verbose: c.verbose}

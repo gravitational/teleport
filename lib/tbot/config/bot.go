@@ -41,9 +41,6 @@ type Bot interface {
 	// requests them from the server if unavailable.
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error)
 
-	// Client retrieves the current auth client.
-	Client() auth.ClientI
-
 	// AuthenticatedUserClientFromIdentity returns a client backed by a specific
 	// identity.
 	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)

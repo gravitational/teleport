@@ -19,6 +19,7 @@ package srv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -210,7 +211,6 @@ func writeChildError(w io.Writer, err error) {
 		Code:     trace.ErrorToCode(err),
 		RawError: data,
 	})
-
 }
 
 // DecodeChildError consumes the output from a child
@@ -393,6 +393,12 @@ type ServerContext struct {
 	// to terminate the shell.
 	killShellr *os.File
 	killShellw *os.File
+
+	// multiWriter is used to record non-interactive session output.
+	// Currently, used by Assist.
+	multiWriter io.Writer
+	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
+	recordNonInteractiveSession bool
 
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -726,11 +732,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
+		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 
 	return nil
@@ -739,7 +745,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 // CheckSFTPAllowed returns an error if remote file operations via SCP
 // or SFTP are not allowed by the user's role or the node's config, or
 // if the user is not allowed to start unattended sessions.
-func (c *ServerContext) CheckSFTPAllowed() error {
+func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	if err := c.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -751,8 +757,21 @@ func (c *ServerContext) CheckSFTPAllowed() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !canStart {
-		return errCannotStartUnattendedSession
+	// canStart will be true for non-moderated sessions. If canStart is false, check to
+	// see if the request has been approved through a moderated session next.
+	if canStart {
+		return nil
+	}
+	if registry == nil {
+		return trace.Wrap(errCannotStartUnattendedSession)
+	}
+
+	approved, err := registry.isApprovedFileTransfer(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !approved {
+		return trace.Wrap(errCannotStartUnattendedSession)
 	}
 
 	return nil
@@ -878,7 +897,7 @@ func (c *ServerContext) x11Ready() (bool, error) {
 	// Wait for child process to send signal (1 byte)
 	// or EOF if signal was already received.
 	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)
@@ -1054,13 +1073,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 
 		for key, value := range localPAMConfig.Environment {
-			expr, err := parse.NewExpression(value)
+			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 			varValidation := func(namespace, name string) error {
-				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
+				if namespace != teleport.TraitExternalPrefix {
 					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
 				}
 				return nil

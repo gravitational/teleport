@@ -101,6 +101,8 @@ type EngineConfig struct {
 	Users Users
 	// DataDir is the Teleport data directory
 	DataDir string
+	// GetUserProvisioner is automatic database users creation handler.
+	GetUserProvisioner func(AutoUsers) *UserProvisioner
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

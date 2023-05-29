@@ -12,6 +12,36 @@ Teleport is made up of four CLI tools.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
+<Details title="Improve the CLI experience: enable shell completion">
+
+  Teleport's CLI tools can provide completion hints for bash and zsh.
+  For example, typing `tsh` and pressing `Tab` will show all available
+  subcommands, typing `tsh --` and pressing `Tab` will show all available flags.
+
+  To enable completion, add an additional statement to your shell configuration file.
+
+  Example (`.bashrc`):
+
+  ```sh
+  eval "$(tsh --completion-script-bash)"
+  ```
+
+  Example (`.zshrc`):
+
+  ```sh
+  # enable completion feature
+  autoload -Uz compinit
+  compinit
+
+  eval "$(tsh --completion-script-zsh)"
+  ```
+
+  Reload your shell to see the changes.
+
+  You can repeat the same process for `tctl`, `teleport`, and `tbot`.
+
+</Details>
+
 (!docs/pages/includes/backup-warning.mdx!)
 
 ## teleport
@@ -54,7 +84,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](https://goteleport.com/docs/reference/config/) in production.
+we recommend using a [configuration file](./config.mdx) in production.
 
 #### Flags
 
@@ -142,12 +172,13 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 | `--headless` | none | none | Use Headless WebAuthn for authentication |
+| `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ### tsh help
 
@@ -627,7 +658,7 @@ $ ssh myuser@node1.example.com
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections.
+Starts a local TLS proxy for Application Service connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -828,6 +859,9 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
+<Admonition type="note">
+  `tsh scp` will not work from the CLI if the user requires session moderation. You can transfer files in a moderated session by joining the SSH session from the Web UI and requesting the file transfer there. Both the session initiator and moderators must be present in the Web UI in order to approve the file transfer request.
+</Admonition>
 
 ### tsh ls
 
@@ -837,17 +871,16 @@ List cluster nodes:
 $ tsh ls [<flags>] [<label>]
 ```
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 
 </Details>
 
-{/* TODO: label? or labels? seems like it only supports one label at a time */}
-
 #### Arguments
 
-- `<label>` - `key=value` label to filer nodes by
+- `<labels>` - comma-separated list of `key=value` labels to filter nodes by,
+  e.g., `env=dev,host=foo`.
 
 #### Flags
 
@@ -1281,7 +1314,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
@@ -1888,6 +1921,13 @@ $ tctl auth export --type tls
 
 ### tctl auth sign
 
+<Admonition type="tip" title="Automation">
+`tctl auth sign` is commonly used to generate long-lived certificates for
+automation purposes. On supported platforms,
+[Machine ID](../machine-id/introduction.mdx) is a more secure alternative that
+generates short-lived certificates for automation workflows.
+</Admonition>
+
 Create an identity file(s) for a given user:
 
 ```code
@@ -1911,7 +1951,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
-| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
 | `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
 | `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
@@ -2192,7 +2232,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 #### Global flags
@@ -2584,6 +2624,65 @@ $ tctl alerts create \
     --severity=low \
     --ttl=4h \
     "The system is under maintenance, functionality may be limited."
+```
+
+### tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+#### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | The reason for suppressing this alert |
+
+#### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+### tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
 ```
 
 ### tctl devices add

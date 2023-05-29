@@ -8,52 +8,33 @@ certificates to any service account (e.g., a CI/CD server) by retrieving
 credentials from the Teleport Auth Service. This enables fine-grained
 role-based access controls and audit.
 
+<iframe
+  width="712"
+  height="400"
+  src="https://www.youtube-nocookie.com/embed/QWd0eqIa9mA?"
+  frameBorder="0"
+  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+/>
+<br/>
+
 Machine ID supports the following Teleport features:
- - [Server Access](./getting-started.mdx)
- - [Database Access](./guides/databases.mdx)
- - [Kubernetes Access](./guides/kubernetes.mdx) (*in Teleport v10.1*)
- - [Application Access](./guides/applications.mdx) (*in Teleport v10.1*)
-   - Note: [AWS Console](../application-access/cloud-apis/aws-console.mdx) and API access is currently unsupported.
- - [Teleport API Access](../api/introduction.mdx)
+
+- [Server Access](./getting-started.mdx)
+- [Database Access](./guides/databases.mdx)
+- [Kubernetes Access](./guides/kubernetes.mdx) (*in Teleport v10.1*)
+- [Application Access](./guides/applications.mdx) (*in Teleport v10.1*)
+  - Note: [AWS Console](../application-access/cloud-apis/aws-console.mdx) and API access are currently unsupported.
+- [Teleport API Access](../api/introduction.mdx)
 
 These features are supported in Teleport Enterprise and Teleport Cloud.
 
 The following features are **not** yet supported by Machine ID:
- - [Desktop Access](../desktop-access/introduction.mdx)
- - [User Impersonation](../access-controls/guides/impersonation.mdx): Machine 
-   ID uses Role Impersonation which cannot be combined with User Impersonation
- - Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
- - [AWS Console Access](../application-access/cloud-apis/aws-console.mdx)
-
-{
-/*
-TODO(russjones): Once we have a demo video for Machine ID, include it here.
-
-## Demo
-
-Let's create a bot and use the machine identity to connect to a server.
-
-<video
-  autoPlay
-  loop
-  muted
-  playsInline
-  controls
->
-  <source
-    src="../../img/database-access/dbaccessdemo.mp4"
-    type="video/mp4"
-  />
-
-  <source
-    src="../../img/database-access/dbaccessdemo.webm"
-    type="video/webm"
-  />
-
-  Your browser does not support the video tag.
-</video>
-*/
-}
+- [Desktop Access](../desktop-access/introduction.mdx)
+- [User Impersonation](../access-controls/guides/impersonation.mdx): Machine
+  ID uses Role Impersonation which cannot be combined with User Impersonation
+- Multifactor authentication like [WebAuthn](../access-controls/guides/webauthn.mdx) and [Passwordless](../access-controls/guides/passwordless.mdx)
+- [AWS Console Access](../application-access/cloud-apis/aws-console.mdx)
 
 ## Getting started
 

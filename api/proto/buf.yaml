@@ -23,6 +23,7 @@ lint:
     - teleport/legacy/client/proto/certs.proto
     - teleport/legacy/client/proto/proxyservice.proto
     - teleport/legacy/types/events/events.proto
+    - teleport/legacy/types/events/athena.proto
     - teleport/legacy/types/types.proto
     - teleport/legacy/types/wrappers/wrappers.proto
   ignore_only:
@@ -55,4 +56,4 @@ lint:
       - teleport/transport/v1/transport_service.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

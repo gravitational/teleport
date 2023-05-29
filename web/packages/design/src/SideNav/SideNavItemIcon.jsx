@@ -18,7 +18,6 @@ import styled from 'styled-components';
 
 import Icon from '../Icon';
 
-import theme from './../theme';
 import SideNavItem from './SideNavItem';
 
 const SideNavItemIcon = styled(Icon)`
@@ -38,7 +37,6 @@ const SideNavItemIcon = styled(Icon)`
 SideNavItemIcon.displayName = 'SideNavItemIcon';
 SideNavItemIcon.defaultProps = {
   fontSize: 4,
-  theme: theme,
   mr: 3,
   ml: -6,
 };

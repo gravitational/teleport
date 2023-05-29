@@ -292,6 +292,8 @@ describe('emitting events', () => {
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Error,
           stepStatusError: 'some error message',
+          selectedResourcesCount: 0,
+          autoDiscoverResourcesCount: 0,
         },
       })
     );

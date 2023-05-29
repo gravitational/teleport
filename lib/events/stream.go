@@ -1014,7 +1014,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
 			if err != nil {
 				// reached the end of the stream
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					r.state = protoReaderStateEOF
 					return nil, err
 				}
@@ -1115,7 +1115,7 @@ func (r *ProtoReader) ReadAll(ctx context.Context) ([]apievents.AuditEvent, erro
 	for {
 		event, err := r.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return events, nil
 			}
 			return nil, trace.Wrap(err)

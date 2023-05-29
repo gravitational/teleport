@@ -94,6 +94,9 @@ type FileConfig struct {
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
 
+	// Jamf is the "jamf_service" section in the config file.
+	Jamf JamfService `yaml:"jamf_service,omitempty"`
+
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
@@ -521,8 +524,12 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
 			}
 		} else if matcher.ExternalID != "" {
-			return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
-				matcher.ExternalID)
+			for _, t := range matcher.Types {
+				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
+					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+						matcher.ExternalID)
+				}
+			}
 		}
 
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
@@ -1329,12 +1336,36 @@ type DeviceTrust struct {
 	// Mode is the trusted device verification mode.
 	// Mirrors types.DeviceTrust.Mode.
 	Mode string `yaml:"mode,omitempty"`
+	// AutoEnroll is the toggle for the device auto-enroll feature.
+	AutoEnroll string `yaml:"auto_enroll,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
+	autoEnroll := false
+	if dt.AutoEnroll != "" {
+		var err error
+		autoEnroll, err = apiutils.ParseBool(dt.AutoEnroll)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return &types.DeviceTrust{
-		Mode: dt.Mode,
+		Mode:       dt.Mode,
+		AutoEnroll: autoEnroll,
 	}, nil
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+type AssistOptions struct {
+	// OpenAI is a set of options related to the OpenAI assist backend.
+	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// OpenAIOptions stores options related to the OpenAI assist backend.
+type OpenAIOptions struct {
+	// APITokenPath is the path to a file with OpenAI API key.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }
 
 // HostedPlugins defines 'auth_service/plugins' Enterprise extension
@@ -1512,6 +1543,15 @@ type Discovery struct {
 
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1766,6 +1806,14 @@ type Database struct {
 	AD DatabaseAD `yaml:"ad"`
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure `yaml:"azure"`
+	// AdminUser describes database privileged user for auto-provisioning.
+	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+}
+
+// DatabaseAdminUser describes database privileged user for auto-provisioning.
+type DatabaseAdminUser struct {
+	// Name is the database admin username (e.g. "postgres").
+	Name string `yaml:"name"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -2013,6 +2061,9 @@ type Proxy struct {
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 
+	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
+
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
@@ -2032,6 +2083,9 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
@@ -2341,4 +2395,96 @@ type Okta struct {
 
 	// APITokenPath is the path to the Okta API token.
 	APITokenPath string `yaml:"api_token_path,omitempty"`
+}
+
+// JamfService is the yaml representation of jamf_service.
+// Corresponds to [types.JamfSpecV1].
+type JamfService struct {
+	Service `yaml:",inline"`
+	// Name is the name of the sync device source.
+	Name string `yaml:"name,omitempty"`
+	// SyncDelay is the initial sync delay.
+	// Zero means "server default", negative means "immediate".
+	SyncDelay time.Duration `yaml:"sync_delay,omitempty"`
+	// ExitOnSync tells the service to exit immediately after the first sync.
+	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
+	// APIEndpoint is the Jamf Pro API endpoint.
+	// Example: "https://yourtenant.jamfcloud.com".
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+	// Username is the Jamf Pro API username.
+	Username string `yaml:"username,omitempty"`
+	// PasswordFile is a file containing the  Jamf Pro API password.
+	// A single trailing newline is trimmed, anything else is taken literally.
+	PasswordFile string `yaml:"password_file,omitempty"`
+	// Inventory are the entries for inventory sync.
+	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
+}
+
+// JamfInventoryEntry is the yaml representation of a jamf_service.inventory
+// entry.
+// Corresponds to [types.JamfInventoryEntry].
+type JamfInventoryEntry struct {
+	// FilterRSQL is a Jamf Pro API RSQL filter string.
+	FilterRSQL string `yaml:"filter_rsql,omitempty"`
+	// SyncPeriodPartial is the period for PARTIAL syncs.
+	// Zero means "server default", negative means "disabled".
+	SyncPeriodPartial time.Duration `yaml:"sync_period_partial,omitempty"`
+	// SyncPeriodFull is the period for FULL syncs.
+	// Zero means "server default", negative means "disabled".
+	SyncPeriodFull time.Duration `yaml:"sync_period_full,omitempty"`
+	// OnMissing is the trigger for devices missing from the MDM inventory view.
+	// See [types.JamfInventoryEntry.OnMissing].
+	OnMissing string `yaml:"on_missing,omitempty"`
+}
+
+func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
+	switch {
+	case j == nil:
+		return nil, trace.BadParameter("jamf_service is nil")
+	case j.ListenAddress != "":
+		return nil, trace.BadParameter("jamf listen_addr not supported")
+	case j.PasswordFile == "":
+		return nil, trace.BadParameter("jamf password_file required")
+	}
+
+	// Read password from file.
+	pwdBytes, err := os.ReadFile(j.PasswordFile)
+	if err != nil {
+		return nil, trace.BadParameter("jamf password_file: %v", err)
+	}
+	pwd := string(pwdBytes)
+	if pwd == "" {
+		return nil, trace.BadParameter("jamf password_file is empty")
+	}
+	// Trim trailing \n?
+	if l := len(pwd); pwd[l-1] == '\n' {
+		pwd = pwd[:l-1]
+	}
+
+	// Assemble spec.
+	inventory := make([]*types.JamfInventoryEntry, len(j.Inventory))
+	for i, e := range j.Inventory {
+		inventory[i] = &types.JamfInventoryEntry{
+			FilterRsql:        e.FilterRSQL,
+			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			OnMissing:         e.OnMissing,
+		}
+	}
+	spec := &types.JamfSpecV1{
+		Enabled:     j.Enabled(),
+		Name:        j.Name,
+		SyncDelay:   types.Duration(j.SyncDelay),
+		ApiEndpoint: j.APIEndpoint,
+		Username:    j.Username,
+		Password:    pwd,
+		Inventory:   inventory,
+	}
+
+	// Validate.
+	if err := types.ValidateJamfSpecV1(spec); err != nil {
+		return nil, trace.BadParameter("jamf_service %v", err)
+	}
+
+	return spec, nil
 }

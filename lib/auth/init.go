@@ -143,6 +143,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// Assist is a service that implements the Teleport Assist functionality.
+	Assist services.Assistant
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -189,6 +192,9 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
+	// Integrations is a service that manages Integrations.
+	Integrations services.Integrations
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -219,6 +225,10 @@ type InitConfig struct {
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
+
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -233,7 +243,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	ctx := context.TODO()
 
 	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
+	lock, err := backend.AcquireLock(ctx, backend.LockConfiguration{
+		Backend:  cfg.Backend,
+		LockName: domainName,
+		TTL:      30 * time.Second,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -600,6 +614,7 @@ type PresetRoleManager interface {
 // createPresets creates preset resources (eg, roles).
 func createPresets(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
@@ -616,7 +631,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowConditions(currentRole)
+			role, err := services.AddRoleDefaults(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
@@ -669,7 +684,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
 			case types.DatabaseCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner:
+			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)

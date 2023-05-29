@@ -1,6 +1,6 @@
 ---
 authors: Lisa Kim (lisa@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 55 - WebUI server-side paginating and filtering
@@ -21,7 +21,7 @@ There is already pagination support for resources: nodes, apps, dbs. Kubes is [p
 
 ### Filter
 
-There will be filters that will be applied in order of precedence: RBAC > label > search > sort. RBAC will not be discussed since this check existed before. 
+There will be filters that will be applied in order of precedence: RBAC > label > search > sort. RBAC will not be discussed since this check existed before.
 
 ### Filter: Query Language
 
@@ -232,7 +232,7 @@ Depending on what state the search bar is currently on, clicking on labels will 
 
 <br/>
 
-#### Bookmarkable URL 
+#### Bookmarkable URL
 
 The URL will be made bookmarkable and contains the search, sort, and query params.
 
@@ -308,4 +308,3 @@ Sort buttons on table columns will stay the same, but on click will update the q
   - clickable labels from table
 - Phase 2:
   - bring pagination + filter support to rest of resources for tsh, tctl and web ui
-

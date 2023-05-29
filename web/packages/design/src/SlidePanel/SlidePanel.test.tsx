@@ -15,8 +15,9 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+import { render, screen } from 'design/utils/testing';
 import '@testing-library/jest-dom';
 
 import { SlidePanel } from './SlidePanel';

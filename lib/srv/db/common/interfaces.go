@@ -84,3 +84,12 @@ type Engine interface {
 type Users interface {
 	GetPassword(ctx context.Context, database types.Database, userName string) (string, error)
 }
+
+// AutoUsers defines an interface for automatic user provisioning
+// a particular database engine should implement.
+type AutoUsers interface {
+	// ActivateUser creates or enables a database user.
+	ActivateUser(context.Context, *Session) error
+	// DeactivateUser disables a database user.
+	DeactivateUser(context.Context, *Session) error
+}

@@ -4,6 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"math"
+	"time"
+
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -12,9 +17,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"math"
-	"time"
 )
 
 const botIdentityRenewalRetryLimit = 7

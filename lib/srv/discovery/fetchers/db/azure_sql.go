@@ -31,8 +31,7 @@ func newAzureSQLServerFetcher(config azureFetcherConfig) (common.Fetcher, error)
 }
 
 // azureSQLServerFetcher implements azureFetcherPlugin for Azure SQL Servers.
-type azureSQLServerFetcher struct {
-}
+type azureSQLServerFetcher struct{}
 
 func (f *azureSQLServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.SQLServerClient, error) {
 	client, err := cfg.AzureClients.GetAzureSQLServerClient(subID)

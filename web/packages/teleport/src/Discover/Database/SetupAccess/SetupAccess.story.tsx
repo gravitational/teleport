@@ -89,6 +89,7 @@ const props: State = {
     statusText: '',
   },
   onProceed: () => null,
+  onPrev: () => null,
   fetchUserTraits: () => null,
   isSsoUser: false,
   canEditUser: true,
@@ -124,7 +125,7 @@ const dynamicTraits = {
 function getDbMeta(dbEngine: DatabaseEngine, dbLocation?: DatabaseLocation) {
   return {
     // Only these fields are relevant.
-    meta: {
+    dbMeta: {
       dbEngine,
       dbLocation,
     },

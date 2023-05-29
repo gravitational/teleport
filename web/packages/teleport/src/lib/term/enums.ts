@@ -20,6 +20,10 @@ export enum EventType {
   END = 'session.end',
   PRINT = 'print',
   RESIZE = 'resize',
+  FILE_TRANSFER_REQUEST = 'file_transfer_request',
+  FILE_TRANSFER_DECISION = 'file_transfer_decision',
+  FILE_TRANSFER_REQUEST_APPROVE = 'file_transfer_request_approve',
+  FILE_TRANSFER_REQUEST_DENY = 'file_transfer_request_deny',
 }
 
 export enum TermEvent {

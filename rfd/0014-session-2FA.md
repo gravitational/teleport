@@ -1,6 +1,6 @@
 ---
 authors: Andrew Lytvynov (andrew@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 14 - Per-session MFA

@@ -27,7 +27,7 @@ A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster
 <Notice type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
-databases behind a firewall. For more information, see [Adding Nodes to the Cluster](./adding-nodes.mdx).
+databases behind a firewall. For more information, see [Adding Nodes to the Cluster](../join-services-to-your-cluster/join-token.mdx).
 </Notice>
 
 When a user tries to connect to any resource inside the leaf cluster using the root's proxy
@@ -47,23 +47,15 @@ This guide will explain how to:
 - Two running Teleport clusters. For details on how to set up your clusters, see
   one of our [Getting Started](/docs/getting-started) guides.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
   See [Installation](/docs/installation.mdx) for details.
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport Node in your cluster.
 
 </TabItem>
 <TabItem
@@ -72,22 +64,12 @@ This guide will explain how to:
 - Two running Teleport clusters. For details on how to set up your clusters, see
   our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a Teleport Node in
   your cluster.
 
 </TabItem>
@@ -103,22 +85,13 @@ how to set up this cluster, see one of our
 
   As an alternative, you can set up a second Teleport Cloud account.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../choose-an-edition/teleport-cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport Node in your cluster.
 
 </TabItem>
 </Tabs>
@@ -323,7 +296,7 @@ Token                                                            Type           
 (=presets.tokens.first=)                                 trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
 ```
 
-<Details title="Revoking join tokens" opened={false}>
+<Details title="Revoking join tokens">
 
 You can revoke a join token with the following command:
 
@@ -569,7 +542,7 @@ Create the Trusted Cluster:
 $ tctl create trusted_cluster.yaml
 ```
 
-<Details title="Creating Trusted Clusters via the Web UI" opened={false}>
+<Details title="Creating Trusted Clusters via the Web UI">
 
 You can easily configure leaf nodes using the Teleport Web UI.
 

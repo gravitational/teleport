@@ -109,13 +109,23 @@ func getClusterNames(client auth.ClientI) ([]string, error) {
 	return allClusterNames, nil
 }
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(
+	ctx context.Context,
+	bot Bot,
+	_, unroutedIdentity *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
+	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)

@@ -1,6 +1,6 @@
 ---
 authors: Hugo Hervieux (hugo.hervieux@goteleport.com)
-state: draft
+state: implemented (v12.0)
 ---
 
 # RFD 0096 - Helm chart revamping
@@ -387,7 +387,7 @@ pods are running which version:
 - the initContainer exits, the proxy starts
 - this unlocks the proxy deployment rollout
 
-Headless services selecting auth pods with a specific version should contain 
+Headless services selecting auth pods with a specific version should contain
 on-ready endpoints to ensure the rollout happens only when all pods are
 completely terminated. This means setting `spec.publishNotReadyAddresses: true`.
 

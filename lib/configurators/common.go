@@ -21,6 +21,7 @@ import (
 // BootstrapFlags flags provided by users to configure and define how the
 // configurators will work.
 type BootstrapFlags struct {
+	// DiscoveryService indicates the bootstrap is for the discovery service.
 	DiscoveryService bool
 	// ConfigPath database agent configuration path.
 	ConfigPath string
@@ -47,6 +48,14 @@ type BootstrapFlags struct {
 	ForceMemoryDBPermissions bool
 	// ForceEC2Permissions forces the presence of EC2 permissions.
 	ForceEC2Permissions bool
+	// ForceAWSKeyspacesPermissions forces the presence of AWS Keyspaces permissions.
+	ForceAWSKeyspacesPermissions bool
+	// ForceDynamoDBPermissions forces the presence of DynamoDB permissions.
+	ForceDynamoDBPermissions bool
+	// Proxy is the address of the Teleport proxy to use.
+	Proxy string
+	// ForceAssumesRoles forces the presence of additional external AWS IAM roles to assume.
+	ForceAssumesRoles string
 }
 
 // ConfiguratorActionContext context passed across configurator actions. It is

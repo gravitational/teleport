@@ -10,7 +10,12 @@ accept SSH certificates dynamically issued by a Teleport CA.
 
 Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
-We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://goteleport.com/blog/openssh-vs-teleport/)
+`teleport` SSH servers have support for multiple features that are incompatible with OpenSSH:
+
+- RBAC and resource filtering based on [dynamically updated labels](../../management/admin/labels.mdx)
+- [Session recording without SSH connection termination](recording-proxy-mode.mdx)
+- [Advanced session recording](bpf-session-recording.mdx)
+- [Restricting outbound network connections in SSH sessions](restricted-session.mdx)
 
 ## Prerequisites
 
@@ -23,12 +28,49 @@ We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://g
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A Linux host with the OpenSSH server `sshd` installed, but not Teleport. The
-  SSH port on this host must be open to traffic from the Teleport Proxy Service
-  host.
+- A Linux host with the OpenSSH server `sshd` version 7.4 or above installed,
+  but not Teleport. The SSH port on this host must be open to traffic from the
+  Teleport Proxy Service host.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Configure `sshd` to trust the Teleport CA
+## Step 1/5. Add a node resource to your Teleport cluster
+
+When you request an SSH connection to a OpenSSH node, Teleport needs to be able
+to find the node's IP address so it can establish a connection to it.
+
+Declare a `node` resource so Teleport knows how to reach your OpenSSH server.
+On your local machine, create a file called `openssh-node-resource.yaml` with the following content:
+
+```yaml
+kind: node
+version: v2
+sub_kind: openssh
+metadata:
+  name: a100fdd0-52db-4eca-a7ab-c3afa7a1564a
+  labels:
+    env: prod
+spec:
+  addr: 1.2.3.4:22
+  hostname: openssh-node
+```
+
+`spec.addr` and `spec.hostname` are mandatory. Assign `spec.addr` to the address and port of your node
+and `spec.hostname` to the name of the node as you would like users to see it in Teleport.
+
+The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it. 
+
+The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
+
+To generate a new universal unique identifier (UUID) suitable for a `node` name, use the `uuidgen`
+on Linux or MacOS, or use the `New-Guid` cmdlet in Powershell on Windows.
+
+Create the node resource:
+
+```code
+$ tctl create openssh-node-resource.yaml
+```
+
+## Step 2/5. Configure `sshd` to trust the Teleport CA
 
 Later in this guide, we will generate an SSH client configuration that will use
 a certificate signed by the Teleport Auth Service to authenticate to your SSH
@@ -40,7 +82,7 @@ Start by exporting the Teleport CA public key.
 On the host where you are running `sshd`, run the following commands, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-$ export KEY=$(curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed "s/cert-authority\ //")
+$ export KEY=$(curl 'https://<Var name="proxy"/>/webapi/auth/export?type=openssh' | sed "s/cert-authority\ //")
 ```
 
 Make the public key accessible to `sshd`:
@@ -58,7 +100,7 @@ $ sudo systemctl restart sshd
 
 Now, `sshd` will trust users who present a Teleport-issued certificate.
 
-## Step 2/4. Configure host authentication
+## Step 3/5. Configure host authentication
 
 Next, ask Teleport to issue a valid host certificate for your `sshd` host. Later
 in this guide, we will configure your SSH client to trust the certificate,
@@ -105,11 +147,46 @@ host.
 
 ### Issue a host certificate
 
-On your local machine, assign the IP address or fully qualified domain name of
-your Node to an environment variable.
+<Details title="Find your node's UUID">
+
+When you created a `node` resource and if you didn't set the `metadata.name` field earlier,
+the Teleport Auth Service generated a universal unique identifier (UUID) for that node.
+Teleport Proxy Services uses the UUID to differentiate nodes with the same hostname, so
+it must be added to the host certificate. To find your node's UUID, first determine if its hostname is unique:
 
 ```code
-$ ADDR=203.0.113.0
+$ tctl get node/openssh-node --format text
+```
+
+If only one node is displayed and you have `jq` installed, you can run the
+following command to get your node's UUID:
+
+```code
+$ tctl get node/openssh-node --format=json | jq -r ".[0].metadata.name"
+```
+
+Otherwise, find your node's UUID in the `metadata.name` field of the YAML
+output of this command:
+
+```code
+$ tctl get node/openssh-node
+```
+
+</Details>
+
+#### Create the host certificate
+
+When creating host certificates, it is important to specify all the domain names
+and addresses that refer to your node. If you try to connect to a node with a 
+name or address that was not specified when creating it's host certificate,
+Teleport will reject the SSH connection.
+
+On your local machine, assign the IP address, fully qualified domain name of
+your node, and the node's UUID to an environment variable. If you won't be
+connecting to your node with its hostname, you can safely omit it.
+
+```code
+$ ADDR=1.2.3.4,openssh-node,a100fdd0-52db-4eca-a7ab-c3afa7a1564a
 ```
 
 Run the following `tctl` command to generate a host certificate:
@@ -151,7 +228,9 @@ myhost-cert.pub:
         Serial: 0
         Valid: after 2022-04-22T11:14:16
         Principals: 
-                203.0.113.0
+                1.2.3.4
+                openssh-node
+                a100fdd0-52db-4eca-a7ab-c3afa7a1564a
         Critical Options: (none)
         Extensions: 
                 x-teleport-authority UNKNOWN OPTION (len 33)
@@ -177,16 +256,14 @@ HostCertificate /etc/ssh/myhost-cert.pub
 
 Restart `sshd`.
 
-## Step 3/4. Generate an SSH client configuration
+## Step 4/5. Generate an SSH client configuration
 
 The next step is to configure your OpenSSH client to connect to your `sshd` host
-using credentials managed by Teleport. This configuration will use the SSH agent
-and your user's Teleport-issued certificate to authenticate to the `sshd` host.
-It will also authenticate the `sshd` host using the host certificate you
-generated earlier.
+using credentials managed by Teleport. This configuration will use your user's
+Teleport-issued certificate to authenticate to the `sshd` host. It will also
+authenticate the `sshd` host using the host certificate you generated earlier.
 
-First, make sure you are running OpenSSH's `ssh-agent` and have logged
-in to your Teleport cluster:
+First, make sure you have logged in to your Teleport cluster:
 
 <ScopedBlock scope={["oss","enterprise"]}>
 
@@ -200,8 +277,6 @@ $ tsh status
   Kubernetes:         enabled
   Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-$ eval `ssh-agent`
-Agent pid 5931
 ```
 
 </ScopedBlock>
@@ -217,15 +292,9 @@ $ tsh status
   Kubernetes:         enabled
   Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-$ eval `ssh-agent`
-Agent pid 5931
 ```
 
 </ScopedBlock>
-
-The `ssh-agent` command prints additional commands to export the `SSH_AUTH_SOCK`
-and `SSH_AGENT_PID` environment variables. These variables allow OpenSSH clients
-to find the SSH agent. Running `ssh-agent` with `eval` executes these commands.
 
 On your local machine, run the following `tsh` command. This will print a
 configuration block that tells your SSH client to use credentials managed by
@@ -276,7 +345,7 @@ through the Proxy Service to your chosen host (including a host in a Trusted
 Cluster).
 
 The `tsh proxy ssh` command requests the `proxy` subsystem through a command
-similar to the following, which assumes you are logging in to a Node called
+similar to the following, which assumes you are logging in to a node called
 `mynode` as `root` with a cluster called `teleport.example.com`:
 
 ```code
@@ -289,7 +358,7 @@ authenticate the host via the certificate we generated earlier.
 
 </Details>
 
-<Details title="Using PowerShell on Windows?" opened={false}>
+<Details title="Using PowerShell on Windows?">
 
   If using PowerShell on Windows, note that normal shell redirection may write
   the file with the incorrect encoding. To ensure it's written properly, try the
@@ -301,7 +370,7 @@ authenticate the host via the certificate we generated earlier.
 
 </Details>
 
-<Details title="Experiencing latency in leaf cluster Nodes?">
+<Details title="Experiencing latency in leaf cluster nodes?">
 
 ### Proxy Jump
 
@@ -316,7 +385,7 @@ of the leaf cluster's configuration block to use the leaf Proxy Service as
 a jumphost, using the `-J` flag.
 
 ```txt
-Host *.{{ .NodeName }}.leaf1.example.com
+Host *.{{ .nodeName }}.leaf1.example.com
    Port 3022
    ProxyCommand tsh proxy ssh -J proxy.leaf1.example.com:443 %r@%h:%p
 ```
@@ -369,14 +438,14 @@ proxy_templates:
   proxy: "leaf1.example.com:443"
   host: "$1:22"
 
-Given the configuration above, the following command will connect to the Node
+Given the configuration above, the following command will connect to the node
 `node-1.leaf1.example.com:3022` through the Proxy Service `leaf1.example.com:443`:
 
 ```code
 $ ssh root@node-1.leaf1.example.com
 ```
 
-The following command will connect to the Node `node-1:3022` through the Proxy Service
+The following command will connect to the node `node-1:3022` through the Proxy Service
 `leaf2.example.com:3080`:
 
 ```code
@@ -406,7 +475,7 @@ $ ssh root@openssh.external.com.example.com
 
 </Admonition>
 
-## Step 4/4. Connect to your `sshd` host
+## Step 5/5. Connect to your `sshd` host
 
 Once you have appended the new text to your OpenSSH client configuration file,
 you can log in to your `sshd` host using the configuration we generated earlier.
@@ -446,18 +515,17 @@ Next, SSH in to your remote host:
 $ ssh -p ${PORT?} -F ssh_config_teleport "${USER?}@${ADDR?}.${CLUSTER?}"
 ```
 
-This will connect to the node `node1` on your Teleport cluster. This name does
-not need to be resolvable via DNS as the connection will be routed through your
-Teleport Proxy Service.
+This name does not need to be resolvable via DNS as the connection will be
+routed through your Teleport Proxy Service.
 
 <Details title="Why are we overriding the port here?">
 
 By default, the OpenSSH client configuration generated by `tsh config` directs
-the Teleport Proxy Service to dial port 3022 of a Node in your Teleport cluster.
-This works if the Node's SSH Service is listening on port 3022, and means that
+the Teleport Proxy Service to dial port 3022 of a node in your Teleport cluster.
+This works if the node's SSH Service is listening on port 3022, and means that
 you can connect to the Teleport SSH Service via your OpenSSH client.
 
- When you join a Teleport Node to a cluster, the Node creates a reverse tunnel
+ When you join a Teleport node to a cluster, the node creates a reverse tunnel
  to the cluster's Proxy Service. When you run an `ssh` command to access a host
  in your Teleport cluster using the configuration we generated, the Teleport
  Proxy Service will attempt to connect to the host via this reverse tunnel and,
@@ -472,7 +540,7 @@ host's SSH port.
 <Details title="Using Trusted Clusters?">
 
 You can log in to a host in a Trusted Cluster by placing the name of the cluster
-between the name of the Node and the name of your root Teleport cluster:
+between the name of the node and the name of your root Teleport cluster:
 
 ```code
 $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
@@ -495,5 +563,5 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
 ## Revoke an SSH certificate
 
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
-infrastructure, we would suggest you proceed with caution as this will invalidate the user
-and host CAs, meaning that the new CAs will need to be exported to every OpenSSH-based machine again using `curl .../auth/export` as above.
+infrastructure, we would suggest you proceed with caution as this will invalidate the OpenSSH
+and Host CAs, meaning that the new CAs will need to be exported to every OpenSSH-based machine again using `tctl auth export` as above.

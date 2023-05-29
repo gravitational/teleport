@@ -18,7 +18,6 @@ package config
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/url"
 	"os"
@@ -26,9 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -161,6 +161,10 @@ type CLIConf struct {
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 should be used for private key generation
 	FIPS bool
+
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -250,6 +254,9 @@ type BotConfig struct {
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - RSA2048 should be used for private key generation
 	FIPS bool `yaml:"fips"`
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string `yaml:"diag_addr,omitempty"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -470,6 +477,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	if cf.FIPS {
 		config.FIPS = cf.FIPS
+	}
+
+	if cf.DiagAddr != "" {
+		if config.DiagAddr != "" {
+			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+		}
+		config.DiagAddr = cf.DiagAddr
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

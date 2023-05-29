@@ -53,7 +53,7 @@ class InputSearch extends React.Component {
       <Input
         px="3"
         placeholder="SEARCH..."
-        color="text.primary"
+        color="text.main"
         {...rest}
         autoFocus={autoFocus}
         value={this.state.value}
@@ -67,7 +67,7 @@ class InputSearch extends React.Component {
 
 function fromTheme(props) {
   return {
-    background: props.theme.colors.levels.sunkenSecondary,
+    background: props.theme.colors.levels.sunken,
 
     '&:hover': {
       background: props.theme.colors.levels.elevated,
@@ -75,10 +75,10 @@ function fromTheme(props) {
     '&:focus, &:active': {
       background: props.theme.colors.levels.elevated,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.primary,
+      color: props.theme.colors.text.main,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

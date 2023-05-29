@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -444,7 +445,8 @@ func TestRedshiftServerlessUsernameToRoleARN(t *testing.T) {
 func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	tests := map[string]struct {
 		database       types.Database
 		checkGetAuthFn func(t *testing.T, auth Auth, sessionCtx *Session)
@@ -508,10 +510,37 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalRDSProxy")
 			},
 		},
+		"ElastiCache Redis": {
+			database: newElastiCacheRedisDatabase(t,
+				withAssumeRole(services.AssumeRole{
+					RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
+					ExternalID: "externalElastiCacheRedis",
+				})),
+			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
+				t.Helper()
+				token, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+				require.NoError(t, err)
+				u, err := url.Parse(token)
+				require.NoError(t, err)
+				require.Equal(t, "example-cluster/", u.Path)
+				query := u.Query()
+				require.Equal(t, "connect", query.Get("Action"))
+				require.Equal(t, "some-user", query.Get("User"))
+				require.Equal(t, "host", query.Get("X-Amz-SignedHeaders"))
+				require.Equal(t, "token", query.Get("X-Amz-Security-Token"))
+				require.Equal(t, "arn:aws:iam::123456789012:role/RedisRole/20010203/ca-central-1/elasticache/aws4_request",
+					query.Get("X-Amz-Credential"))
+			},
+			checkSTS: func(t *testing.T, stsMock *mocks.STSMock) {
+				t.Helper()
+				require.Contains(t, stsMock.GetAssumedRoleARNs(), "arn:aws:iam::123456789012:role/RedisRole")
+				require.Contains(t, stsMock.GetAssumedRoleExternalIDs(), "externalElastiCacheRedis")
+			},
+		},
 	}
 
 	stsMock := &mocks.STSMock{}
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewFakeClockAt(time.Date(2001, time.February, 3, 0, 0, 0, 0, time.UTC))
 	auth, err := NewAuth(AuthConfig{
 		Clock:      clock,
 		AuthClient: new(authClientMock),

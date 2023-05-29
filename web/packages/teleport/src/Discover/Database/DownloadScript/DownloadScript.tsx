@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import React, { Suspense, useState } from 'react';
-import { Box, ButtonSecondary, Text } from 'design';
+import React, { Suspense, useState, useEffect } from 'react';
+import { Box, ButtonSecondary, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
-import Validation, { useRule, Validator } from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { CatchError } from 'teleport/components/CatchError';
 import {
@@ -50,7 +50,7 @@ import {
   TextIcon,
   useShowHint,
 } from '../../Shared';
-import { makeLabelMaps, matchLabels } from '../util';
+import { matchLabels } from '../util';
 
 import type { AgentStepProps } from '../../types';
 
@@ -58,12 +58,11 @@ export default function Container(props: AgentStepProps) {
   const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
   const [labels, setLabels] = useState<DiscoverLabel[]>(
-    hasDbLabels
-      ? dbLabels
-      : // If user did not define any labels from previous step (create db)
-        // then the only way the agent will know how to pick up the
-        // new db is through asteriks.
-        [{ name: '*', value: '*', isFixed: true }]
+    // TODO(lisa): we will always be defaulting to asterisks, so
+    // instead of defining the default here, define it inside
+    // the LabelsCreator (component responsible for rendering
+    // label input boxes)
+    [{ name: '*', value: '*', isFixed: dbLabels.length === 0 }]
   );
 
   const [showScript, setShowScript] = useState(false);
@@ -81,7 +80,7 @@ export default function Container(props: AgentStepProps) {
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning ml={1} color="danger" />
+                  <Icons.Warning ml={1} color="error.main" />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
@@ -99,17 +98,7 @@ export default function Container(props: AgentStepProps) {
             }
           >
             {!showScript && (
-              <Box>
-                <Heading />
-                <Labels {...labelProps} />
-                <ButtonSecondary
-                  width="200px"
-                  onClick={() => setShowScript(true)}
-                >
-                  Generate Command
-                </ButtonSecondary>
-                <ActionButtons onProceed={() => null} disableProceed={true} />
-              </Box>
+              <LoadedView {...labelProps} setShowScript={setShowScript} />
             )}
             {showScript && (
               <DownloadScript
@@ -230,11 +219,8 @@ export function DownloadScript(
 const Heading = () => {
   return (
     <>
-      <Header>Optionally Deploy a Database Service</Header>
+      <Header>Deploy a Database Service</Header>
       <HeaderSubtitle>
-        This step is optional if you already have a Teleport Database Service
-        running.
-        <br />
         On the host where you will run the Teleport Database Service, execute
         the generated command that will install and start Teleport with the
         appropriate configuration.
@@ -248,32 +234,65 @@ export const Labels = ({
   setLabels,
   disableBtns = false,
   dbLabels,
+  showLabelMatchErr = false,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
   dbLabels: AgentLabel[];
+  showLabelMatchErr?: boolean;
 }) => {
-  const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
-  const hasError = !valid;
-
+  const hasDbLabels = dbLabels.length > 0;
   return (
     <Box mb={2}>
-      <Text bold>Labels</Text>
-      <Text typography="subtitle1" mb={3}>
-        At least one label is required to help this service identify your
-        database.
+      <Text bold>Optionally Define Matcher Labels</Text>
+      <Text typography="subtitle1" mb={2}>
+        {!hasDbLabels && (
+          <>
+            Since no labels were defined for the registered database from the
+            previous step, the matcher labels are defaulted to wildcards which
+            will allow this database service to match any database.
+          </>
+        )}
+        {hasDbLabels && (
+          <>
+            Default wildcards label allows this database service to match any
+            database.
+            <br />
+            You can define your own labels that this database service will use
+            to identify your registered database. The labels you define must
+            match the labels that were defined for the registered database (from
+            previous step):
+          </>
+        )}
       </Text>
+      {hasDbLabels && (
+        <Box mb={3}>
+          {dbLabels.map((label, index) => {
+            const labelText = `${label.name}: ${label.value}`;
+            return (
+              <Pill
+                key={`${label.name}${label.value}${index}`}
+                mr="1"
+                kind="secondary"
+              >
+                {labelText}
+              </Pill>
+            );
+          })}
+        </Box>
+      )}
       <LabelsCreater
         labels={labels}
         setLabels={setLabels}
-        disableBtns={disableBtns}
+        disableBtns={disableBtns || dbLabels.length === 0}
       />
-      <Box mt={3}>
-        {hasError && (
-          <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="danger" />
-            {message}
+      <Box mt={1} mb={3}>
+        {showLabelMatchErr && (
+          <TextIcon>
+            <Icons.Warning ml={1} color="error.main" />
+            The matcher labels must be able to match with the labels defined for
+            the registered database. Use wildcards to match with any labels.
           </TextIcon>
         )}
       </Box>
@@ -285,18 +304,6 @@ function createBashCommand(tokenId: string) {
   return `sudo bash -c "$(curl -fsSL ${cfg.getDbScriptUrl(tokenId)})"`;
 }
 
-const requireMatchingLabels =
-  (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
-    if (!hasMatchingLabels(dbLabels, agentLabels)) {
-      return {
-        valid: false,
-        message: `Labels must match with the labels defined for the database resource. \
-          To match any key, and/or any value, asteriks can be used.`,
-      };
-    }
-    return { valid: true };
-  };
-
 // hasMatchingLabels will go through each 'agentLabels' and find matches from
 // 'dbLabels'. The 'agentLabels' must have same amount of matching labels
 // with 'dbLabels' either with asteriks (match all) or by exact match.
@@ -305,7 +312,7 @@ const requireMatchingLabels =
 //  - If agent labels was defined like this [`fruit: apple`, `fruit: banana`]
 //    it's translated as `fruit: [apple OR banana]`.
 //
-// Asteriks can be used for keys, values, or both key and value eg:
+// asterisks can be used for keys, values, or both key and value eg:
 //  - `fruit: *` match by key `fruit` with any value
 //  - `*: apple` match by value `apple` with any key
 //  - `*: *` match by any key and any value
@@ -322,15 +329,42 @@ export function hasMatchingLabels(
     matcherLabels[l.name] = [...matcherLabels[l.name], l.value];
   });
 
-  // Create maps for easy lookup and matching.
-  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
-    makeLabelMaps(dbLabels);
+  return matchLabels(dbLabels, matcherLabels);
+}
 
-  return matchLabels({
-    hasLabelsToMatch: dbLabels.length > 0,
-    labelKeysToMatchMap,
-    labelValsToMatchMap,
-    labelToMatchSeenMap,
-    matcherLabels,
-  });
+function LoadedView({ labels, setLabels, dbLabels, setShowScript }) {
+  const [showLabelMatchErr, setShowLabelMatchErr] = useState(true);
+
+  useEffect(() => {
+    // Turn off error once user changes labels.
+    if (showLabelMatchErr) {
+      setShowLabelMatchErr(false);
+    }
+  }, [labels]);
+
+  function handleGenerateCommand() {
+    if (!hasMatchingLabels(dbLabels, labels)) {
+      setShowLabelMatchErr(true);
+      return;
+    }
+
+    setShowLabelMatchErr(false);
+    setShowScript(true);
+  }
+
+  return (
+    <Box>
+      <Heading />
+      <Labels
+        labels={labels}
+        setLabels={setLabels}
+        dbLabels={dbLabels}
+        showLabelMatchErr={showLabelMatchErr}
+      />
+      <ButtonSecondary width="200px" onClick={handleGenerateCommand}>
+        Generate Command
+      </ButtonSecondary>
+      <ActionButtons onProceed={() => null} disableProceed={true} />
+    </Box>
+  );
 }

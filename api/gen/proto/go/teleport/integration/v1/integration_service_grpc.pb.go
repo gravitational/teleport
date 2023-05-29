@@ -41,6 +41,7 @@ const (
 	IntegrationService_UpdateIntegration_FullMethodName     = "/teleport.integration.v1.IntegrationService/UpdateIntegration"
 	IntegrationService_DeleteIntegration_FullMethodName     = "/teleport.integration.v1.IntegrationService/DeleteIntegration"
 	IntegrationService_DeleteAllIntegrations_FullMethodName = "/teleport.integration.v1.IntegrationService/DeleteAllIntegrations"
+	IntegrationService_GenerateAWSOIDCToken_FullMethodName  = "/teleport.integration.v1.IntegrationService/GenerateAWSOIDCToken"
 )
 
 // IntegrationServiceClient is the client API for IntegrationService service.
@@ -59,6 +60,8 @@ type IntegrationServiceClient interface {
 	DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
 	DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, in *GenerateAWSOIDCTokenRequest, opts ...grpc.CallOption) (*GenerateAWSOIDCTokenResponse, error)
 }
 
 type integrationServiceClient struct {
@@ -123,6 +126,15 @@ func (c *integrationServiceClient) DeleteAllIntegrations(ctx context.Context, in
 	return out, nil
 }
 
+func (c *integrationServiceClient) GenerateAWSOIDCToken(ctx context.Context, in *GenerateAWSOIDCTokenRequest, opts ...grpc.CallOption) (*GenerateAWSOIDCTokenResponse, error) {
+	out := new(GenerateAWSOIDCTokenResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GenerateAWSOIDCToken_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IntegrationServiceServer is the server API for IntegrationService service.
 // All implementations must embed UnimplementedIntegrationServiceServer
 // for forward compatibility
@@ -139,6 +151,8 @@ type IntegrationServiceServer interface {
 	DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
 	DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error)
+	// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(context.Context, *GenerateAWSOIDCTokenRequest) (*GenerateAWSOIDCTokenResponse, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -163,6 +177,9 @@ func (UnimplementedIntegrationServiceServer) DeleteIntegration(context.Context, 
 }
 func (UnimplementedIntegrationServiceServer) DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllIntegrations not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GenerateAWSOIDCToken(context.Context, *GenerateAWSOIDCTokenRequest) (*GenerateAWSOIDCTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateAWSOIDCToken not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
 
@@ -285,6 +302,24 @@ func _IntegrationService_DeleteAllIntegrations_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IntegrationService_GenerateAWSOIDCToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateAWSOIDCTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GenerateAWSOIDCToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GenerateAWSOIDCToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GenerateAWSOIDCToken(ctx, req.(*GenerateAWSOIDCTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IntegrationService_ServiceDesc is the grpc.ServiceDesc for IntegrationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -315,6 +350,10 @@ var IntegrationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteAllIntegrations",
 			Handler:    _IntegrationService_DeleteAllIntegrations_Handler,
+		},
+		{
+			MethodName: "GenerateAWSOIDCToken",
+			Handler:    _IntegrationService_GenerateAWSOIDCToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

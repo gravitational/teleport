@@ -137,11 +137,13 @@ export function AddDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
-                bg="levels.surface"
                 borderRadius={8}
                 height="256px"
                 p={3}
                 mb={4}
+                css={`
+                  background: ${props => props.theme.colors.spotBackground[0]};
+                `}
               >
                 {mfaOption.value === 'otp' && (
                   <>
@@ -167,7 +169,7 @@ export function AddDevice({
                     <Text fontSize={1} textAlign="center" mt={2}>
                       Scan the QR Code with any authenticator app and enter the
                       generated code.{' '}
-                      <Text color="text.secondary">
+                      <Text color="text.slightlyMuted">
                         We recommend{' '}
                         <Link
                           href="https://authy.com/download/"
@@ -201,6 +203,7 @@ export function AddDevice({
                   }}
                   mr={3}
                   isDisabled={addDeviceAttempt.status === 'processing'}
+                  elevated={true}
                 />
                 {mfaOption.value === 'otp' && (
                   <FieldInput
@@ -223,6 +226,7 @@ export function AddDevice({
                     options={deviceUsageOpts}
                     onChange={(o: DeviceusageOpt) => setUsageOption(o)}
                     isDisabled={addDeviceAttempt.status === 'processing'}
+                    elevated={true}
                   />
                 )}
               </Flex>

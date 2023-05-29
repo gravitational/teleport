@@ -28,9 +28,8 @@ export interface TextAreaProps extends React.ComponentPropsWithRef<'textarea'> {
 
 export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   appearance: none;
-  border: none;
+  border: 1px solid ${props => props.theme.colors.text.muted};
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   min-height: 50px;
   height: 80px;
@@ -38,13 +37,27 @@ export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   padding: 16px;
   outline: none;
   width: 100%;
+  color: ${props => props.theme.colors.text.main};
+  background: inherit;
 
   ::placeholder {
-    opacity: 0.4;
+    color: ${props => props.theme.colors.text.muted};
+    opacity: 1;
+  }
+
+  &:hover,
+  &:focus,
+  &:active {
+    border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   }
 
   :read-only {
     cursor: not-allowed;
+  }
+
+  :disabled {
+    color: ${props => props.theme.colors.text.disabled};
+    border-color: ${props => props.theme.colors.text.disabled};
   }
 
   ${color} ${space} ${width} ${height} ${error} ${resize};
@@ -55,14 +68,16 @@ function error({
   theme,
 }: Pick<TextAreaProps, 'hasError'> & {
   theme: any;
-}): CSSProperties {
+}) {
   if (!hasError) {
     return;
   }
 
   return {
     border: `2px solid ${theme.colors.error.main}`,
-    padding: '10px 14px',
+    '&:hover, &:focus': {
+      border: `2px solid ${theme.colors.error.main}`,
+    },
   };
 }
 

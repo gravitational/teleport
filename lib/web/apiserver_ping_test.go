@@ -117,8 +117,9 @@ func TestPing(t *testing.T) {
 					RPID: "example.com",
 				},
 			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
 				assert.True(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.True(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
 			},
 		},
 		{
@@ -134,8 +135,29 @@ func TestPing(t *testing.T) {
 					Mode: constants.DeviceTrustModeOptional,
 				},
 			},
-			assertResp: func(cap types.AuthPreference, resp *webclient.PingResponse) {
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
 				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
+			},
+		},
+		{
+			name:      "OK device trust auto-enroll",
+			buildType: modules.BuildEnterprise,
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				DeviceTrust: &types.DeviceTrust{
+					Mode:       constants.DeviceTrustModeOptional,
+					AutoEnroll: true,
+				},
+			},
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
+				assert.False(t, resp.Auth.DeviceTrustDisabled, "Auth.DeviceTrustDisabled")
+				assert.False(t, resp.Auth.DeviceTrust.Disabled, "Auth.DeviceTrust.Disabled")
+				assert.True(t, resp.Auth.DeviceTrust.AutoEnroll, "Auth.DeviceTrust.AutoEnroll")
 			},
 		},
 	}

@@ -7,9 +7,9 @@ h1: Moderated Sessions
 ## Introduction
 
 Moderated Sessions allows Teleport administrators to define requirements for
-other users to be present in a Server or Kubernetes Access session. Depending on
-the requirements, these users can observe the session in real time, participate
-in the session, and terminate the session at will.
+other users to be present in a server or Kubernetes session. Depending on the
+requirements, these users can observe the session in real time, participate in
+the session, and terminate the session at will.
 
 In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
 sessions from `tsh` and the Web UI.
@@ -70,13 +70,16 @@ The policy below specifies that the `prod-access` role must have a minimum of
 two users with the role `auditor` and the mode `moderator` present in the
 session to start it. The policy applies to SSH and Kubernetes sessions only.
 
-When a user with this require policy starts a session, it will be pending until
-the policy is fulfilled. 
+This policy requires that at least one user with the `auditor` role is present
+as a moderator for SSH or Kubernetes sessions to start. That is applied for
+servers and Kubernetes resources labeled `env: prod`. The session will not start
+until the policy is fulfilled.
 
 ```yaml
 kind: role
 metadata:
   name: prod-access
+version: v6
 spec:
   allow:
     require_session_join:
@@ -84,7 +87,22 @@ spec:
         filter: 'contains(user.spec.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
-        count: 2
+        count: 1
+    logins:
+    - ubuntu
+    - debian
+    node_labels:
+      env: prod
+    kubernetes_labels:
+      env: prod
+    kubernetes_groups:
+    - prod-access
+    kubernetes_users:
+    - USER
+    kubernetes_resources:
+    - kind: pod
+      name: '*'
+      namespace: '*'
 ```
 
 #### Combining Policies
@@ -104,7 +122,12 @@ The following are required options for `join_sessions`:
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
 
-#### Example
+<Admonition type="note">
+Joining from the UI is available for SSH sessions.  Kubernetes sessions can only be joined from the CLI.
+</Admonition>
+
+
+#### Example Moderator Role
 
 The following allow policy attaches to the role `auditor` and allows one to
 join SSH and Kubernetes sessions started by a user with the role `prod-access`
@@ -114,6 +137,7 @@ as a moderator or observer.
 kind: role
 metadata:
   name: auditor
+version: v6
 spec:
   allow:
     join_sessions:
@@ -122,6 +146,44 @@ spec:
         kinds: ['k8s', 'ssh']
         modes: ['moderator', 'observer']
 ```
+
+#### Joining sessions example
+
+Here is an example of Jeff with role `prod-access` connecting to
+a SSH server in the production environment.
+
+```code
+$ tsh ssh ubuntu@prod.teleport.example.com
+Teleport > Creating session with ID: 46e2af03-62d6-4e07-a886-43fe741ca044...
+Teleport > Controls
+  - CTRL-C: Leave the session
+  - t: Forcefully terminate the session (moderators only)
+Teleport > User jeff joined the session.
+Teleport > Waiting for required participants...
+```
+
+Jeff's session is paused, waiting for the required observers.
+
+Now Alice with the `auditor` role joins as a moderator and
+the session can begin. 
+
+```code
+$ tsh join --mode=moderator 46e2af03-62d6-4e07-a886-43fe741ca044
+Teleport > Creating session with ID: 46e2af03-62d6-4e07-a886-43fe741ca044...
+Teleport > Controls
+  - CTRL-C: Leave the session
+  - t: Forcefully terminate the session (moderators only)
+Teleport > User jeff joined the session.
+Teleport > Waiting for required participants...
+Teleport > User alice joined the session.
+Teleport > Connecting to prod.teleport.example.com over SSH
+
+ubuntu@prod.teleport.example.com % 
+```
+
+Here is an example of joining from the UI that is available for server sessions.
+
+![Join Server Session from UI](../../../img/webui-active-session.png)
 
 ### Filters
 
@@ -200,7 +262,7 @@ but the session will remain open. This discards all input from session participa
 
 Moderated Session RBAC controls were added to the role specification in version 5
 (`version: v5` in the YAML definition).
-Previously, Server Access did not include controls over which users can join a
+Previously, the Teleport SSH Service did not include controls over which users can join a
 session.
 To avoid breaking functionality for users with only roles on v4 or older, RBAC
 access checks will only be enforced if the user has at least one v5 role.
@@ -232,6 +294,24 @@ comma-separated list of usernames.
 
 This information can be picked up by a third party integration and may for
 example be used to enable notifications over some external communication system.
+
+## File transfers
+
+File transfers within moderated sessions are available via the Web UI only. When initiating a file transfer, if the
+current active session requires moderation, a file transfer request will automatically be sent to all current party members.
+
+Both the session originator and the moderator(s) must be present in the Web UI during the file transfer initiation to receive
+the file transfer request notification. Once the file transfer has been requested, all members of the party will be notified
+and prompted with an Approve/Deny dialog.
+
+![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
+
+
+If a moderator denies the file transfer request, the request is immediately removed and all party members are notified.
+
+After enough approvals have been given to satisfy the policy (the same policy to start the session), the file transfer
+will automatically begin.
+
 
 ## RFD
 

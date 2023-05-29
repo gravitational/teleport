@@ -225,6 +225,9 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
+	// MetaNameWatchStatus is the name of a watch status resource.
+	MetaNameWatchStatus = "watch-status"
+
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
@@ -338,15 +341,25 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
 	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
 	KindClusterMaintenanceConfig = "cluster_maintenance_config"
 
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
+
 	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
+	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
+	KindWatchStatus = "watch_status"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -369,7 +382,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -401,6 +414,10 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
@@ -447,6 +464,9 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// AWSInstanceRegion is used to identify the region an EC2
+	// instance is running in
+	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
@@ -458,6 +478,10 @@ const (
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
+
+	// DatabaseAdminLabel is used to identify database admin user for auto-
+	// discovered databases.
+	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -618,6 +642,11 @@ const (
 
 	// AlertLicenseExpired is an internal label that indicates that the license has expired.
 	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
+
+	// TeleportInternalDiscoveryGroupName is the label used to store the name of the discovery group
+	// that the discovered resource is owned by. It is used to differentiate resources
+	// that belong to different discovery services that operate on different sets of resources.
+	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
@@ -628,6 +657,7 @@ var RequestableResourceKinds = []string{
 	KindApp,
 	KindWindowsDesktop,
 	KindKubePod,
+	KindUserGroup,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

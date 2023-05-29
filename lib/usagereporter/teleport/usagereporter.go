@@ -118,11 +118,6 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
-// TODO(espadolini): change the call in e/lib/prehog/prehog.go:InitPreHogUsageReporting
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	return NewStreamingUsageReporter(log, clusterName, submitter)
-}
-
 func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
 		log = logrus.StandardLogger()

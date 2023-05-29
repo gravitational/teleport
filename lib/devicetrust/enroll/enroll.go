@@ -19,33 +19,26 @@ import (
 	"runtime"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/devicetrust/native"
-)
-
-// vars below are used to fake OSes and switch implementations for tests.
-var (
-	getOSType     = getDeviceOSType
-	enrollInit    = native.EnrollDeviceInit
-	signChallenge = native.SignChallenge
 )
 
 // RunCeremony performs the client-side device enrollment ceremony.
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
-	dev, err := runCeremony(ctx, devicesClient, enrollToken)
-	if err != nil {
-		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
-	}
-	return dev, err
-}
-
-func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for non-supported OSes.
-	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
-		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
+	osType := getOSType()
+	if !slices.Contains([]devicepb.OSType{
+		devicepb.OSType_OS_TYPE_MACOS,
+		devicepb.OSType_OS_TYPE_WINDOWS,
+	}, osType) {
+		return nil, trace.BadParameter(
+			"device enrollment not supported for current OS (%s)",
+			types.ResourceOSTypeToString(osType),
+		)
 	}
 
 	init, err := enrollInit()
@@ -57,25 +50,37 @@ func runCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// 1. Init.
 	stream, err := devicesClient.EnrollDevice(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	if err := stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: init,
 		},
 	}); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
+	}
+	// Unimplemented errors are not expected to happen after this point.
+
+	// 2. Challenge.
+	switch osType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = enrollDeviceMacOS(stream, resp)
+		// err handled below
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = enrollDeviceTPM(stream, resp)
+		// err handled below
+	default:
+		// This should be caught by the OSType guard at start of function.
+		panic("no enrollment function provided for os")
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// 2. Challenge.
-	// Only macOS is supported, see the guard at the beginning of the method.
-	if err := enrollDeviceMacOS(stream, resp); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	resp, err = stream.Recv()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,6 +108,29 @@ func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, re
 			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
 				Signature: sig,
 			},
+		},
+	})
+	return trace.Wrap(err)
+}
+
+func enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
+	challenge := resp.GetTpmChallenge()
+	switch {
+	case challenge == nil:
+		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
+	case challenge.EncryptedCredential == nil:
+		return trace.BadParameter("missing encrypted_credential in challenge from server")
+	case len(challenge.AttestationNonce) == 0:
+		return trace.BadParameter("missing attestation_nonce in challenge from server")
+	}
+
+	challengeResponse, err := solveTPMEnrollChallenge(challenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = stream.Send(&devicepb.EnrollDeviceRequest{
+		Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: challengeResponse,
 		},
 	})
 	return trace.Wrap(err)

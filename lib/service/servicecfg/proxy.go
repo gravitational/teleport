@@ -64,6 +64,9 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
+
 	// PostgresAddr is address of Postgres proxy.
 	PostgresAddr utils.NetAddr
 
@@ -129,6 +132,10 @@ type ProxyConfig struct {
 
 	// UI provides config options for the web UI
 	UI webclient.UIConfig
+
+	// AssistAPIKey is the OpenAI API key.
+	// TODO: This key will be moved to a plugin once support for plugins is implemented.
+	AssistAPIKey string
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that

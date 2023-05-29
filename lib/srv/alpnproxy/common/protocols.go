@@ -57,6 +57,9 @@ const (
 	// ProtocolElasticsearch is TLS ALPN protocol value used to indicate Elasticsearch protocol.
 	ProtocolElasticsearch Protocol = "teleport-elasticsearch"
 
+	// ProtocolOpenSearch is TLS ALPN protocol value used to indicate OpenSearch protocol.
+	ProtocolOpenSearch Protocol = "teleport-opensearch"
+
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
 
@@ -160,6 +163,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolCassandra, nil
 	case defaults.ProtocolElasticsearch:
 		return ProtocolElasticsearch, nil
+	case defaults.ProtocolOpenSearch:
+		return ProtocolOpenSearch, nil
 	case defaults.ProtocolDynamoDB:
 		return ProtocolDynamoDB, nil
 	default:
@@ -181,6 +186,7 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolSnowflake,
 		ProtocolCassandra,
 		ProtocolElasticsearch,
+		ProtocolOpenSearch,
 		ProtocolDynamoDB,
 	}
 
@@ -200,6 +206,7 @@ var DatabaseProtocols = []Protocol{
 	ProtocolSnowflake,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolOpenSearch,
 	ProtocolDynamoDB,
 }
 

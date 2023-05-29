@@ -30,7 +30,9 @@ export function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const lock = json.lock || defaultAccess;
   const plugins = json.plugins || defaultAccess;
+  const integrations = json.integrations || defaultAccessWithUse;
   const dbServers = json.dbServers || defaultAccess;
   const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
@@ -55,6 +57,7 @@ export function makeAcl(json): Acl {
   const download = json.download || defaultAccess;
 
   const deviceTrust = json.deviceTrust || defaultAccess;
+  const assist = json.assist || defaultAccess;
 
   return {
     authConnectors,
@@ -70,6 +73,7 @@ export function makeAcl(json): Acl {
     accessRequests,
     billing,
     plugins,
+    integrations,
     dbServers,
     db,
     desktops,
@@ -81,6 +85,8 @@ export function makeAcl(json): Acl {
     license,
     download,
     deviceTrust,
+    lock,
+    assist,
   };
 }
 
@@ -90,4 +96,9 @@ export const defaultAccess = {
   edit: false,
   create: false,
   remove: false,
+};
+
+export const defaultAccessWithUse = {
+  ...defaultAccess,
+  use: false,
 };

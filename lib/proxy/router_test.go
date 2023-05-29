@@ -26,6 +26,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -324,6 +326,18 @@ func (r testRemoteSite) DialAuthServer(reversetunnel.DialParams) (net.Conn, erro
 	return r.conn, r.err
 }
 
+func (r testRemoteSite) GetClient() (auth.ClientI, error) {
+	return nil, nil
+}
+
+type testSiteGetter struct {
+	site reversetunnel.RemoteSite
+}
+
+func (s testSiteGetter) GetSite(clusterName string) (reversetunnel.RemoteSite, error) {
+	return s.site, nil
+}
+
 type fakeConn struct {
 	net.Conn
 }
@@ -360,7 +374,7 @@ func TestRouter_DialHost(t *testing.T) {
 	agentGetter := func() (teleagent.Agent, error) {
 		return nil, nil
 	}
-	createSigner := func(context.Context) (ssh.Signer, error) {
+	createSigner := func(_ context.Context, _ agentless.CertGenerator) (ssh.Signer, error) {
 		key, err := native.GeneratePrivateKey()
 		if err != nil {
 			return nil, err
@@ -438,6 +452,7 @@ func TestRouter_DialHost(t *testing.T) {
 				clusterName:    "test",
 				log:            logger,
 				localSite:      &testRemoteSite{conn: fakeConn{}},
+				siteGetter:     &testSiteGetter{site: &testRemoteSite{conn: fakeConn{}}},
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(agentlessSrv, nil),
 			},

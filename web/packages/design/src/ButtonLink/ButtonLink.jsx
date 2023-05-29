@@ -17,8 +17,6 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import defaultTheme from 'design/theme';
-
 import Button from './../Button/Button';
 
 function ButtonLink({ ...props }) {
@@ -31,13 +29,12 @@ ButtonLink.propTypes = {
 
 ButtonLink.defaultProps = {
   size: 'medium',
-  theme: defaultTheme,
 };
 
 ButtonLink.displayName = 'ButtonLink';
 
 const StyledButtonLink = styled.a`
-  color: ${({ theme }) => theme.colors.link};
+  color: ${({ theme }) => theme.colors.buttons.link.default};
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -46,6 +43,16 @@ const StyledButtonLink = styled.a`
 
   &:hover,
   &:focus {
+    color: ${({ theme }) => theme.colors.buttons.link.hover};
+  }
+
+  &:active {
+    color: ${({ theme }) => theme.colors.buttons.link.active};
+  }
+
+  &:hover,
+  &:focus,
+  &:active {
     background: ${({ theme }) => theme.colors.levels.surface};
   }
 `;

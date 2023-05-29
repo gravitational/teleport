@@ -2134,6 +2134,58 @@ export const events = [
     user: 'alice',
   },
   {
+    category: 2,
+    cluster_name: 'im-a-cluster-name',
+    code: 'TOS00I',
+    db_protocol: 'opensearch',
+    db_service: 'opensearch-aws',
+    db_uri: 'opensearch-aws-aaa111.eu-central-1.es.amazonaws.com:443',
+    db_user: 'arn:aws:iam::1234567890:role/teleport-db-role',
+    ei: 1,
+    event: 'db.session.opensearch.request',
+    headers: {
+      'Accept-Encoding': ['gzip'],
+      'Content-Type': ['application/json'],
+      'User-Agent': ['Go-http-client/1.1'],
+    },
+    method: 'GET',
+    path: '/_count',
+    query: '',
+    raw_query: '',
+    sid: '370e5d86-84a6-4995-8476-dbea80f9eacf',
+    status_code: 200,
+    target: '',
+    time: '2023-03-11T11:08:29.954Z',
+    uid: 'd15f795c-1f63-4076-bdd4-ffe88cde716e',
+    user: 'alice@example.com',
+  },
+  {
+    category: 2,
+    cluster_name: 'im-a-cluster-name',
+    code: 'TOS00E',
+    db_protocol: 'opensearch',
+    db_service: 'opensearch-aws',
+    db_uri: 'opensearch-aws-aaa111.eu-central-1.es.amazonaws.com:443',
+    db_user: 'arn:aws:iam::1234567890:role/does-not-exist',
+    ei: 1,
+    event: 'db.session.opensearch.request',
+    headers: {
+      'Accept-Encoding': ['gzip'],
+      'Content-Type': ['application/json'],
+      'User-Agent': ['Go-http-client/1.1'],
+    },
+    method: 'GET',
+    path: '/_count',
+    query: '',
+    raw_query: '',
+    sid: '2d9a43c1-14ab-40fa-88db-195312f3401c',
+    status_code: 0,
+    target: '',
+    time: '2023-03-11T11:08:29.954Z',
+    uid: '01ad9a74-c8d6-497f-83db-e1c0be83d8da',
+    user: 'alice@example.com',
+  },
+  {
     cluster_name: 'im-a-cluster-name',
     code: 'TMY01I',
     db_name: 'test',
@@ -2470,7 +2522,121 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV002I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV003I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV004I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV005I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: false,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV006I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
+    status: {
+      success: false,
+    },
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: {
+      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV007I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device', // legacy event
     status: {
       success: true,
     },
@@ -2489,15 +2655,26 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: false, // failed
-    },
+    event: 'device.create',
+    success: true,
     time: '2023-01-12T19:28:36.842Z',
     uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
+    code: 'TV001I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
+      os_type: 2,
     },
+    ei: 0,
+    event: 'device.create',
+    success: false, // failed
+    time: '2023-01-12T19:28:36.842Z',
+    uid: '94d33b77-82cd-4558-8893-0320699bf755',
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2506,15 +2683,11 @@ export const events = [
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.delete',
+    success: true,
     time: '2023-01-12T20:33:20.527Z',
     uid: 'a12e693e-1c45-43e4-a9d1-5fd8399e303c',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2523,15 +2696,11 @@ export const events = [
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: false,
-    },
+    event: 'device.delete',
+    success: false,
     time: '2023-01-12T20:33:20.527Z',
     uid: 'a12e693e-1c45-43e4-a9d1-5fd8399e303c',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2540,15 +2709,11 @@ export const events = [
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.token.create',
+    success: true,
     time: '2023-01-12T19:51:54.168Z',
     uid: '24cce2a0-57b7-494e-a196-c7fd2482b10c',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2557,15 +2722,11 @@ export const events = [
       device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: false,
-    },
+    event: 'device.token.create',
+    success: false,
     time: '2023-01-12T19:51:54.168Z',
     uid: '24cce2a0-57b7-494e-a196-c7fd2482b10c',
-    user: {
-      user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
-    },
+    user: '3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2576,15 +2737,11 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.token.spent',
+    success: true,
     time: '2023-01-12T21:31:29.191Z',
     uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2595,15 +2752,11 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: false,
-    },
+    event: 'device.token.spent',
+    success: false,
     time: '2023-01-12T21:31:29.191Z',
     uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2614,15 +2767,11 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.enroll',
+    success: true,
     time: '2023-01-12T21:31:29.191Z',
     uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2633,43 +2782,31 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: false,
-    },
+    event: 'device.enroll',
+    success: false,
     time: '2023-01-12T21:31:29.191Z',
     uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
     code: 'TV006I',
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.authenticate',
+    success: true,
     time: '2023-01-12T19:34:48.1Z',
     uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
     code: 'TV006I',
     ei: 0,
-    event: 'device',
-    status: {
-      success: false,
-    },
+    event: 'device.authenticate',
+    success: false,
     time: '2023-01-12T19:34:48.1Z',
     uid: 'fa279611-91d8-47b5-9fad-b8ea3e5286e0',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2680,15 +2817,11 @@ export const events = [
       os_type: 2,
     },
     ei: 0,
-    event: 'device',
-    status: {
-      success: true,
-    },
+    event: 'device.update',
+    success: true,
     time: '2023-01-12T21:31:29.191Z',
     uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
-    user: {
-      user: 'lisa',
-    },
+    user: 'lisa',
   },
   {
     cluster_name: 'im-a-cluster-name',
@@ -2801,6 +2934,66 @@ export const events = [
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',
+  },
+  {
+    code: 'TSI004W',
+    event: 'saml.idp.service.provider.delete',
+    time: '2023-01-25T19:21:36.144Z',
+    name: 'saml-idp',
+    updated_by: 'mike',
+  },
+  {
+    code: 'TOK001I',
+    event: 'okta.groups.update',
+    time: '2023-05-08T19:21:36.144Z',
+    added: 5,
+    updated: 1,
+    deleted: 7,
+  },
+  {
+    code: 'TOK002I',
+    event: 'okta.applications.update',
+    time: '2023-05-08T19:21:36.144Z',
+    added: 5,
+    updated: 1,
+    deleted: 7,
+  },
+  {
+    code: 'TOK003E',
+    event: 'okta.sync.failure',
+    time: '2023-05-08T19:21:36.144Z',
+  },
+  {
+    code: 'TOK004I',
+    event: 'okta.assignment.process',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'assignment-id',
+    source: 'source',
+    user: 'mike',
+  },
+  {
+    code: 'TOK004E',
+    event: 'okta.assignment.process',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'assignment-id',
+    source: 'source',
+    user: 'mike',
+  },
+  {
+    code: 'TOK005I',
+    event: 'okta.assignment.cleanup',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'assignment-id',
+    source: 'source',
+    user: 'mike',
+  },
+  {
+    code: 'TOK005E',
+    event: 'okta.assignment.cleanup',
+    time: '2023-05-08T19:21:36.144Z',
+    name: 'assignment-id',
+    source: 'source',
+    user: 'mike',
   },
 ].map(makeEvent);
 

@@ -49,9 +49,10 @@ Windows, database, and Kubernetes sessions are always recorded at the host runni
 the Teleport service for this session type, since there is no Teleport software
 running on the "node" (desktop, database, or Kubernetes cluster).
 
-For this reason, Teleport Windows, Database, and Kubernetes Access treats `node`
-and `proxy` identically (perform asynchronous recording) and `node-sync` and
-`proxy-sync` identically (perform synchronous recording).
+For this reason, the Teleport Windows, Database, and Kubernetes Services treat
+`node` and `proxy` identically (perform asynchronous recording) and `node-sync`
+and `proxy-sync` identically (perform synchronous recording).
+
 </Admonition>
 
 ### Record at Node
