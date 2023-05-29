@@ -93,7 +93,7 @@ class assistClient extends EventEmitterWebAuthnSender {
     this.ws = new WebSocket(url);
     this.ws.binaryType = 'arraybuffer';
 
-    this.ws.onclose = event => {
+    this.ws.onclose = () => {
       setState(state => {
         return state.map(n => ({
           ...n,
