@@ -1338,6 +1338,16 @@ type DeviceTrust struct {
 	Mode string `yaml:"mode,omitempty"`
 	// AutoEnroll is the toggle for the device auto-enroll feature.
 	AutoEnroll string `yaml:"auto_enroll,omitempty"`
+	// Allow list of EKCert CAs. These may be specified as a PEM encoded
+	// certificate or as a path to a PEM encoded certificate on disk.
+	//
+	// If present, only TPM devices that present an EKCert that is signed by a
+	// CA specified here may be enrolled (existing enrollments are
+	// unchanged).
+	//
+	// If not present, then the CA of TPM EKCerts will not be checked during
+	// enrollment, this allows any device to enroll.
+	EKCertAllowedCAs []string `yaml:"ekcert_allowed_cas,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
@@ -1350,9 +1360,15 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 		}
 	}
 
+	allowedCAs, err := getAttestationPEMs(dt.EKCertAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("device_trust.ekcert_allowed_cas: %v", err)
+	}
+
 	return &types.DeviceTrust{
-		Mode:       dt.Mode,
-		AutoEnroll: autoEnroll,
+		Mode:             dt.Mode,
+		AutoEnroll:       autoEnroll,
+		EKCertAllowedCAs: allowedCAs,
 	}, nil
 }
 
