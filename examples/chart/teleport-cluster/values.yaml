@@ -532,7 +532,7 @@ service:
 # unnecessary load balancers being created.
 ingress:
   enabled: false
-  # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname serve
+  # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
   # by the ingress. This may be desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false
   # Additional entries here will be added to the ingress spec.
