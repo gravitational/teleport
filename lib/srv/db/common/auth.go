@@ -838,21 +838,30 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 	dbAWS := sessionCtx.Database.GetAWS()
 	awsAccountID := dbAWS.AccountID
 
-	// If AWS account ID is empty, we need to fetch it from the agent identity.
-	// It has to be filled in case the database username is a partial ARN.
 	if awsutils.IsPartialRoleARN(sessionCtx.DatabaseUser) && awsAccountID == "" {
-		a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
-		stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
-		if err != nil {
-			return "", "", "", trace.Wrap(err)
-		}
+		switch {
+		case dbAWS.AssumeRoleARN != "":
+			a.cfg.Log.Debugf("Using AWS Account ID from assumed role")
+			assumeRoleARN, err := awsutils.ParseRoleARN(dbAWS.AssumeRoleARN)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
 
-		identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
-		if err != nil {
-			return "", "", "", trace.Wrap(err)
-		}
+			awsAccountID = assumeRoleARN.AccountID
+		default:
+			a.cfg.Log.Debugf("Fetching AWS Account ID to build role ARN")
+			stsClient, err := a.cfg.Clients.GetAWSSTSClient(ctx, dbAWS.Region)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
 
-		awsAccountID = identity.GetAccountID()
+			identity, err := awslib.GetIdentityWithClient(ctx, stsClient)
+			if err != nil {
+				return "", "", "", trace.Wrap(err)
+			}
+
+			awsAccountID = identity.GetAccountID()
+		}
 	}
 
 	arn, err := awsutils.BuildRoleARN(sessionCtx.DatabaseUser, dbAWS.Region, awsAccountID)
@@ -860,7 +869,12 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 		return "", "", "", trace.Wrap(err)
 	}
 
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRole(arn, sessionCtx.Database.GetAWS().ExternalID))
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithAssumeRoleFromAWSMeta(dbAWS))
+	if err != nil {
+		return "", "", "", trace.Wrap(err)
+	}
+
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, dbAWS.ExternalID))
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}
