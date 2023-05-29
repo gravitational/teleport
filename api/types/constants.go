@@ -421,8 +421,13 @@ const (
 )
 
 const (
-	// TeleportNamespace is used as the namespace prefix for any
-	// labels defined by teleport
+	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
+	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.
+	//
+	// If a label with this prefix is used in a config file, the associated feature must take into
+	// account that the label might be removed, modified or could have been set by the user.
+	//
+	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
 	TeleportNamespace = "teleport.dev"
 
 	// OriginLabel is a resource metadata label name used to identify a source
@@ -597,10 +602,16 @@ const (
 )
 
 const (
-	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
+	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels
+	// are automatically populated by Teleport and are expected to be used by Teleport internal
+	// components and not for RBAC.
+	//
+	// See also TeleportNamespace and TeleportHiddenLabelPrefix.
 	TeleportInternalLabelPrefix = "teleport.internal/"
 
-	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels.
+	//
+	// See also TeleportNamespace and TeleportInternalLabelPrefix.
 	TeleportHiddenLabelPrefix = "teleport.hidden/"
 
 	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
