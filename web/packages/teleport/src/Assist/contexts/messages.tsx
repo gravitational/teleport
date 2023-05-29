@@ -169,6 +169,10 @@ export const remoteCommandToMessage = async (
   }
 };
 
+function isExecEvent(e: SessionEvent): e is ExecEvent {
+  return e.event == EventType.EXEC;
+}
+
 async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
@@ -234,10 +238,6 @@ async function convertServerMessage(
     const eventsData = (await eventsResp.json()) as {
       events: SessionEvent[];
     };
-
-    function isExecEvent(e: SessionEvent): e is ExecEvent {
-      return e.event == EventType.EXEC;
-    }
     const execEvent = eventsData.events.find(isExecEvent);
 
     let msg;
