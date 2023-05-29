@@ -2126,6 +2126,14 @@ message AccessCapabilities {
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
   // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
   repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
+  // RequestPrompt is an optional message which tells users what they aught to request.
+  string RequestPrompt = 4 [(gogoproto.jsontag) = "request_prompt,omitempty"];
+  // RequireReason indicates whether the request strategy is one that requires
+  // users to always supply reasons with their requests.
+  bool RequireReason = 5 [(gogoproto.jsontag) = "require_reason,omitempty"];
+  // AutoRequest indicates whether the request strategy indicates that a
+  // request should be automatically generated on login.
+  bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -2341,7 +2349,7 @@ message RoleOptions {
     (gogoproto.casttype) = "RequestStrategy"
   ];
 
-  // RequestPrompt is an optional message which tells users what they aught to
+  // RequestPrompt is an optional message which tells users what they aught to request.
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
   reserved 13; // RequireSessionMFA replaced by RequireMFAType
@@ -2690,6 +2698,7 @@ message SessionJoinPolicy {
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
 // access-requests.
+// Please remember to update IsEmpty when updating this message.
 message AccessRequestConditions {
   // Roles is the name of roles which will match the request rule.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -2734,6 +2743,7 @@ message AccessRequestConditions {
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
 // access reviews.
+// Please remember to update IsEmpty when updating this message.
 message AccessReviewConditions {
   // Roles is the name of roles which may be reviewed.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
