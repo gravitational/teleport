@@ -28,6 +28,9 @@ metadata:
   annotations: {{- toYaml $proxy.annotations.ingress | nindent 4 }}
   {{- end }}
 spec:
+  {{- with $proxy.ingress.spec }}
+    {{- toYaml . | nindent 2 }}
+  {{- end }}
   tls:
   - hosts:
   {{- range $publicAddr }}
