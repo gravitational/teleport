@@ -4220,7 +4220,6 @@ func TestApplicationWebSessionsDeletedAfterLogout(t *testing.T) {
 }
 
 func TestGetWebConfig(t *testing.T) {
-	t.Parallel()
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 
@@ -4282,6 +4281,26 @@ func TestGetWebConfig(t *testing.T) {
 	// and the semicolon at the end, then we are left with json like object.
 	var cfg webclient.WebConfig
 	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+	require.Equal(t, expectedCfg, cfg)
+
+	// update features and assert that it is properly updated on the config object
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			Cloud:               true,
+			IsUsageBasedBilling: true,
+		},
+	})
+
+	expectedCfg.IsCloud = true
+	expectedCfg.IsUsageBasedBilling = true
+
+	// request and verify again
+	re, err = clt.Get(ctx, endpoint, nil)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+	str = strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
 	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
 	require.NoError(t, err)
 	require.Equal(t, expectedCfg, cfg)
