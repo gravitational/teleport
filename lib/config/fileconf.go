@@ -1338,8 +1338,8 @@ type DeviceTrust struct {
 	Mode string `yaml:"mode,omitempty"`
 	// AutoEnroll is the toggle for the device auto-enroll feature.
 	AutoEnroll string `yaml:"auto_enroll,omitempty"`
-	// Allow list of EKCert CAs. These may be specified as a PEM encoded
-	// certificate or as a path to a PEM encoded certificate on disk.
+	// EKCertAllowedCAs is an allow list of EKCert CAs. These may be specified
+	// as a PEM encoded certificate or as a path to a PEM encoded certificate.
 	//
 	// If present, only TPM devices that present an EKCert that is signed by a
 	// CA specified here may be enrolled (existing enrollments are
