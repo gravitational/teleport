@@ -397,12 +397,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter("no token configured to load identity from")
 	}
 
-	identStr, err := describeTLSIdentity(newIdentity)
-	if err != nil {
-		return unlock, trace.Wrap(err, "Could not describe bot's internal identity at %s", store)
-	}
-
-	b.log.WithField("identity", identStr).Info("Fetched new bot identity.")
+	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	if err := identity.SaveIdentity(newIdentity, store, identity.BotKinds()...); err != nil {
 		return unlock, trace.Wrap(err)
 	}
@@ -460,12 +455,7 @@ func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, 
 				Error("There was an error loading the configured token. Bot identity loaded from store will be tried.")
 		}
 	}
-
-	identStr, err := describeTLSIdentity(loadedIdent)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	b.log.WithField("identity", identStr).Info("Loaded existing bot identity from store.")
+	b.log.WithField("identity", describeTLSIdentity(b.log, loadedIdent)).Info("Loaded existing bot identity from store.")
 
 	return loadedIdent, nil
 }

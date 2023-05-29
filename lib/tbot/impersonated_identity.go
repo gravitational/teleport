@@ -19,6 +19,7 @@ package tbot
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"math"
 	"strings"
 	"time"
@@ -62,15 +63,18 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 
 // describeTLSIdentity generates an informational message about the given
 // TLS identity, appropriate for user-facing log messages.
-func describeTLSIdentity(ident *identity.Identity) (string, error) {
+func describeTLSIdentity(log logrus.FieldLogger, ident *identity.Identity) string {
+	failedToDescribe := "failed-to-describe"
 	cert := ident.X509Cert
 	if cert == nil {
-		return "", trace.BadParameter("attempted to describe TLS identity without TLS credentials")
+		log.Warn("Attempted to describe TLS identity without TLS credentials.")
+		return failedToDescribe
 	}
 
 	tlsIdent, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	if err != nil {
-		return "", trace.Wrap(err, "bot TLS certificate can not be parsed as an identity")
+		log.WithError(err).Warn("Bot TLS certificate can not be parsed as an identity")
+		return failedToDescribe
 	}
 
 	var principals []string
@@ -91,7 +95,7 @@ func describeTLSIdentity(ident *identity.Identity) (string, error) {
 		tlsIdent.Groups,
 		principals,
 		tlsIdent.Generation,
-	), nil
+	)
 }
 
 // identityConfigurator is a function that alters a cert request
@@ -471,12 +475,7 @@ func (b *Bot) renewDestinations(
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
 
-		impersonatedIdentStr, err := describeTLSIdentity(routedIdentity)
-		if err != nil {
-			return trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
-		}
-
-		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, impersonatedIdentStr)
+		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, routedIdentity))
 
 		if err := identity.SaveIdentity(routedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
 			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)

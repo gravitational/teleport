@@ -57,13 +57,14 @@ func (b *Bot) renewBotIdentityLoop(
 		}
 
 		var err error
+		var partiallyRenewedIdentity *identity.Identity
 		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
 			b.log.Infof(
 				"Renewing bot identity. Attempt %d of %d.",
 				attempt,
 				botIdentityRenewalRetryLimit,
 			)
-			err = b.renewBotIdentity(ctx, botDestination)
+			partiallyRenewedIdentity, err = b.renewBotIdentity(ctx, botDestination, partiallyRenewedIdentity)
 			if err == nil {
 				break
 			}
@@ -96,10 +97,22 @@ func (b *Bot) renewBotIdentityLoop(
 func (b *Bot) renewBotIdentity(
 	ctx context.Context,
 	botDestination bot.Destination,
-) error {
+	partiallyRenewedIdentity *identity.Identity,
+) (*identity.Identity, error) {
+	if partiallyRenewedIdentity != nil {
+		newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, partiallyRenewedIdentity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		b.setClient(newClient)
+		b.setIdent(partiallyRenewedIdentity)
+		b.log.WithField("identity", describeTLSIdentity(b.log, partiallyRenewedIdentity)).Debug("Bot now using new identity.")
+	}
+
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
-		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
+		return nil, trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
 	var newIdentity *identity.Identity
@@ -109,37 +122,32 @@ func (b *Bot) renewBotIdentity(
 		// request a new certificate using our current identity.
 		newIdentity, err = b.renewIdentityViaAuth(ctx, b.ident(), b.Client())
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
 		newIdentity, err = b.getIdentityFromToken()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
-	identStr, err := describeTLSIdentity(newIdentity)
-	if err != nil {
-		return trace.Wrap(err, "Could not describe bot's internal identity at %s", botDestination)
-	}
-
-	b.log.WithField("identity", identStr).Info("Fetched new bot identity.")
+	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
-		return trace.Wrap(err)
+		return newIdentity, trace.Wrap(err)
 	}
 
 	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
 	if err != nil {
-		return trace.Wrap(err)
+		return newIdentity, trace.Wrap(err)
 	}
 
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
-	b.log.WithField("identity", identStr).Debug("Bot now using new identity.")
+	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot now using new identity.")
 
-	return nil
+	return newIdentity, nil
 }
 
 func (b *Bot) renewIdentityViaAuth(
