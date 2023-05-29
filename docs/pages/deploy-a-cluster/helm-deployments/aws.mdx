@@ -228,12 +228,15 @@ Replace
 `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece`
 with your actual ACM certificate ARN.
 
-Edit your `values.yaml` file to complete the `annotations.ingress` field as follows:
+Edit your `values.yaml` file to set values as follows:
 
   ```yaml
+  ingress:
+    enabled: true
+    spec:
+      ingressClassName: alb
   annotations:
     ingress:
-      kubernetes.io/ingress.class: alb
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/backend-protocol: HTTPS
       alb.ingress.kubernetes.io/scheme: internet-facing
@@ -343,9 +346,12 @@ aws:
   dynamoAutoScaling: false                        # Whether Teleport should configure DynamoDB's autoscaling.
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
+ingress:
+  enabled: true
+  spec:
+    ingressClassName: alb
 annotations:
   ingress:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/backend-protocol: HTTPS
     alb.ingress.kubernetes.io/scheme: internet-facing
@@ -404,9 +410,12 @@ aws:
 highAvailability:
   replicaCount: 2                                 # Number of replicas to configure
 enterprise: true                                  # Indicate that this is a Teleport Enterprise deployment
+ingress:
+  enabled: true
+  spec:
+    ingressClassName: alb
 annotations:
   ingress:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/backend-protocol: HTTPS
     alb.ingress.kubernetes.io/scheme: internet-facing
