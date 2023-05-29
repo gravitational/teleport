@@ -49,7 +49,6 @@ import (
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/kubectl/pkg/util/term"
-	"k8s.io/utils/pointer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -488,7 +487,7 @@ func (c *kubeExecCommand) kubeCmdFactory(overwriteKubeConfigLocation string) cmd
 	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
 
 	if overwriteKubeConfigLocation != "" {
-		kubeConfigFlags.KubeConfig = pointer.String(overwriteKubeConfigLocation)
+		kubeConfigFlags.KubeConfig = &overwriteKubeConfigLocation
 	}
 
 	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
