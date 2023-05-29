@@ -10,7 +10,7 @@ metadata:
   labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
   {{- if (or ($proxy.annotations.service) (eq $proxy.chartMode "aws")) }}
   annotations:
-    {{- if eq $proxy.chartMode "aws" }}
+    {{- if and (eq $proxy.chartMode "aws") (not $proxy.ingress.enabled) }}
       {{- if not (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-backend-protocol")}}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: {{ $backendProtocol }}
       {{- end }}
