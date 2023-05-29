@@ -193,7 +193,7 @@ message MatcherInstallParams {
 	// SSHDConfig provides the path to write sshd configuration changes
 	string SSHDConfig = 4;
 	// PublicProxyAddr is the address of the proxy the discovered node should use
-	// to connect to the cluster. Used ony in Azure.
+	// to connect to the cluster. Used only in Azure.
 	string PublicProxyAddr = 5;
 }
 
