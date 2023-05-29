@@ -47,6 +47,40 @@ updates:
       - rosstimothy
       - zmb3
 
+  - package-ecosystem: gomod
+    directory: "/assets/aws"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - jentfoo
+      - rosstimothy
+      - tcsc
+      - zmb3
+
+  - package-ecosystem: gomod
+    directory: "/build.assets/tooling"
+    schedule:
+      interval: weekly
+      day: "sunday"
+      time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
+    open-pull-requests-limit: 10
+    reviewers:
+      - codingllama
+      - fheinecke
+      - jentfoo
+      - rosstimothy
+      - zmb3
+
   - package-ecosystem: cargo
     directory: "/"
     schedule:
