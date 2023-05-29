@@ -1109,34 +1109,34 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	c.printUserMessage(tc)
+	c.printUserMessage(cf, tc)
 	return nil
 }
 
-func (c *kubeLoginCommand) printUserMessage(tc *client.TeleportClient) {
+func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
 	if c.localProxyRequired(tc) {
-		c.printLocalProxyUserMessage()
+		c.printLocalProxyUserMessage(cf)
 		return
 	}
 
 	if c.kubeCluster != "" {
-		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+		fmt.Fprintf(cf.Stdout(), "Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
 	} else {
-		fmt.Printf("Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
+		fmt.Fprintf(cf.Stdout(), "Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage() {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
 	switch {
 	case c.kubeCluster != "":
-		fmt.Printf(`Logged into Kubernetes cluster %q. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
 `, c.kubeCluster)
 
 	default:
-		fmt.Printf(`Logged into all Kubernetes clusters available. Start the local proxy:
+		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
   tsh proxy kube -p 8443
 
 Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
