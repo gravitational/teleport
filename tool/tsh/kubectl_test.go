@@ -110,10 +110,9 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 
 			var localProxyCreated bool
 			var loadedKubeClusters kubeconfig.LocalProxyClusters
-			var loadedKubeconfigLocation string
-			wantLocalProxyKubeconfigLocation := path.Join(tshHome, uuid.NewString())
+			wantLocalProxyKubeConfigLocation := path.Join(tshHome, uuid.NewString())
 
-			closeFn, err := maybeStartKubeLocalProxy(cf,
+			closeFn, actualKubeConfigLocation, err := maybeStartKubeLocalProxy(cf,
 				withKubectlArgs(test.inputArgs),
 				func(o *kubeLocalProxyOpts) {
 					// Fake makeAndStartKubeLocalProxyFunc instead of making a
@@ -121,13 +120,8 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 					o.makeAndStartKubeLocalProxyFunc = func(_ *CLIConf, _ *clientcmdapi.Config, clusters kubeconfig.LocalProxyClusters) (func(), string, error) {
 						localProxyCreated = true
 						loadedKubeClusters = clusters
-						return func() {}, wantLocalProxyKubeconfigLocation, nil
+						return func() {}, wantLocalProxyKubeConfigLocation, nil
 					}
-					// Verify if onNewKubeconfigFuncs is called with correct value.
-					o.onNewKubeconfigFuncs = append(o.onNewKubeconfigFuncs, func(newPath string) error {
-						loadedKubeconfigLocation = newPath
-						return nil
-					})
 				},
 			)
 			require.NoError(t, err)
@@ -136,7 +130,7 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 			require.Equal(t, test.wantLocalProxy, localProxyCreated)
 			if test.wantLocalProxy {
 				require.ElementsMatch(t, test.wantKubeClusters, loadedKubeClusters)
-				require.Equal(t, wantLocalProxyKubeconfigLocation, loadedKubeconfigLocation)
+				require.Equal(t, wantLocalProxyKubeConfigLocation, actualKubeConfigLocation)
 			}
 		})
 	}
@@ -221,34 +215,41 @@ func Test_overwriteKubeconfigFlagInArgs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		inputPath  string
-		inputArgs  []string
-		expectArgs []string
+		name                    string
+		inputPath               string
+		inputArgs               []string
+		expectArgs              []string
+		expectHasKubeconfigFlag bool
 	}{
 		{
-			name:       "no kubeconfig flag",
-			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "version"},
-			expectArgs: []string{"kubectl", "version"},
+			name:                    "no kubeconfig flag",
+			inputPath:               "newpath",
+			inputArgs:               []string{"kubectl", "version"},
+			expectArgs:              []string{"kubectl", "version"},
+			expectHasKubeconfigFlag: false,
 		},
 		{
-			name:       "kubeconfig flag",
-			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "version", "--kubeconfig", "oldpath"},
-			expectArgs: []string{"kubectl", "version", "--kubeconfig", "newpath"},
+			name:                    "kubeconfig flag",
+			inputPath:               "newpath",
+			inputArgs:               []string{"kubectl", "version", "--kubeconfig", "oldpath"},
+			expectArgs:              []string{"kubectl", "version", "--kubeconfig", "newpath"},
+			expectHasKubeconfigFlag: true,
 		},
 		{
-			name:       "kubeconfig equal flag",
-			inputPath:  "newpath",
-			inputArgs:  []string{"kubectl", "version", "--kubeconfig=oldpath"},
-			expectArgs: []string{"kubectl", "version", "--kubeconfig=newpath"},
+			name:                    "kubeconfig equal flag",
+			inputPath:               "newpath",
+			inputArgs:               []string{"kubectl", "version", "--kubeconfig=oldpath"},
+			expectArgs:              []string{"kubectl", "version", "--kubeconfig=newpath"},
+			expectHasKubeconfigFlag: true,
 		},
 	}
 
 	for _, test := range tests {
-		overwriteKubeconfigFlagInArgs(test.inputArgs, test.inputPath)
-		require.Equal(t, test.expectArgs, test.inputArgs)
+		actualHasKubeconfigFlag := hasKubeconfigFlagInArgs(test.inputArgs)
+		require.Equal(t, test.expectHasKubeconfigFlag, actualHasKubeconfigFlag)
+
+		outputArgs := overwriteKubeconfigFlagInArgs(test.inputArgs, test.inputPath)
+		require.Equal(t, test.expectArgs, outputArgs)
 	}
 }
 

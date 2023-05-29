@@ -49,6 +49,7 @@ import (
 	"k8s.io/kubectl/pkg/polymorphichelpers"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/kubectl/pkg/util/term"
+	"k8s.io/utils/pointer"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -437,21 +438,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 }
 
 func (c *kubeExecCommand) run(cf *CLIConf) error {
-	closeFn, err := maybeStartKubeLocalProxy(cf, withKubeconfigEnvUpdate())
+	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer closeFn()
 
+	f := c.kubeCmdFactory(newKubeConfigLocation)
 	var p ExecOptions
 	p.IOStreams = genericclioptions.IOStreams{
 		In:     os.Stdin,
 		Out:    os.Stdout,
 		ErrOut: os.Stderr,
 	}
-	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
-	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
-	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
 	p.ResourceName = c.target
 	p.ContainerName = c.container
 	p.Quiet = c.quiet
@@ -483,6 +482,17 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 	p.PodClient = clientset.CoreV1()
 	return trace.Wrap(p.Run(cf.Context))
+}
+
+func (c *kubeExecCommand) kubeCmdFactory(overwriteKubeConfigLocation string) cmdutil.Factory {
+	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+
+	if overwriteKubeConfigLocation != "" {
+		kubeConfigFlags.KubeConfig = pointer.String(overwriteKubeConfigLocation)
+	}
+
+	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
+	return cmdutil.NewFactory(matchVersionKubeConfigFlags)
 }
 
 type kubeSessionsCommand struct {

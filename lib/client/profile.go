@@ -548,7 +548,8 @@ func (p *ProfileStatus) AppNames() (result []string) {
 	return result
 }
 
-// ProfileNameFromProxyAddress converts proxy address to profile name.
+// ProfileNameFromProxyAddress converts proxy address to profile name or
+// returns the current profile if the proxyAddr is not set.
 func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, error) {
 	if proxyAddr == "" {
 		profileName, err := store.CurrentProfile()
