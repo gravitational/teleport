@@ -148,7 +148,11 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Try to load an existing AK in the case of re-enrollment, but, if the
 	// AK does not exist, create one and persist it.
@@ -420,7 +424,11 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
@@ -453,7 +461,11 @@ func solveTPMEnrollChallenge(
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
@@ -507,7 +519,11 @@ func solveTPMAuthDeviceChallenge(
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM")
+		}
+	}()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
