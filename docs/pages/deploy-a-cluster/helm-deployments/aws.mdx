@@ -236,7 +236,6 @@ Edit your `values.yaml` file to complete the `annotations.ingress` field as foll
       kubernetes.io/ingress.class: alb
       alb.ingress.kubernetes.io/target-type: ip
       alb.ingress.kubernetes.io/backend-protocol: HTTPS
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
       alb.ingress.kubernetes.io/scheme: internet-facing
       alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
       alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
@@ -349,7 +348,6 @@ annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/backend-protocol: HTTPS
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
@@ -411,7 +409,6 @@ annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/backend-protocol: HTTPS
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
