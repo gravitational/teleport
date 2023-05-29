@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -472,7 +473,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// directly.
-	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
+	if params.To == nil || params.To.String() == "" || params.To.String() == reversetunnelclient.LocalNode {
 		return true, nil
 	}
 
