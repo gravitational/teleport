@@ -233,7 +233,7 @@ async function setUpPtyProcess(
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (doc.kind === 'doc.terminal_tsh_kube') {
+  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
     ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
@@ -386,6 +386,29 @@ function createCmd(
       env,
       proxyHost,
       clusterName,
+    };
+  }
+
+  if (doc.kind === 'doc.gateway_kube') {
+    const gateway = clustersService.findGatewayByConnectionParams(
+      doc.targetUri,
+      ''
+    );
+    if (!gateway) {
+      // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
+      // the gateway is found. In any case, if it does happen for some reason, the user will see
+      // this message and will be able to retry starting the terminal.
+      throw new Error(`No gateway found for ${doc.targetUri}`);
+    }
+
+    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
+
+    return {
+      ...doc,
+      kind: 'pty.gateway-kube',
+      proxyHost,
+      clusterName,
+      env,
     };
   }
 

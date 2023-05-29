@@ -31,9 +31,11 @@ import { ImmutableStore } from '../immutableStore';
 import { TrackedConnectionOperationsFactory } from './trackedConnectionOperationsFactory';
 import {
   createGatewayConnection,
+  createGatewayKubeConnection,
   createKubeConnection,
   createServerConnection,
   getGatewayConnectionByDocument,
+  getGatewayKubeConnectionByDocument,
   getKubeConnectionByDocument,
   getServerConnectionByDocument,
 } from './trackedConnectionUtils';
@@ -41,6 +43,7 @@ import {
   ExtendedTrackedConnection,
   TrackedConnection,
   TrackedGatewayConnection,
+  TrackedGatewayKubeConnection,
 } from './types';
 
 export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerState> {
@@ -106,6 +109,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         return this.state.connections.find(
           getKubeConnectionByDocument(document)
         );
+      case 'doc.gateway_kube':
+        return this.state.connections.find(
+          getGatewayKubeConnectionByDocument(document)
+        );
       case 'doc.gateway':
         return this.state.connections.find(
           getGatewayConnectionByDocument(document)
@@ -165,7 +172,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     this.setState(draft => {
       // assign default "connected" values
       draft.connections.forEach(i => {
-        if (i.kind === 'connection.gateway') {
+        if (
+          i.kind === 'connection.gateway' ||
+          i.kind === 'connection.gateway_kube'
+        ) {
           i.connected = !!this._clusterService.findGateway(i.gatewayUri);
         } else {
           i.connected = false;
@@ -186,6 +196,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
         .filter(
           d =>
             d.kind === 'doc.gateway' ||
+            d.kind === 'doc.gateway_kube' ||
             d.kind === 'doc.terminal_tsh_node' ||
             d.kind === 'doc.terminal_tsh_kube'
         );
@@ -213,6 +224,23 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
             } else {
               gwConn.gatewayUri = doc.gatewayUri;
               gwConn.targetSubresourceName = doc.targetSubresourceName;
+              gwConn.port = doc.port;
+              gwConn.connected = !!this._clusterService.findGateway(
+                doc.gatewayUri
+              );
+            }
+            break;
+          }
+          case 'doc.gateway_kube': {
+            const gwConn = draft.connections.find(
+              getGatewayKubeConnectionByDocument(doc)
+            ) as TrackedGatewayKubeConnection;
+
+            if (!gwConn) {
+              const newItem = createGatewayKubeConnection(doc);
+              draft.connections.push(newItem);
+            } else {
+              gwConn.gatewayUri = doc.gatewayUri;
               gwConn.port = doc.port;
               gwConn.connected = !!this._clusterService.findGateway(
                 doc.gatewayUri

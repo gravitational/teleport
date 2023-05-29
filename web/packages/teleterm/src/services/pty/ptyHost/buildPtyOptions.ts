@@ -148,6 +148,14 @@ export function getPtyProcessOptions(
       };
     }
 
+    case 'pty.gateway-kube': {
+      return {
+        path: settings.defaultShell,
+        args: [],
+        env: { ...env, ...cmd.env },
+      };
+    }
+
     default:
       assertUnreachable(cmd);
   }

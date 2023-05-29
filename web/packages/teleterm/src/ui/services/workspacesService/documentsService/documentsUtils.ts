@@ -34,6 +34,7 @@ export function getResourceUri(
     case 'doc.cluster':
       return document.clusterUri;
     case 'doc.gateway':
+    case 'doc.gateway_kube':
     case 'doc.gateway_cli_client':
       return document.targetUri;
     case 'doc.terminal_tsh_node':

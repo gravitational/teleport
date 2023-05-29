@@ -23,12 +23,14 @@ import {
 
 import {
   getGatewayDocumentByConnection,
+  getGatewayKubeDocumentByConnection,
   getKubeDocumentByConnection,
   getServerDocumentByConnection,
 } from './trackedConnectionUtils';
 import {
   TrackedConnection,
   TrackedGatewayConnection,
+  TrackedGatewayKubeConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
 } from './types';
@@ -45,6 +47,8 @@ export class TrackedConnectionOperationsFactory {
         return this.getConnectionServerOperations(connection);
       case 'connection.gateway':
         return this.getConnectionGatewayOperations(connection);
+      case 'connection.gateway_kube':
+        return this.getConnectionGatewayKubeOperations(connection);
       case 'connection.kube':
         return this.getConnectionKubeOperations(connection);
     }
@@ -142,6 +146,56 @@ export class TrackedConnectionOperationsFactory {
             documentsService
               .getDocuments()
               .filter(getGatewayDocumentByConnection(connection))
+              .forEach(document => {
+                documentsService.close(document.uri);
+              });
+          });
+      },
+      remove: async () => {},
+    };
+  }
+
+  private getConnectionGatewayKubeOperations(
+    connection: TrackedGatewayKubeConnection
+  ): TrackedConnectionOperations {
+    const { rootClusterId, leafClusterId } = routing.parseKubeUri(
+      connection.targetUri
+    ).params;
+    const { rootClusterUri, leafClusterUri } = this.getClusterUris({
+      rootClusterId,
+      leafClusterId,
+    });
+
+    const documentsService =
+      this._workspacesService.getWorkspaceDocumentService(rootClusterUri);
+
+    return {
+      rootClusterUri,
+      leafClusterUri,
+      activate: params => {
+        let gwDoc = documentsService
+          .getDocuments()
+          .find(getGatewayKubeDocumentByConnection(connection));
+
+        if (!gwDoc) {
+          gwDoc = documentsService.createGatewayKubeDocument({
+            targetUri: connection.targetUri,
+            title: connection.title,
+            gatewayUri: connection.gatewayUri,
+            port: connection.port,
+            origin: params.origin,
+          });
+          documentsService.add(gwDoc);
+        }
+        documentsService.open(gwDoc.uri);
+      },
+      disconnect: () => {
+        return this._clustersService
+          .removeGateway(connection.gatewayUri)
+          .then(() => {
+            documentsService
+              .getDocuments()
+              .filter(getGatewayKubeDocumentByConnection(connection))
               .forEach(document => {
                 documentsService.close(document.uri);
               });

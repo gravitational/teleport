@@ -16,6 +16,7 @@
 
 import {
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithServerId,
@@ -25,6 +26,7 @@ import { unique } from 'teleterm/ui/utils/uid';
 
 import {
   TrackedGatewayConnection,
+  TrackedGatewayKubeConnection,
   TrackedKubeConnection,
   TrackedServerConnection,
 } from './types';
@@ -58,6 +60,20 @@ export function getGatewayDocumentByConnection(
     i.targetUser === connection.targetUser;
 }
 
+export function getGatewayKubeDocumentByConnection(
+  connection: TrackedGatewayKubeConnection
+) {
+  return (i: DocumentGatewayKube) =>
+    i.kind === 'doc.gateway_kube' && i.targetUri === connection.targetUri;
+}
+
+export function getGatewayKubeConnectionByDocument(
+  document: DocumentGatewayKube
+) {
+  return (i: TrackedGatewayKubeConnection) =>
+    i.kind === 'connection.gateway_kube' && i.targetUri === document.targetUri;
+}
+
 export function getKubeDocumentByConnection(connection: TrackedKubeConnection) {
   return (i: DocumentTshKube) =>
     i.kind === 'doc.terminal_tsh_kube' && i.kubeUri === connection.kubeUri;
@@ -86,6 +102,20 @@ export function createGatewayConnection(
     targetUser: document.targetUser,
     targetName: document.targetName,
     targetSubresourceName: document.targetSubresourceName,
+    gatewayUri: document.gatewayUri,
+  };
+}
+
+export function createGatewayKubeConnection(
+  document: DocumentGatewayKube
+): TrackedGatewayKubeConnection {
+  return {
+    kind: 'connection.gateway_kube',
+    connected: true,
+    id: unique(),
+    title: document.title,
+    port: document.port,
+    targetUri: document.targetUri,
     gatewayUri: document.gatewayUri,
   };
 }

@@ -21,11 +21,13 @@ import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
+  CreateGatewayKubeDocumentOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentGatewayKube,
   DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
@@ -148,6 +150,26 @@ export class DocumentsService {
       targetSubresourceName,
       gatewayUri,
       title,
+      port,
+      origin,
+    };
+  }
+
+  createGatewayKubeDocument(
+    opts: CreateGatewayKubeDocumentOpts
+  ): DocumentGatewayKube {
+    const { targetUri, port, gatewayUri, origin } = opts;
+    const uri = routing.getDocUri({ docId: unique() });
+    const { params } = routing.parseKubeUri(targetUri);
+
+    return {
+      uri,
+      kind: 'doc.gateway_kube',
+      rootClusterId: params.rootClusterId,
+      leafClusterId: params.leafClusterId,
+      targetUri,
+      gatewayUri,
+      title: `${params.kubeId}`,
       port,
       origin,
     };

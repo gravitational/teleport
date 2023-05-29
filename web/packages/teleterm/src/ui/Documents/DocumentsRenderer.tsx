@@ -31,6 +31,7 @@ import {
 } from 'teleterm/ui/services/workspacesService';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
+import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 
 import Document from 'teleterm/ui/Document';
@@ -98,6 +99,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentCluster doc={doc} visible={visible} />;
       case 'doc.gateway':
         return <DocumentGateway doc={doc} visible={visible} />;
+      case 'doc.gateway_kube':
+        return <DocumentGatewayKube doc={doc} visible={visible} />;
       case 'doc.gateway_cli_client':
         return <DocumentGatewayCliClient doc={doc} visible={visible} />;
       case 'doc.terminal_shell':

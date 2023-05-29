@@ -105,6 +105,18 @@ export interface DocumentGateway extends DocumentBase {
   origin: DocumentOrigin;
 }
 
+export interface DocumentGatewayKube extends DocumentBase {
+  kind: 'doc.gateway_kube';
+  // rootClusterId and leafClusterId are tech debt. They could be read from targetUri, but
+  // useDocumentTerminal expects these fields to be set on the doc.
+  rootClusterId: string;
+  leafClusterId: string | undefined;
+  gatewayUri?: uri.GatewayUri;
+  targetUri: uri.KubeUri;
+  port?: string;
+  origin: DocumentOrigin;
+}
+
 /**
  * DocumentGatewayCliClient is the tab that opens a CLI tool which targets the given gateway.
  *
@@ -122,7 +134,7 @@ export interface DocumentGatewayCliClient extends DocumentBase {
   //
   // targetUri and targetUser are also needed to find a gateway providing the connection to the
   // target.
-  targetUri: tsh.Gateway['targetUri'];
+  targetUri: uri.DatabaseUri;
   targetUser: tsh.Gateway['targetUser'];
   targetName: tsh.Gateway['targetName'];
   targetProtocol: tsh.Gateway['protocol'];
@@ -154,6 +166,7 @@ export interface DocumentPtySession extends DocumentBase {
 
 export type DocumentTerminal =
   | DocumentPtySession
+  | DocumentGatewayKube
   | DocumentGatewayCliClient
   | DocumentTshNode
   | DocumentTshKube;
@@ -187,6 +200,14 @@ export type CreateGatewayDocumentOpts = {
   targetName: string;
   targetUser: string;
   targetSubresourceName?: string;
+  title?: string;
+  port?: string;
+  origin: DocumentOrigin;
+};
+
+export type CreateGatewayKubeDocumentOpts = {
+  gatewayUri?: uri.GatewayUri;
+  targetUri: uri.KubeUri;
   title?: string;
   port?: string;
   origin: DocumentOrigin;

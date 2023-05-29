@@ -78,6 +78,11 @@ export type GatewayCliClientCommand = PtyCommandBase & {
   env: Record<string, string>;
 };
 
+export type GatewayKubeCommand = PtyCommandBase & {
+  kind: 'pty.gateway-kube';
+  env: Record<string, string>;
+};
+
 type PtyCommandBase = {
   proxyHost: string;
   clusterName: string;
@@ -87,4 +92,5 @@ export type PtyCommand =
   | ShellCommand
   | TshLoginCommand
   | TshKubeLoginCommand
-  | GatewayCliClientCommand;
+  | GatewayCliClientCommand
+  | GatewayKubeCommand;
