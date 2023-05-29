@@ -1787,6 +1787,15 @@ message DeviceTrust {
   // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
   // Mode="off".
   bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
+
+  // Allow list of EKCert CAs in PEM format.
+  // If present, only TPM devices that present an EKCert that is signed by a
+  // CA specified here may be enrolled (existing enrollments are
+  // unchanged).
+  //
+  // If not present, then the CA of TPM EKCerts will not be checked during
+  // enrollment, this allows any device to enroll.
+  repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // Namespace represents namespace resource specification
