@@ -271,7 +271,7 @@ Once you create the records, use the following command to confirm that your
 Teleport cluster is running:
 
 ```code
-$ curl https://<Var name="clusterName" />/webapi/find
+$ curl https://<Var name="clusterName" />/webapi/ping
 # `{"auth":{"type":"local","second_factor":"on","preferred_local_mfa":"webauthn","allow_passwordless":true,"allow_headless":true,"local":{"name":""},"webauthn":{"rp_id":"teleport.example.com"},"private_key_policy":"none","device_trust":{},"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","web_listen_addr":"0.0.0.0:3080","public_addr":"teleport.example.com:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"(=teleport.version=)","min_client_version":"12.0.0","cluster_name":"teleport.example.com","automatic_upgrades":false}
 ```
 
