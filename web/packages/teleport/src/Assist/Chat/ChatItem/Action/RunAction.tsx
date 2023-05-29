@@ -271,7 +271,7 @@ function NodeOutput(props: NodeOutputProps) {
       )}
 
       {props.state.stdout !== undefined &&
-        (props.state.stdout == '' ? (
+        (props.state.stdout === '' ? (
           'Empty output.'
         ) : (
           <NodeContent>
