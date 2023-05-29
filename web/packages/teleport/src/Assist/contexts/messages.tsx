@@ -37,6 +37,8 @@ import cfg from 'teleport/config';
 
 import { ApiError } from 'teleport/services/api/parseError';
 
+import { EventType } from 'teleport/lib/term/enums';
+
 import {
   Author,
   ExecuteRemoteCommandContent,
@@ -83,6 +85,12 @@ interface PartialMessagePayload {
   content: string;
   idx: number;
 }
+
+interface ExecEvent {
+  event: EventType.EXEC;
+  exitError?: string;
+}
+type SessionEvent = ExecEvent | { event: string };
 
 const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   let query = '';
@@ -221,8 +229,16 @@ async function convertServerMessage(
       sid: payload.session_id,
     });
 
-    const sessionResp = await api.fetch(sessionUrl + '/events');
-    const sessionExists = sessionResp.status === 200;
+    const eventsResp = await api.fetch(sessionUrl + '/events');
+    const sessionExists = eventsResp.status === 200;
+    const eventsData = (await eventsResp.json()) as {
+      events: SessionEvent[];
+    };
+
+    function isExecEvent(e: SessionEvent): e is ExecEvent {
+      return e.event == EventType.EXEC;
+    }
+    const execEvent = eventsData.events.find(isExecEvent);
 
     let msg;
     let errorMsg;
@@ -238,7 +254,7 @@ async function convertServerMessage(
       if (stream.status === 200) {
         msg = await stream.text();
       } else {
-        msg = ''; // Empty output, handled in <Output>
+        msg = execEvent?.exitError || ''; // empty output handled in <Output>
       }
     } else {
       errorMsg = 'No session recording. The command execution failed.';
