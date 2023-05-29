@@ -64,7 +64,9 @@ func (b *Bot) renewBotIdentityLoop(
 				attempt,
 				botIdentityRenewalRetryLimit,
 			)
-			partiallyRenewedIdentity, err = b.renewBotIdentity(ctx, botDestination, partiallyRenewedIdentity)
+			partiallyRenewedIdentity, err = b.renewBotIdentity(
+				ctx, botDestination, partiallyRenewedIdentity,
+			)
 			if err == nil {
 				break
 			}
@@ -100,14 +102,29 @@ func (b *Bot) renewBotIdentity(
 	partiallyRenewedIdentity *identity.Identity,
 ) (*identity.Identity, error) {
 	if partiallyRenewedIdentity != nil {
+		// If we were able to fetch a new identity in the last attempt, we do
+		// not want to try and fetch another one as this could cause a
+		// generation lock-out. So instead, we only retry the saving and
+		// creation of new client.
+		if err := identity.SaveIdentity(
+			partiallyRenewedIdentity,
+			botDestination,
+			identity.BotKinds()...,
+		); err != nil {
+			return partiallyRenewedIdentity, trace.Wrap(err)
+		}
+
 		newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, partiallyRenewedIdentity)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return partiallyRenewedIdentity, trace.Wrap(err)
 		}
 
 		b.setClient(newClient)
 		b.setIdent(partiallyRenewedIdentity)
-		b.log.WithField("identity", describeTLSIdentity(b.log, partiallyRenewedIdentity)).Debug("Bot now using new identity.")
+		b.log.WithField(
+			"identity", describeTLSIdentity(b.log, partiallyRenewedIdentity),
+		).Debug("Bot now using new identity.")
+		return nil, nil
 	}
 
 	// Make sure we can still write to the bot's destination.
@@ -147,7 +164,9 @@ func (b *Bot) renewBotIdentity(
 	b.setIdent(newIdentity)
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot now using new identity.")
 
-	return newIdentity, nil
+	// We only return the identity if it's been a partial success - otherwise,
+	// the new identity is propagated by `b.setIdent`
+	return nil, nil
 }
 
 func (b *Bot) renewIdentityViaAuth(
