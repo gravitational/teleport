@@ -887,6 +887,12 @@ func (d *DatabaseV3) GetMongoAtlas() MongoAtlas {
 // and that database supports discovery, be sure to update RequireAWSIAMRolesAsUsersMatchers
 // in lib/services as well.
 func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
+	// NOTE: Although MongoDB Atlas databases support regular users and IAM role
+	// users, having this return true enables roles to match partial ARNs.
+	if d.GetType() == DatabaseTypeMongoAtlas {
+		return true
+	}
+
 	awsType, ok := d.getAWSType()
 	if !ok {
 		return false

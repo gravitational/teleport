@@ -3384,6 +3384,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				Namespaces:     []string{apidefaults.Namespace},
 				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseUsers: []string{
+					"allow-regular-users",
 					"allow-role-with-short-name",
 					"arn:aws:iam::123456789012:role/allow-role-with-full-arn",
 				},
@@ -3430,6 +3431,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/unknown-role-name", access: false},
 				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:user/username", access: false},
 				{server: dbRequireAWSRoles, dbUser: "arn:aws-cn:iam::123456789012:role/allow-role-with-short-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "allow-regular-users", access: true},
 			},
 		},
 	}
