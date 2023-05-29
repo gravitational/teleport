@@ -68,26 +68,31 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err 
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
-func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
+func getMarshaledEK(tpm *attest.TPM) (ekKey []byte, ekCert []byte, err error) {
 	eks, err := tpm.EKs()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if len(eks) == 0 {
 		// This is a pretty unusual case, `go-attestation` will attempt to
 		// create an EK if no EK Certs are present in the NVRAM of the TPM.
 		// Either way, it lets us catch this early in case `go-attestation`
 		// misbehaves.
-		return nil, trace.BadParameter("no endorsement keys found in tpm")
+		return nil, nil, trace.BadParameter("no endorsement keys found in tpm")
 	}
 	// The first EK returned by `go-attestation` will be an RSA based EK key or
 	// EK cert. On Windows, ECC certs may also be returned following this. At
 	// this time, we are only interested in RSA certs, so we just consider the
 	// first thing returned.
-	// TODO(noah): Marshal EK Certificate instead of key if present:
-	// https://github.com/gravitational/teleport.e/issues/1393
-	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
-	return encodedEK, trace.Wrap(err)
+	encodedEKKey, err := x509.MarshalPKIXPublicKey(eks[0].Public)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if eks[0].Certificate == nil {
+		return encodedEKKey, nil, nil
+	}
+	return encodedEKKey, eks[0].Certificate.Raw, nil
 }
 
 // loadAK attempts to load an AK from disk. A NotFound error will be
@@ -167,7 +172,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
 
-	marshaledEK, err := getMarshaledEK(tpm)
+	ekKey, ekCert, err := getMarshaledEK(tpm)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshalling ek")
 	}
@@ -177,17 +182,29 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "determining credential id")
 	}
 
+	enrollPayload := &devicepb.TPMEnrollPayload{
+		AttestationParameters: devicetrust.AttestationParametersToProto(
+			ak.AttestationParameters(),
+		),
+	}
+	switch {
+	// Prefer ekCert over ekPub
+	case ekCert != nil:
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkCert{
+			EkCert: ekCert,
+		}
+	case ekKey != nil:
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkKey{
+			EkKey: ekKey,
+		}
+	default:
+		return nil, trace.BadParameter("tpm has neither ek_key or ek_cert")
+	}
+
 	return &devicepb.EnrollDeviceInit{
 		CredentialId: credentialID,
 		DeviceData:   deviceData,
-		Tpm: &devicepb.TPMEnrollPayload{
-			Ek: &devicepb.TPMEnrollPayload_EkKey{
-				EkKey: marshaledEK,
-			},
-			AttestationParameters: devicetrust.AttestationParametersToProto(
-				ak.AttestationParameters(),
-			),
-		},
+		Tpm:          enrollPayload,
 	}, nil
 }
 
