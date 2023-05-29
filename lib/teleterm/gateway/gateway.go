@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -224,13 +225,11 @@ func (g *Gateway) LocalPortInt() int {
 	return port
 }
 
-// CLICommand returns a command which launches a CLI client pointed at the given gateway.
-// It needs to return a relative command as it will be executed from a terminal in Connect, so we
-// should let user's env resolve the command rather than depending on os.exec.
-func (g *Gateway) CLICommand() (string, error) {
+// CLICommand returns a command which launches a CLI client pointed at the gateway.
+func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
 	cmd, err := g.cfg.CLICommandProvider.GetCommand(g)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	cmdString := strings.TrimSpace(
@@ -238,7 +237,12 @@ func (g *Gateway) CLICommand() (string, error) {
 			strings.Join(cmd.Env, " "),
 			strings.Join(cmd.Args, " ")))
 
-	return cmdString, nil
+	return &api.GatewayCLICommand{
+		Path:    cmd.Path,
+		Args:    cmd.Args,
+		Env:     cmd.Env,
+		Preview: cmdString,
+	}, nil
 }
 
 // RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
