@@ -244,6 +244,6 @@ func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.
 	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
 }
 
-func solveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return nil, trace.BadParameter("called solveTPMAuthDeviceChallenge on darwin")
+func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
 }

@@ -91,7 +91,7 @@ func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 	}, nil
 }
 
-func (f *FakeWindowsDevice) SolveTPMAuthDeviceChallenge(
+func (f *FakeWindowsDevice) SolveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	// This fake is similar to the one used in SolveTPMEnrollChallenge except

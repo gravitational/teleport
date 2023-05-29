@@ -52,6 +52,6 @@ func (d *FakeLinuxDevice) GetDeviceCredential() *devicepb.DeviceCredential {
 	return nil
 }
 
-func (f *FakeLinuxDevice) SolveTPMAuthDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+func (f *FakeLinuxDevice) SolveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }

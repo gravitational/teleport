@@ -488,7 +488,7 @@ func solveTPMEnrollChallenge(
 	}, nil
 }
 
-func solveTPMAuthDeviceChallenge(
+func solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	akPath, err := setupDeviceStateDir(os.UserHomeDir)

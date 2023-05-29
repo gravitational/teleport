@@ -49,9 +49,9 @@ func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.
 	return solveTPMEnrollChallenge(challenge)
 }
 
-// SolveTPMAuthDeviceChallenge completes a TPM device authetication challenge.
-func SolveTPMAuthDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	return solveTPMAuthDeviceChallenge(challenge)
+// SolveTPMAuthnDeviceChallenge completes a TPM device authetication challenge.
+func SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return solveTPMAuthnDeviceChallenge(challenge)
 }
 
 // GetDeviceOSType returns the devicepb.OSType for the current OS
