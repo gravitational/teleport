@@ -42,14 +42,14 @@ const (
 
 // setupDeviceStateDir ensures that device state directory exists.
 // It returns the absolute path to where the attestation key can be found:
-// ~/teleport-device/attestation.key
-func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err error) {
-	home, err := getHomeDir()
+// $CONFIG_DIR/teleport-device/attestation.key
+func setupDeviceStateDir(getBaseDir func() (string, error)) (akPath string, err error) {
+	base, err := getBaseDir()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	deviceStateDirPath := filepath.Join(home, deviceStateFolderName)
+	deviceStateDirPath := filepath.Join(base, deviceStateFolderName)
 	keyPath := filepath.Join(deviceStateDirPath, attestationKeyFileName)
 
 	if _, err := os.Stat(deviceStateDirPath); err != nil {
@@ -137,7 +137,7 @@ func createAndSaveAK(
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -414,7 +414,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 // getDeviceCredential will only return the credential ID on windows. The
 // other information is determined server-side.
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -450,7 +450,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 func solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -508,7 +508,7 @@ func solveTPMEnrollChallenge(
 func solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
