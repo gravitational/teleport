@@ -1105,7 +1105,7 @@
         {
           "title": "Manual Cluster Registration",
           "slug": "/kubernetes-access/register-clusters/",
-	  "entries": [
+          "entries": [
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
