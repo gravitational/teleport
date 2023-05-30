@@ -388,7 +388,7 @@ func (a *BaseApp) getMessageRecipients(ctx context.Context, req types.AccessRequ
 
 	switch a.Conf.GetPluginType() {
 	case types.PluginTypeOpsgenie:
-		if recipients, ok := req.GetResolveAnnotations()[ReqAnnotationSchedulesKey]; ok {
+		if recipients, ok := req.GetResolveAnnotations()[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 			for _, recipient := range recipients {
 				rec, err := a.bot.FetchRecipient(ctx, recipient)
 				if err != nil {

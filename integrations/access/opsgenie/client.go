@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 )
 
@@ -61,7 +60,6 @@ type Client struct {
 	ClientConfig
 
 	client *resty.Client
-
 }
 
 // ClientConfig is the config for the opsgenie client.
@@ -141,7 +139,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 
 func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
-	if reqSchedules, ok := reqData.ResolveAnnotations[common.ReqAnnotationSchedulesKey]; ok {
+	if reqSchedules, ok := reqData.ResolveAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 		schedules = reqSchedules
 	}
 	responders := make([]Responder, 0, len(schedules))

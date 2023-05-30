@@ -28,11 +28,6 @@ const (
 	RecipientKindSchedule = "schedule"
 )
 
-const (
-	// ReqAnnotationSchedulesKey is the request annotation key at which schedules are stored for access plugins.
-	ReqAnnotationSchedulesKey = "teleport.dev/schedules"
-)
-
 // RawRecipientsMap is a mapping of roles to recipient(s).
 type RawRecipientsMap map[string][]string
 
