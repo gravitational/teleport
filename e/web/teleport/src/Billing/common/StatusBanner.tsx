@@ -81,7 +81,7 @@ export const StatusBanner = ({
   return (
     <>
       <Box
-        bg={theme.colors.spotBackground[0]}
+        bg={theme.colors.levels.surface}
         borderRadius="12px"
         m="20px 0 0 0"
         p="20px 0 20px 40px"

@@ -3,12 +3,15 @@ import { Box, ButtonPrimary, Input, Text } from 'design';
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
+import { useTheme } from 'styled-components';
+
 import { EmailProps } from 'e-teleport/Billing/types';
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import useTeleport from 'e-teleport/useTeleportE';
 import { isValidEmail } from 'e-teleport/validations/email';
 
 export const Email = ({ email, reload }: EmailProps) => {
+  const theme = useTheme();
   const ctx = useTeleport();
   const [field, setField] = useState<string>(email ? email : '');
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -36,7 +39,12 @@ export const Email = ({ email, reload }: EmailProps) => {
   };
 
   return (
-    <>
+    <Box
+      bg={theme.colors.levels.surface}
+      borderRadius="12px"
+      m="20px 0 0 0"
+      p="20px 0 20px 40px"
+    >
       <h2>Invoice Email Recipient</h2>
       <Text>
         Optional: Invoices will be sent to the email address of the cluster's
@@ -70,6 +78,6 @@ export const Email = ({ email, reload }: EmailProps) => {
       >
         Save
       </ButtonPrimary>
-    </>
+    </Box>
   );
 };

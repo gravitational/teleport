@@ -5,6 +5,7 @@ import {
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js';
+import { useTheme } from 'styled-components';
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 
@@ -16,6 +17,7 @@ import useTeleport from 'e-teleport/useTeleportE';
 import { StripeBillingAddressRequest } from 'e-teleport/services/cloud';
 
 export const Address = ({ address, name, reload }: AddressProps) => {
+  const theme = useTheme();
   const stripe = useStripe();
   const elements = useElements();
   const ctx = useTeleport();
@@ -96,7 +98,12 @@ export const Address = ({ address, name, reload }: AddressProps) => {
   };
 
   return (
-    <>
+    <Box
+      bg={theme.colors.levels.surface}
+      borderRadius="12px"
+      m="20px 0 0 0"
+      p="20px 0 20px 40px"
+    >
       <h2>Invoice Billing Address</h2>
       <Text>
         Optional: Add a billing address if you would like it to appear on your
@@ -124,6 +131,6 @@ export const Address = ({ address, name, reload }: AddressProps) => {
       >
         Save
       </ButtonPrimary>
-    </>
+    </Box>
   );
 };

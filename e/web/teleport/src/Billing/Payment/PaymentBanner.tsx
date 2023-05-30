@@ -1,4 +1,4 @@
-import { Box, ButtonSecondary, Text } from 'design';
+import { Box, ButtonBorder, Text } from 'design';
 import React, { useState } from 'react';
 import { useTheme } from 'styled-components';
 
@@ -21,17 +21,17 @@ export const PaymentBanner = ({
 
   return (
     <>
-      <Box bg={theme.colors.spotBackground[1]} m="0 -40px" p="20px 0 20px 40px">
+      <Box bg={theme.colors.spotBackground[0]} m="0 -40px" p="20px 0 20px 40px">
         <h2>Payment Method</h2>
         <Text>
           Required for the Teleport {productName} Plan: Add a default credit
           card below to automatically upgrade to the {productName} plan when
           your trial expires.
         </Text>
-        <ButtonSecondary onClick={() => setOpen(true)} mt="12px">
+        <ButtonBorder onClick={() => setOpen(true)} mt="12px">
           <Icons.Add />
           &nbsp;Add a Payment Method
-        </ButtonSecondary>
+        </ButtonBorder>
       </Box>
       {open && (
         <PaymentAddDialog

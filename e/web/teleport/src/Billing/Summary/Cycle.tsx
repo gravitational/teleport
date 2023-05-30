@@ -20,6 +20,9 @@ const mauRate = 15;
 
 export const Cycle = ({
   currentUsage: { periodStart, periodEnd, usageMau, usagePr, usageTia },
+  productName,
+  stripeMissingPaymentMethod,
+  stripeTrialEnd,
 }: CycleProps) => {
   const theme = useTheme();
   const start = displayUnixShortDate(periodStart);
@@ -74,7 +77,7 @@ export const Cycle = ({
 
   return (
     <Box
-      bg={theme.colors.spotBackground[0]}
+      bg={theme.colors.levels.surface}
       borderRadius="12px"
       m="20px 0 0 0"
       p="20px 0 20px 40px"
@@ -83,8 +86,11 @@ export const Cycle = ({
         Current Cycle: {start} - {end}
       </h2>
       <Text color={theme.colors.text.secondary}>
-        Your next invoice will occur on {end} at a rate of ${mauRate} per active
-        user.
+        {stripeMissingPaymentMethod
+          ? `Your trial will expire on ${displayUnixShortDate(
+              stripeTrialEnd
+            )}. To maintain access to your Teleport cluster, upgrade to the Teleport ${productName} Plan by adding a payment method.`
+          : `Your next invoice will occur on ${end} at a rate of ${mauRate} per active monthly user.`}
       </Text>
       <Flex>
         {usage.map(u => (
@@ -127,7 +133,7 @@ const StyledBar = styled.div<{
   percent: number;
   color: string;
 }>`
-  background: ${props => props.theme.colors.spotBackground[1]};
+  background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 13px;
   height: 20px;
   width: 80%;

@@ -21,6 +21,9 @@ describe('cycle', () => {
         usageTia: 0,
         usagePr: 0,
       },
+      productName: 'some-product',
+      stripeMissingPaymentMethod: false,
+      stripeTrialEnd: 0,
     };
   });
 

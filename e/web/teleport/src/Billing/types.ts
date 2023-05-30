@@ -38,6 +38,9 @@ export interface ErrorPageProps {
 
 export interface CycleProps {
   currentUsage: StripeUsage;
+  productName: string;
+  stripeMissingPaymentMethod: boolean;
+  stripeTrialEnd: number;
 }
 
 export interface CardsListProps {

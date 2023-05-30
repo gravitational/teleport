@@ -24,7 +24,14 @@ export const SummaryPage = ({
         stripeTrialEnd={stripeTrialEnd}
       />
     )}
-    {stripeCurrentUsage && <Cycle currentUsage={stripeCurrentUsage} />}
+    {stripeCurrentUsage && (
+      <Cycle
+        currentUsage={stripeCurrentUsage}
+        productName={productName}
+        stripeMissingPaymentMethod={stripeMissingPaymentMethod}
+        stripeTrialEnd={stripeTrialEnd}
+      />
+    )}
     <StatusBanner
       productName={productName}
       stripeCurrentPeriodEnd={

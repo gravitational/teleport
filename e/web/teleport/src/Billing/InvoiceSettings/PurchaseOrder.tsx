@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Box, ButtonPrimary, Input, Text } from 'design';
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+import { useTheme } from 'styled-components';
 
 import { PurchaseOrderProps } from 'e-teleport/Billing/types';
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
@@ -9,6 +10,7 @@ import useTeleport from 'e-teleport/useTeleportE';
 import { isValidPurchaseOrderPrefix } from 'e-teleport/validations/purchaseOrderPrefix';
 
 export const PurchaseOrder = ({ po, reload }: PurchaseOrderProps) => {
+  const theme = useTheme();
   const ctx = useTeleport();
   const [field, setField] = useState<string>(po ? po : '');
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -38,7 +40,12 @@ export const PurchaseOrder = ({ po, reload }: PurchaseOrderProps) => {
   };
 
   return (
-    <>
+    <Box
+      bg={theme.colors.levels.surface}
+      borderRadius="12px"
+      m="20px 0 0 0"
+      p="20px 0 20px 40px"
+    >
       <h2>Invoice Purchase Order</h2>
       <Text>
         Optional: Add a purchase order below if you would like one to show up on
@@ -71,6 +78,6 @@ export const PurchaseOrder = ({ po, reload }: PurchaseOrderProps) => {
       >
         Save
       </ButtonPrimary>
-    </>
+    </Box>
   );
 };

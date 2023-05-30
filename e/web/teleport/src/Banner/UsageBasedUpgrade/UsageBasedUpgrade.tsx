@@ -83,7 +83,7 @@ export const UsageBasedUpgrade = ({
   return (
     <Flex
       p={2}
-      bg={theme.colors.spotBackground[1]}
+      bg={theme.colors.levels.elevated}
       justifyContent="center"
       data-testid="upgrade-banner"
     >
@@ -111,7 +111,7 @@ export const UsageBasedUpgrade = ({
           stripeMissingPaymentMethod={stripeMissingPaymentMethod}
           title={`Upgrade to ${productName}`}
           description={`Add a payment method to automatically upgrade your account to the 
-          ${productName} plan when your trial ends on ${displayShortDate(
+          ${productName} plan starting at $15/monthly active user when your trial ends on ${displayShortDate(
             trialEndDate
           )}`}
         />
