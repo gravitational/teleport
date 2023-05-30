@@ -5,11 +5,11 @@ go 1.19
 require (
 	github.com/Masterminds/sprig/v3 v3.2.3
 	github.com/docker/distribution v2.8.2+incompatible
-	github.com/google/go-containerregistry v0.14.0
+	github.com/google/go-containerregistry v0.14.1-0.20230409045903-ed5c185df419
 	github.com/gravitational/trace v1.2.1
 	github.com/jonboulle/clockwork v0.4.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33
+	github.com/sigstore/cosign/v2 v2.0.2
 	github.com/sigstore/sigstore v1.6.3
 	github.com/stretchr/testify v1.8.3
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
@@ -39,7 +39,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
@@ -101,7 +101,7 @@ require (
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sigstore/rekor v1.1.1 // indirect
-	github.com/sigstore/timestamp-authority v0.2.1 // indirect
+	github.com/sigstore/timestamp-authority v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/spf13/afero v1.9.3 // indirect
 	github.com/spf13/cast v1.5.0 // indirect
