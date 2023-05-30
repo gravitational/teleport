@@ -44,7 +44,7 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 
     cd openssl && \
     [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
     ./config --release --libdir=/usr/local/lib && \
-    make -j$(grep -c processor /proc/cpuinfo) && \
+    make -j"$(nproc)" && \
     make install_sw
 
 # Install libfido2.
