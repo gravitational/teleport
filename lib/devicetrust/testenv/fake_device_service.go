@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -285,6 +286,30 @@ func (s *fakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 		return trace.Wrap(err)
 	}
 
+	switch dev.pb.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = authenticateDeviceMacOS(dev, stream)
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = authenticateDeviceTPM(stream)
+	default:
+		err = fmt.Errorf("unrecognized os type %q", dev.pb.OsType)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
+			UserCertificates: &devicepb.UserCertificates{
+				X509Der:          []byte("<insert augmented X.509 cert here"),
+				SshAuthorizedKey: []byte("<insert augmented SSH cert here"),
+			},
+		},
+	})
+	return trace.Wrap(err)
+}
+
+func authenticateDeviceMacOS(dev *storedDevice, stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
 	// 2. Challenge.
 	chal, err := newChallenge()
 	if err != nil {
@@ -299,7 +324,7 @@ func (s *fakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	req, err = stream.Recv()
+	req, err := stream.Recv()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,19 +337,40 @@ func (s *fakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	case len(chalResp.Signature) == 0:
 		return trace.BadParameter("signature required")
 	}
-	if err := verifyChallenge(chal, chalResp.Signature, dev.pub); err != nil {
+	return trace.Wrap(verifyChallenge(chal, chalResp.Signature, dev.pub))
+}
+
+func authenticateDeviceTPM(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+	// Produce a nonce we can send in the challenge that we expect to see in
+	// the EventLog field of the challenge response.
+	nonce, err := randomBytes()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
+			TpmChallenge: &devicepb.TPMAuthenticateDeviceChallenge{
+				AttestationNonce: nonce,
+			},
+		},
+	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-			UserCertificates: &devicepb.UserCertificates{
-				X509Der:          []byte("<insert augmented X.509 cert here"),
-				SshAuthorizedKey: []byte("<insert augmented SSH cert here"),
-			},
-		},
-	})
-	return trace.Wrap(err)
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chalResp := resp.GetTpmChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return trace.BadParameter("challenge response required")
+	case chalResp.PlatformParameters == nil:
+		return trace.BadParameter("missing platform parameters in challenge response")
+	case !bytes.Equal(nonce, chalResp.PlatformParameters.EventLog):
+		return trace.BadParameter("nonce in challenge response did not match expected")
+	}
+	return nil
 }
 
 func (s *fakeDeviceService) findMatchingDevice(cd *devicepb.DeviceCollectedData, credentialID string) (*storedDevice, error) {

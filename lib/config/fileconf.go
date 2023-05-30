@@ -1255,7 +1255,7 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
-	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	attestationCAs, err := getCertificatePEMs(u.DeviceAttestationCAs)
 	if err != nil {
 		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
@@ -1275,11 +1275,11 @@ type Webauthn struct {
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
-	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	allowedCAs, err := getCertificatePEMs(w.AttestationAllowedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
 	}
-	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	deniedCAs, err := getCertificatePEMs(w.AttestationDeniedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
@@ -1298,10 +1298,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	}, nil
 }
 
-func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+func getCertificatePEMs(certOrPaths []string) ([]string, error) {
 	res := make([]string, len(certOrPaths))
 	for i, certOrPath := range certOrPaths {
-		pem, err := getAttestationPEM(certOrPath)
+		pem, err := getCertificatePEM(certOrPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1310,7 +1310,7 @@ func getAttestationPEMs(certOrPaths []string) ([]string, error) {
 	return res, nil
 }
 
-func getAttestationPEM(certOrPath string) (string, error) {
+func getCertificatePEM(certOrPath string) (string, error) {
 	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
 	if parseErr == nil {
 		return certOrPath, nil // OK, valid inline PEM
@@ -1338,6 +1338,16 @@ type DeviceTrust struct {
 	Mode string `yaml:"mode,omitempty"`
 	// AutoEnroll is the toggle for the device auto-enroll feature.
 	AutoEnroll string `yaml:"auto_enroll,omitempty"`
+	// EKCertAllowedCAs is an allow list of EKCert CAs. These may be specified
+	// as a PEM encoded certificate or as a path to a PEM encoded certificate.
+	//
+	// If present, only TPM devices that present an EKCert that is signed by a
+	// CA specified here may be enrolled (existing enrollments are
+	// unchanged).
+	//
+	// If not present, then the CA of TPM EKCerts will not be checked during
+	// enrollment, this allows any device to enroll.
+	EKCertAllowedCAs []string `yaml:"ekcert_allowed_cas,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
@@ -1350,9 +1360,15 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 		}
 	}
 
+	allowedCAs, err := getCertificatePEMs(dt.EKCertAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("device_trust.ekcert_allowed_cas: %v", err)
+	}
+
 	return &types.DeviceTrust{
-		Mode:       dt.Mode,
-		AutoEnroll: autoEnroll,
+		Mode:             dt.Mode,
+		AutoEnroll:       autoEnroll,
+		EKCertAllowedCAs: allowedCAs,
 	}, nil
 }
 

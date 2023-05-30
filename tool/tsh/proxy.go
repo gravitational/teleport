@@ -550,7 +550,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, cf.AppName)
+	appCerts, err := loadAppCertificateWithAppLogin(cf, tc, cf.AppName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -607,7 +607,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	awsApp, err := pickActiveAWSApp(cf)
+	awsApp, err := pickAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -699,7 +699,7 @@ func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
 
 // onProxyCommandAzure creates local proxes for Azure apps.
 func onProxyCommandAzure(cf *CLIConf) error {
-	azApp, err := pickActiveAzureApp(cf)
+	azApp, err := pickAzureApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -730,7 +730,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 // onProxyCommandGCloud creates local proxies for GCP apps.
 func onProxyCommandGCloud(cf *CLIConf) error {
-	gcpApp, err := pickActiveGCPApp(cf)
+	gcpApp, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -759,32 +759,60 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 	return nil
 }
 
+// loadAppCertificateWithAppLogin is a wrapper around loadAppCertificate that will attempt to login the user to
+// the app of choice at most once, if the return value from loadAppCertificate call indicates that app login
+// should fix the problem.
+func loadAppCertificateWithAppLogin(cf *CLIConf, tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+	cert, needLogin, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		if !needLogin {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+		log.WithError(err).Debugf("Loading app certificate failed, attempting to login into app %q", appName)
+		quiet := cf.Quiet
+		cf.Quiet = true
+		errLogin := onAppLogin(cf)
+		cf.Quiet = quiet
+		if errLogin != nil {
+			log.WithError(errLogin).Debugf("Login attempt failed")
+			// combine errors
+			return tls.Certificate{}, trace.NewAggregate(err, errLogin)
+		}
+		// another attempt
+		cert, _, err = loadAppCertificate(tc, appName)
+		return cert, trace.Wrap(err)
+	}
+	return cert, nil
+}
+
 // loadAppCertificate loads the app certificate for the provided app.
-func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
+// Returns tuple (certificate, needLogin, err).
+// The boolean `needLogin` will be true if the error returned should go away with successful `tsh app login <appName>`.
+func loadAppCertificate(tc *libclient.TeleportClient, appName string) (certificate tls.Certificate, needLogin bool, err error) {
 	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 	cert, ok := key.AppTLSCerts[appName]
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("please login into the application first. 'tsh apps login'")
+		return tls.Certificate{}, true, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	}
 
 	tlsCert, err := key.TLSCertificate(cert)
 	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
+		return tls.Certificate{}, false, trace.Wrap(err)
 	}
 
 	expiresAt, err := getTLSCertExpireTime(tlsCert)
 	if err != nil {
-		return tls.Certificate{}, trace.WrapWithMessage(err, "invalid certificate - please login to the application again. 'tsh apps login'")
+		return tls.Certificate{}, true, trace.WrapWithMessage(err, "invalid certificate - please login to the application again: 'tsh apps login %v'", appName)
 	}
 	if time.Until(expiresAt) < 5*time.Second {
-		return tls.Certificate{}, trace.BadParameter(
-			"application %s certificate has expired, please re-login to the app using 'tsh apps login'",
+		return tls.Certificate{}, true, trace.BadParameter(
+			"application %s certificate has expired, please re-login to the app using 'tsh apps login %v'", appName,
 			appName)
 	}
-	return tlsCert, nil
+	return tlsCert, false, nil
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {

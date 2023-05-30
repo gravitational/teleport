@@ -189,7 +189,7 @@ func getJamfBinaryVersion() (string, error) {
 		return "", fmt.Errorf("unexpected jamf version string: %q", s)
 	}
 
-	return string(tmp[1]), nil
+	return tmp[1], nil
 }
 
 func getMacosEnrollmentProfiles() (string, error) {
@@ -242,4 +242,8 @@ func statusErrorFromC(res C.int32_t) error {
 
 func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
+}
+
+func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
 }

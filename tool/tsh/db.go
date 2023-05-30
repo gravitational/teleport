@@ -1030,7 +1030,7 @@ func pickActiveDatabase(cf *CLIConf) (*tlsca.RouteToDatabase, error) {
 	}
 
 	if len(activeDatabases) == 0 {
-		return nil, trace.NotFound("Please login using 'tsh db login' first")
+		return nil, trace.NotFound("please login using 'tsh db login' first")
 	}
 
 	name := cf.DatabaseService

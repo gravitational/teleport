@@ -3384,10 +3384,13 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
@@ -3951,6 +3954,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)

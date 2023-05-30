@@ -78,10 +78,6 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
 
     this._process.onData(data => this._handleData(data));
     this._process.onExit(ev => this._handleExit(ev));
-
-    if (this.options.initCommand) {
-      this._process.write(this.options.initCommand + '\r');
-    }
   }
 
   write(data: string) {
