@@ -338,7 +338,7 @@ proxy_service:
   use_xff_header: true
 ```
 
-Note that this setting is NOT mutually exclusive with the `proxy_protocal` setting. For example, in a separate-port
+Note that this setting is NOT mutually exclusive with the `proxy_protocol` setting. For example, in a separate-port
 setup, web APIs including the ALPN connection upgrade endpoint (e.g. called by `tsh proxy db`) can take client source
 IPs from the XFF headers set by a layer 7 load balancer, whereas SSH, reverse tunnels and separate DB ports can take
 client source IPs from the PROXY headers set by a layer 4 load balancer.
