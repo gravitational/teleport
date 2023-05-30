@@ -413,6 +413,7 @@
     "gworkspace",
     "hashfile",
     "hashicorp",
+    "healthcheck",
     "healthz",
     "highavailability",
     "highavailabilitycertmanager",
