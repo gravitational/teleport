@@ -326,12 +326,15 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 	return nil, nil
 }
 
-// NewDefaultConfig creates a new minimal bot configuration from defaults.
-// CheckAndSetDefaults() will be called.
-func NewDefaultConfig(authServer string) (*BotConfig, error) {
+// newTestConfig creates a new minimal bot configuration from defaults for use
+// in tests
+func newTestConfig(authServer string) (*BotConfig, error) {
 	// Note: we need authServer for CheckAndSetDefaults to succeed.
 	cfg := BotConfig{
 		AuthServer: authServer,
+		Onboarding: OnboardingConfig{
+			JoinMethod: types.JoinMethodToken,
+		},
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
