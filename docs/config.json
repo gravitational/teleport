@@ -1971,7 +1971,7 @@
     },
     {
       "source": "/cluster/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
@@ -2611,7 +2611,7 @@
     },
     {
       "source": "/kubernetes-access/guides/multiple-clusters/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
