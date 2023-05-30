@@ -1394,11 +1394,14 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
+	clusterFeatures := h.ClusterFeatures
+	// ping server to get cluster features since h.ClusterFeatures may be stale
 	pingResponse, err := h.GetProxyClient().Ping(r.Context())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
+	} else {
+		clusterFeatures = *pingResponse.ServerFeatures
 	}
-	clusterFeatures := pingResponse.ServerFeatures
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
@@ -1427,7 +1430,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(*clusterFeatures),
+		IsDashboard:          isDashboard(clusterFeatures),
 		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
 	}
 
