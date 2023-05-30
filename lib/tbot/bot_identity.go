@@ -95,7 +95,7 @@ func (b *Bot) renewBotIdentityLoop(
 				b.log.WithError(err).Errorf(
 					"Bot identity renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
-					renewalRetryLimit,
+					botIdentityRenewalRetryLimit,
 					backoffTime,
 				)
 				select {
@@ -106,7 +106,7 @@ func (b *Bot) renewBotIdentityLoop(
 			}
 		}
 		if err != nil {
-			b.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", renewalRetryLimit)
+			b.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", botIdentityRenewalRetryLimit)
 			return trace.Wrap(err)
 		}
 		b.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", b.cfg.RenewalInterval)
