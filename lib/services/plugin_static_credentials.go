@@ -77,7 +77,7 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h, err := unmarshalHeaderWithJsonpb(data)
+	h, err := unmarshalHeaderWithProtojson(data)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}

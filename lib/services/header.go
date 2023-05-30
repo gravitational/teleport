@@ -41,10 +41,10 @@ func getHeaderProtoJSONOptions() *protojson.UnmarshalOptions {
 	return protojsonOptions
 }
 
-// unmarshalHeaderWithJsonpb will unmarshal the resource header using raw jsonpb.
+// unmarshalHeaderWithProtojson will unmarshal the resource header using raw protojson.
 // This is primarily of use for grpc messages that contain oneof and use the ResourceHeader,
 // as utils.FastUnmarshal does not work for messages that use oneof.
-func unmarshalHeaderWithJsonpb(data []byte) (types.ResourceHeader, error) {
+func unmarshalHeaderWithProtojson(data []byte) (types.ResourceHeader, error) {
 	var h types.MessageWithHeader
 	if err := getHeaderProtoJSONOptions().Unmarshal(data, protoadapt.MessageV2Of(&h)); err != nil {
 		return types.ResourceHeader{}, trace.BadParameter(err.Error())
