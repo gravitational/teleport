@@ -188,7 +188,7 @@ func (s *remoteSite) GetClient() (auth.ClientI, error) {
 	if err := s.checkConnectivity(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	client, err := s.remoteClientManager.Client()
+	client, err := s.remoteClientManager.Auth()
 	return client, trace.Wrap(err)
 }
 
@@ -616,7 +616,7 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry) {
 }
 
 func (s *remoteSite) watchCertAuthorities() error {
-	remoteClient, err := s.remoteClientManager.Client()
+	remoteClient, err := s.remoteClientManager.Auth()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -801,7 +801,7 @@ func (s *remoteSite) updateLocks(retry retryutils.Retry) {
 }
 
 func (s *remoteSite) watchLocks() error {
-	remoteClient, err := s.remoteClientManager.Client()
+	remoteClient, err := s.remoteClientManager.Auth()
 	if err != nil {
 		return trace.Wrap(err)
 	}

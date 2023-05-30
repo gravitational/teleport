@@ -43,25 +43,16 @@ type remoteClientManager struct {
 	remoteClientManagerConfig
 	// clientLock handles concurrent access to the various clients.
 	clientLock sync.RWMutex
-	// connectLock ensures synchrounous access to fields used to connect clients.
-	connectLock sync.Mutex
-	// parentCtx is the parent context used to connect clients.
-	parentCtx context.Context
-	// wg ensures a single call to connect runs at a time.
-	wg sync.WaitGroup
+	// ctx is the context used to connect clients.
+	ctx context.Context
 	// stop cancels the context used by connect.
 	stop func()
-	// closing is set to false when close is called.
-	closing bool
-	// once ensures connectedOnceOrClosed is closed once.
-	once sync.Once
-	// connectedOnceOrClosed indicates that clients have been connected at least once or the manager is closed.
-	connectedOnceOrClosed chan struct{}
-	// clients managed by the manager.
-	auth        auth.ClientI
-	accessPoint auth.RemoteProxyAccessPoint
-	nodeWatcher *services.NodeWatcher
-	caWatcher   *services.CertAuthorityWatcher
+	// wg ensures a single call to connect runs at a time.
+	wg sync.WaitGroup
+	// connectOnce ensures connect is called exactly once.
+	connectOnce sync.Once
+	// clients are remote clients managed by the manager.
+	clients *remoteClients
 }
 
 func newRemoteClientManager(ctx context.Context, config remoteClientManagerConfig) (*remoteClientManager, error) {
@@ -81,22 +72,22 @@ func newRemoteClientManager(ctx context.Context, config remoteClientManagerConfi
 		return nil, trace.BadParameter("missing logger")
 	}
 
+	ctx, close := context.WithCancel(ctx)
 	m := &remoteClientManager{
 		remoteClientManagerConfig: config,
-		parentCtx:                 ctx,
-		connectedOnceOrClosed:     make(chan struct{}),
+		ctx:                       ctx,
+		stop:                      close,
+		clients:                   &remoteClients{},
 	}
+	m.wg.Add(1)
 	return m, nil
 }
 
 // connect runs until all clients have been successfully setup.
 func (m *remoteClientManager) connect(ctx context.Context) error {
 	var (
-		client      auth.ClientI
-		accessPoint auth.RemoteProxyAccessPoint
-		nodeWatcher *services.NodeWatcher
-		caWatcher   *services.CertAuthorityWatcher
-		err         error
+		clients remoteClients
+		err     error
 	)
 
 	firstIteration := true
@@ -113,196 +104,148 @@ func (m *remoteClientManager) connect(ctx context.Context) error {
 			firstIteration = false
 		}
 
-		if client == nil {
-			client, err = m.newClientFunc(ctx)
+		if clients.auth == nil {
+			clients.auth, err = m.newClientFunc(ctx)
 			if err != nil {
 				m.log.WithError(err).Warnf("Failed to connect to remote auth server.")
 				continue
 			}
 		}
 
-		response, err := client.Ping(ctx)
+		response, err := clients.auth.Ping(ctx)
 		if err != nil {
 			m.log.WithError(err).Warnf("Failed to get remote auth server version.")
 			continue
 		}
 
 		version := response.ServerVersion
-		if accessPoint != nil {
-			accessPoint.Close()
-		}
-		accessPoint, err = m.newAccessPointFunc(ctx, client, version)
-		if err != nil {
-			m.log.WithError(err).Warnf("Failed to create remote access point.")
-			continue
-		}
-
-		if nodeWatcher != nil {
-			nodeWatcher.Close()
-		}
-		nodeWatcher, err = m.newNodeWatcherFunc(ctx, accessPoint)
-		if err != nil {
-			m.log.WithError(err).Warnf("Failed to create remote node watcher.")
-			continue
+		if clients.accessPoint == nil {
+			clients.accessPoint, err = m.newAccessPointFunc(ctx, clients.auth, version)
+			if err != nil {
+				m.log.WithError(err).Warnf("Failed to create remote access point.")
+				continue
+			}
 		}
 
-		if caWatcher != nil {
-			caWatcher.Close()
+		if clients.nodeWatcher == nil {
+			clients.nodeWatcher, err = m.newNodeWatcherFunc(ctx, clients.accessPoint)
+			if err != nil {
+				m.log.WithError(err).Warnf("Failed to create remote node watcher.")
+				continue
+			}
 		}
-		caWatcher, err = m.newCAWatcher(ctx, accessPoint)
-		if err != nil {
-			m.log.WithError(err).Warnf("Failed to create remote CA watcher.")
-			continue
+
+		if clients.caWatcher == nil {
+			clients.caWatcher, err = m.newCAWatcher(ctx, clients.accessPoint)
+			if err != nil {
+				m.log.WithError(err).Warnf("Failed to create remote CA watcher.")
+				continue
+			}
 		}
 
 		m.clientLock.Lock()
-		m.auth = client
-		m.accessPoint = accessPoint
-		m.nodeWatcher = nodeWatcher
-		m.caWatcher = caWatcher
-		m.once.Do(func() {
-			close(m.connectedOnceOrClosed)
-		})
+		m.clients = &clients
 		m.clientLock.Unlock()
 
 		return nil
 	}
 }
 
-// Connect blocks while all clients are created. If connect is called more than once
-// existing clients will be closed and new clients created. Connect will always fail
-// after Close is called.
+// Connect blocks while all clients are created.
+// Calling connect more than once is not supported.
 func (m *remoteClientManager) Connect() error {
-	errC := make(chan error)
-	m.connectLock.Lock()
-	if m.closing {
-		m.connectLock.Unlock()
-		return trace.Errorf("unable to connect: auth manager is closing")
-	}
-
-	// Stop the current connection attempt.
-	if m.stop != nil {
-		m.stop()
-		m.wg.Wait()
-	}
-
-	ctx, cancel := context.WithCancel(m.parentCtx)
-	m.stop = cancel
-
-	m.clientLock.Lock()
-	client := m.auth
-	accessPoint := m.accessPoint
-	nodeWatcher := m.nodeWatcher
-	caWatcher := m.caWatcher
-	m.auth = nil
-	m.accessPoint = nil
-	m.nodeWatcher = nil
-	m.caWatcher = nil
-
-	// Close previous clients in background.
-	go func() {
-		m.close(client, accessPoint, nodeWatcher, caWatcher)
-	}()
-	m.clientLock.Unlock()
-
-	m.wg.Add(1)
-	m.connectLock.Unlock()
-	go func() {
+	var err error
+	m.connectOnce.Do(func() {
 		defer m.wg.Done()
-		errC <- m.connect(ctx)
-	}()
-	return trace.Wrap(<-errC)
-}
-
-// close closes the given clients returning an aggregate error.
-func (m *remoteClientManager) close(auth auth.ClientI, ap auth.RemoteProxyAccessPoint, nw *services.NodeWatcher, caw *services.CertAuthorityWatcher) error {
-	errs := make([]error, 2)
-	if caw != nil {
-		caw.Close()
-	}
-	if nw != nil {
-		nw.Close()
-	}
-	if ap != nil {
-		errs[0] = ap.Close()
-	}
-	if auth != nil {
-		errs[1] = auth.Close()
-	}
-	return trace.NewAggregate(errs...)
+		err = m.connect(m.ctx)
+	})
+	return trace.Wrap(err)
 }
 
 // Wait waits until client connections are established at least once or the manager is closed.
 func (m *remoteClientManager) Wait() {
-	select {
-	case <-m.connectedOnceOrClosed:
-	case <-m.parentCtx.Done():
-	}
+	m.wg.Wait()
 }
 
 // Close stops the manager from connecting clients and closes
 // any existing clients.
 func (m *remoteClientManager) Close() error {
-	m.connectLock.Lock()
-	if m.closing {
-		m.connectLock.Unlock()
-		return trace.Errorf("client manager is already closed")
-	}
-
-	m.closing = true
 	m.stop()
-	m.once.Do(func() {
-		close(m.connectedOnceOrClosed)
-	})
-	m.connectLock.Unlock()
-
 	m.wg.Wait()
 
 	m.clientLock.Lock()
-	client := m.auth
-	accessPoint := m.accessPoint
-	nodeWatcher := m.nodeWatcher
-	caWatcher := m.caWatcher
+	clients := m.clients
+	m.clients = &remoteClients{}
 	m.clientLock.Unlock()
-	return trace.Wrap(m.close(client, accessPoint, nodeWatcher, caWatcher))
+
+	if clients == nil {
+		return trace.Errorf("remote client manager already closed")
+	}
+
+	return trace.Wrap(clients.Close())
+}
+
+// remoteClients wraps remote clients together for the convenience of the client manager.
+type remoteClients struct {
+	auth        auth.ClientI
+	accessPoint auth.RemoteProxyAccessPoint
+	nodeWatcher *services.NodeWatcher
+	caWatcher   *services.CertAuthorityWatcher
+}
+
+func (c *remoteClients) Close() error {
+	errs := make([]error, 2)
+	if c.caWatcher != nil {
+		c.caWatcher.Close()
+	}
+	if c.nodeWatcher != nil {
+		c.nodeWatcher.Close()
+	}
+	if c.accessPoint != nil {
+		errs[0] = c.accessPoint.Close()
+	}
+	if c.auth != nil {
+		errs[1] = c.auth.Close()
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // Client returns a auth.ClientI or an error if the client is not connected.
-func (m *remoteClientManager) Client() (auth.ClientI, error) {
+func (m *remoteClientManager) Auth() (auth.ClientI, error) {
 	m.clientLock.RLock()
 	defer m.clientLock.RUnlock()
-	if m.auth == nil {
+	if m.clients.auth == nil {
 		return nil, trace.ConnectionProblem(nil, "")
 	}
-	return m.auth, nil
+	return m.clients.auth, nil
 }
 
 // RemoteProxyAccessPoint returns a RemoteProxyAccessPoint or an error if the client is not connected.
 func (m *remoteClientManager) RemoteProxyAccessPoint() (auth.RemoteProxyAccessPoint, error) {
 	m.clientLock.RLock()
 	defer m.clientLock.RUnlock()
-	if m.accessPoint == nil {
+	if m.clients.accessPoint == nil {
 		return nil, trace.ConnectionProblem(nil, "")
 	}
-	return m.accessPoint, nil
+	return m.clients.accessPoint, nil
 }
 
 // NodeWatcher returns a NodeWatcher or an error if the client is not connected.
 func (m *remoteClientManager) NodeWatcher() (*services.NodeWatcher, error) {
 	m.clientLock.RLock()
 	defer m.clientLock.RUnlock()
-	if m.nodeWatcher == nil {
+	if m.clients.nodeWatcher == nil {
 		return nil, trace.ConnectionProblem(nil, "")
 	}
-	return m.nodeWatcher, nil
+	return m.clients.nodeWatcher, nil
 }
 
 // CAWatcher returns a CertAuthorityWatcher or an error if the client is not connected.
 func (m *remoteClientManager) CAWatcher() (*services.CertAuthorityWatcher, error) {
 	m.clientLock.RLock()
 	defer m.clientLock.RUnlock()
-	if m.caWatcher == nil {
+	if m.clients.caWatcher == nil {
 		return nil, trace.ConnectionProblem(nil, "")
 	}
-	return m.caWatcher, nil
+	return m.clients.caWatcher, nil
 }

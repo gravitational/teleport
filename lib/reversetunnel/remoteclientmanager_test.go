@@ -73,12 +73,19 @@ func TestRemoteClientManagerRace(t *testing.T) {
 	wg.Wait()
 
 	for i := 0; i < 100; i++ {
-		wg.Add(1)
+		wg.Add(4)
 		go func() {
 			defer wg.Done()
 			_ = cm.Connect()
 		}()
-		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cm.Auth()
+		}()
+		go func() {
+			defer wg.Done()
+			cm.RemoteProxyAccessPoint()
+		}()
 		go func() {
 			defer wg.Done()
 			_ = cm.Close()
