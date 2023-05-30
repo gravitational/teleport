@@ -28,20 +28,27 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/component-base/cli"
 	"k8s.io/kubectl/pkg/cmd"
 	"k8s.io/kubectl/pkg/cmd/plugin"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/gravitational/teleport"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
@@ -79,7 +86,7 @@ type resourceKind struct {
 // command again.
 func onKubectlCommand(cf *CLIConf, fullArgs []string, args []string) error {
 	if os.Getenv(tshKubectlReexecEnvVar) == "" {
-		err := runKubectlAndCollectRun(cf, fullArgs)
+		err := runKubectlAndCollectRun(cf, fullArgs, args)
 		return trace.Wrap(err)
 	}
 	runKubectlCode(cf, args)
@@ -96,12 +103,27 @@ const (
 // the provided collector.
 // It also sets tshKubectlReexec for the command to prevent
 // an exec loop
-func runKubectlReexec(selfExec string, args []string, collector io.Writer) error {
-	cmd := exec.Command(selfExec, args...)
+func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer) error {
+	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf, withKubectlArgs(args))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn()
+
+	cmdEnv := append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
+
+	// Update kubeconfig location.
+	if newKubeConfigLocation != "" {
+		cmdEnv = overwriteKubeconfigInEnv(cmdEnv, newKubeConfigLocation)
+		fullArgs = overwriteKubeconfigFlagInArgs(fullArgs, newKubeConfigLocation)
+	}
+
+	// Execute.
+	cmd := exec.Command(cf.executablePath, fullArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
+	cmd.Env = cmdEnv
 	return trace.Wrap(cmd.Run())
 }
 
@@ -189,7 +211,7 @@ func runKubectlCode(cf *CLIConf, args []string) {
 	os.Exit(0)
 }
 
-func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
+func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 	var (
 		alreadyRequestedAccess bool
 		err                    error
@@ -233,7 +255,8 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 				return trace.Wrap(scanner.Err())
 			},
 		)
-		err := runKubectlReexec(cf.executablePath, args, writer)
+
+		err := runKubectlReexec(cf, fullArgs, args, writer)
 		writer.CloseWithError(io.EOF)
 
 		if scanErr := group.Wait(); scanErr != nil {
@@ -292,27 +315,59 @@ func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []strin
 	return nil
 }
 
-// extractKubeConfigAndContext parses the args and extracts - if present -
-// the --kubeconfig flag that overrrides the default kubeconfig location
-// and the --context flag that overrides the default context to use.
-func extractKubeConfigAndContext(args []string) (kubeconfig string, context string) {
+// extractKubeConfigAndContext parses the args and extracts:
+// - the "--context" flag that overrides the default context to use, if present
+// - the "--kubeconfig" flag that overrides the default kubeconfig location, if
+// present
+func extractKubeConfigAndContext(args []string) (string, string) {
+	if len(args) <= 2 {
+		return "", ""
+	}
+
+	command := makeKubectlCobraCommand()
+	return extractKubeConfigAndContextFromCommand(command, args)
+}
+
+// extractKubeConfigAndContextFromCommand parses the args using provided
+// kubectl command and extracts:
+// - the "--context" flag that overrides the default context to use, if present
+// - the "--kubeconfig" flag that overrides the default kubeconfig location, if
+// present
+func extractKubeConfigAndContextFromCommand(command *cobra.Command, args []string) (kubeconfig string, context string) {
 	if len(args) <= 2 {
 		return
 	}
-	command := cmd.NewDefaultKubectlCommandWithArgs(
-		cmd.KubectlOptions{
-			Arguments: args[2:],
-		},
-	)
 
-	if err := command.ParseFlags(args[2:]); err != nil {
-		return
+	// Find subcommand.
+	if subcommand, _, err := command.Find(args[1:]); err == nil {
+		command = subcommand
 	}
+
+	// Ignore errors from ParseFlags.
+	command.ParseFlags(args[1:])
 
 	kubeconfig = command.Flag("kubeconfig").Value.String()
 	context = command.Flag("context").Value.String()
-
 	return
+}
+
+var makeKubectlCobraCommandLock sync.Mutex
+
+// makeKubectlCobraCommand creates a cobra.Command for kubectl.
+//
+// Note that cmd.NewKubectlCommand is slow (15+ ms, 20k+ alloc), so avoid
+// making/re-making it when possible.
+//
+// Also cmd.NewKubectlCommand is not goroutine-safe, thus using a lock.
+func makeKubectlCobraCommand() *cobra.Command {
+	makeKubectlCobraCommandLock.Lock()
+	defer makeKubectlCobraCommandLock.Unlock()
+
+	return cmd.NewKubectlCommand(cmd.KubectlOptions{
+		// Use NewConfigFlags to avoid load existing values from
+		// defaultConfigFlags.
+		ConfigFlags: genericclioptions.NewConfigFlags(true),
+	})
 }
 
 // getKubeClusterName extracts the Kubernetes Cluster name if the Kube belongs to
@@ -329,4 +384,168 @@ func getKubeClusterName(args []string, teleportClusterName string) (string, erro
 		return "", trace.BadParameter("selected context %q does not belong to Teleport cluster %q", selectedContext, teleportClusterName)
 	}
 	return kubeName, nil
+}
+
+type kubeLocalProxyOpts struct {
+	// kubectlArgs is a list of command arguments passed in for `tsh kubectl`.
+	// used to decide if local proxy is required.
+	kubectlArgs []string
+	// makeAndStartKubeLocalProxyFunc is a callback function to create and
+	// start a kube local proxy, when it is decided that a local proxy is
+	// required. Default to makeAndStartKubeLocalProxy. Can be set another
+	// function for testing.
+	makeAndStartKubeLocalProxyFunc func(*CLIConf, *clientcmdapi.Config, kubeconfig.LocalProxyClusters) (func(), string, error)
+}
+
+type applyKubeLocalProxyOpts func(o *kubeLocalProxyOpts)
+
+func withKubectlArgs(args []string) applyKubeLocalProxyOpts {
+	return func(o *kubeLocalProxyOpts) {
+		o.kubectlArgs = args
+	}
+}
+
+func newKubeLocalProxyOpts(applyOpts ...applyKubeLocalProxyOpts) kubeLocalProxyOpts {
+	opts := kubeLocalProxyOpts{
+		makeAndStartKubeLocalProxyFunc: makeAndStartKubeLocalProxy,
+	}
+	for _, applyOpt := range applyOpts {
+		applyOpt(&opts)
+	}
+	return opts
+}
+
+// maybeStartKubeLocalProxy starts a kube local proxy if local proxy is
+// required. A closeFn and the new kubeconfig path are returned if local proxy
+// is successfully created. Called by `tsh kubectl` and `tsh kube exec`.
+func maybeStartKubeLocalProxy(cf *CLIConf, applyOpts ...applyKubeLocalProxyOpts) (func(), string, error) {
+	opts := newKubeLocalProxyOpts(applyOpts...)
+
+	config, clusters, useLocalProxy := shouldUseKubeLocalProxy(cf, opts.kubectlArgs)
+	if !useLocalProxy {
+		return func() {}, "", nil
+	}
+
+	closeFn, newKubeConfigLocation, err := opts.makeAndStartKubeLocalProxyFunc(cf, config, clusters)
+	return closeFn, newKubeConfigLocation, trace.Wrap(err)
+}
+
+// makeAndStartKubeLocalProxy is a helper to create a kube local proxy and
+// start it in a goroutine. If successful, a closeFn and the generated
+// kubeconfig location are returned.
+func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, clusters kubeconfig.LocalProxyClusters) (func(), string, error) {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	localProxy, err := makeKubeLocalProxy(cf, tc, clusters, config, cf.LocalProxyPort)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	go localProxy.Start(cf.Context)
+
+	closeFn := func() {
+		localProxy.Close()
+	}
+	return closeFn, localProxy.KubeConfigPath(), nil
+}
+
+// shouldUseKubeLocalProxy checks if a local proxy is required for kube
+// access.
+//
+// The local proxy is required when all of these conditions are met:
+// - profile is loadable
+// - kube access is enabled
+// - ALPN connection upgrade is required (e.g. Proxy behind ALB)
+// - not `kubectl config` commands
+// - original/default kubeconfig is loadable
+// - Selected cluster is a Teleport cluster that uses KubeClusterAddr
+func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.Config, kubeconfig.LocalProxyClusters, bool) {
+	// When failed to load profile, assume this CLI command is not running
+	// against Teleport clusters.
+	profile, err := cf.GetProfile()
+	if err != nil {
+		return nil, nil, false
+	}
+
+	// Only use local proxy when Kube is enabled and ALPN connection upgrade is
+	// required.
+	if !profile.TLSRoutingConnUpgradeRequired || profile.KubeProxyAddr == "" {
+		return nil, nil, false
+	}
+
+	// Skip "kubectl config" commands.
+	var kubeconfigLocation, selectedContext string
+	if len(kubectlArgs) > 0 {
+		kubectlCommand := makeKubectlCobraCommand()
+		if isKubectlConfigCommand(kubectlCommand, kubectlArgs) {
+			return nil, nil, false
+		}
+
+		kubeconfigLocation, selectedContext = extractKubeConfigAndContextFromCommand(kubectlCommand, kubectlArgs)
+	}
+
+	// Nothing to do if cannot load original kubeconfig.
+	defaultConfig, err := kubeconfig.Load(kubeconfigLocation)
+	if err != nil {
+		return nil, nil, false
+	}
+
+	// Prepare Teleport kube cluster based on selected context.
+	kubeCluster, found := kubeconfig.FindTeleportClusterForLocalProxy(defaultConfig, kubeClusterAddrFromProfile(profile), selectedContext)
+	if !found {
+		return nil, nil, false
+	}
+	return defaultConfig, kubeconfig.LocalProxyClusters{kubeCluster}, true
+
+}
+
+func isKubectlConfigCommand(kubectlCommand *cobra.Command, args []string) bool {
+	if len(args) < 2 || args[0] != "kubectl" {
+		return false
+	}
+
+	find, _, _ := kubectlCommand.Find(args[1:])
+	for ; find != nil; find = find.Parent() {
+		if find.Name() == "config" {
+			return true
+		}
+	}
+	return false
+}
+
+func kubeClusterAddrFromProfile(profile *profile.Profile) string {
+	partialClientConfig := client.Config{
+		WebProxyAddr:  profile.WebProxyAddr,
+		KubeProxyAddr: profile.KubeProxyAddr,
+	}
+	return partialClientConfig.KubeClusterAddr()
+}
+
+func overwriteKubeconfigFlagInArgs(args []string, newPath string) []string {
+	// Make a clone to avoid changing the original args.
+	args = slices.Clone(args)
+	for i, arg := range args {
+		switch {
+		case strings.HasPrefix(arg, "--kubeconfig="):
+			args[i] = fmt.Sprintf("--kubeconfig=%v", newPath)
+		case arg == "--kubeconfig" && len(args) > i+1:
+			args[i+1] = newPath
+		}
+	}
+	return args
+}
+
+func overwriteKubeconfigInEnv(env []string, newPath string) (output []string) {
+	kubeConfigEnvPrefix := teleport.EnvKubeConfig + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, kubeConfigEnvPrefix) {
+			continue
+		}
+		output = append(output, entry)
+	}
+	output = append(output, kubeConfigEnvPrefix+newPath)
+	return
 }
