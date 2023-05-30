@@ -197,7 +197,7 @@ func Test_extractKubeConfigAndContext(t *testing.T) {
 		},
 		{
 			name:        "args after subcommand",
-			inputArgs:   []string{"kubectl", "get", "po", "--context", "test-context"},
+			inputArgs:   []string{"kubectl", "get", "po", "-A", "--context", "test-context"},
 			wantContext: "test-context",
 		},
 	}
@@ -215,42 +215,51 @@ func Test_overwriteKubeconfigFlagInArgs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                    string
-		inputPath               string
-		inputArgs               []string
-		expectArgs              []string
-		expectHasKubeconfigFlag bool
+		name       string
+		inputPath  string
+		inputArgs  []string
+		expectArgs []string
 	}{
 		{
-			name:                    "no kubeconfig flag",
-			inputPath:               "newpath",
-			inputArgs:               []string{"kubectl", "version"},
-			expectArgs:              []string{"kubectl", "version"},
-			expectHasKubeconfigFlag: false,
+			name:       "no kubeconfig flag",
+			inputPath:  "newpath",
+			inputArgs:  []string{"kubectl", "version"},
+			expectArgs: []string{"kubectl", "version"},
 		},
 		{
-			name:                    "kubeconfig flag",
-			inputPath:               "newpath",
-			inputArgs:               []string{"kubectl", "version", "--kubeconfig", "oldpath"},
-			expectArgs:              []string{"kubectl", "version", "--kubeconfig", "newpath"},
-			expectHasKubeconfigFlag: true,
+			name:       "kubeconfig flag",
+			inputPath:  "newpath",
+			inputArgs:  []string{"kubectl", "--kubeconfig", "oldpath", "version"},
+			expectArgs: []string{"kubectl", "--kubeconfig", "newpath", "version"},
 		},
 		{
-			name:                    "kubeconfig equal flag",
-			inputPath:               "newpath",
-			inputArgs:               []string{"kubectl", "version", "--kubeconfig=oldpath"},
-			expectArgs:              []string{"kubectl", "version", "--kubeconfig=newpath"},
-			expectHasKubeconfigFlag: true,
+			name:       "kubeconfig equal flag",
+			inputPath:  "newpath",
+			inputArgs:  []string{"--debug", "kubectl", "version", "--kubeconfig=oldpath"},
+			expectArgs: []string{"--debug", "kubectl", "version", "--kubeconfig=newpath"},
 		},
 	}
 
 	for _, test := range tests {
-		actualHasKubeconfigFlag := hasKubeconfigFlagInArgs(test.inputArgs)
-		require.Equal(t, test.expectHasKubeconfigFlag, actualHasKubeconfigFlag)
-
 		outputArgs := overwriteKubeconfigFlagInArgs(test.inputArgs, test.inputPath)
 		require.Equal(t, test.expectArgs, outputArgs)
 	}
+}
+
+func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
+	t.Parallel()
+
+	inputEnv := []string{
+		"foo=bar",
+		"KUBECONFIG=old-path",
+		"bar=foo",
+	}
+	wantEnv := []string{
+		"foo=bar",
+		"bar=foo",
+		"KUBECONFIG=new-path",
+	}
+	require.Equal(t, wantEnv, overwriteKubeconfigInEnv(inputEnv, "new-path"))
 }
 
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {

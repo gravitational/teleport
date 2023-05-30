@@ -86,7 +86,7 @@ type resourceKind struct {
 // command again.
 func onKubectlCommand(cf *CLIConf, fullArgs []string, args []string) error {
 	if os.Getenv(tshKubectlReexecEnvVar) == "" {
-		err := runKubectlAndCollectRun(cf, fullArgs)
+		err := runKubectlAndCollectRun(cf, fullArgs, args)
 		return trace.Wrap(err)
 	}
 	runKubectlCode(cf, args)
@@ -103,35 +103,27 @@ const (
 // the provided collector.
 // It also sets tshKubectlReexec for the command to prevent
 // an exec loop
-func runKubectlReexec(cf *CLIConf, args []string, collector io.Writer) error {
+func runKubectlReexec(cf *CLIConf, fullArgs, args []string, collector io.Writer) error {
 	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf, withKubectlArgs(args))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer closeFn()
 
-	envVars := map[string]string{
-		tshKubectlReexecEnvVar: "yes",
-	}
+	cmdEnv := append(os.Environ(), fmt.Sprintf("%s=yes", tshKubectlReexecEnvVar))
 
 	// Update kubeconfig location.
 	if newKubeConfigLocation != "" {
-		if hasKubeconfigFlagInArgs(args) {
-			args = overwriteKubeconfigFlagInArgs(args, newKubeConfigLocation)
-		} else {
-			envVars[teleport.EnvKubeConfig] = newKubeConfigLocation
-		}
+		cmdEnv = overwriteKubeconfigInEnv(cmdEnv, newKubeConfigLocation)
+		fullArgs = overwriteKubeconfigFlagInArgs(fullArgs, newKubeConfigLocation)
 	}
 
 	// Execute.
-	cmd := exec.Command(cf.executablePath, args...)
+	cmd := exec.Command(cf.executablePath, fullArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = io.MultiWriter(os.Stderr, collector)
-	cmd.Env = os.Environ()
-	for key, value := range envVars {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", key, value))
-	}
+	cmd.Env = cmdEnv
 	return trace.Wrap(cmd.Run())
 }
 
@@ -219,7 +211,7 @@ func runKubectlCode(cf *CLIConf, args []string) {
 	os.Exit(0)
 }
 
-func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
+func runKubectlAndCollectRun(cf *CLIConf, fullArgs, args []string) error {
 	var (
 		alreadyRequestedAccess bool
 		err                    error
@@ -264,7 +256,7 @@ func runKubectlAndCollectRun(cf *CLIConf, args []string) error {
 			},
 		)
 
-		err := runKubectlReexec(cf, args, writer)
+		err := runKubectlReexec(cf, fullArgs, args, writer)
 		writer.CloseWithError(io.EOF)
 
 		if scanErr := group.Wait(); scanErr != nil {
@@ -346,8 +338,13 @@ func extractKubeConfigAndContextFromCommand(command *cobra.Command, args []strin
 		return
 	}
 
-	// Ignore errors from ParseFlags. ParseFlags usually ContinueOnError.
-	command.ParseFlags(args)
+	// Find subcommand.
+	if subcommand, _, err := command.Find(args[1:]); err == nil {
+		command = subcommand
+	}
+
+	// Ignore errors from ParseFlags.
+	command.ParseFlags(args[1:])
 
 	kubeconfig = command.Flag("kubeconfig").Value.String()
 	context = command.Flag("context").Value.String()
@@ -527,17 +524,6 @@ func kubeClusterAddrFromProfile(profile *profile.Profile) string {
 	return partialClientConfig.KubeClusterAddr()
 }
 
-func hasKubeconfigFlagInArgs(args []string) bool {
-	for i, arg := range args {
-		switch {
-		case strings.HasPrefix(arg, "--kubeconfig="):
-			return true
-		case arg == "--kubeconfig" && len(args) > i+1:
-			return true
-		}
-	}
-	return false
-}
 func overwriteKubeconfigFlagInArgs(args []string, newPath string) []string {
 	// Make a clone to avoid changing the original args.
 	args = slices.Clone(args)
@@ -550,4 +536,16 @@ func overwriteKubeconfigFlagInArgs(args []string, newPath string) []string {
 		}
 	}
 	return args
+}
+
+func overwriteKubeconfigInEnv(env []string, newPath string) (output []string) {
+	kubeConfigEnvPrefix := teleport.EnvKubeConfig + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, kubeConfigEnvPrefix) {
+			continue
+		}
+		output = append(output, entry)
+	}
+	output = append(output, kubeConfigEnvPrefix+newPath)
+	return
 }
