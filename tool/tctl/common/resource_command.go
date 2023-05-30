@@ -24,7 +24,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
