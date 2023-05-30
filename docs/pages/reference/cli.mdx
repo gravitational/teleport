@@ -54,7 +54,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](https://goteleport.com/docs/reference/config/) in production.
+we recommend using a [configuration file](./config.mdx) in production.
 
 #### Flags
 
@@ -1973,7 +1973,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 

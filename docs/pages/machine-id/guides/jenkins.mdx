@@ -19,21 +19,6 @@ You will need the following tools to use Teleport with Jenkins.
 - Jenkins
 - The `tctl` admin tool version >= (=teleport.version=)
 
-<Admonition type="note" title="Machine ID and TLS Routing">
-TLS Routing support will be added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). Until
-that time, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
 (!docs/pages/includes/tctl.mdx!)
 
 ## Architecture
