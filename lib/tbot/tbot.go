@@ -31,6 +31,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
@@ -181,6 +182,10 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)
+	}
+	// Ensure they have provided a join method.
+	if b.cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+		return nil, trace.BadParameter("join method must be provided")
 	}
 
 	if b.cfg.FIPS {

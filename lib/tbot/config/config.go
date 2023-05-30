@@ -289,12 +289,13 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.RenewalInterval = DefaultRenewInterval
 	}
 
-	if conf.Onboarding.JoinMethod == "" {
-		return trace.BadParameter("join method must be configured")
-	}
-
-	if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
-		return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+	// We require the join method for `configure` and `start` but not for `init`
+	// Therefore, we need to check its valid here, but enforce its presence
+	// elsewhere.
+	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
+		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+		}
 	}
 
 	return nil
