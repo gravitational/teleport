@@ -1131,6 +1131,7 @@ exports[`empty with CTA 1`] = `
           >
             <span
               class="c19 c23 icon icon-unlock c32"
+              data-testid="locked-icon"
             />
             Unlock Device Trust with Teleport Enterprise
           </div>
