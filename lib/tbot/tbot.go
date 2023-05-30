@@ -272,6 +272,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	if err != nil {
 		return unlock, trace.Wrap(err)
 	}
+	defer testClient.Close()
 
 	b.setIdent(newIdentity)
 
