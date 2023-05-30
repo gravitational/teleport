@@ -17,27 +17,28 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"sync"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
 var (
 	initHeaderJsonpbUnmarshaler sync.Once
-	headerJsonpbUnmarshaler     *jsonpb.Unmarshaler
+	protojsonOptions            *protojson.UnmarshalOptions
 )
 
-// getHeaderJsonpbUnmarshaler will return a singleton jsonpb unmarshaler.
-func getHeaderJsonpbUnmarshaler() *jsonpb.Unmarshaler {
+// getHeaderProtoJSONOptions will return a singleton protojson options for unmarshaling.
+func getHeaderProtoJSONOptions() *protojson.UnmarshalOptions {
 	initHeaderJsonpbUnmarshaler.Do(func() {
-		headerJsonpbUnmarshaler = &jsonpb.Unmarshaler{}
-		headerJsonpbUnmarshaler.AllowUnknownFields = true
+		protojsonOptions = &protojson.UnmarshalOptions{
+			DiscardUnknown: true,
+		}
 	})
-	return headerJsonpbUnmarshaler
+	return protojsonOptions
 }
 
 // unmarshalHeaderWithJsonpb will unmarshal the resource header using raw jsonpb.
@@ -45,7 +46,7 @@ func getHeaderJsonpbUnmarshaler() *jsonpb.Unmarshaler {
 // as utils.FastUnmarshal does not work for messages that use oneof.
 func unmarshalHeaderWithJsonpb(data []byte) (types.ResourceHeader, error) {
 	var h types.MessageWithHeader
-	if err := getHeaderJsonpbUnmarshaler().Unmarshal(bytes.NewReader(data), &h); err != nil {
+	if err := getHeaderProtoJSONOptions().Unmarshal(data, protoadapt.MessageV2Of(&h)); err != nil {
 		return types.ResourceHeader{}, trace.BadParameter(err.Error())
 	}
 
