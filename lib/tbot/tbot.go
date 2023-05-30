@@ -260,7 +260,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	} else {
 		// There's no loaded identity to work with, and they've not configured
 		// a token to use to request an identity :(
-		return unlock, trace.BadParameter("no token configured to load identity from")
+		return unlock, trace.BadParameter("no existing identity found on disk or join token configured")
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
