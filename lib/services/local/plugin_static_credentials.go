@@ -73,16 +73,7 @@ func (p *PluginStaticCredentialsService) GetPluginStaticCredentialsByLabel(ctx c
 
 	var foundCredentials []types.PluginStaticCredentials
 	for _, cred := range creds {
-		match := true
-		credLabels := cred.GetAllLabels()
-		for k, v := range labels {
-			if credLabels[k] != v {
-				match = false
-				break
-			}
-		}
-
-		if match {
+		if types.MatchLabels(cred, labels) {
 			foundCredentials = append(foundCredentials, cred)
 		}
 	}

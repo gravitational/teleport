@@ -25,15 +25,15 @@ type PluginStaticCredentials interface {
 
 	// GetAPIToken will return a flag indicating whether this object contains an API token
 	// credentials and the attached API token if possible.
-	GetAPIToken() (bool, string)
+	GetAPIToken() (ok bool, apiToken string)
 
-	// GetAPIToken will return a flag indicating whether this object contains basic auth
+	// GetBasicAuth will return a flag indicating whether this object contains basic auth
 	// credentials and the attached username and password if possible.
-	GetBasicAuth() (bool, string, string)
+	GetBasicAuth() (ok bool, username string, password string)
 
 	// GetOAuthClientSecret will return a flag indicating whether this object contains OAuth
 	// client secret credentials and the attached client ID and client secret.
-	GetOAuthClientSecret() (bool, string, string)
+	GetOAuthClientSecret() (ok bool, clientID string, clientSecret string)
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -90,7 +90,7 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("client secret is empty")
 		}
 	default:
-		return trace.BadParameter("credentials are not set or have an unknown type")
+		return trace.BadParameter("credentials are not set or have an unknown type %T", credentials)
 	}
 
 	return nil
@@ -113,7 +113,7 @@ func (p *PluginStaticCredentialsV1) GetAPIToken() (ok bool, apiToken string) {
 	return true, credentials.APIToken
 }
 
-// GetAPIToken will return a flag indicating whether this object contains basic auth
+// GetBasicAuth will return a flag indicating whether this object contains basic auth
 // credentials and the attached username and password if possible.
 func (p *PluginStaticCredentialsV1) GetBasicAuth() (ok bool, username string, password string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_BasicAuth)
