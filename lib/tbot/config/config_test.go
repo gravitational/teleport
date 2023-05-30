@@ -18,7 +18,6 @@ package config
 
 import (
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +25,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestConfigCLIOnlySample(t *testing.T) {

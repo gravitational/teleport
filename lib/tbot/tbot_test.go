@@ -19,21 +19,20 @@ package tbot
 import (
 	"context"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	libconfig "github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -43,162 +42,211 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func rotate( //nolint:unused // used in skipped test
-	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
-) {
-	t.Helper()
-	log.Infof("Triggering rotation: %s", phase)
-	err := svc.GetAuthServer().RotateCertAuthority(ctx, auth.RotateRequest{
-		// only rotate Host CA as to avoid race condition serverside when
-		// multiple CAs are rotated at once and the database closes off.
-		Type:        types.HostCA,
-		Mode:        "manual",
-		TargetPhase: phase,
-	})
-	if err != nil {
-		log.WithError(err).Infof("Error occurred during triggering rotation: %s", phase)
-	}
-	require.NoError(t, err)
-	log.Infof("Triggered rotation: %s", phase)
-}
-
-func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *testing.T, wg *sync.WaitGroup, //nolint:unused // used in skipped test
-) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
-	fc, fds := testhelpers.DefaultConfig(t)
-
-	cfg := servicecfg.MakeDefaultConfig()
-	require.NoError(t, config.ApplyFileConfig(fc, cfg))
-	cfg.FileDescriptors = fds
-	cfg.Log = log
-	cfg.CachePolicy.Enabled = false
-	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
-
-	svcC := make(chan *service.TeleportProcess)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := service.Run(ctx, *cfg, func(cfg *servicecfg.Config) (service.Process, error) {
-			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				svcC <- svc
-			}
-			return svc, err
-		})
-		require.NoError(t, err)
-	}()
-
-	var svc *service.TeleportProcess
-	select {
-	case <-time.After(30 * time.Second):
-		// this should really happen quite quickly, but under the load during
-		// parallel test run, it can take a while.
-		t.Fatal("teleport process did not instantiate in 30 seconds")
-	case svc = <-svcC:
-	}
-
-	// Ensure the service starts correctly the first time before proceeding
-	_, err := svc.WaitForEventTimeout(30*time.Second, service.TeleportReadyEvent)
-	// in reality, the auth server should start *much* sooner than this.  we use a very large
-	// timeout here because this isn't the kind of problem that this test is meant to catch.
-	require.NoError(t, err, "auth server didn't start after 30s")
-
-	// Tracks the latest instance of the Teleport service through reloads
-	activeSvc := svc
-	activeSvcMu := sync.Mutex{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case svc := <-svcC:
-				activeSvcMu.Lock()
-				activeSvc = svc
-				activeSvcMu.Unlock()
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	return testhelpers.MakeDefaultAuthClient(t, log, fc), func() *service.TeleportProcess {
-		activeSvcMu.Lock()
-		defer activeSvcMu.Unlock()
-		return activeSvc
-	}, fc
-}
-
-// TestCARotation is a heavy integration test that through a rotation, the bot
-// receives credentials for a new CA.
-func TestBot_Run_CARotation(t *testing.T) {
-	// TODO(jakule): Re-enable this test https://github.com/gravitational/teleport/issues/19403
-	t.Skip("Temporary disable until it's fixed - flaky")
-
+// TestBot checks a lot of things
+// TODO: Describe this awesome test?
+func TestBot(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip("test skipped when -short provided")
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	const appName = "foo"
+	fc.Apps = libconfig.Apps{
+		Service: libconfig.Service{
+			EnabledFlag: "true",
+		},
+		Apps: []*libconfig.App{
+			{
+				Name:       appName,
+				PublicAddr: "foo.example.com",
+				URI:        "http://foo.example.com:1234",
+				StaticLabels: map[string]string{
+					"env": "dev",
+				},
+			},
+		},
+	}
+	fc.Databases = libconfig.Databases{
+		Service: libconfig.Service{
+			EnabledFlag: "true",
+		},
+		Databases: []*libconfig.Database{
+			{
+				Name:     "foo",
+				Protocol: "mysql",
+				URI:      "foo.example.com:1234",
+				StaticLabels: map[string]string{
+					"env": "dev",
+				},
+			},
+		},
 	}
 
-	// wg and context manage the cancellation of long running processes e.g
-	// teleport and tbot in the test.
-	log := utils.NewLoggerForTests()
-	wg := &sync.WaitGroup{}
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() {
-		log.Infof("Shutting down long running test processes..")
-		cancel()
-		wg.Wait()
-	})
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
-	client, teleportProcess, fc := setupServerForCARotationTest(ctx, log, t, wg)
+	// Wait for the app to become available. Sometimes this takes a bit
+	// of time in CI.
+	require.Eventually(t, func() bool {
+		_, err := getApp(ctx, rootClient, appName)
+		return err == nil
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Wait for the database to become available. Sometimes this takes a bit
+	// of time in CI.
+	for i := 0; i < 10; i++ {
+		_, err := getDatabase(context.Background(), rootClient, "foo")
+		if err == nil {
+			break
+		} else if !trace.IsNotFound(err) {
+			require.NoError(t, err)
+		}
+
+		if i >= 9 {
+			t.Fatalf("database never became available")
+		}
+
+		t.Logf("Database not yet available, waiting...")
+		time.Sleep(time.Second * 1)
+	}
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, client, "test", "access")
-	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
+	const roleName = "destination-role"
+	role, err := types.NewRole(roleName, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"env": apiutils.Strings{"dev"},
+			},
+
+			// Note: we don't actually need a role granting us database access to
+			// request it. Actual access is validated via RBAC at connection time.
+			// We do need an actual database and permission to list them, however.
+			DatabaseLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+			DatabaseNames: []string{"bar"},
+			DatabaseUsers: []string{"baz"},
+			Rules: []types.Rule{
+				types.NewRule("db_server", []string{"read", "list"}),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(ctx, role))
+
+	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
+	botConfig := testhelpers.MakeMemoryBotConfig(
+		t, fc, botParams, []*config.DestinationConfig{
+			// Our first destination is pure identity
+			{
+				DestinationMixin: config.DestinationMixin{
+					Memory: &config.DestinationMemory{},
+				},
+			},
+			// Our second destination tests application access
+			{
+				DestinationMixin: config.DestinationMixin{
+					Memory: &config.DestinationMemory{},
+				},
+				App: &config.App{
+					App: appName,
+				},
+			},
+			// Our third destination tests database access
+			{
+				DestinationMixin: config.DestinationMixin{
+					Memory: &config.DestinationMemory{},
+				},
+				Database: &config.Database{
+					Service:  "foo",
+					Database: "bar",
+					Username: "baz",
+				},
+			},
+		},
+	)
 	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := b.Run(ctx)
+	t.Run("validate bot identity", func(t *testing.T) {
+		// Some rough checks to ensure the bot identity used follows our
+		// expected rules for bot identities.
+		botIdent := b.ident()
+		tlsIdent, err := tlsca.FromSubject(botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter)
 		require.NoError(t, err)
-	}()
-	// Allow time for bot to start running and watching for CA rotations
-	// TODO: We should modify the bot to emit events that may be useful...
-	time.Sleep(10 * time.Second)
+		require.True(t, tlsIdent.Renewable)
+		require.False(t, tlsIdent.DisallowReissue)
+		require.Equal(t, uint64(1), tlsIdent.Generation)
+		require.ElementsMatch(t, []string{botParams.RoleName}, tlsIdent.Groups)
+	})
 
-	// fetch initial host cert
-	require.Len(t, b.ident().TLSCACertsBytes, 2)
-	initialCAs := [][]byte{}
-	copy(initialCAs, b.ident().TLSCACertsBytes)
+	t.Run("validate identity destination", func(t *testing.T) {
+		// Check destinations filled as expected
+		dest := botConfig.Destinations[0]
+		destImpl, err := dest.GetDestination()
+		require.NoError(t, err)
 
-	// Begin rotating through all of the phases, testing the client after
-	// each rotation phase has completed.
-	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseInit)
-	// TODO: These sleeps allow the client time to rotate. They could be
-	// replaced if tbot emitted a CA rotation/renewal event.
-	time.Sleep(time.Second * 30)
-	_, err := b.Client().Ping(ctx)
-	require.NoError(t, err)
+		for _, templateName := range config.GetRequiredConfigs() {
+			cfg := dest.GetConfigByName(templateName)
+			require.NotNilf(t, cfg, "template %q must exist", templateName)
 
-	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateClients)
-	time.Sleep(time.Second * 30)
-	// Ensure both sets of CA certificates are now available locally
-	require.Len(t, b.ident().TLSCACertsBytes, 3)
-	_, err = b.Client().Ping(ctx)
-	require.NoError(t, err)
+			validateTemplate(t, cfg, destImpl)
+		}
+	})
 
-	rotate(ctx, t, log, teleportProcess(), types.RotationPhaseUpdateServers)
-	time.Sleep(time.Second * 30)
-	_, err = b.Client().Ping(ctx)
-	require.NoError(t, err)
+	t.Run("validate app destination", func(t *testing.T) {
+		dest := botConfig.Destinations[1]
+		destImpl, err := dest.GetDestination()
+		require.NoError(t, err)
 
-	rotate(ctx, t, log, teleportProcess(), types.RotationStateStandby)
-	time.Sleep(time.Second * 30)
-	_, err = b.Client().Ping(ctx)
-	require.NoError(t, err)
+		keyBytes, err := destImpl.Read(identity.PrivateKeyKey)
+		require.NoError(t, err)
+		certBytes, err := destImpl.Read(identity.TLSCertKey)
+		require.NoError(t, err)
+		hostCABytes, err := destImpl.Read(config.DefaultHostCAPath)
+		require.NoError(t, err)
+		ident := &identity.Identity{}
+		err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
+		require.NoError(t, err)
 
-	require.Len(t, b.ident().TLSCACertsBytes, 2)
-	finalCAs := b.ident().TLSCACertsBytes
-	require.NotEqual(t, initialCAs, finalCAs)
+		tlsIdent, err := tlsca.FromSubject(
+			ident.X509Cert.Subject, ident.X509Cert.NotAfter,
+		)
+		require.NoError(t, err)
+
+		// Validate that the correct identity fields have been set
+		route := tlsIdent.RouteToApp
+		require.Equal(t, appName, route.Name)
+		require.Equal(t, "foo.example.com", route.PublicAddr)
+		require.NotEmpty(t, route.SessionID)
+	})
+
+	t.Run("validate db destination", func(t *testing.T) {
+		dest := botConfig.Destinations[2]
+		destImpl, err := dest.GetDestination()
+		require.NoError(t, err)
+
+		keyBytes, err := destImpl.Read(identity.PrivateKeyKey)
+		require.NoError(t, err)
+		certBytes, err := destImpl.Read(identity.TLSCertKey)
+		require.NoError(t, err)
+		hostCABytes, err := destImpl.Read(config.DefaultHostCAPath)
+		require.NoError(t, err)
+		ident := &identity.Identity{}
+		err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
+		require.NoError(t, err)
+
+		tlsIdent, err := tlsca.FromSubject(
+			ident.X509Cert.Subject, ident.X509Cert.NotAfter,
+		)
+		require.NoError(t, err)
+
+		// Validate that the correct identity fields have been set
+		route := tlsIdent.RouteToDatabase
+		require.Equal(t, "foo", route.ServiceName)
+		require.Equal(t, "bar", route.Database)
+		require.Equal(t, "baz", route.Username)
+		require.Equal(t, "mysql", route.Protocol)
+	})
 }

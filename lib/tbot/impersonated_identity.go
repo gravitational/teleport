@@ -445,10 +445,6 @@ func (drc *destinationRenewalCache) certAuthorities(
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
 
-	if drc._cas == nil {
-		return nil
-	}
-
 	return drc._cas[caType]
 }
 
@@ -469,6 +465,9 @@ func (drc *destinationRenewalCache) GetCertAuthorities(
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
 
+	if drc._cas == nil {
+		drc._cas = map[types.CertAuthType][]types.CertAuthority{}
+	}
 	drc._cas[caType] = cas
 	return cas, nil
 }

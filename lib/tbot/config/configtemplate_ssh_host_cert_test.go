@@ -18,9 +18,10 @@ package config
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/fixtures"
 )

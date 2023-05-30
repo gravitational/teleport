@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -58,11 +57,6 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 	fc := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
-		},
-		Databases: config.Databases{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
 		},
 		Proxy: config.Proxy{
 			Service: config.Service{
@@ -148,27 +142,6 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 	return auth
 }
 
-// MakeBotAuthClient creates a new auth client using a Bot identity.
-func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Identity) auth.ClientI {
-	t.Helper()
-
-	cfg := servicecfg.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fc, cfg)
-	require.NoError(t, err)
-
-	authConfig := new(authclient.Config)
-	authConfig.TLS, err = ident.TLSConfig(cfg.CipherSuites)
-	require.NoError(t, err)
-
-	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Log
-
-	client, err := authclient.Connect(context.Background(), authConfig)
-	require.NoError(t, err)
-
-	return client
-}
-
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
 // default root-level auth client for a Teleport server started by
 // MakeAndRunTestAuthServer.
@@ -232,7 +205,9 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 
 // MakeMemoryBotConfig creates a usable bot config from joining parameters. It
 // only writes artifacts to memory and can be further modified if desired.
-func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse) *botconfig.BotConfig {
+func MakeMemoryBotConfig(
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, destinations []*botconfig.DestinationConfig,
+) *botconfig.BotConfig {
 	t.Helper()
 
 	authCfg := servicecfg.MakeDefaultConfig()
@@ -249,13 +224,8 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 				Memory: &botconfig.DestinationMemory{},
 			},
 		},
-		Destinations: []*botconfig.DestinationConfig{
-			{
-				DestinationMixin: botconfig.DestinationMixin{
-					Memory: &botconfig.DestinationMemory{},
-				},
-			},
-		},
+		Oneshot:      true,
+		Destinations: destinations,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)
