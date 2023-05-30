@@ -3,7 +3,11 @@ package devicetrustv1
 import (
 	"crypto"
 	"crypto/x509"
+	"encoding/asn1"
+	"math/big"
+	"strings"
 
+	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -48,9 +52,10 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.BadParameter("ek_pub or ek_cert required")
 	}
 
-	// First we extract the EK from the request
 	validEK, err := parseAndValidateEK(
+		logger,
 		initReq.Tpm,
+		c.ekCertAllowedCAs,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,6 +132,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	cred := &devicepb.DeviceCredential{
 		Id:                    initReq.CredentialId,
 		DeviceAttestationType: validEK.attestationType,
+		TpmEkcertSerial:       validEK.tpmSerial,
 		TpmAkPublic:           attestationParameters.Public,
 	}
 
@@ -138,33 +144,133 @@ type validatedEK struct {
 	// could hold other types of public keys.
 	publicKey       crypto.PublicKey
 	attestationType devicepb.DeviceAttestationType
+	tpmSerial       string
 }
+
+var sanExtensionOID = []int{2, 5, 29, 17}
 
 // parseAndValidateEK extracts the EK public key from the enrollment request.
 // This will either be a directly a public key, or a public key included
 // within a certificate signed by a device manufacturer CA.
 // It ensures the certificate is signed by a CA on the allow-list if the list
 // is non-empty.
-// TODO(strideynet): Support parsing EKCert and ensuring its signed by a device
-// manufacturer CA: https://github.com/gravitational/teleport.e/issues/1393
 func parseAndValidateEK(
+	logger log.FieldLogger,
 	tpm *devicepb.TPMEnrollPayload,
+	allowedCAs []string,
 ) (
 	*validatedEK,
 	error,
 ) {
 	switch v := tpm.Ek.(type) {
 	case *devicepb.TPMEnrollPayload_EkKey:
+		if len(allowedCAs) > 0 {
+			return nil, trace.BadParameter("tpm device did not submit an ek_cert and ekcert_allowed_cas is configured")
+		}
+
 		// In the case of the key, we can just use this as is.
 		ekPub, err := x509.ParsePKIXPublicKey(v.EkKey)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		return &validatedEK{
 			attestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
 			publicKey:       ekPub,
 		}, nil
+	case *devicepb.TPMEnrollPayload_EkCert:
+		// In the case of a certificate, we need to decode the cert and then
+		// extract the public key, optionally, we also need to verify the
+		// certificates CA.
+		ekCert, err := attest.ParseEKCertificate(v.EkCert)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		tpmSerial := serialString(ekCert.SerialNumber)
+
+		// Second, we want to check if the certificate is signed by an
+		// allow-listed CA. If there's no configured allow-listed CAs, we can
+		// skip this check.
+		if len(allowedCAs) == 0 {
+			return &validatedEK{
+				publicKey:       ekCert.PublicKey,
+				attestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT,
+				tpmSerial:       tpmSerial,
+			}, nil
+		}
+
+		allowedPool, err := x509PEMsToCertPool(allowedCAs)
+		if err != nil {
+			// Hypothetically, this case is never triggered. We validate these
+			// entries in CheckAndSetDefaults.
+			return nil, trace.Wrap(err, "invalid device trust EKCertAllowedCAs entry")
+		}
+
+		// EKCerts often include some additional data bundled within the SAN
+		// extension. This ext is also sometimes marked critical. This causes
+		// the Verify() to reject the cert because not all data within a
+		// critical extension has been handled. We mark this as OK here by
+		// stripping the SAN Extension OID out of UnhandledCriticalExtensions.
+		var exts []asn1.ObjectIdentifier
+		for _, ext := range ekCert.UnhandledCriticalExtensions {
+			if ext.Equal(sanExtensionOID) {
+				logger.
+					WithField("oid", ext.String()).
+					Debug("Ignoring unhandled critical extension in EKCert.")
+				continue
+			}
+			exts = append(exts, ext)
+		}
+		ekCert.UnhandledCriticalExtensions = exts
+
+		_, err = ekCert.Verify(x509.VerifyOptions{
+			Roots: allowedPool,
+			KeyUsages: []x509.ExtKeyUsage{
+				// Go's x509 Verification doesn't support the EK certificate
+				// ExtKeyUsage (http://oid-info.com/get/2.23.133.8.1), so we
+				// allow any.
+				x509.ExtKeyUsageAny,
+			},
+		})
+		if err != nil {
+			return nil, trace.BadParameter("presented EKCert failed verification: %v", err)
+		}
+
+		return &validatedEK{
+			publicKey:       ekCert.PublicKey,
+			attestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED,
+			tpmSerial:       tpmSerial,
+		}, nil
 	default:
 		return nil, trace.BadParameter("unknown EK type (%T)", v)
 	}
+}
+
+// serialString converts a serial number into a readable colon-delimited hex
+// string thats user-readable e.g ab:ab:ab:ff:ff:ff
+func serialString(serial *big.Int) string {
+	hex := serial.Text(16)
+	if len(hex)%2 == 1 {
+		hex = "0" + hex
+	}
+
+	out := strings.Builder{}
+	for i := 0; i < len(hex); i += 2 {
+		if i != 0 {
+			out.WriteString(":")
+		}
+		out.WriteString(hex[i : i+2])
+	}
+	return out.String()
+}
+
+func x509PEMsToCertPool(certPEMs []string) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, cert := range certPEMs {
+		if !pool.AppendCertsFromPEM([]byte(cert)) {
+			return nil, trace.BadParameter("failed to parse certificate PEM")
+		}
+	}
+	return pool, nil
 }

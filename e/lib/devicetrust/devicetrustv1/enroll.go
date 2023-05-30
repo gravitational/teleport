@@ -16,9 +16,10 @@ import (
 )
 
 type enrollCeremony struct {
-	logger        *log.Entry
-	storage       *storage.S
-	auditCallback func(d *devicepb.Device, err error)
+	logger           *log.Entry
+	storage          *storage.S
+	auditCallback    func(d *devicepb.Device, err error)
+	ekCertAllowedCAs []string
 }
 
 // EnrollDevice implements the device enrollment ceremony, as described by

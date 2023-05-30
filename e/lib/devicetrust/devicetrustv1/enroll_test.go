@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/types"
 	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
@@ -61,8 +62,15 @@ func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollT
 func TestService_EnrollDevice(t *testing.T) {
 	setTPMFeatureActive(t, true)
 
+	deviceTrustConfig := &types.DeviceTrust{}
 	emitter := &eventstest.MockEmitter{}
-	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	env := testenv.MustNew(
+		testenv.WithEmitter(emitter),
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: deviceTrustConfig,
+		},
+		),
+	)
 	defer env.Close()
 
 	devices := env.DevicesClient
@@ -78,6 +86,15 @@ func TestService_EnrollDevice(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	ekCertCA, ekCertCAPEM, err := newFakeEKCertCA()
+	if err != nil {
+		t.Fatalf("newFakeEKCertCA failed: %v", err)
+	}
+	unrecognizedEKCertCA, _, err := newFakeEKCertCA()
+	if err != nil {
+		t.Fatalf("newFakeEKCertCA failed: %v", err)
 	}
 
 	// Create a few "wrong" keys to use in MacOS tests:
@@ -120,11 +137,13 @@ func TestService_EnrollDevice(t *testing.T) {
 		// deviceTemplate is the device to create prior to enrollment.
 		// If the device has an Id the test will refresh its enrollment token,
 		// otherwise a new device is created.
-		deviceTemplate  *devicepb.Device
-		simulator       simulator
-		assertInitErr   func(err error) bool
-		assertHandleErr func(err error) bool
-		wantAuditEvents []wantEvent
+		deviceTemplate      *devicepb.Device
+		deviceTrustConfig   *types.DeviceTrust
+		simulator           simulator
+		assertInitErr       func(err error) bool
+		assertHandleErr     func(err error) bool
+		wantAuditEvents     []wantEvent
+		wantAttestationType devicepb.DeviceAttestationType
 	}{
 		// General "Init" step validation errors.
 		// These are failures regardless of the OsType.
@@ -218,14 +237,46 @@ func TestService_EnrollDevice(t *testing.T) {
 		},
 		// Windows
 		{
-			name:       "windows success",
+			name:       "windows: success with EKPub",
 			shouldSkip: tpmSkip,
 			deviceTemplate: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama",
 			},
-			simulator:       newTPMSimulator(tpmBehavior{}),
-			wantAuditEvents: wantEnrollSuccess,
+			simulator:           newTPMSimulator(tpmBehavior{}),
+			wantAuditEvents:     wantEnrollSuccess,
+			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+		},
+		{
+			name:       "windows: success with EKCert",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "llama-ekcert",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				ekCertGenerator: ekCertCA,
+			}),
+			wantAuditEvents:     wantEnrollSuccess,
+			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT,
+		},
+		{
+			name:       "windows: success with EKCert trusted",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "llama-ekcert-trusted",
+			},
+			deviceTrustConfig: &types.DeviceTrust{
+				EKCertAllowedCAs: []string{
+					string(ekCertCAPEM),
+				},
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				ekCertGenerator: ekCertCA,
+			}),
+			wantAuditEvents:     wantEnrollSuccess,
+			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED,
 		},
 		// General TPM failure cases
 		{
@@ -338,6 +389,40 @@ func TestService_EnrollDevice(t *testing.T) {
 			assertHandleErr: trace.IsBadParameter,
 			wantAuditEvents: wantEnrollFailure,
 		},
+		{
+			name:       "tpm: ekpub provided when allowed_ekcert_cas configured",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-fail-ekpub-allowed-ekcert-cas",
+			},
+			deviceTrustConfig: &types.DeviceTrust{
+				EKCertAllowedCAs: []string{
+					string(ekCertCAPEM),
+				},
+			},
+			simulator:       newTPMSimulator(tpmBehavior{}),
+			assertInitErr:   trace.IsBadParameter,
+			wantAuditEvents: wantEnrollFailure,
+		},
+		{
+			name:       "tpm: ekcert from unrecognized CA",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-fail-ekcert-unrecognized-ca",
+			},
+			deviceTrustConfig: &types.DeviceTrust{
+				EKCertAllowedCAs: []string{
+					string(ekCertCAPEM),
+				},
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				ekCertGenerator: unrecognizedEKCertCA,
+			}),
+			assertInitErr:   trace.IsBadParameter,
+			wantAuditEvents: wantEnrollFailure,
+		},
 		// macOS enrollment and edge cases.
 		{
 			name: "macOS success",
@@ -441,6 +526,12 @@ func TestService_EnrollDevice(t *testing.T) {
 			if test.shouldSkip != "" {
 				t.Skip(test.shouldSkip)
 			}
+			if test.deviceTrustConfig != nil {
+				*deviceTrustConfig = *test.deviceTrustConfig
+				defer func() {
+					*deviceTrustConfig = types.DeviceTrust{}
+				}()
+			}
 			// Allow underlying device mock to be set up
 			cleanup, err := test.simulator.setup()
 			if err != nil {
@@ -535,6 +626,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			wantDev.EnrollToken = nil // token spent, also not expected here
 			wantDev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
 			wantDev.Credential = test.simulator.wantCredential()
+			wantDev.Credential.DeviceAttestationType = test.wantAttestationType
 			wantDev.CollectedData = nil // not expected here
 			if diff := cmp.Diff(wantDev, gotDev, protocmp.Transform()); diff != "" {
 				t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)

@@ -141,10 +141,16 @@ var pcrAppendEvent = []byte{
 type tpmSimulator struct {
 	behavior tpmBehavior
 
-	sim          *tpmsimulator.Simulator
-	tpm          *attest.TPM
-	ak           *attest.AK
-	encodedEK    []byte
+	sim *tpmsimulator.Simulator
+	tpm *attest.TPM
+	ak  *attest.AK
+
+	// ekPub is the ASN.1 DER public part of the TPM EK
+	ekPub []byte
+	// ekCert is the ASN.1 DER encoded TPM EK Certificate, if one has been
+	// generated.
+	ekCert []byte
+
 	credentialID string
 }
 
@@ -203,10 +209,17 @@ func (e *tpmSimulator) setup() (closer func(), err error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetching ek: %w", err)
 	}
-	e.encodedEK, err = x509.MarshalPKIXPublicKey(eks[0].Public)
+	e.ekPub, err = x509.MarshalPKIXPublicKey(eks[0].Public)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling ek: %w", err)
 	}
+	if e.behavior.ekCertGenerator != nil {
+		e.ekCert, err = e.behavior.ekCertGenerator(eks[0].Public)
+		if err != nil {
+			return nil, fmt.Errorf("generating ek cert: %w", err)
+		}
+	}
+
 	e.credentialID = uuid.NewString()
 
 	return closeFn, nil
@@ -216,6 +229,19 @@ func (e *tpmSimulator) enrollRequest(
 	dev *devicepb.Device,
 	enrollToken string,
 ) *devicepb.EnrollDeviceRequest {
+	payload := &devicepb.TPMEnrollPayload{
+		Ek: &devicepb.TPMEnrollPayload_EkKey{
+			EkKey: e.ekPub,
+		},
+		AttestationParameters: dtoss.AttestationParametersToProto(e.ak.AttestationParameters()),
+	}
+	// If EKCert is available, send that instead
+	if e.ekCert != nil {
+		payload.Ek = &devicepb.TPMEnrollPayload_EkCert{
+			EkCert: e.ekCert,
+		}
+	}
+
 	init := &devicepb.EnrollDeviceInit{
 		Token:        enrollToken,
 		CredentialId: e.credentialID,
@@ -224,12 +250,7 @@ func (e *tpmSimulator) enrollRequest(
 			OsType:       dev.OsType,
 			SerialNumber: dev.AssetTag,
 		},
-		Tpm: &devicepb.TPMEnrollPayload{
-			Ek: &devicepb.TPMEnrollPayload_EkKey{
-				EkKey: e.encodedEK,
-			},
-			AttestationParameters: dtoss.AttestationParametersToProto(e.ak.AttestationParameters()),
-		},
+		Tpm: payload,
 	}
 	if e.behavior.modifyEnrollDeviceInit != nil {
 		e.behavior.modifyEnrollDeviceInit(init)
@@ -332,9 +353,13 @@ func (e *tpmSimulator) handleEnrollStream(
 }
 
 func (e *tpmSimulator) wantCredential() *devicepb.DeviceCredential {
-	return &devicepb.DeviceCredential{
-		Id:                    e.credentialID,
-		DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
-		TpmAkPublic:           e.ak.AttestationParameters().Public,
+	cred := &devicepb.DeviceCredential{
+		Id:          e.credentialID,
+		TpmAkPublic: e.ak.AttestationParameters().Public,
 	}
+	if e.behavior.ekCertGenerator != nil {
+		cred.TpmEkcertSerial = ekCertSerial
+	}
+
+	return cred
 }

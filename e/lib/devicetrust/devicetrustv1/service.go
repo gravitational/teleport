@@ -514,10 +514,21 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		return trace.Wrap(err)
 	}
 
+	authPref, err := s.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var ekCertAllowedCAs []string
+	if authPref.GetDeviceTrust() != nil {
+		ekCertAllowedCAs = authPref.GetDeviceTrust().EKCertAllowedCAs
+	}
+
 	// Attempt to enroll the device.
 	c := &enrollCeremony{
-		logger:  s.logger,
-		storage: s.storage,
+		logger:           s.logger,
+		storage:          s.storage,
+		ekCertAllowedCAs: ekCertAllowedCAs,
 		auditCallback: func(dev *devicepb.Device, err error) {
 			success := err == nil
 			devMetadata := getDeviceMetadata(dev)
