@@ -257,12 +257,14 @@ type Service struct {
 	appsUpdated []*apievents.OktaResource
 	appsDeleted []*apievents.OktaResource
 
-	// Import Rule mapping for the Okta objects.
-	groupIRMappingMu sync.RWMutex
-	groupIRMapping   map[string]prioritizedLabels
+	// labelsMu protects access to the *IRMapping and *NameRegexes.
+	labelMu sync.RWMutex
 
-	applicationIRMappingMu sync.RWMutex
-	applicationIRMapping   map[string]prioritizedLabels
+	// Import Rule mapping and regexes for the Okta objects.
+	groupIRMapping       map[string]prioritizedLabels
+	applicationIRMapping map[string]prioritizedLabels
+	groupNameRegexes     []regexAndPriorityLabels
+	appNameRegexes       []regexAndPriorityLabels
 
 	timeBetweenSyncs time.Duration
 
@@ -340,6 +342,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		newApps:              map[string]*types.AppV3{},
 		groupIRMapping:       map[string]prioritizedLabels{},
 		applicationIRMapping: map[string]prioritizedLabels{},
+		groupNameRegexes:     []regexAndPriorityLabels{},
+		appNameRegexes:       []regexAndPriorityLabels{},
 		timeBetweenSyncs:     config.TimeBetweenSyncs,
 		syncStoppedCh:        make(chan struct{}, 1),
 		stopCh:               make(chan struct{}, 1),

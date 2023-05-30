@@ -42,7 +42,11 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 		return nil, trace.Wrap(err)
 	}
 
-	labels := s.getGroupLabels(oktaGroup.Id)
+	labels, err := s.getGroupLabels(oktaGroup.Id, oktaGroup.Profile.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	labels[types.OriginLabel] = types.OriginOkta
 	labels[teleport.OktaOrgURLLabel] = s.orgURL
 	labels[teleport.OktaGroupIDLabel] = oktaGroup.Id
@@ -103,7 +107,11 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV
 
 	var apps []*types.AppV3
 
-	labels := s.getApplicationLabels(oktaApplication.Id)
+	labels, err := s.getApplicationLabels(oktaApplication.Id, oktaApplication.Label)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	labels[types.OriginLabel] = types.OriginOkta
 	labels[teleport.OktaOrgURLLabel] = s.orgURL
 	labels[teleport.OktaAppIDLabel] = oktaApplication.Id

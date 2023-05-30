@@ -23,21 +23,28 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// regexAndPriorityLabels contains a regex and associated priority labels.
+type regexAndPriorityLabels struct {
+	regex             string
+	priorityAndLabels priorityAndLabels
+}
 
 // buildImportRuleMappings will build the import rule mappings used to determine
 // which labels to apply to groups and applications synchronized by this service.
 // This is intended to be run once per synchronization, and the mappings will
 // then be used for the entirety of the synchronization run.
 func (s *Service) buildImportRuleMappings(ctx context.Context) error {
-	s.groupIRMappingMu.Lock()
-	defer s.groupIRMappingMu.Unlock()
-	s.applicationIRMappingMu.Lock()
-	defer s.applicationIRMappingMu.Unlock()
+	s.labelMu.Lock()
+	defer s.labelMu.Unlock()
 
 	// Clear out the existing caches
 	s.groupIRMapping = map[string]prioritizedLabels{}
 	s.applicationIRMapping = map[string]prioritizedLabels{}
+	s.groupNameRegexes = []regexAndPriorityLabels{}
+	s.appNameRegexes = []regexAndPriorityLabels{}
 
 	var nextToken string
 	for {
@@ -64,6 +71,22 @@ func (s *Service) buildImportRuleMappings(ctx context.Context) error {
 							s.applicationIRMapping[appID] = append(s.applicationIRMapping[appID], p)
 						}
 					}
+					if ok, regexes := match.GetGroupNameRegexes(); ok {
+						for _, regex := range regexes {
+							s.groupNameRegexes = append(s.groupNameRegexes, regexAndPriorityLabels{
+								regex:             regex,
+								priorityAndLabels: p,
+							})
+						}
+					}
+					if ok, regexes := match.GetAppNameRegexes(); ok {
+						for _, regex := range regexes {
+							s.appNameRegexes = append(s.appNameRegexes, regexAndPriorityLabels{
+								regex:             regex,
+								priorityAndLabels: p,
+							})
+						}
+					}
 				}
 			}
 		}
@@ -85,19 +108,61 @@ func (s *Service) buildImportRuleMappings(ctx context.Context) error {
 }
 
 // getGroupLabels will return the group labels for the given group ID.
-func (s *Service) getGroupLabels(groupID string) map[string]string {
-	s.groupIRMappingMu.RLock()
-	defer s.groupIRMappingMu.RUnlock()
+func (s *Service) getGroupLabels(groupID, groupName string) (map[string]string, error) {
+	s.labelMu.RLock()
+	existingLabels := s.groupIRMapping[groupID]
+	groupNameRegexes := s.groupNameRegexes
+	s.labelMu.RUnlock()
 
-	return aggregateLabels(s.groupIRMapping[groupID])
+	groupLabels := make(prioritizedLabels, len(existingLabels))
+	copy(groupLabels, existingLabels)
+
+	regexesMatch := false
+	for _, regexAndLabel := range groupNameRegexes {
+		match, err := utils.MatchString(groupName, regexAndLabel.regex)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			regexesMatch = true
+			groupLabels = append(groupLabels, regexAndLabel.priorityAndLabels)
+		}
+	}
+
+	if regexesMatch {
+		sort.Sort(groupLabels)
+	}
+
+	return aggregateLabels(groupLabels), nil
 }
 
 // getApplicationLabels will return the application labels for the given application ID.
-func (s *Service) getApplicationLabels(applicationID string) map[string]string {
-	s.applicationIRMappingMu.RLock()
-	defer s.applicationIRMappingMu.RUnlock()
+func (s *Service) getApplicationLabels(applicationID, applicationName string) (map[string]string, error) {
+	s.labelMu.RLock()
+	existingLabels := s.applicationIRMapping[applicationID]
+	appNameRegexes := s.appNameRegexes
+	s.labelMu.RUnlock()
 
-	return aggregateLabels(s.applicationIRMapping[applicationID])
+	appLabels := make(prioritizedLabels, len(existingLabels))
+	copy(appLabels, existingLabels)
+
+	regexesMatch := false
+	for _, regexAndLabel := range appNameRegexes {
+		match, err := utils.MatchString(applicationName, regexAndLabel.regex)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			regexesMatch = true
+			appLabels = append(appLabels, regexAndLabel.priorityAndLabels)
+		}
+	}
+
+	if regexesMatch {
+		sort.Sort(appLabels)
+	}
+
+	return aggregateLabels(appLabels), nil
 }
 
 // aggregateLabels will return labels applied to a map, applied in order.

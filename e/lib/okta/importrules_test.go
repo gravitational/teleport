@@ -96,7 +96,9 @@ func TestBuildOktaImportRuleMappings(t *testing.T) {
 
 func TestGetLabels(t *testing.T) {
 	groupID := "group1"
+	groupName := "group1Name"
 	appID := "app1"
+	appName := "app1Name"
 
 	tests := []struct {
 		name                string
@@ -109,14 +111,17 @@ func TestGetLabels(t *testing.T) {
 			importRules: []types.OktaImportRule{
 				newIR(t, "ir1", 100, newIRMapping(map[string]string{"label1": "value1"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
 				newIR(t, "ir2", 101, newIRMapping(map[string]string{"label2": "value2"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
+				newIR(t, "ir3", 101, newIRMapping(map[string]string{"label3": "value3"}, newIRMatchGroupNameRegex("^group.*$"), newIRMatchAppNameRegex("app*"))),
 			},
 			expectedGroupLabels: map[string]string{
 				"label1": "value1",
 				"label2": "value2",
+				"label3": "value3",
 			},
 			expectedAppLabels: map[string]string{
 				"label1": "value1",
 				"label2": "value2",
+				"label3": "value3",
 			},
 		},
 		{
@@ -133,10 +138,36 @@ func TestGetLabels(t *testing.T) {
 			},
 		},
 		{
+			name: "override group (regex)",
+			importRules: []types.OktaImportRule{
+				newIR(t, "ir1", 100, newIRMapping(map[string]string{"label1": "value1"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
+				newIR(t, "ir2", 101, newIRMapping(map[string]string{"label1": "value2"}, newIRMatchGroupNameRegex("^group.*$"))),
+			},
+			expectedGroupLabels: map[string]string{
+				"label1": "value2",
+			},
+			expectedAppLabels: map[string]string{
+				"label1": "value1",
+			},
+		},
+		{
 			name: "shadowed values",
 			importRules: []types.OktaImportRule{
 				newIR(t, "ir1", 100, newIRMapping(map[string]string{"label1": "value1"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
 				newIR(t, "ir2", 99, newIRMapping(map[string]string{"label1": "value0"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
+			},
+			expectedGroupLabels: map[string]string{
+				"label1": "value1",
+			},
+			expectedAppLabels: map[string]string{
+				"label1": "value1",
+			},
+		},
+		{
+			name: "shadowed values (regex)",
+			importRules: []types.OktaImportRule{
+				newIR(t, "ir1", 100, newIRMapping(map[string]string{"label1": "value1"}, newIRMatchGroups(groupID), newIRMatchApps(appID))),
+				newIR(t, "ir2", 99, newIRMapping(map[string]string{"label1": "value0"}, newIRMatchGroupNameRegex("^group.*$"), newIRMatchApps(appID))),
 			},
 			expectedGroupLabels: map[string]string{
 				"label1": "value1",
@@ -184,6 +215,14 @@ func TestGetLabels(t *testing.T) {
 						newIRMatchGroups(groupID),
 					),
 				),
+				newIR(t, "ir5", 104,
+					newIRMapping(
+						map[string]string{
+							"label5": "value5",
+						},
+						newIRMatchAppNameRegex("^app.*$"),
+					),
+				),
 			},
 			expectedGroupLabels: map[string]string{
 				"label1": "value1",
@@ -195,6 +234,32 @@ func TestGetLabels(t *testing.T) {
 				"label1": "value1",
 				"label2": "value2",
 				"label3": "value3",
+				"label5": "value5",
+			},
+		},
+		{
+			name: "wildcards",
+			importRules: []types.OktaImportRule{
+				newIR(t, "ir1", 100,
+					newIRMapping(
+						map[string]string{
+							"label1": "value1",
+							"label2": "value1",
+							"label3": "value1",
+						},
+						newIRMatchAppNameRegex("*"), newIRMatchGroupNameRegex("*"),
+					),
+				),
+			},
+			expectedGroupLabels: map[string]string{
+				"label1": "value1",
+				"label2": "value1",
+				"label3": "value1",
+			},
+			expectedAppLabels: map[string]string{
+				"label1": "value1",
+				"label2": "value1",
+				"label3": "value1",
 			},
 		},
 		{
@@ -216,8 +281,12 @@ func TestGetLabels(t *testing.T) {
 			svc := &Service{accessPoint: ap}
 			svc.buildImportRuleMappings(ctx)
 
-			require.Equal(t, test.expectedGroupLabels, svc.getGroupLabels(groupID))
-			require.Equal(t, test.expectedAppLabels, svc.getApplicationLabels(appID))
+			labels, err := svc.getGroupLabels(groupID, groupName)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedGroupLabels, labels)
+			labels, err = svc.getApplicationLabels(appID, appName)
+			require.NoError(t, err)
+			require.Equal(t, test.expectedAppLabels, labels)
 		})
 	}
 }
@@ -258,5 +327,17 @@ func newIRMatchApps(appIDs ...string) *types.OktaImportRuleMatchV1 {
 func newIRMatchGroups(groupIDs ...string) *types.OktaImportRuleMatchV1 {
 	return &types.OktaImportRuleMatchV1{
 		GroupIDs: groupIDs,
+	}
+}
+
+func newIRMatchAppNameRegex(regex string) *types.OktaImportRuleMatchV1 {
+	return &types.OktaImportRuleMatchV1{
+		AppNameRegexes: []string{regex},
+	}
+}
+
+func newIRMatchGroupNameRegex(regex string) *types.OktaImportRuleMatchV1 {
+	return &types.OktaImportRuleMatchV1{
+		GroupNameRegexes: []string{regex},
 	}
 }
