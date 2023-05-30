@@ -964,7 +964,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 
 	if !slices.Contains(modes, r.Spec.Options.CreateHostUserMode) {
-		return trace.BadParameter("Invalid host user mode %q, expected one of %v", modes)
+		return trace.BadParameter("Invalid host user mode %q, expected one of %v", r.Spec.Options.CreateHostUserMode, modes)
 	}
 
 	switch r.Version {
