@@ -162,11 +162,86 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 		assert    require.ErrorAssertionFunc
 	}{
 		{
+			name: "input misses verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+				},
+			},
+			assert:  require.Error,
+			matches: false,
+		},
+		{
+			name: "input matches single resource with wildcard verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.Wildcard},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input matches single resource with matching verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.KubeVerbCreate, types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: true,
+		},
+		{
+			name: "input matches single resource with unmatching verb",
+			input: types.KubernetesResource{
+				Kind:      types.KindKubePod,
+				Namespace: "default",
+				Name:      "podname",
+				Verbs:     []string{types.KubeVerbPatch},
+			},
+			resources: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Namespace: "default",
+					Name:      "podname",
+					Verbs:     []string{types.KubeVerbGet, types.KubeVerbGet},
+				},
+			},
+			assert:  require.NoError,
+			matches: false,
+		},
+		{
 			name: "input matches single resource",
 			input: types.KubernetesResource{
 				Kind:      types.KindKubePod,
 				Namespace: "default",
 				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
@@ -184,6 +259,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Kind:      types.KindKubePod,
 				Namespace: "default",
 				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
@@ -211,6 +287,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Kind:      types.KindKubePod,
 				Namespace: "default-5",
 				Name:      "podname-5",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
@@ -228,6 +305,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Kind:      types.KindKubePod,
 				Namespace: "default",
 				Name:      "pod-name",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
@@ -245,6 +323,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Kind:      types.KindKubePod,
 				Namespace: "default-5",
 				Name:      "podname-5",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{
@@ -261,6 +340,7 @@ func TestKubeResourceMatchesRegex(t *testing.T) {
 				Kind:      types.KindKubePod,
 				Namespace: "default",
 				Name:      "podname",
+				Verbs:     []string{types.KubeVerbGet},
 			},
 			resources: []types.KubernetesResource{
 				{

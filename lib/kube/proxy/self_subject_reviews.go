@@ -144,6 +144,7 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 					Kind:      resource,
 					Name:      name,
 					Namespace: namespace,
+					Verbs:     []string{accessReview.Spec.ResourceAttributes.Verb},
 				},
 			},
 		}...); {

@@ -449,7 +449,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				Name:      splitted[1],
 			}
 
-			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
+			if matchKubernetesResource(&r, rolesAllowed, rolesDenied) == nil {
 				allowed = append(allowed, r)
 			}
 		case r.Kind == types.KindKubernetesCluster:
@@ -464,23 +464,24 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
 // entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+func matchKubernetesResource(resource *types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(*resource, denied)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if result {
 		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
 
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	result, verbs, err := utils.KubeResourceMatchesRegexWithVerbsCollector(*resource, allowed)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !result {
 		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
+	resource.Verbs = verbs
 	return nil
 }
 

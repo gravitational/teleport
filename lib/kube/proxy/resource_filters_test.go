@@ -132,6 +132,7 @@ func Test_filterBuffer(t *testing.T) {
 					Kind:      r,
 					Namespace: "default",
 					Name:      "*",
+					Verbs:     []string{"list"},
 				},
 			}
 			t.Run(fmt.Sprintf("%s %s", r, tt.name), func(t *testing.T) {
@@ -149,7 +150,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				err = filterBuffer(newResourceFilterer(r, allowedResources, nil, log), buf)
+				err = filterBuffer(newResourceFilterer(r, "list", allowedResources, nil, log), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.
@@ -201,7 +202,7 @@ func Test_filterBuffer(t *testing.T) {
 							require.NoError(t, err)
 						}
 
-						resource, err := getKubeResourcePartialMetadataObject(r, row.Object.Object)
+						resource, err := getKubeResourcePartialMetadataObject(r, "list", row.Object.Object)
 						require.NoError(t, err)
 						resources = append(resources, resource.Namespace+"/"+resource.Name)
 					}

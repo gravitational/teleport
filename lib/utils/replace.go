@@ -20,6 +20,8 @@ import (
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -94,11 +96,62 @@ type RegexpConfig struct {
 // This function supports regex expressions in the Name and Namespace fields,
 // but not for the Kind field.
 // The wildcard (*) expansion is also supported.
-func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
+func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, resources []types.KubernetesResource) (bool, []string, error) {
+	verbs := map[string]struct{}{}
+	matchedAny := false
 	for _, resource := range resources {
 		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
 		}
+		switch ok, err := MatchString(input.Name, resource.Name); {
+		case err != nil:
+			return false, nil, trace.Wrap(err)
+		case !ok:
+			continue
+		}
+
+		if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil {
+			return false, nil, trace.Wrap(err)
+		} else if !ok {
+			continue
+		}
+		matchedAny = true
+		if len(resource.Verbs) == 0 || resource.Verbs[0] == types.Wildcard {
+			return true, []string{types.Wildcard}, nil
+		}
+		for _, verb := range resource.Verbs {
+			verbs[verb] = struct{}{}
+		}
+	}
+
+	return matchedAny, maps.Keys(verbs), nil
+}
+
+// KubeResourceMatchesRegex checks whether the input matches any of the given
+// expressions.
+// This function returns as soon as it finds the first match or when matchString
+// returns an error.
+// This function supports regex expressions in the Name and Namespace fields,
+// but not for the Kind field.
+// The wildcard (*) expansion is also supported.
+func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
+	if len(input.Verbs) != 1 {
+		return false, trace.BadParameter("only one verb is supported, input: %v", input.Verbs)
+	}
+	verb := input.Verbs[0]
+	for _, resource := range resources {
+		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
+			continue
+		}
+		// If the resource has a wildcard verb, it matches all verbs.
+		// Otherwise, the resource must have the verb we're looking for otherwise
+		// it doesn't match.
+		// When the resource has a wildcard verb, we only allow one verb in the
+		// resource input.
+		if len(resource.Verbs) > 0 && resource.Verbs[0] != types.Wildcard && !slices.Contains(resource.Verbs, verb) {
+			continue
+		}
+
 		switch ok, err := MatchString(input.Name, resource.Name); {
 		case err != nil:
 			return false, trace.Wrap(err)

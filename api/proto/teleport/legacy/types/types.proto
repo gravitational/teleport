@@ -2718,6 +2718,8 @@ message KubernetesResource {
   // Name is the resource name.
   // It supports wildcards.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+  // Verbs are the allowed Kubernetes verbs for the following resource.
+  repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.

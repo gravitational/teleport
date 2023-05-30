@@ -821,6 +821,38 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
+const (
+	// KubeVerbGet is the Kubernetes verb for "get".
+	KubeVerbGet = "get"
+	// KubeVerbCreate is the Kubernetes verb for "create".
+	KubeVerbCreate = "create"
+	// KubeVerbUpdate is the Kubernetes verb for "update".
+	KubeVerbUpdate = "update"
+	// KubeVerbPatch is the Kubernetes verb for "patch".
+	KubeVerbPatch = "patch"
+	// KubeVerbDelete is the Kubernetes verb for "delete".
+	KubeVerbDelete = "delete"
+	// KubeVerbList is the Kubernetes verb for "list".
+	KubeVerbList = "list"
+	// KubeVerbWatch is the Kubernetes verb for "watch".
+	KubeVerbWatch = "watch"
+	// KubeVerbDeleteCollection is the Kubernetes verb for "deletecollection".
+	KubeVerbDeleteCollection = "deletecollection"
+)
+
+// KubernetesVerbs lists the supported Kubernetes verbs.
+var KubernetesVerbs = []string{
+	Wildcard,
+	KubeVerbGet,
+	KubeVerbCreate,
+	KubeVerbUpdate,
+	KubeVerbPatch,
+	KubeVerbDelete,
+	KubeVerbList,
+	KubeVerbWatch,
+	KubeVerbDeleteCollection,
+}
+
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
 var KubernetesClusterWideResourceKinds = []string{

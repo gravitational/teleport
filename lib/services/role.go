@@ -2202,7 +2202,7 @@ type KubeResourcesMatcher struct {
 func (m *KubeResourcesMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
 	var finalResult bool
 	for _, pod := range m.resources {
-		result, err := utils.KubeResourceMatchesRegex(pod, role.GetKubeResources(condition))
+		result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(pod, role.GetKubeResources(condition))
 		if err != nil {
 			return false, trace.Wrap(err)
 		}

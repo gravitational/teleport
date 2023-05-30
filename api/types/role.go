@@ -1595,6 +1595,16 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) && kubeResource.Kind != Wildcard {
 			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, append([]string{Wildcard}, KubernetesResourcesKinds...))
 		}
+
+		for _, verb := range kubeResource.Verbs {
+			if !slices.Contains(KubernetesVerbs, verb) {
+				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
+			}
+			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
+				return trace.BadParameter("KubernetesResource verb %q cannot be used with other verbs", verb)
+			}
+		}
+
 		// Only Pod resources are supported in role version <=V6.
 		// This is mandatory because we must append the other resources to the
 		// kubernetes resources.
