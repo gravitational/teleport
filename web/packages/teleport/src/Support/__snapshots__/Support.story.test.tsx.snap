@@ -1027,6 +1027,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-unlock c11"
+              data-testid="locked-icon"
             />
             Unlock Premium Support w/Enterprise
           </div>
