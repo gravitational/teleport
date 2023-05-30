@@ -26,9 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// Bot is an interface that allows Templates to fetch information they need to
-// render from the bot hosting the template rendering.
-type Bot interface {
+// provider is an interface that allows Templates to fetch information they
+// need to render from the bot hosting the template rendering.
+type provider interface {
 	// AuthPing pings the auth server and returns the (possibly cached) response.
 	AuthPing(ctx context.Context) (*proto.PingResponse, error)
 
@@ -44,15 +44,12 @@ type Bot interface {
 	// Config returns the current bot config
 	Config() *BotConfig
 
-	// GenerateHostCert uses the destinations impersonated identity to request
-	// a host cert from the auth server.
+	// GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
 	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
 
-	// GetRemoteClusters uses the destinations impersonated identity to request
-	// a list of the leaf clusters of this cluster.
+	// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
 	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
 
-	// GetCertAuthority uses the destinations impersonated identity to request
-	// the details of a specific cert authority.
+	// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }

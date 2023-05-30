@@ -43,6 +43,67 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+const renewalRetryLimit = 5
+
+func (b *Bot) renewDestinationsLoop(
+	ctx context.Context, reloadChan <-chan struct{},
+) error {
+	b.log.Infof(
+		"Beginning destination renewal loop: ttl=%s interval=%s",
+		b.cfg.CertificateTTL,
+		b.cfg.RenewalInterval,
+	)
+
+	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	jitter := retryutils.NewJitter()
+	defer ticker.Stop()
+	for {
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			b.log.Infof(
+				"Renewing destinations. Attempt %d of %d.",
+				attempt,
+				renewalRetryLimit,
+			)
+			err = b.renewDestinations(ctx)
+			if err == nil {
+				break
+			}
+
+			if attempt != renewalRetryLimit {
+				// exponentially back off with jitter, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
+				b.log.WithError(err).Warnf(
+					"Destination renewal attempt %d of %d failed. Retrying after %s.",
+					attempt,
+					renewalRetryLimit,
+					backoffTime,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
+		if err != nil {
+			b.log.Warnf("%d retry attempts exhausted renewing destinations. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
+		} else {
+			b.log.Infof("Renewed destinations. Next destination renewal in approximately %s.", b.cfg.RenewalInterval)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			continue
+		case <-reloadChan:
+			continue
+		}
+	}
+}
+
 // generateKeys generates TLS and SSH keypairs.
 func generateKeys() (private, sshpub, tlspub []byte, err error) {
 	privateKey, publicKey, err := native.GenerateKeyPair()
@@ -423,13 +484,98 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 	return conditions.Roles, nil
 }
 
+// renewDestinations performs a single renewal
+func (b *Bot) renewDestinations(
+	ctx context.Context,
+) error {
+	botIdentity := b.ident()
+	client, err := b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer client.Close()
+
+	// create a cache shared across destinations so they don't hammer the auth
+	// server with similar requests
+	drc := &destinationRenewalCache{
+		client: client,
+	}
+
+	// Determine the default role list based on the bot role. The role's
+	// name should match the certificate's Key ID (user and role names
+	// should all match bot-$name)
+	botResourceName := botIdentity.X509Cert.Subject.CommonName
+	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
+	if err != nil {
+		b.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
+		defaultRoles = []string{}
+	}
+
+	// Next, generate impersonated certs
+	for _, dest := range b.cfg.Destinations {
+		destImpl, err := dest.GetDestination()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Check the ACLs. We can't fix them, but we can warn if they're
+		// misconfigured. We'll need to precompute a list of keys to check.
+		// Note: This may only log a warning, depending on configuration.
+		if err := destImpl.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Ensure this destination is also writable. This is a hard fail if
+		// ACLs are misconfigured, regardless of configuration.
+		// TODO: consider not making these a hard error? e.g. write other
+		// destinations even if this one is broken?
+		if err := identity.VerifyWrite(destImpl); err != nil {
+			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
+		}
+
+		impersonatedIdentity, impersonatedClient, err := b.generateImpersonatedIdentity(
+			ctx, client, botIdentity, dest, defaultRoles,
+		)
+		if err != nil {
+			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
+		}
+		defer impersonatedClient.Close()
+
+		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, impersonatedIdentity))
+
+		if err := identity.SaveIdentity(impersonatedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
+			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
+		}
+
+		// Create a destination provider to bundle up all the dependencies that
+		// a destination template might need to render.
+		dp := &destinationProvider{
+			destinationRenewalCache: drc,
+			impersonatedClient:      impersonatedClient,
+		}
+
+		for _, templateConfig := range dest.Configs {
+			template, err := templateConfig.GetConfigTemplate()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := template.Render(ctx, dp, impersonatedIdentity, dest); err != nil {
+				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	return nil
+}
+
 // destinationRenewalCache is used to cache information during a renewal to pass
 // to destinations. This prevents them all hammering the auth server with
 // requests for the same information. This is shared between all of the
 // destinations.
 type destinationRenewalCache struct {
 	client auth.ClientI
-	cfg    *config.BotConfig
 
 	mu sync.Mutex
 	// These are protected by getter/setters with mutex locks
@@ -519,170 +665,37 @@ func (drc *destinationRenewalCache) ProxyPing(ctx context.Context) (*webclient.P
 	return proxyPong, nil
 }
 
-func (drc *destinationRenewalCache) Config() *config.BotConfig {
-	return drc.cfg
-}
-
+// destinationProvider bundles the dependencies a template needs in order to
+// produce its output.
+// It provides a handy point for controlling what templates are allowed to call
+// and how they are allowed to call them. This makes ensuring that they call
+// RPCs with the correct identity much easier.
 type destinationProvider struct {
+	// we embed the cache shared across all destinations to provide access to
+	// non-identity specific methods like `AuthPing`.
 	*destinationRenewalCache
-	// this client should be using the destinations identity
-	client auth.ClientI
+	// impersonatedClient is a client using the impersonated identity configured
+	// for that destination.
+	impersonatedClient auth.ClientI
+	cfg                *config.BotConfig
 }
 
+// GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
 func (dp *destinationProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	return dp.client.GetRemoteClusters(opts...)
+	return dp.impersonatedClient.GetRemoteClusters(opts...)
 }
 
+// GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
 func (dp *destinationProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	return dp.client.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+	return dp.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
+// GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (dp *destinationProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return dp.client.GetCertAuthority(ctx, id, loadKeys)
+	return dp.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
 }
 
-// renewDestinations performs a single renewal
-func (b *Bot) renewDestinations(
-	ctx context.Context,
-) error {
-	botIdentity := b.ident()
-	client, err := b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer client.Close()
-
-	drc := &destinationRenewalCache{
-		client: client,
-	}
-
-	// Determine the default role list based on the bot role. The role's
-	// name should match the certificate's Key ID (user and role names
-	// should all match bot-$name)
-	botResourceName := botIdentity.X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
-	if err != nil {
-		b.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
-		defaultRoles = []string{}
-	}
-
-	// Next, generate impersonated certs
-	for _, dest := range b.cfg.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Check the ACLs. We can't fix them, but we can warn if they're
-		// misconfigured. We'll need to precompute a list of keys to check.
-		// Note: This may only log a warning, depending on configuration.
-		if err := destImpl.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Ensure this destination is also writable. This is a hard fail if
-		// ACLs are misconfigured, regardless of configuration.
-		// TODO: consider not making these a hard error? e.g. write other
-		// destinations even if this one is broken?
-		if err := identity.VerifyWrite(destImpl); err != nil {
-			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
-		}
-
-		impersonatedIdentity, impersonatedClient, err := b.generateImpersonatedIdentity(
-			ctx, client, botIdentity, dest, defaultRoles,
-		)
-		if err != nil {
-			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
-		}
-		defer impersonatedClient.Close()
-
-		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, impersonatedIdentity))
-
-		if err := identity.SaveIdentity(impersonatedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
-			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
-		}
-
-		// Create a destination provider to bundle up all the dependencies that
-		// a destination template might need to render.
-		dp := &destinationProvider{
-			destinationRenewalCache: drc,
-			client:                  impersonatedClient,
-		}
-
-		for _, templateConfig := range dest.Configs {
-			template, err := templateConfig.GetConfigTemplate()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := template.Render(ctx, dp, impersonatedIdentity, dest); err != nil {
-				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
-const renewalRetryLimit = 5
-
-func (b *Bot) renewDestinationsLoop(
-	ctx context.Context, reloadChan <-chan struct{},
-) error {
-	b.log.Infof(
-		"Beginning destination renewal loop: ttl=%s interval=%s",
-		b.cfg.CertificateTTL,
-		b.cfg.RenewalInterval,
-	)
-
-	ticker := time.NewTicker(b.cfg.RenewalInterval)
-	jitter := retryutils.NewJitter()
-	defer ticker.Stop()
-	for {
-		var err error
-		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			b.log.Infof(
-				"Renewing destinations. Attempt %d of %d.",
-				attempt,
-				renewalRetryLimit,
-			)
-			err = b.renewDestinations(ctx)
-			if err == nil {
-				break
-			}
-
-			if attempt != renewalRetryLimit {
-				// exponentially back off with jitter, starting at 1 second.
-				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
-				backoffTime = jitter(backoffTime)
-				b.log.WithError(err).Warnf(
-					"Destination renewal attempt %d of %d failed. Retrying after %s.",
-					attempt,
-					renewalRetryLimit,
-					backoffTime,
-				)
-				select {
-				case <-ctx.Done():
-					return nil
-				case <-time.After(backoffTime):
-				}
-			}
-		}
-		if err != nil {
-			b.log.Warnf("%d retry attempts exhausted. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
-			return trace.Wrap(err)
-		} else {
-			b.log.Infof("Renewed destinations. Next destination renewal in approximately %s.", b.cfg.RenewalInterval)
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			continue
-		case <-reloadChan:
-			continue
-		}
-	}
+// Config returns the bots config.
+func (dp *destinationProvider) Config() *config.BotConfig {
+	return dp.cfg
 }

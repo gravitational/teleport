@@ -53,7 +53,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			cfg, err := newTestConfig("example.com")
 			require.NoError(t, err)
 
-			mockBot := newMockBot(cfg)
+			mockBot := newMockProvider(cfg)
 			template := TemplateSSHClient{
 				ProxyPort: 1337,
 				getSSHVersion: func() (*semver.Version, error) {

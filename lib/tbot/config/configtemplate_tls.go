@@ -111,7 +111,7 @@ func (t *TemplateTLS) Describe(destination bot.Destination) []FileDescription {
 
 func (t *TemplateTLS) Render(
 	ctx context.Context,
-	bot Bot,
+	bot provider,
 	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {

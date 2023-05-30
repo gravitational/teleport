@@ -61,7 +61,7 @@ func (t *TemplateMongo) Describe(destination bot.Destination) []FileDescription 
 
 func (t *TemplateMongo) Render(
 	ctx context.Context,
-	bot Bot,
+	bot provider,
 	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {

@@ -57,7 +57,7 @@ func (t *TemplateIdentity) Describe(destination bot.Destination) []FileDescripti
 
 func (t *TemplateIdentity) Render(
 	ctx context.Context,
-	bot Bot,
+	bot provider,
 	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {

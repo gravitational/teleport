@@ -37,7 +37,7 @@ func TestTemplateKubernetesRender(t *testing.T) {
 	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := newMockBot(cfg)
+	mockBot := newMockProvider(cfg)
 	template := TemplateKubernetes{
 		getExecutablePath: func() (string, error) {
 			return "tbot", nil

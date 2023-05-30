@@ -59,7 +59,7 @@ func (t *TemplateCockroach) Describe(destination bot.Destination) []FileDescript
 
 func (t *TemplateCockroach) Render(
 	ctx context.Context,
-	bot Bot,
+	bot provider,
 	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {

@@ -167,7 +167,7 @@ func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath st
 
 func (t *TemplateKubernetes) Render(
 	ctx context.Context,
-	bot Bot,
+	bot provider,
 	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {

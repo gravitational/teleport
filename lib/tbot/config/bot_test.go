@@ -50,16 +50,16 @@ const (
 	mockRemoteClusterName = "tele.aperture.labs"
 )
 
-// mockBot is a minimal Bot impl that can be used in tests
-type mockBot struct {
+// mockProvider is a minimal Bot impl that can be used in tests
+type mockProvider struct {
 	cfg               *BotConfig
 	proxyAddr         string
 	remoteClusterName string
 	clusterName       string
 }
 
-func newMockBot(cfg *BotConfig) *mockBot {
-	return &mockBot{
+func newMockProvider(cfg *BotConfig) *mockProvider {
+	return &mockProvider{
 		cfg:               cfg,
 		proxyAddr:         mockProxyAddr,
 		clusterName:       mockClusterName,
@@ -67,16 +67,16 @@ func newMockBot(cfg *BotConfig) *mockBot {
 	}
 }
 
-func (m *mockBot) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	rc, err := types.NewRemoteCluster(m.remoteClusterName)
+func (p *mockProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	rc, err := types.NewRemoteCluster(p.remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return []types.RemoteCluster{rc}, nil
 }
 
-func (m *mockBot) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	if !slices.Contains([]string{m.clusterName, m.remoteClusterName}, id.DomainName) {
+func (p *mockProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	if !slices.Contains([]string{p.clusterName, p.remoteClusterName}, id.DomainName) {
 		return nil, trace.NotFound("specified id %q not found", id)
 	}
 	if loadKeys {
@@ -113,12 +113,12 @@ func (m *mockBot) GetCertAuthority(ctx context.Context, id types.CertAuthID, loa
 	return ca, nil
 }
 
-func (m *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
+func (p *mockProvider) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
 	// We'll just wrap GetCertAuthority()'s dummy CA.
-	ca, err := m.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := p.GetCertAuthority(ctx, types.CertAuthID{
 		// Just pretend to be whichever type of CA was requested.
 		Type:       caType,
-		DomainName: m.clusterName,
+		DomainName: p.clusterName,
 	}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,14 +127,14 @@ func (m *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthT
 	return []types.CertAuthority{ca}, nil
 }
 
-func (b *mockBot) AuthPing(_ context.Context) (*proto.PingResponse, error) {
+func (p *mockProvider) AuthPing(_ context.Context) (*proto.PingResponse, error) {
 	return &proto.PingResponse{
-		ProxyPublicAddr: b.proxyAddr,
-		ClusterName:     b.clusterName,
+		ProxyPublicAddr: p.proxyAddr,
+		ClusterName:     p.clusterName,
 	}, nil
 }
 
-func (m *mockBot) GenerateHostCert(
+func (p *mockProvider) GenerateHostCert(
 	ctx context.Context,
 	key []byte, hostID, nodeName string, principals []string,
 	clusterName string, role types.SystemRole, ttl time.Duration,
@@ -146,12 +146,12 @@ func (m *mockBot) GenerateHostCert(
 	return []byte(fixtures.SSHCAPublicKey), nil
 }
 
-func (b *mockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+func (p *mockProvider) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
 	return &webclient.PingResponse{}, nil
 }
 
-func (b *mockBot) Config() *BotConfig {
-	return b.cfg
+func (p *mockProvider) Config() *BotConfig {
+	return p.cfg
 }
 
 // identRequest is a function used to add additional requests to an identity in

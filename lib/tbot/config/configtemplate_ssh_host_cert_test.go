@@ -30,7 +30,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := newMockBot(cfg)
+	mockBot := newMockProvider(cfg)
 
 	template := TemplateSSHHostCert{
 		Prefix:     "example",
