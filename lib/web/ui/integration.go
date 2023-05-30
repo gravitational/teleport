@@ -157,7 +157,7 @@ type AWSOIDCDeployDBServiceRequest struct {
 	TaskRoleARN string `json:"taskRoleArn"`
 
 	// DiscoveryGroupName is the DiscoveryGroup to be used by the `discovery_service`.
-	DiscoveryGroupName string
+	DiscoveryGroupName *string `json:"discoveryGroupName"`
 }
 
 // AWSOIDCDeployDBServiceResponse contains the resources that were used to create the Database and Discovery Service.

@@ -80,7 +80,7 @@ func TestDeployDBService(t *testing.T) {
 			ProxyServerHostPort: "marcodinis.teleportdemo.net",
 			TeleportVersion:     "11.0.3",
 			TeleportClusterName: clusterName,
-			DiscoveryGroupName:  "my-discovery-group",
+			DiscoveryGroupName:  stringPtr("my-discovery-group"),
 		}
 	}
 

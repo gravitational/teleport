@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
@@ -105,7 +106,7 @@ type DeployDBServiceRequest struct {
 	TeleportVersion string
 
 	// DiscoveryGroupName is the DiscoveryGroup to be used by the `discovery_service`.
-	DiscoveryGroupName string
+	DiscoveryGroupName *string
 
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
@@ -144,8 +145,9 @@ func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
 		r.TaskName = &taskName
 	}
 
-	if r.DiscoveryGroupName == "" {
-		return trace.BadParameter("discovery group name is required")
+	if r.DiscoveryGroupName == nil || *r.DiscoveryGroupName == "" {
+		discoveryGroupName := uuid.NewString()
+		r.DiscoveryGroupName = &discoveryGroupName
 	}
 
 	if r.ProxyServerHostPort == "" {
@@ -385,13 +387,9 @@ func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
 
 	// Enable Discovery Service with a specific Discovery Group.
 	serviceConfig.Discovery.EnabledFlag = "yes"
-	serviceConfig.Discovery.DiscoveryGroup = req.DiscoveryGroupName
-	// We need at least one matcher so the Discovery Service starts.
-	// TODO(marco): remove this requirement to support only dynamic matchers (RFD 125)
-	serviceConfig.Discovery.AWSMatchers = []config.AWSMatcher{{
-		Types:   []string{"rds"},
-		Regions: []string{req.Region},
-	}}
+	serviceConfig.Discovery.DiscoveryGroup = *req.DiscoveryGroupName
+	// TODO(marco): DiscoveryConfig won't start because it has no matchers.
+	// This should be changed when RFD125 adds the DiscoveryConfig resource.
 
 	// Ensure the DatabaseService only proxies the Databases discovered by the Discovery Service.
 	//
@@ -401,7 +399,7 @@ func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
 	serviceConfig.Databases.Service.EnabledFlag = "yes"
 	serviceConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
 		Labels: map[string]utils.Strings{
-			types.TeleportInternalDiscoveryGroupName: []string{req.DiscoveryGroupName},
+			types.TeleportInternalDiscoveryGroupName: []string{*req.DiscoveryGroupName},
 		},
 	}}
 
