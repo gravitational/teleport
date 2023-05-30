@@ -16,8 +16,8 @@ readonly MACOS_VERSION_MIN=10.13
 # Note: versions are the same as the corresponding git tags for each repo.
 readonly CBOR_VERSION=v0.10.2
 readonly CBOR_COMMIT=efa6c0886bae46bdaef9b679f61f4b9d8bc296ae
-readonly CRYPTO_VERSION=OpenSSL_1_1_1t
-readonly CRYPTO_COMMIT=830bf8e1e4749ad65c51b6a1d0d769ae689404ba
+readonly CRYPTO_VERSION=OpenSSL_1_1_1u
+readonly CRYPTO_COMMIT=70c2912f635aac8ab28629a2b5ea0c09740d2bda
 readonly FIDO2_VERSION=1.12.0
 readonly FIDO2_COMMIT=659a02679f99fd34a44e06e35dce90794f6ecc86
 
