@@ -6866,7 +6866,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test: "test exact match, one sudoer entry, one role",
+			test:    "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
@@ -6874,7 +6874,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6946,7 +6946,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6971,7 +6971,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test: "line deny",
+			test:    "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{

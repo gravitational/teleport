@@ -131,7 +131,7 @@ func CheckSudoers(contents []byte) error {
 	cmd := exec.Command(visudoBin, "--check", "--file", "-")
 
 	cmd.Stdin = bytes.NewBuffer(contents)
-	output, err := cmd.CombinedOutput()
+	output, err := cmd.Output()
 	if cmd.ProcessState.ExitCode() != 0 {
 		return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
 	}

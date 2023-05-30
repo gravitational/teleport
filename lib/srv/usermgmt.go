@@ -154,7 +154,7 @@ func sanitizeSudoersName(username string) string {
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
 	if ui.Mode == "" {
-		return nil, trace.BadParameter("Mode is a required arguement to CreateUser")
+		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
 	}
 
 	tempUser, err := u.backend.Lookup(name)
