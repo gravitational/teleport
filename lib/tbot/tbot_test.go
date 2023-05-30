@@ -22,13 +22,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libconfig "github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -42,8 +42,13 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestBot checks a lot of things
-// TODO: Describe this awesome test?
+// TestBot is a one-shot run of the bot that communicates with a stood up
+// in memory auth server. This auth server is configured with resources to
+// support the testing of app/db destinations.
+// This is effectively as end-to-end as tbot testing gets.
+//
+// TODO(noah): Make this test more extensible for testing different kinds of
+// destination in future.
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -86,30 +91,16 @@ func TestBot(t *testing.T) {
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
-	// Wait for the app to become available. Sometimes this takes a bit
+	// Wait for the app/db to become available. Sometimes this takes a bit
 	// of time in CI.
 	require.Eventually(t, func() bool {
 		_, err := getApp(ctx, rootClient, appName)
+		if err != nil {
+			return false
+		}
+		_, err = getDatabase(ctx, rootClient, "foo")
 		return err == nil
 	}, 10*time.Second, 100*time.Millisecond)
-
-	// Wait for the database to become available. Sometimes this takes a bit
-	// of time in CI.
-	for i := 0; i < 10; i++ {
-		_, err := getDatabase(context.Background(), rootClient, "foo")
-		if err == nil {
-			break
-		} else if !trace.IsNotFound(err) {
-			require.NoError(t, err)
-		}
-
-		if i >= 9 {
-			t.Fatalf("database never became available")
-		}
-
-		t.Logf("Database not yet available, waiting...")
-		time.Sleep(time.Second * 1)
-	}
 
 	// Make and join a new bot instance.
 	const roleName = "destination-role"
@@ -181,7 +172,7 @@ func TestBot(t *testing.T) {
 		require.ElementsMatch(t, []string{botParams.RoleName}, tlsIdent.Groups)
 	})
 
-	t.Run("validate identity destination", func(t *testing.T) {
+	t.Run("validate templates", func(t *testing.T) {
 		// Check destinations filled as expected
 		dest := botConfig.Destinations[0]
 		destImpl, err := dest.GetDestination()
@@ -200,23 +191,8 @@ func TestBot(t *testing.T) {
 		destImpl, err := dest.GetDestination()
 		require.NoError(t, err)
 
-		keyBytes, err := destImpl.Read(identity.PrivateKeyKey)
-		require.NoError(t, err)
-		certBytes, err := destImpl.Read(identity.TLSCertKey)
-		require.NoError(t, err)
-		hostCABytes, err := destImpl.Read(config.DefaultHostCAPath)
-		require.NoError(t, err)
-		ident := &identity.Identity{}
-		err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
-		require.NoError(t, err)
-
-		tlsIdent, err := tlsca.FromSubject(
-			ident.X509Cert.Subject, ident.X509Cert.NotAfter,
-		)
-		require.NoError(t, err)
-
 		// Validate that the correct identity fields have been set
-		route := tlsIdent.RouteToApp
+		route := tlsIdentFromDest(t, destImpl).RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "foo.example.com", route.PublicAddr)
 		require.NotEmpty(t, route.SessionID)
@@ -227,26 +203,30 @@ func TestBot(t *testing.T) {
 		destImpl, err := dest.GetDestination()
 		require.NoError(t, err)
 
-		keyBytes, err := destImpl.Read(identity.PrivateKeyKey)
-		require.NoError(t, err)
-		certBytes, err := destImpl.Read(identity.TLSCertKey)
-		require.NoError(t, err)
-		hostCABytes, err := destImpl.Read(config.DefaultHostCAPath)
-		require.NoError(t, err)
-		ident := &identity.Identity{}
-		err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
-		require.NoError(t, err)
-
-		tlsIdent, err := tlsca.FromSubject(
-			ident.X509Cert.Subject, ident.X509Cert.NotAfter,
-		)
-		require.NoError(t, err)
-
 		// Validate that the correct identity fields have been set
-		route := tlsIdent.RouteToDatabase
+		route := tlsIdentFromDest(t, destImpl).RouteToDatabase
 		require.Equal(t, "foo", route.ServiceName)
 		require.Equal(t, "bar", route.Database)
 		require.Equal(t, "baz", route.Username)
 		require.Equal(t, "mysql", route.Protocol)
 	})
+}
+
+func tlsIdentFromDest(t *testing.T, dest bot.Destination) *tlsca.Identity {
+	t.Helper()
+	keyBytes, err := dest.Read(identity.PrivateKeyKey)
+	require.NoError(t, err)
+	certBytes, err := dest.Read(identity.TLSCertKey)
+	require.NoError(t, err)
+	hostCABytes, err := dest.Read(config.DefaultHostCAPath)
+	require.NoError(t, err)
+	ident := &identity.Identity{}
+	err = identity.ReadTLSIdentityFromKeyPair(ident, keyBytes, certBytes, [][]byte{hostCABytes})
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(
+		ident.X509Cert.Subject, ident.X509Cert.NotAfter,
+	)
+	require.NoError(t, err)
+	return tlsIdent
 }
