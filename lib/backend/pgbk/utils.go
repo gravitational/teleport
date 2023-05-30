@@ -51,10 +51,9 @@ func tryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 		return
 	}
 
-	// this will error out if the encoding of template1 is not UTF8; in such
-	// cases, the database creation should probably be done manually anyway
-	createDB := fmt.Sprintf("CREATE DATABASE \"%v\" ENCODING UTF8", poolConfig.ConnConfig.Database)
-	if _, err := pgConn.Exec(ctx, createDB); err != nil && !isCode(err, pgerrcode.DuplicateDatabase) {
+	// the database name is not a string but an identifier, so we can't use query parameters for it
+	createDB := fmt.Sprintf("CREATE DATABASE \"%v\" TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C'", poolConfig.ConnConfig.Database)
+	if _, err := pgConn.Exec(ctx, createDB, pgx.QuerySimpleProtocol(true)); err != nil && !isCode(err, pgerrcode.DuplicateDatabase) {
 		// CREATE will check permissions first and we may not have CREATEDB
 		// privileges in more hardened setups; the subsequent connection
 		// will fail immediately if we can't connect, anyway, so we can log

@@ -43,7 +43,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	poolConfig.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
-		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable")
+		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable", pgx.QuerySimpleProtocol(true))
 		return trace.Wrap(err)
 	}
 
@@ -154,13 +154,14 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 			CREATE TABLE IF NOT EXISTS migrate (
 				version int PRIMARY KEY,
 				created timestamptz NOT NULL DEFAULT now()
-			)`,
+			)`, pgx.QuerySimpleProtocol(true),
 		); err != nil && !isCode(err, pgerrcode.InsufficientPrivilege) {
 			return trace.Wrap(err)
 		}
 
 		if err := tx.QueryRow(ctx,
 			"SELECT COALESCE(max(version), 0) FROM migrate",
+			pgx.QuerySimpleProtocol(true),
 		).Scan(&version); err != nil {
 			return trace.Wrap(err)
 		}
@@ -175,6 +176,7 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 				);
 				CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
 				INSERT INTO migrate (version) VALUES (2);`,
+				pgx.QuerySimpleProtocol(true),
 			); err != nil {
 				return trace.Wrap(err)
 			}
