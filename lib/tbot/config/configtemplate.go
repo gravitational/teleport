@@ -106,7 +106,7 @@ type Template interface {
 	Render(
 		ctx context.Context,
 		bot Bot,
-		routedIdentity, unroutedIdentity *identity.Identity,
+		identity *identity.Identity,
 		destination *DestinationConfig,
 	) error
 }

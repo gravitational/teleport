@@ -168,9 +168,17 @@ func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 // attempts to trigger a renewal via the debounced reload channel when it
 // detects the entry into an important rotation phase.
 func (b *Bot) watchCARotations(ctx context.Context, queueReload func()) error {
-	clusterName := b.ident().ClusterName
 	b.log.Debugf("Attempting to establish watch for CA events")
-	watcher, err := b.Client().NewWatcher(ctx, types.Watch{
+
+	ident := b.ident()
+	client, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
+	if err != nil {
+		return trace.Wrap(err, "creating client for ca watcher")
+	}
+	defer client.Close()
+
+	clusterName := ident.ClusterName
+	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
 			Kind: types.KindCertAuthority,
 			Filter: types.CertAuthorityFilter{

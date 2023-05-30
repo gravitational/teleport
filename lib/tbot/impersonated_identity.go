@@ -19,15 +19,17 @@ package tbot
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -110,6 +112,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 // certs.
 func (b *Bot) generateIdentity(
 	ctx context.Context,
+	client auth.ClientI,
 	currentIdentity *identity.Identity,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
@@ -154,7 +157,6 @@ func (b *Bot) generateIdentity(
 
 	// First, ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	client := b.Client()
 	certs, err := client.GenerateUserCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -285,7 +287,7 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	return apps[0], nil
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
+func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
 	if appCfg.App == "" {
 		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
 	}
@@ -296,10 +298,9 @@ func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *co
 	}
 
 	// TODO: AWS?
-	ident := b.ident()
 	ws, err := client.CreateAppSession(ctx, types.CreateAppSessionRequest{
-		ClusterName: ident.ClusterName,
-		Username:    ident.X509Cert.Subject.CommonName,
+		ClusterName: botIdentity.ClusterName,
+		Username:    botIdentity.X509Cert.Subject.CommonName,
 		PublicAddr:  app.GetPublicAddr(),
 	})
 	if err != nil {
@@ -315,44 +316,39 @@ func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *co
 		Name:        app.GetName(),
 		SessionID:   ws.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
-		ClusterName: ident.ClusterName,
+		ClusterName: botIdentity.ClusterName,
 	}, nil
 }
 
 // generateImpersonatedIdentity generates an impersonated identity for a given
-// destination.
-//
-// It returns two identities:
-// - unroutedIdentity: impersonates the roles of the destination, but does not
-// include any routing specified within the destination. This gives an
-// identity which can be used to act as the roleset when interacting with the
-// Teleport API.
-// - routedIdentity: impersonates the roles and routes of the destination.
-// This identity should be the one actually written to the destination, but,
-// may not behave as expected when used to interact with the Teleport API
+// destination. It also returns a client that is authenticated with that
+// impersonated identity.
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
+	botClient auth.ClientI,
+	botIdentity *identity.Identity,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
-) (routedIdentity *identity.Identity, unroutedIdentity *identity.Identity, err error) {
-	unroutedIdentity, err = b.generateIdentity(
-		ctx, b.ident(), destCfg, defaultRoles, nil,
+) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
+	impersonatedIdentity, err = b.generateIdentity(
+		ctx, botClient, botIdentity, destCfg, defaultRoles, nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
+	// create a client that uses the impersonated identity, so that when we
+	// fetch information, we can ensure access rights are enforced.
+	impersonatedClient, err = b.AuthenticatedUserClientFromIdentity(ctx, impersonatedIdentity)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	// closure of this client is managed by caller
+
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
 	if destCfg.Database != nil {
-		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-
-		defer impClient.Close()
-
-		route, err := b.getRouteToDatabase(ctx, impClient, destCfg.Database)
+		route, err := b.getRouteToDatabase(ctx, impersonatedClient, destCfg.Database)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -361,7 +357,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 		if err != nil {
@@ -370,12 +366,12 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
 
-		return routedIdentity, unroutedIdentity, nil
+		return routedIdentity, impersonatedClient, nil
 	} else if destCfg.KubernetesCluster != nil {
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
 		})
 		if err != nil {
@@ -384,20 +380,14 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
 
-		return routedIdentity, unroutedIdentity, nil
+		return routedIdentity, impersonatedClient, nil
 	} else if destCfg.App != nil {
-		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		defer impClient.Close()
-
-		routeToApp, err := b.getRouteToApp(ctx, impClient, destCfg.App)
+		routeToApp, err := b.getRouteToApp(ctx, botIdentity, impersonatedClient, destCfg.App)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
@@ -406,20 +396,19 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		b.log.Infof("Generated identity for app %q", *destCfg.App)
 
-		return routedIdentity, unroutedIdentity, nil
+		return routedIdentity, impersonatedClient, nil
 	} else if destCfg.Cluster != "" {
-		routedIdentity, err := b.generateIdentity(
-			ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
-				req.RouteToCluster = destCfg.Cluster
-			},
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.RouteToCluster = destCfg.Cluster
+		},
 		)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return routedIdentity, unroutedIdentity, nil
+		return routedIdentity, impersonatedClient, nil
 	}
 
-	return unroutedIdentity, unroutedIdentity, nil
+	return impersonatedIdentity, impersonatedClient, nil
 }
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
@@ -434,15 +423,145 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 	return conditions.Roles, nil
 }
 
+// destinationRenewalCache is used to cache information during a renewal to pass
+// to destinations. This prevents them all hammering the auth server with
+// requests for the same information. This is shared between all of the
+// destinations.
+type destinationRenewalCache struct {
+	client auth.ClientI
+	cfg    *config.BotConfig
+
+	mu sync.Mutex
+	// These are protected by getter/setters with mutex locks
+	_cas       map[types.CertAuthType][]types.CertAuthority
+	_authPong  *proto.PingResponse
+	_proxyPong *webclient.PingResponse
+}
+
+// certAuthorities returns cached CAs of the given type.
+func (drc *destinationRenewalCache) certAuthorities(
+	caType types.CertAuthType,
+) []types.CertAuthority {
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+
+	if drc._cas == nil {
+		return nil
+	}
+
+	return drc._cas[caType]
+}
+
+// GetCertAuthorities returns the possibly cached CAs of the given type and
+// requests them from the server if unavailable.
+func (drc *destinationRenewalCache) GetCertAuthorities(
+	ctx context.Context, caType types.CertAuthType,
+) ([]types.CertAuthority, error) {
+	if cas := drc.certAuthorities(caType); len(cas) > 0 {
+		return cas, nil
+	}
+
+	cas, err := drc.client.GetCertAuthorities(ctx, caType, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+
+	drc._cas[caType] = cas
+	return cas, nil
+}
+
+// AuthPing pings the auth server and returns the (possibly cached) response.
+func (drc *destinationRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+	if drc._authPong != nil {
+		return drc._authPong, nil
+	}
+
+	pong, err := drc.client.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	drc._authPong = &pong
+
+	return &pong, nil
+}
+
+// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
+// Note that it relies on the auth server being configured with a sane proxy
+// public address.
+func (drc *destinationRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+	if drc._proxyPong != nil {
+		return drc._proxyPong, nil
+	}
+
+	// Note: this relies on the auth server's proxy address. We could
+	// potentially support some manual parameter here in the future if desired.
+	authPong, err := drc.AuthPing(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyPong, err := webclient.Ping(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: authPong.ProxyPublicAddr,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	drc._proxyPong = proxyPong
+
+	return proxyPong, nil
+}
+
+func (drc *destinationRenewalCache) Config() *config.BotConfig {
+	return drc.cfg
+}
+
+type destinationProvider struct {
+	*destinationRenewalCache
+	// this client should be using the destinations identity
+	client auth.ClientI
+}
+
+func (dp *destinationProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	return dp.client.GetRemoteClusters(opts...)
+}
+
+func (dp *destinationProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	return dp.client.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+}
+
+func (dp *destinationProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	return dp.client.GetCertAuthority(ctx, id, loadKeys)
+}
+
 // renewDestinations performs a single renewal
 func (b *Bot) renewDestinations(
 	ctx context.Context,
 ) error {
+	botIdentity := b.ident()
+	client, err := b.AuthenticatedUserClientFromIdentity(ctx, botIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer client.Close()
+
+	drc := &destinationRenewalCache{
+		client: client,
+	}
+
 	// Determine the default role list based on the bot role. The role's
 	// name should match the certificate's Key ID (user and role names
 	// should all match bot-$name)
-	botResourceName := b.ident().X509Cert.Subject.CommonName
-	defaultRoles, err := fetchDefaultRoles(ctx, b.Client(), botResourceName)
+	botResourceName := botIdentity.X509Cert.Subject.CommonName
+	defaultRoles, err := fetchDefaultRoles(ctx, client, botResourceName)
 	if err != nil {
 		b.log.WithError(err).Warnf("Unable to determine default roles, no roles will be requested if unspecified")
 		defaultRoles = []string{}
@@ -470,15 +589,25 @@ func (b *Bot) renewDestinations(
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		routedIdentity, unroutedIdentity, err := b.generateImpersonatedIdentity(ctx, dest, defaultRoles)
+		impersonatedIdentity, impersonatedClient, err := b.generateImpersonatedIdentity(
+			ctx, client, botIdentity, dest, defaultRoles,
+		)
 		if err != nil {
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
+		defer impersonatedClient.Close()
 
-		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, routedIdentity))
+		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, impersonatedIdentity))
 
-		if err := identity.SaveIdentity(routedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
+		if err := identity.SaveIdentity(impersonatedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
 			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
+		}
+
+		// Create a destination provider to bundle up all the dependencies that
+		// a destination template might need to render.
+		dp := &destinationProvider{
+			destinationRenewalCache: drc,
+			client:                  impersonatedClient,
 		}
 
 		for _, templateConfig := range dest.Configs {
@@ -487,16 +616,13 @@ func (b *Bot) renewDestinations(
 				return trace.Wrap(err)
 			}
 
-			if err := template.Render(ctx, b, routedIdentity, unroutedIdentity, dest); err != nil {
+			if err := template.Render(ctx, dp, impersonatedIdentity, dest); err != nil {
 				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 				return trace.Wrap(err)
 			}
 		}
 	}
 
-	// Purge the CA cache. We could be smarter about this in the future if
-	// desired, since generally CAs don't change that often.
-	b.clearCertAuthorities()
 	return nil
 }
 

@@ -4,12 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/sirupsen/logrus"
 	"math"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -17,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,15 +59,14 @@ func (b *Bot) renewBotIdentityLoop(
 		}
 
 		var err error
-		var partiallyRenewedIdentity *identity.Identity
 		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
 			b.log.Infof(
 				"Renewing bot identity. Attempt %d of %d.",
 				attempt,
 				botIdentityRenewalRetryLimit,
 			)
-			partiallyRenewedIdentity, err = b.renewBotIdentity(
-				ctx, botDestination, partiallyRenewedIdentity,
+			err = b.renewBotIdentity(
+				ctx, botDestination,
 			)
 			if err == nil {
 				break
@@ -101,37 +100,11 @@ func (b *Bot) renewBotIdentityLoop(
 func (b *Bot) renewBotIdentity(
 	ctx context.Context,
 	botDestination bot.Destination,
-	partiallyRenewedIdentity *identity.Identity,
-) (*identity.Identity, error) {
-	if partiallyRenewedIdentity != nil {
-		// If we were able to fetch a new identity in the last attempt, we do
-		// not want to try and fetch another one as this could cause a
-		// generation lock-out. So instead, we only retry the saving and
-		// creation of new client.
-		if err := identity.SaveIdentity(
-			partiallyRenewedIdentity,
-			botDestination,
-			identity.BotKinds()...,
-		); err != nil {
-			return partiallyRenewedIdentity, trace.Wrap(err)
-		}
-
-		newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, partiallyRenewedIdentity)
-		if err != nil {
-			return partiallyRenewedIdentity, trace.Wrap(err)
-		}
-
-		b.setClient(newClient)
-		b.setIdent(partiallyRenewedIdentity)
-		b.log.WithField(
-			"identity", describeTLSIdentity(b.log, partiallyRenewedIdentity),
-		).Debug("Bot now using new identity.")
-		return nil, nil
-	}
-
+) error {
+	currentIdentity := b.ident()
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
-		return nil, trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
+		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
 	var newIdentity *identity.Identity
@@ -139,38 +112,33 @@ func (b *Bot) renewBotIdentity(
 	if b.cfg.Onboarding.RenewableJoinMethod() {
 		// When using a renewable join method, we use GenerateUserCerts to
 		// request a new certificate using our current identity.
+		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, b.ident())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		newIdentity, err = botIdentityFromAuth(
-			ctx, b.log, b.ident(), b.Client(), b.cfg.CertificateTTL,
+			ctx, b.log, currentIdentity, authClient, b.cfg.CertificateTTL,
 		)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
 		// When using the non-renewable join methods, we rejoin each time rather
 		// than using certificate renewal.
 		newIdentity, err = botIdentityFromToken(b.log, b.cfg)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
-		return newIdentity, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")
 
-	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
-	if err != nil {
-		return newIdentity, trace.Wrap(err)
-	}
-
-	b.setClient(newClient)
 	b.setIdent(newIdentity)
-	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot now using new identity.")
-
-	// We only return the identity if it's been a partial success - otherwise,
-	// the new identity is propagated by `b.setIdent`
-	return nil, nil
+	return nil
 }
 
 // botIdentityFromAuth uses an existing identity to request a new from the auth

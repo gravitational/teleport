@@ -31,9 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
@@ -49,13 +46,9 @@ type Bot struct {
 	modules modules.Modules
 
 	// These are protected by getter/setters with mutex locks
-	mu         sync.Mutex
-	_client    auth.ClientI
-	_ident     *identity.Identity
-	_authPong  *proto.PingResponse
-	_proxyPong *webclient.PingResponse
-	_cas       map[types.CertAuthType][]types.CertAuthority
-	started    bool
+	mu      sync.Mutex
+	_ident  *identity.Identity
+	started bool
 }
 
 func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
@@ -67,34 +60,7 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
 		cfg:     cfg,
 		log:     log,
 		modules: modules.GetModules(),
-
-		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
-}
-
-// Config returns the current bot config
-func (b *Bot) Config() *config.BotConfig {
-	return b.cfg
-}
-
-// Client retrieves the current auth client.
-func (b *Bot) Client() auth.ClientI {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b._client
-}
-
-func (b *Bot) setClient(client auth.ClientI) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Make sure the previous client is closed.
-	if b._client != nil {
-		_ = b._client.Close()
-	}
-
-	b._client = client
 }
 
 func (b *Bot) ident() *identity.Identity {
@@ -121,108 +87,6 @@ func (b *Bot) markStarted() error {
 	b.started = true
 
 	return nil
-}
-
-// certAuthorities returns cached CAs of the given type.
-func (b *Bot) certAuthorities(caType types.CertAuthType) []types.CertAuthority {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b._cas[caType]
-}
-
-// clearCertAuthorities purges the CA cache. This should be run at least as
-// frequently as CAs are rotated.
-func (b *Bot) clearCertAuthorities() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b._cas = map[types.CertAuthType][]types.CertAuthority{}
-}
-
-// GetCertAuthorities returns the possibly cached CAs of the given type and
-// requests them from the server if unavailable.
-func (b *Bot) GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error) {
-	if cas := b.certAuthorities(caType); len(cas) > 0 {
-		return cas, nil
-	}
-
-	cas, err := b.Client().GetCertAuthorities(ctx, caType, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b._cas[caType] = cas
-	return cas, nil
-}
-
-// authPong returns the last ping response from the auth server. It may be nil
-// if no ping has succeeded.
-func (b *Bot) authPong() *proto.PingResponse {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b._authPong
-}
-
-// AuthPing pings the auth server and returns the (possibly cached) response.
-func (b *Bot) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
-	if authPong := b.authPong(); authPong != nil {
-		return authPong, nil
-	}
-
-	pong, err := b.Client().Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b._authPong = &pong
-
-	return &pong, nil
-}
-
-// proxyPong returns the last proxy ping response. It may be nil if no proxy
-// ping has succeeded.
-func (b *Bot) proxyPong() *webclient.PingResponse {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b._proxyPong
-}
-
-// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
-// Note that it relies on the auth server being configured with a sane proxy
-// public address.
-func (b *Bot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
-	if proxyPong := b.proxyPong(); proxyPong != nil {
-		return proxyPong, nil
-	}
-
-	// Note: this relies on the auth server's proxy address. We could
-	// potentially support some manual parameter here in the future if desired.
-	authPong, err := b.AuthPing(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyPong, err := webclient.Ping(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: authPong.ProxyPublicAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b._proxyPong = proxyPong
-
-	return proxyPong, nil
 }
 
 func (b *Bot) Run(ctx context.Context) error {
@@ -404,16 +268,16 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return unlock, trace.Wrap(err)
 	}
 
-	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
+	testClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
 	if err != nil {
 		return unlock, trace.Wrap(err)
 	}
 
-	b.setClient(newClient)
 	b.setIdent(newIdentity)
 
-	// Attempt a request to make sure our client works.
-	if _, err := b.Client().Ping(ctx); err != nil {
+	// Attempt a request to make sure our client works so we can exit early if
+	// we are in a bad state.
+	if _, err := testClient.Ping(ctx); err != nil {
 		return unlock, trace.Wrap(err, "unable to communicate with auth server")
 	}
 	b.log.Info("Bot initialization complete.")

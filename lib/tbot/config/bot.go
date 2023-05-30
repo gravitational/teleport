@@ -18,16 +18,16 @@ package config
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/services"
 )
 
-// Bot is an interface covering various public tbot.Bot methods to circumvent
-// import cycle issues.
+// Bot is an interface that allows Templates to fetch information they need to
+// render.
 type Bot interface {
 	// AuthPing pings the auth server and returns the (possibly cached) response.
 	AuthPing(ctx context.Context) (*proto.PingResponse, error)
@@ -41,10 +41,11 @@ type Bot interface {
 	// requests them from the server if unavailable.
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType) ([]types.CertAuthority, error)
 
-	// AuthenticatedUserClientFromIdentity returns a client backed by a specific
-	// identity.
-	AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)
-
 	// Config returns the current bot config
 	Config() *BotConfig
+
+	// TODO: comment these
+	GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error)
+	GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 }
