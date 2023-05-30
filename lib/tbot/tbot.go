@@ -236,7 +236,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		// immediately renew it so we know that after initialisation we have the
 		// full certificate TTL.
 		if err := b.checkIdentity(loadedIdent); err != nil {
-			return nil, trace.Wrap(err)
+			return unlock, trace.Wrap(err)
 		}
 		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, loadedIdent)
 		if err != nil {
@@ -260,7 +260,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	} else {
 		// There's no loaded identity to work with, and they've not configured
 		// a token to use to request an identity :(
-		return nil, trace.BadParameter("no token configured to load identity from")
+		return unlock, trace.BadParameter("no token configured to load identity from")
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
