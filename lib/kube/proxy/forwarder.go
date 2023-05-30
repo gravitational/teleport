@@ -1407,6 +1407,10 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.Dial(url, nil)
 	if err != nil {
+		if respTarget == nil {
+			return nil, trace.Wrap(err)
+		}
+		defer respTarget.Body.Close()
 		msg, err := io.ReadAll(respTarget.Body)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1416,7 +1420,6 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 		if err := json.Unmarshal(msg, &obj); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
