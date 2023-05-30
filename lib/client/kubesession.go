@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -45,6 +46,7 @@ type KubeSession struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	meta   types.SessionTracker
+	wg     sync.WaitGroup
 }
 
 // NewKubeSession joins a live kubernetes session.
@@ -63,7 +65,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
-	ws, resp, err := dialer.Dial(joinEndpoint, nil)
+	ws, resp, err := dialer.DialContext(ctx, joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
 	}
@@ -111,7 +113,7 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 	go handleOutgoingResizeEvents(ctx, stream, term)
 	go handleIncomingResizeEvents(stream, term)
 
-	s := &KubeSession{stream, term, ctx, cancel, meta}
+	s := &KubeSession{stream, term, ctx, cancel, meta, sync.WaitGroup{}}
 	err = s.handleMFA(ctx, tc, mode, stdout)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -203,7 +205,10 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 
 // pipeInOut starts background tasks that copy input to and from the terminal.
 func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mode types.SessionParticipantMode) {
+	// wait for the session to copy everything
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		defer s.cancel()
 		_, err := io.Copy(stdout, s.stream)
 		if err != nil {
@@ -231,7 +236,8 @@ func (s *KubeSession) pipeInOut(stdout io.Writer, enableEscapeSequences bool, mo
 
 // Wait waits for the session to finish.
 func (s *KubeSession) Wait() {
-	<-s.ctx.Done()
+	// Wait for the session to copy everything into stdout
+	s.wg.Wait()
 }
 
 // Close sends a close request to the other end and waits it to gracefully terminate the connection.
@@ -240,7 +246,7 @@ func (s *KubeSession) Close() error {
 		return trace.Wrap(err)
 	}
 
-	<-s.ctx.Done()
+	s.wg.Wait()
 	return trace.Wrap(s.Detach())
 }
 

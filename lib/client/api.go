@@ -3384,10 +3384,13 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
@@ -3951,6 +3954,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)
@@ -4783,13 +4787,20 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	headlessAuthn, err := proxyClient.currentCluster.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	headlessAuthn, err := rootClient.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4805,11 +4816,11 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	}
 
 	if !ok {
-		err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
 		return trace.Wrap(err)
 	}
 
-	chall, err := proxyClient.currentCluster.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -4823,6 +4834,6 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	return trace.Wrap(err)
 }

@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -127,9 +128,14 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	output := cf.Stdout()
+	if cf.Quiet {
+		output = io.Discard
+	}
+
 	switch {
 	case app.IsAWSConsole():
-		return awsCliTpl.Execute(os.Stdout, map[string]string{
+		return awsCliTpl.Execute(output, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
 			"awsRoleARN": awsRoleARN,
@@ -149,8 +155,8 @@ func onAppLogin(cf *CLIConf) error {
 		// automatically login with right identity.
 		cmd := exec.Command(cf.executablePath, args...)
 		cmd.Stdin = os.Stdin
-		cmd.Stderr = os.Stderr
-		cmd.Stdout = os.Stdout
+		cmd.Stderr = cf.Stderr()
+		cmd.Stdout = output
 
 		log.Debugf("Running automatic az login: %v", cmd.String())
 		err := cf.RunCommand(cmd)
@@ -158,24 +164,24 @@ func onAppLogin(cf *CLIConf) error {
 			return trace.Wrap(err, "failed to automatically login with `az login` using identity %q; run with --debug for details", azureIdentity)
 		}
 
-		return azureCliTpl.Execute(os.Stdout, map[string]string{
+		return azureCliTpl.Execute(output, map[string]string{
 			"appName":  app.GetName(),
 			"identity": azureIdentity,
 		})
 
 	case app.IsGCP():
-		return gcpCliTpl.Execute(os.Stdout, map[string]string{
+		return gcpCliTpl.Execute(output, map[string]string{
 			"appName":        app.GetName(),
 			"serviceAccount": gcpServiceAccount,
 		})
 
 	case app.IsTCP():
-		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
+		return appLoginTCPTpl.Execute(output, map[string]string{
 			"appName": app.GetName(),
 		})
 
 	case localProxyRequiredForApp(tc):
-		return appLoginLocalProxyTpl.Execute(os.Stdout, map[string]interface{}{
+		return appLoginLocalProxyTpl.Execute(output, map[string]interface{}{
 			"appName": app.GetName(),
 		})
 
@@ -184,7 +190,7 @@ func onAppLogin(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+		return appLoginTpl.Execute(output, map[string]interface{}{
 			"appName":  app.GetName(),
 			"curlCmd":  curlCmd,
 			"insecure": cf.InsecureSkipVerify,
@@ -494,7 +500,7 @@ func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
 func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	appCerts, err := loadAppCertificate(tc, appName)
+	appCerts, _, err := loadAppCertificate(tc, appName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

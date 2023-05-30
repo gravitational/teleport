@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -62,20 +62,20 @@ type AlertCommand struct {
 // Initialize allows AlertCommand to plug itself into the CLI parser
 func (c *AlertCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
-	alert := app.Command("alerts", "Manage cluster alerts").Alias("alert")
+	alert := app.Command("alerts", "Manage cluster alerts.").Alias("alert")
 
-	c.alertList = alert.Command("list", "List cluster alerts").Alias("ls")
-	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts").Short('v').BoolVar(&c.verbose)
+	c.alertList = alert.Command("list", "List cluster alerts.").Alias("ls")
+	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts.").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.alertList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
-	c.alertCreate = alert.Command("create", "Create cluster alerts")
-	c.alertCreate.Arg("message", "Alert body message").Required().StringVar(&c.message)
+	c.alertCreate = alert.Command("create", "Create cluster alerts.")
+	c.alertCreate.Arg("message", "Alert body message.").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires (default 24h).").DurationVar(&c.ttl)
-	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high)").Default("low").EnumVar(&c.severity, "low", "medium", "high")
-	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2").StringVar(&c.labels)
+	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high).").Default("low").EnumVar(&c.severity, "low", "medium", "high")
+	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2.").StringVar(&c.labels)
 
-	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts")
+	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts.")
 	c.alertAck.Flag("ttl", "Time duration to acknowledge the cluster alert for.").DurationVar(&c.ttl)
 	c.alertAck.Flag("clear", "Clear the acknowledgment for the cluster alert.").BoolVar(&c.clear)
 	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").Required().StringVar(&c.reason)
@@ -84,7 +84,7 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *servicecfg.C
 	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
 	// handled by the ack command above
 	// This allows us to be consistent with our other `tctl xyz ls` commands
-	alert.Command("ack ls", "List acknowledged cluster alerts")
+	alert.Command("ack ls", "List acknowledged cluster alerts.")
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.
