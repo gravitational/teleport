@@ -279,7 +279,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 			return trace.Wrap(err)
 		}
 		r = tag.RowsAffected()
-		return trace.Wrap(err)
+		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
