@@ -25,15 +25,15 @@ type PluginStaticCredentials interface {
 
 	// GetAPIToken will return a flag indicating whether this object contains an API token
 	// credentials and the attached API token if possible.
-	GetAPIToken() (ok bool, apiToken string)
+	GetAPIToken() (apiToken string)
 
 	// GetBasicAuth will return a flag indicating whether this object contains basic auth
 	// credentials and the attached username and password if possible.
-	GetBasicAuth() (ok bool, username string, password string)
+	GetBasicAuth() (username string, password string)
 
 	// GetOAuthClientSecret will return a flag indicating whether this object contains OAuth
 	// client secret credentials and the attached client ID and client secret.
-	GetOAuthClientSecret() (ok bool, clientID string, clientSecret string)
+	GetOAuthClientSecret() (clientID string, clientSecret string)
 }
 
 // NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
@@ -104,35 +104,35 @@ func (p *PluginStaticCredentialsV1) setStaticFields() {
 
 // GetAPIToken will return a flag indicating whether this object contains an API token
 // credentials and the attached API token if possible.
-func (p *PluginStaticCredentialsV1) GetAPIToken() (ok bool, apiToken string) {
+func (p *PluginStaticCredentialsV1) GetAPIToken() (apiToken string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_APIToken)
 	if !ok {
-		return false, ""
+		return ""
 	}
 
-	return true, credentials.APIToken
+	return credentials.APIToken
 }
 
 // GetBasicAuth will return a flag indicating whether this object contains basic auth
 // credentials and the attached username and password if possible.
-func (p *PluginStaticCredentialsV1) GetBasicAuth() (ok bool, username string, password string) {
+func (p *PluginStaticCredentialsV1) GetBasicAuth() (username string, password string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_BasicAuth)
 	if !ok {
-		return false, "", ""
+		return "", ""
 	}
 
-	return true, credentials.BasicAuth.Username, credentials.BasicAuth.Password
+	return credentials.BasicAuth.Username, credentials.BasicAuth.Password
 }
 
 // GetOAuthClientSecret will return a flag indicating whether this object contains OAuth
 // client secret credentials and the attached client ID and client secret.
-func (p *PluginStaticCredentialsV1) GetOAuthClientSecret() (ok bool, clientID string, clientSecret string) {
+func (p *PluginStaticCredentialsV1) GetOAuthClientSecret() (clientID string, clientSecret string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_OauthClientSecret)
 	if !ok {
-		return false, "", ""
+		return "", ""
 	}
 
-	return true, credentials.OauthClientSecret.ClientId, credentials.OauthClientSecret.ClientSecret
+	return credentials.OauthClientSecret.ClientId, credentials.OauthClientSecret.ClientSecret
 }
 
 // MatchSearch is a dummy value as credentials are not searchable.
