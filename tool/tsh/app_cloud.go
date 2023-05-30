@@ -36,7 +36,10 @@ func pickCloudApp[cloudApp any](cf *CLIConf, cloudFriendlyName string, matchRout
 			return defaultValue[cloudApp](), trace.Wrap(err)
 		}
 		log.WithError(err).Debugf("Failed to pick an active %v app, attempting to login into app %q", cloudFriendlyName, cf.AppName)
+		quiet := cf.Quiet
+		cf.Quiet = true
 		errLogin := onAppLogin(cf)
+		cf.Quiet = quiet
 		if errLogin != nil {
 			log.WithError(errLogin).Debugf("App login attempt failed")
 			// combine errors
