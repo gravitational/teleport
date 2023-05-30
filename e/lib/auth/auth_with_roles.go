@@ -317,21 +317,6 @@ func (ac *cloudWithRoles) UpdatePurchaseOrderPrefix(ctx context.Context, req *v1
 	return res, nil
 }
 
-// ListInvoices is deprecated
-func (ac *cloudWithRoles) ListInvoices(_ context.Context, _ *v1.EmptyRequest) (*v1.ListInvoicesResponse, error) {
-	return nil, trace.NotImplemented("ListInvoices is not implemented")
-}
-
-// UpdateAccount is deprecated
-func (ac *cloudWithRoles) UpdateAccount(_ context.Context, _ *v1.UpdateAccountRequest) (*v1.EmptyResponse, error) {
-	return nil, trace.NotImplemented("UpdateAccount is not implemented")
-}
-
-// ListBillingCycles is deprecated
-func (ac *cloudWithRoles) ListBillingCycles(_ context.Context, _ *v1.EmptyRequest) (*v1.ListBillingCyclesResponse, error) {
-	return nil, trace.NotImplemented("ListBillingCycles is not implemented")
-}
-
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")

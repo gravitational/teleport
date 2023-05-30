@@ -3,66 +3,6 @@
 
 import * as jspb from "google-protobuf";
 
-export class Account extends jspb.Message {
-  getContactEmail(): string;
-  setContactEmail(value: string): void;
-
-  getContactName(): string;
-  setContactName(value: string): void;
-
-  getCompanyName(): string;
-  setCompanyName(value: string): void;
-
-  getCompanyAddressCity(): string;
-  setCompanyAddressCity(value: string): void;
-
-  getCompanyAddressCountry(): string;
-  setCompanyAddressCountry(value: string): void;
-
-  getCompanyAddressLine1(): string;
-  setCompanyAddressLine1(value: string): void;
-
-  getCompanyAddressLine2(): string;
-  setCompanyAddressLine2(value: string): void;
-
-  getCompanyAddressPostalCode(): string;
-  setCompanyAddressPostalCode(value: string): void;
-
-  getCompanyAddressState(): string;
-  setCompanyAddressState(value: string): void;
-
-  getBalance(): number;
-  setBalance(value: number): void;
-
-  getUpgradeWindowStartHour(): number;
-  setUpgradeWindowStartHour(value: number): void;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): Account.AsObject;
-  static toObject(includeInstance: boolean, msg: Account): Account.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: Account, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): Account;
-  static deserializeBinaryFromReader(message: Account, reader: jspb.BinaryReader): Account;
-}
-
-export namespace Account {
-  export type AsObject = {
-    contactEmail: string,
-    contactName: string,
-    companyName: string,
-    companyAddressCity: string,
-    companyAddressCountry: string,
-    companyAddressLine1: string,
-    companyAddressLine2: string,
-    companyAddressPostalCode: string,
-    companyAddressState: string,
-    balance: number,
-    upgradeWindowStartHour: number,
-  }
-}
-
 export class StripeBillingAddressRequest extends jspb.Message {
   getName(): string;
   setName(value: string): void;
@@ -335,28 +275,6 @@ export namespace CreateSetupIntentResponse {
   }
 }
 
-export class ListInvoicesResponse extends jspb.Message {
-  clearInvoicesList(): void;
-  getInvoicesList(): Array<Invoice>;
-  setInvoicesList(value: Array<Invoice>): void;
-  addInvoices(value?: Invoice, index?: number): Invoice;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): ListInvoicesResponse.AsObject;
-  static toObject(includeInstance: boolean, msg: ListInvoicesResponse): ListInvoicesResponse.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: ListInvoicesResponse, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): ListInvoicesResponse;
-  static deserializeBinaryFromReader(message: ListInvoicesResponse, reader: jspb.BinaryReader): ListInvoicesResponse;
-}
-
-export namespace ListInvoicesResponse {
-  export type AsObject = {
-    invoicesList: Array<Invoice.AsObject>,
-  }
-}
-
 export class Invoice extends jspb.Message {
   getInvoiceId(): string;
   setInvoiceId(value: string): void;
@@ -402,110 +320,6 @@ export namespace Invoice {
     periodStart: number,
     invoicePdf: string,
     usageMau: number,
-  }
-}
-
-export class BillingCycle extends jspb.Message {
-  getCycleId(): number;
-  setCycleId(value: number): void;
-
-  getState(): string;
-  setState(value: string): void;
-
-  getTotalAmount(): number;
-  setTotalAmount(value: number): void;
-
-  getPeriodStart(): number;
-  setPeriodStart(value: number): void;
-
-  getPeriodEnd(): number;
-  setPeriodEnd(value: number): void;
-
-  clearItemsList(): void;
-  getItemsList(): Array<BillingCycleItem>;
-  setItemsList(value: Array<BillingCycleItem>): void;
-  addItems(value?: BillingCycleItem, index?: number): BillingCycleItem;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): BillingCycle.AsObject;
-  static toObject(includeInstance: boolean, msg: BillingCycle): BillingCycle.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: BillingCycle, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): BillingCycle;
-  static deserializeBinaryFromReader(message: BillingCycle, reader: jspb.BinaryReader): BillingCycle;
-}
-
-export namespace BillingCycle {
-  export type AsObject = {
-    cycleId: number,
-    state: string,
-    totalAmount: number,
-    periodStart: number,
-    periodEnd: number,
-    itemsList: Array<BillingCycleItem.AsObject>,
-  }
-}
-
-export class BillingCycleItem extends jspb.Message {
-  getCycleItemId(): string;
-  setCycleItemId(value: string): void;
-
-  getQuantity(): number;
-  setQuantity(value: number): void;
-
-  getAmount(): number;
-  setAmount(value: number): void;
-
-  getPlanScheme(): string;
-  setPlanScheme(value: string): void;
-
-  getPlanResourceKind(): string;
-  setPlanResourceKind(value: string): void;
-
-  getPlanDescription(): string;
-  setPlanDescription(value: string): void;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): BillingCycleItem.AsObject;
-  static toObject(includeInstance: boolean, msg: BillingCycleItem): BillingCycleItem.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: BillingCycleItem, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): BillingCycleItem;
-  static deserializeBinaryFromReader(message: BillingCycleItem, reader: jspb.BinaryReader): BillingCycleItem;
-}
-
-export namespace BillingCycleItem {
-  export type AsObject = {
-    cycleItemId: string,
-    quantity: number,
-    amount: number,
-    planScheme: string,
-    planResourceKind: string,
-    planDescription: string,
-  }
-}
-
-export class ListBillingCyclesResponse extends jspb.Message {
-  clearCyclesList(): void;
-  getCyclesList(): Array<BillingCycle>;
-  setCyclesList(value: Array<BillingCycle>): void;
-  addCycles(value?: BillingCycle, index?: number): BillingCycle;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): ListBillingCyclesResponse.AsObject;
-  static toObject(includeInstance: boolean, msg: ListBillingCyclesResponse): ListBillingCyclesResponse.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: ListBillingCyclesResponse, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): ListBillingCyclesResponse;
-  static deserializeBinaryFromReader(message: ListBillingCyclesResponse, reader: jspb.BinaryReader): ListBillingCyclesResponse;
-}
-
-export namespace ListBillingCyclesResponse {
-  export type AsObject = {
-    cyclesList: Array<BillingCycle.AsObject>,
   }
 }
 
@@ -654,28 +468,6 @@ export namespace UpdateCardRequest {
     prevCardId: string,
     nextCardId: string,
     isDefault: boolean,
-  }
-}
-
-export class UpdateAccountRequest extends jspb.Message {
-  hasAccount(): boolean;
-  clearAccount(): void;
-  getAccount(): Account | undefined;
-  setAccount(value?: Account): void;
-
-  serializeBinary(): Uint8Array;
-  toObject(includeInstance?: boolean): UpdateAccountRequest.AsObject;
-  static toObject(includeInstance: boolean, msg: UpdateAccountRequest): UpdateAccountRequest.AsObject;
-  static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-  static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-  static serializeBinaryToWriter(message: UpdateAccountRequest, writer: jspb.BinaryWriter): void;
-  static deserializeBinary(bytes: Uint8Array): UpdateAccountRequest;
-  static deserializeBinaryFromReader(message: UpdateAccountRequest, reader: jspb.BinaryReader): UpdateAccountRequest;
-}
-
-export namespace UpdateAccountRequest {
-  export type AsObject = {
-    account?: Account.AsObject,
   }
 }
 

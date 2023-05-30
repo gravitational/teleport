@@ -13,8 +13,6 @@ import (
 type MockedClient struct {
 	// MockSubmitUsageReports reports usage
 	MockSubmitUsageReports func(in *v1.SubmitUsageReportsRequest) (*v1.EmptyResponse, error)
-	// MockListInvoices lists customer invoices
-	MockListInvoices func() (*v1.ListInvoicesResponse, error)
 	// MockGetBillingInformation returns customer billing information
 	MockGetBillingInformation func() (*v1.GetBillingInformationResponse, error)
 	// MockCreateSetupIntent creates an intent in stripe and returns the client secret
@@ -25,10 +23,6 @@ type MockedClient struct {
 	MockRemoveCard func(in *v1.RemoveCardRequest) (*v1.EmptyResponse, error)
 	// MockUpdateCard updates tenant credit card
 	MockUpdateCard func(in *v1.UpdateCardRequest) (*v1.EmptyResponse, error)
-	// MockUpdateAccount updates tenant account information
-	MockUpdateAccount func(in *v1.UpdateAccountRequest) (*v1.EmptyResponse, error)
-	// MockListBillingCycles lists tenant billing cycles
-	MockListBillingCycles func() (*v1.ListBillingCyclesResponse, error)
 	// MockSendAccountRecoveryLink sends an email with a recovery link to user.
 	MockSendAccountRecoveryLink func() (*v1.EmptyResponse, error)
 	// MockSendAccountLocked sends an email notifying user their account was locked.
@@ -63,15 +57,6 @@ func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsag
 	}
 
 	return nil, trace.NotImplemented("SubmitUsageReports is not implemented")
-}
-
-// ListInvoices lists customer invoices
-func (m *MockedClient) ListInvoices(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.ListInvoicesResponse, error) {
-	if m.MockListInvoices != nil {
-		return m.MockListInvoices()
-	}
-
-	return nil, trace.NotImplemented("ListInvoices is not implemented")
 }
 
 func (m *MockedClient) GetBillingInformation(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetBillingInformationResponse, error) {
@@ -112,22 +97,6 @@ func (m *MockedClient) UpdateCard(ctx context.Context, in *v1.UpdateCardRequest,
 	}
 
 	return nil, trace.NotImplemented("UpdateCard is not implemented")
-}
-
-func (m *MockedClient) UpdateAccount(ctx context.Context, in *v1.UpdateAccountRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
-	if m.MockUpdateAccount != nil {
-		return m.MockUpdateAccount(in)
-	}
-
-	return nil, trace.NotImplemented("UpdateAccount is not implemented")
-}
-
-func (m *MockedClient) ListBillingCycles(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.ListBillingCyclesResponse, error) {
-	if m.MockListBillingCycles != nil {
-		return m.MockListBillingCycles()
-	}
-
-	return nil, trace.NotImplemented("ListBillingCycles is not implemented")
 }
 
 func (m *MockedClient) SendAccountRecoveryLink(ctx context.Context, in *v1.SendAccountRecoveryLinkRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
