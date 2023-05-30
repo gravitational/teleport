@@ -182,14 +182,14 @@ type OnboardingConfig struct {
 	//
 	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token"`
+	TokenValue string `yaml:"token,omitempty"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path"`
+	CAPath string `yaml:"ca_path,omitempty"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins"`
+	CAPins []string `yaml:"ca_pins,omitempty"`
 
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate

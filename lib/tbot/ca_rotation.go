@@ -111,7 +111,7 @@ func (cb *channelBroadcaster) broadcast() {
 	for ch := range cb.chanSet {
 		select {
 		case ch <- struct{}{}:
-			// Succesfully sent notification
+			// Successfully sent notification
 		default:
 			// Channel already has valued queued
 		}

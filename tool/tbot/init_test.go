@@ -30,6 +30,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -145,6 +146,7 @@ func TestInit(t *testing.T) {
 	cf := &config.CLIConf{
 		AuthServer:     "example.com",
 		DestinationDir: dir,
+		JoinMethod:     string(types.JoinMethodToken),
 	}
 	cfg := testConfigFromCLI(t, cf)
 
