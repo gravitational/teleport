@@ -52,6 +52,9 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
@@ -79,6 +82,9 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
