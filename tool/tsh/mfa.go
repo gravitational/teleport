@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -101,7 +101,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 }
 
 func (c *mfaLSCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -214,7 +214,7 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -549,7 +549,7 @@ func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 }
 
 func (c *mfaRemoveCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -68,7 +68,7 @@ type deviceEnrollCommand struct {
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
-	teleportClient, err := makeClient(cf, true /* useProfileLogin */)
+	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

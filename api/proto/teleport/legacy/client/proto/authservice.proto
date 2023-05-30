@@ -139,27 +139,10 @@ message Event {
 // Watch specifies watch parameters
 message Watch {
   // Kinds specifies object kinds to watch
-  repeated WatchKind Kinds = 1 [
+  repeated types.WatchKind Kinds = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds,omitempty"
   ];
-}
-
-// WatchKind specifies resource kind to watch
-message WatchKind {
-  // Kind is a resource kind to watch
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // LoadSecrets specifies whether to load secrets
-  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
-  // Name is an optional specific resource type to watch,
-  // if specified only the events with a specific resource
-  // name will be sent
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Filter is an optional mapping of custom filter parameters.
-  // Valid values vary by resource kind.
-  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
-  // SubKind is a resource subkind to watch
-  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 }
 
 // HostCertsRequest specifies certificate-generation parameters

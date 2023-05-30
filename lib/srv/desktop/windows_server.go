@@ -62,7 +62,7 @@ const (
 
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 5 * time.Second
+	ldapDialTimeout = 15 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
