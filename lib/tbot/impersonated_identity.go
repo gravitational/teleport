@@ -404,7 +404,13 @@ func (b *Bot) generateImpersonatedIdentity(
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	// closure of this client is managed by caller
+	defer func() {
+		// In success cases, this client is used by the caller and they manage
+		// closing, in failure cases, we need to close the client.
+		if err != nil && impersonatedClient != nil {
+			impersonatedClient.Close()
+		}
+	}()
 
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
