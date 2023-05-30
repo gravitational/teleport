@@ -36,8 +36,8 @@ type PluginStaticCredentials interface {
 	GetOAuthClientSecret() (bool, string, string)
 }
 
-// NewPluginStaticCredentialsV1 creates a new PluginStaticCredentialsV1 resource.
-func NewPluginStaticCredentialsV1(metadata Metadata, spec PluginStaticCredentialsSpecV1) (PluginStaticCredentials, error) {
+// NewPluginStaticCredentials creates a new PluginStaticCredentialsV1 resource.
+func NewPluginStaticCredentials(metadata Metadata, spec PluginStaticCredentialsSpecV1) (PluginStaticCredentials, error) {
 	p := &PluginStaticCredentialsV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: metadata,
