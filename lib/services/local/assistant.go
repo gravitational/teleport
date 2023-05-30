@@ -219,6 +219,15 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 		return trace.BadParameter("missing conversation ID")
 	}
 
+	// Check if the conversation exists.
+	conversationKey := backend.Key(assistantConversationPrefix, req.Username, req.ConversationId)
+	if _, err := s.Get(ctx, conversationKey); err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("conversation %q not found", req.ConversationId)
+		}
+		return trace.Wrap(err)
+	}
+
 	msg := req.GetMessage()
 	value, err := json.Marshal(msg)
 	if err != nil {

@@ -439,7 +439,6 @@ proto.PtyCreate.toObject = function(includeInstance, msg) {
     path: jspb.Message.getFieldWithDefault(msg, 3, ""),
     argsList: (f = jspb.Message.getRepeatedField(msg, 4)) == null ? undefined : f,
     cwd: jspb.Message.getFieldWithDefault(msg, 5, ""),
-    initCommand: jspb.Message.getFieldWithDefault(msg, 6, ""),
     env: (f = msg.getEnv()) && google_protobuf_struct_pb.Struct.toObject(includeInstance, f)
   };
 
@@ -488,10 +487,6 @@ proto.PtyCreate.deserializeBinaryFromReader = function(msg, reader) {
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setCwd(value);
-      break;
-    case 6:
-      var value = /** @type {string} */ (reader.readString());
-      msg.setInitCommand(value);
       break;
     case 7:
       var value = new google_protobuf_struct_pb.Struct;
@@ -545,13 +540,6 @@ proto.PtyCreate.serializeBinaryToWriter = function(message, writer) {
   if (f.length > 0) {
     writer.writeString(
       5,
-      f
-    );
-  }
-  f = /** @type {string} */ (jspb.Message.getField(message, 6));
-  if (f != null) {
-    writer.writeString(
-      6,
       f
     );
   }
@@ -636,42 +624,6 @@ proto.PtyCreate.prototype.getCwd = function() {
  */
 proto.PtyCreate.prototype.setCwd = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
-};
-
-
-/**
- * optional string init_command = 6;
- * @return {string}
- */
-proto.PtyCreate.prototype.getInitCommand = function() {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
-};
-
-
-/**
- * @param {string} value
- * @return {!proto.PtyCreate} returns this
- */
-proto.PtyCreate.prototype.setInitCommand = function(value) {
-  return jspb.Message.setField(this, 6, value);
-};
-
-
-/**
- * Clears the field making it undefined.
- * @return {!proto.PtyCreate} returns this
- */
-proto.PtyCreate.prototype.clearInitCommand = function() {
-  return jspb.Message.setField(this, 6, undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.PtyCreate.prototype.hasInitCommand = function() {
-  return jspb.Message.getField(this, 6) != null;
 };
 
 

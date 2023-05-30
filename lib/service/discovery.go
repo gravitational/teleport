@@ -63,6 +63,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		Emitter:        asyncEmitter,
 		AccessPoint:    accessPoint,
 		Log:            process.log,
+		ClusterName:    conn.ClientIdentity.ClusterName,
 	})
 	if err != nil {
 		return trace.Wrap(err)

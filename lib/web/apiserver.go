@@ -353,14 +353,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	h.auth = sessionCache
+	sshPortValue := strconv.Itoa(defaults.SSHProxyListenPort)
+	if cfg.ProxySSHAddr.String() != "" {
+		_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
+		if err != nil {
+			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
+				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
 
-	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
-	if err != nil {
-		h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
-			cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+		} else {
+			sshPortValue = sshPort
+		}
 	}
-	h.sshPort = sshPort
+
+	h.sshPort = sshPortValue
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
@@ -1185,19 +1190,13 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 
 	// TODO: This part should be removed once the plugin support is added to OSS.
 	if proxyConfig.AssistEnabled {
-		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
-		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-		if err != nil {
-			return webclient.AuthenticationSettings{}, trace.Wrap(err)
-		}
-		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
 		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 
-		// disable if per-session MFA is enabled and it's ok by the auth
-		proxyConfig.AssistEnabled = enabled.Enabled && !mfaRequired
+		// disable if auth doesn't support assist
+		proxyConfig.AssistEnabled = enabled.Enabled
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())

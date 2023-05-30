@@ -111,8 +111,12 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 	}
 }
 
+func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+	return nil, trace.NotImplemented("not implemented for azure fetchers")
+}
+
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
 	for _, region := range f.Regions {
 		instancesByRegion[region] = []*armcompute.VirtualMachine{}
