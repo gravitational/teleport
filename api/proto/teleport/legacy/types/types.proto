@@ -5229,6 +5229,7 @@ message PluginCredentialsV1 {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
     PluginIdSecretCredential id_secret = 3;
+    PluginStaticCredentialsRef static_credentials_ref = 4;
   }
 }
 
@@ -5247,6 +5248,12 @@ message PluginBearerTokenCredentials {
 
   reserved 2; // token_file
   reserved "token_file";
+}
+
+// PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
+message PluginStaticCredentialsRef {
+  // Labels is the set of labels to use to match against a set of static credentials.
+  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // PluginList represents a list of plugin resources
