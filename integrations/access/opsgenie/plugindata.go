@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
@@ -57,7 +59,7 @@ type RequestData struct {
 	RequestReason      string
 	ReviewsCount       int
 	Resolution         Resolution
-	ResolveAnnotations map[string][]string
+	ResolveAnnotations types.Labels
 }
 
 // OpsgenieData stores the notification alert info.
