@@ -25,22 +25,42 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
-// vars below are used to fake OSes and switch implementations for tests.
-var (
-	getOSType     = getDeviceOSType
-	enrollInit    = native.EnrollDeviceInit
-	signChallenge = native.SignChallenge
-)
+// Ceremony is the device enrollment ceremony.
+// It takes the client role of
+// [devicepb.DeviceTrustServiceClient.EnrollDevice].
+type Ceremony struct {
+	GetDeviceOSType  func() devicepb.OSType
+	EnrollDeviceInit func() (*devicepb.EnrollDeviceInit, error)
+	SignChallenge    func(chal []byte) (sig []byte, err error)
+}
+
+// NewCeremony creates a new ceremony that delegates per-device behavior
+// to lib/devicetrust/native.
+// If you want to customize a [Ceremony], for example for testing purposes, you
+// may create a configure an instance directly, without calling this method.
+func NewCeremony() *Ceremony {
+	return &Ceremony{
+		GetDeviceOSType:  getDeviceOSType,
+		EnrollDeviceInit: native.EnrollDeviceInit,
+		SignChallenge:    native.SignChallenge,
+	}
+}
 
 // RunCeremony performs the client-side device enrollment ceremony.
+// Equivalent to `NewCeremony().Run()`.
 func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
+	return NewCeremony().Run(ctx, devicesClient, enrollToken)
+}
+
+// Run performs the client-side device enrollment ceremony.
+func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, enrollToken string) (*devicepb.Device, error) {
 	// Start by checking the OSType, this lets us exit early with a nicer message
-	// for non-supported OSes.
-	if getOSType() != devicepb.OSType_OS_TYPE_MACOS {
+	// for unsupported OSes.
+	if c.GetDeviceOSType() != devicepb.OSType_OS_TYPE_MACOS {
 		return nil, trace.BadParameter("device enrollment not supported for current OS (%v)", runtime.GOOS)
 	}
 
-	init, err := enrollInit()
+	init, err := c.EnrollDeviceInit()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,7 +86,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 
 	// 2. Challenge.
 	// Only macOS is supported, see the guard at the beginning of the method.
-	if err := enrollDeviceMacOS(stream, resp); err != nil {
+	if err := c.enrollDeviceMacOS(stream, resp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp, err = stream.Recv()
@@ -82,12 +102,12 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	return successResp.Device, nil
 }
 
-func enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
+func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
 	chalResp := resp.GetMacosChallenge()
 	if chalResp == nil {
 		return trace.BadParameter("unexpected challenge payload from server: %T", resp.Payload)
 	}
-	sig, err := signChallenge(chalResp.Challenge)
+	sig, err := c.SignChallenge(chalResp.Challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}

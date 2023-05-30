@@ -16,7 +16,6 @@ package enroll_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,10 +26,9 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestRunCeremony(t *testing.T) {
+func TestCeremony_Run(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -49,32 +47,16 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetOSType = test.dev.GetOSType
-			*enroll.EnrollInit = test.dev.EnrollDeviceInit
-			*enroll.SignChallenge = test.dev.SignChallenge
+			c := &enroll.Ceremony{
+				GetDeviceOSType:  test.dev.GetOSType,
+				EnrollDeviceInit: test.dev.EnrollDeviceInit,
+				SignChallenge:    test.dev.SignChallenge,
+			}
 
-			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
+			got, err := c.Run(ctx, devices, "faketoken")
 			assert.NoError(t, err, "RunCeremony failed")
 			assert.NotNil(t, got, "RunCeremony returned nil device")
 		})
-	}
-}
-
-func resetNative() func() {
-	const guardKey = "_dt_reset_native"
-	if os.Getenv(guardKey) != "" {
-		panic("Tests that rely on resetNative cannot run in parallel.")
-	}
-	os.Setenv(guardKey, "1")
-
-	getOSType := *enroll.GetOSType
-	enrollDeviceInit := *enroll.EnrollInit
-	signChallenge := *enroll.SignChallenge
-	return func() {
-		*enroll.GetOSType = getOSType
-		*enroll.EnrollInit = enrollDeviceInit
-		*enroll.SignChallenge = signChallenge
-		os.Unsetenv(guardKey)
 	}
 }
 
