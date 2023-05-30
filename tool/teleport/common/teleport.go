@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -1052,7 +1052,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
 
-		configDir := path.Dir(outputURI)
+		configDir := path.Dir(uri.Path)
 		err := os.MkdirAll(configDir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
