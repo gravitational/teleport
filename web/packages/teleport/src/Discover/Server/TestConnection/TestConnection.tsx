@@ -22,7 +22,7 @@ import Select from 'shared/components/Select';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
-  HeaderWithBackBtn,
+  Header,
   ActionButtons,
   HeaderSubtitle,
   ConnectionDiagnosticResult,
@@ -66,7 +66,7 @@ export function TestConnection({
           onClose={cancelMfaDialog}
         />
       )}
-      <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
+      <Header>Test Connection</Header>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the server you
         just added.
@@ -106,7 +106,7 @@ export function TestConnection({
           Start Session
         </ButtonSecondary>
       </StyledBox>
-      <ActionButtons onProceed={nextStep} lastStep={true} />
+      <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>
   );
 }

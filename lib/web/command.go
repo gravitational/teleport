@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -33,6 +34,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -40,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
+	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -49,9 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
-
-// CommandResultType is the type of Assist message that contains the command execution result.
-const CommandResultType = "COMMAND_RESULT"
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
@@ -119,6 +119,10 @@ func (h *Handler) executeCommand(
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkAssistEnabled(clt, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	identity, err := createIdentityContext(req.Login, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -183,76 +187,128 @@ func (h *Handler) executeCommand(
 
 	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
-	for _, host := range hosts {
-		err := func() error {
-			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
-			if err != nil {
-				h.log.WithError(err).Debug("Unable to generate new ssh session.")
-				return trace.Wrap(err)
-			}
+	mfaCacheFn := getMFACacheFn()
+	interactiveCommand := strings.Split(req.Command, " ")
 
-			h.log.Debugf("New command request for server=%s, id=%v, login=%s, sid=%s, websid=%s.",
-				host.hostName, host.id, req.Login, sessionData.ID, sessionCtx.GetSessionID())
-
-			commandHandlerConfig := CommandHandlerConfig{
-				SessionCtx:         sessionCtx,
-				AuthProvider:       clt,
-				SessionData:        sessionData,
-				KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
-				ProxyHostPort:      h.ProxyHostPort(),
-				InteractiveCommand: strings.Split(req.Command, " "),
-				Router:             h.cfg.Router,
-				TracerProvider:     h.cfg.TracerProvider,
-				LocalAuthProvider:  h.auth.accessPoint,
-			}
-
-			handler, err := newCommandHandler(ctx, commandHandlerConfig)
-			if err != nil {
-				h.log.WithError(err).Error("Unable to create terminal.")
-				return trace.Wrap(err)
-			}
-			handler.ws = &noopCloserWS{ws}
-
-			h.userConns.Add(1)
-			defer h.userConns.Add(-1)
-
-			h.log.Infof("Executing command: %#v.", req)
-			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
-
-			msgPayload, err := json.Marshal(struct {
-				NodeID      string `json:"node_id"`
-				ExecutionID string `json:"execution_id"`
-				SessionID   string `json:"session_id"`
-			}{
-				NodeID:      host.id,
-				ExecutionID: req.ExecutionID,
-				SessionID:   string(sessionData.ID),
-			})
-
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
-				ConversationId: req.ConversationID,
-				Username:       identity.TeleportUser,
-				Message: &assist.AssistantMessage{
-					Type:        CommandResultType,
-					CreatedTime: timestamppb.New(time.Now().UTC()),
-					Payload:     string(msgPayload),
-				},
-			})
-
+	runCmd := func(host *hostInfo) error {
+		sessionData, err := h.generateCommandSession(host, req.Login, clusterName, sessionCtx.cfg.User)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return trace.Wrap(err)
-		}()
+		}
+
+		h.log.Debugf("New command request for server=%s, id=%v, login=%s, sid=%s, websid=%s.",
+			host.hostName, host.id, req.Login, sessionData.ID, sessionCtx.GetSessionID())
+
+		commandHandlerConfig := CommandHandlerConfig{
+			SessionCtx:         sessionCtx,
+			AuthProvider:       clt,
+			SessionData:        sessionData,
+			KeepAliveInterval:  keepAliveInterval,
+			ProxyHostPort:      h.ProxyHostPort(),
+			InteractiveCommand: interactiveCommand,
+			Router:             h.cfg.Router,
+			TracerProvider:     h.cfg.TracerProvider,
+			LocalAuthProvider:  h.auth.accessPoint,
+			mfaFuncCache:       mfaCacheFn,
+		}
+
+		handler, err := newCommandHandler(ctx, commandHandlerConfig)
+		if err != nil {
+			h.log.WithError(err).Error("Unable to create terminal.")
+			return trace.Wrap(err)
+		}
+		handler.ws = &noopCloserWS{ws}
+
+		h.userConns.Add(1)
+		defer h.userConns.Add(-1)
+
+		h.log.Infof("Executing command: %#v.", req)
+		httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
+
+		msgPayload, err := json.Marshal(struct {
+			NodeID      string `json:"node_id"`
+			ExecutionID string `json:"execution_id"`
+			SessionID   string `json:"session_id"`
+		}{
+			NodeID:      host.id,
+			ExecutionID: req.ExecutionID,
+			SessionID:   string(sessionData.ID),
+		})
 
 		if err != nil {
-			h.log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			continue
+			return trace.Wrap(err)
 		}
+
+		err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
+			ConversationId: req.ConversationID,
+			Username:       identity.TeleportUser,
+			Message: &assist.AssistantMessage{
+				Type:        string(assistlib.MessageKindCommandResult),
+				CreatedTime: timestamppb.New(time.Now().UTC()),
+				Payload:     string(msgPayload),
+			},
+		})
+
+		return trace.Wrap(err)
 	}
 
+	runCommands(hosts, runCmd, h.log)
+
 	return nil, nil
+}
+
+// runCommands runs the given command on the given hosts.
+func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, log logrus.FieldLogger) {
+	// Create a synchronization channel to limit the number of concurrent commands.
+	// The maximum number of concurrent commands is 30 - it is arbitrary.
+	syncChan := make(chan struct{}, 30)
+	// WaiteGroup to wait for all commands to finish.
+	wg := sync.WaitGroup{}
+
+	for _, host := range hosts {
+		host := host
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// Limit the number of concurrent commands.
+			syncChan <- struct{}{}
+			defer func() {
+				// Release the command slot.
+				<-syncChan
+			}()
+
+			if err := runCmd(&host); err != nil {
+				log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
+			}
+		}()
+	}
+
+	// Wait for all commands to finish.
+	wg.Wait()
+}
+
+// getMFACacheFn returns a function that caches the result of the given
+// get function. The cache is protected by a mutex, so it is safe to call
+// the returned function from multiple goroutines.
+func getMFACacheFn() mfaFuncCache {
+	var mutex sync.Mutex
+	var authMethods []ssh.AuthMethod
+
+	return func(issueMfaAuthFn func() ([]ssh.AuthMethod, error)) ([]ssh.AuthMethod, error) {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		if authMethods != nil {
+			return authMethods, nil
+		}
+
+		var err error
+		authMethods, err = issueMfaAuthFn()
+		return authMethods, trace.Wrap(err)
+	}
 }
 
 func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandHandler, error) {
@@ -280,6 +336,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			localAuthProvider:  cfg.LocalAuthProvider,
 			tracer:             cfg.tracer,
 		},
+		mfaAuthCache: cfg.mfaFuncCache,
 	}, nil
 }
 
@@ -308,6 +365,8 @@ type CommandHandlerConfig struct {
 	LocalAuthProvider agentless.AuthProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
+	// mfaFuncCache is used to cache the MFA auth method
+	mfaFuncCache mfaFuncCache
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -346,10 +405,18 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
+	if t.mfaFuncCache == nil {
+		return trace.BadParameter("mfaFuncCache must be provided")
+	}
+
 	t.tracer = t.TracerProvider.Tracer("webcommand")
 
 	return nil
 }
+
+// mfaFuncCache is a function type that caches the result of a function that
+// returns a list of ssh.AuthMethods.
+type mfaFuncCache func(func() ([]ssh.AuthMethod, error)) ([]ssh.AuthMethod, error)
 
 // commandHandler is a handler for executing commands on a remote node.
 type commandHandler struct {
@@ -360,6 +427,11 @@ type commandHandler struct {
 
 	// ws a raw websocket connection to the client.
 	ws WSConn
+
+	// mfaAuthCache is a function that caches the result of a function that
+	// returns a list of ssh.AuthMethods. It is used to cache the result of
+	// the MFA challenge.
+	mfaAuthCache mfaFuncCache
 }
 
 // sendError sends an error message to the client using the provided websocket.
@@ -445,14 +517,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
 	defer span.End()
 
-	mfaAuth := func(ctx context.Context, ws WSConn, tc *client.TeleportClient,
-		accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator,
-	) (*client.NodeClient, error) {
-		return nil, trace.NotImplemented("MFA is not supported for command execution")
-	}
-
-	//TODO(jakule): Implement MFA support
-	nc, err := t.connectToHost(ctx, t.ws, tc, mfaAuth)
+	nc, err := t.connectToHost(ctx, t.ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
@@ -478,6 +543,26 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	}
 
 	t.log.Debug("Sent close event to web client.")
+}
+
+// connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
+// host with the retrieved single use certs.
+// If called multiple times, the mfa ceremony will only be performed once.
+func (t *commandHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	authMethods, err := t.mfaAuthCache(func() ([]ssh.AuthMethod, error) {
+		// perform mfa ceremony and retrieve new certs
+		authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return authMethods, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
 }
 
 // Close is no-op as we never want to close the connection to the client.

@@ -970,8 +970,9 @@ message DatabaseCSRRequest {
   bytes CSR = 1 [(gogoproto.jsontag) = "csr"];
   // ClusterName is the name of the cluster the request is for.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // SignWithDatabaseCA deprecated.
+
   reserved 3;
+  reserved "SignWithDatabaseCA";
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1791,7 +1792,6 @@ message CreateRegisterChallengeRequest {
 
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
-  reserved 4;
   // Resource is the resource itself.
   oneof resource {
     // DatabaseServer represents a DatabaseServer resource.
@@ -1813,6 +1813,9 @@ message PaginatedResource {
     // UserGroup represents a UserGroup resource.
     types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
   }
+
+  reserved 4;
+  reserved "KubeService";
 }
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
@@ -2101,6 +2104,9 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

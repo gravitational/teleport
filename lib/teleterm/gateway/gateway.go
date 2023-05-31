@@ -21,12 +21,15 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -213,14 +216,24 @@ func (g *Gateway) LocalPortInt() int {
 	return port
 }
 
-// CLICommand returns a command which launches a CLI client pointed at the given gateway.
-func (g *Gateway) CLICommand() (string, error) {
-	cliCommand, err := g.cfg.CLICommandProvider.GetCommand(g)
+// CLICommand returns a command which launches a CLI client pointed at the gateway.
+func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
+	cmd, err := g.cfg.CLICommandProvider.GetCommand(g)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return cliCommand, nil
+	cmdString := strings.TrimSpace(
+		fmt.Sprintf("%s %s",
+			strings.Join(cmd.Env, " "),
+			strings.Join(cmd.Args, " ")))
+
+	return &api.GatewayCLICommand{
+		Path:    cmd.Path,
+		Args:    cmd.Args,
+		Env:     cmd.Env,
+		Preview: cmdString,
+	}, nil
 }
 
 // RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
@@ -287,7 +300,7 @@ type Gateway struct {
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
-	GetCommand(gateway *Gateway) (string, error)
+	GetCommand(gateway *Gateway) (*exec.Cmd, error)
 }
 
 type TCPPortAllocator interface {

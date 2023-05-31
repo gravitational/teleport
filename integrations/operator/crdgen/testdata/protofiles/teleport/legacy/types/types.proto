@@ -573,7 +573,7 @@ message InstanceSpecV1 {
   // Services is the list of active services this instance most recently advertised.
   repeated string Services = 2 [
     (gogoproto.casttype) = "SystemRole",
-    (gogoproto.jsontag) = "services,omitemtpy"
+    (gogoproto.jsontag) = "services,omitempty"
   ];
 
   // Hostname is the hostname this instance most recently advertised.

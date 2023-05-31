@@ -54,7 +54,7 @@ func (g *UserGroupV1) String() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (g *UserGroupV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(g.GetAllLabels()), g.GetName())
+	fieldVals := append(utils.MapToStrings(g.GetAllLabels()), g.GetName(), g.GetMetadata().Description)
 	return MatchSearch(fieldVals, values, nil)
 }
 

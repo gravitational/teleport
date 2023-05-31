@@ -23,7 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/gravitational/trace"
@@ -53,7 +52,7 @@ type SSMRunRequest struct {
 	SSM ssmiface.SSMAPI
 	// Instances is the list of instances that will have the SSM
 	// document executed on them.
-	Instances []*ec2.Instance
+	Instances []EC2Instance
 	// Params is a list of parameters to include when executing the
 	// SSM document.
 	Params map[string]string
@@ -75,7 +74,7 @@ func NewSSMInstaller(cfg SSMInstallerConfig) *SSMInstaller {
 func (si *SSMInstaller) Run(ctx context.Context, req SSMRunRequest) error {
 	ids := make([]string, 0, len(req.Instances))
 	for _, inst := range req.Instances {
-		ids = append(ids, aws.StringValue(inst.InstanceId))
+		ids = append(ids, inst.InstanceID)
 	}
 
 	params := make(map[string][]*string)

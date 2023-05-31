@@ -1017,6 +1017,8 @@ type ProxyConfig struct {
 	SSHAddr string
 	// WebAddr the address the web service should listen on
 	WebAddr string
+	// KubeAddr is the kube proxy address.
+	KubeAddr string
 	// ReverseTunnelAddr the address the reverse proxy service should listen on
 	ReverseTunnelAddr string
 	// Disable the web service
@@ -1030,7 +1032,7 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *service.TeleportProcess, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnel.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1067,6 +1069,8 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	}
 	tconf.Proxy.ReverseTunnelListenAddr.Addr = cfg.ReverseTunnelAddr
 	tconf.Proxy.WebAddr.Addr = cfg.WebAddr
+	tconf.Proxy.Kube.Enabled = cfg.KubeAddr != ""
+	tconf.Proxy.Kube.ListenAddr.Addr = cfg.KubeAddr
 	tconf.Proxy.DisableReverseTunnel = false
 	tconf.Proxy.DisableWebService = cfg.DisableWebService
 	tconf.Proxy.DisableWebInterface = cfg.DisableWebInterface
@@ -1074,7 +1078,10 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	tconf.FileDescriptors = cfg.FileDescriptors
-
+	// apply options
+	for _, o := range opts {
+		o(tconf)
+	}
 	// Create a new Teleport process and add it to the list of nodes that
 	// compose this "cluster".
 	process, err := service.NewTeleport(tconf)
@@ -1116,6 +1123,18 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, *servi
 	// in `StartAndWait()`.
 	return nil, nil, trace.Errorf("Missing expected %v event in %v",
 		service.ProxyReverseTunnelReady, receivedEvents)
+}
+
+// Option is a functional option for configuring a ProxyConfig
+type Option func(*servicecfg.Config)
+
+// WithLegacyKubeProxy enables the legacy kube proxy.
+func WithLegacyKubeProxy(kubeconfig string) Option {
+	return func(tconf *servicecfg.Config) {
+		tconf.Proxy.Kube.Enabled = true
+		tconf.Proxy.Kube.KubeconfigPath = kubeconfig
+		tconf.Proxy.Kube.LegacyKubeProxy = true
+	}
 }
 
 // Reset re-creates the teleport instance based on the same configuration
@@ -1281,17 +1300,21 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 
 	var webProxyAddr string
 	var sshProxyAddr string
+	var kubeProxyAddr string
 
 	switch {
 	case cfg.Proxy != nil:
 		webProxyAddr = cfg.Proxy.WebAddr
 		sshProxyAddr = cfg.Proxy.SSHAddr
+		kubeProxyAddr = cfg.Proxy.KubeAddr
 	case cfg.ALBAddr != "":
 		webProxyAddr = cfg.ALBAddr
 		sshProxyAddr = cfg.ALBAddr
+		kubeProxyAddr = cfg.ALBAddr
 	default:
 		webProxyAddr = i.Web
 		sshProxyAddr = i.SSHProxy
+		kubeProxyAddr = i.Config.Proxy.Kube.ListenAddr.Addr
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
@@ -1311,6 +1334,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:                        cfg.Labels,
 		WebProxyAddr:                  webProxyAddr,
 		SSHProxyAddr:                  sshProxyAddr,
+		KubeProxyAddr:                 kubeProxyAddr,
 		InteractiveCommand:            cfg.Interactive,
 		TLSRoutingEnabled:             i.IsSinglePortSetup,
 		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",

@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -58,6 +59,8 @@ func TestDatabaseLogin(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
+	alice.SetDatabaseUsers([]string{"admin"})
+	alice.SetDatabaseNames([]string{"default"})
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
@@ -180,7 +183,8 @@ func TestDatabaseLogin(t *testing.T) {
 			t.Parallel()
 			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
 			err := Run(context.Background(), []string{
-				"db", "login", "--db-user", "admin", test.databaseName,
+				// default --db-user and --db-name are selected from roles.
+				"db", "login", test.databaseName,
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
@@ -313,18 +317,18 @@ func TestLocalProxyRequirement(t *testing.T) {
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
 			}
-			tc, err := makeClient(cf, false)
+			tc, err := makeClient(cf)
 			require.NoError(t, err)
 			if tt.setupTC != nil {
 				tt.setupTC(tc)
 			}
-			route := &tlsca.RouteToDatabase{
+			route := tlsca.RouteToDatabase{
 				ServiceName: "foo-db",
 				Protocol:    "postgres",
 				Username:    "alice",
 				Database:    "postgres",
 			}
-			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
+			requires := getDBConnectLocalProxyRequirement(ctx, tc, route)
 			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
 			require.Equal(t, tt.wantTunnel, requires.tunnel)
 			if requires.tunnel {
@@ -676,6 +680,127 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out := formatDatabaseConnectArgs(tt.cluster, tt.route)
 			require.Equal(t, tt.wantFlags, out)
+		})
+	}
+}
+
+// TestGetDefaultDBNameAndUser tests getting a default --db-name and --db-user
+// from a user's roles.
+func TestGetDefaultDBNameAndUser(t *testing.T) {
+	t.Parallel()
+	genericDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "test-db",
+		Labels: map[string]string{"foo": "bar"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbRedis, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		db               types.Database
+		allowedDBUsers   []string
+		allowedDBNames   []string
+		expectDBUser     string
+		expectDBName     string
+		expectErr        string
+		expectDBUserHint string
+		expectDBNameHint string
+	}{
+		"one allowed": {
+			db:             genericDB,
+			allowedDBUsers: []string{"alice"},
+			allowedDBNames: []string{"dev"},
+			expectDBUser:   "alice",
+			expectDBName:   "dev",
+		},
+		"wildcard allowed but one explicit": {
+			db:             genericDB,
+			allowedDBUsers: []string{"*", "alice"},
+			allowedDBNames: []string{"*", "dev"},
+			expectDBUser:   "alice",
+			expectDBName:   "dev",
+		},
+		"select default user from wildcard for Redis": {
+			db:             dbRedis,
+			allowedDBUsers: []string{"*"},
+			allowedDBNames: []string{"*", "dev"},
+			expectDBUser:   "default",
+			expectDBName:   "dev",
+		},
+		"none allowed": {
+			db:        genericDB,
+			expectErr: "not allowed access to any",
+		},
+		"denied matches allowed": {
+			db:             genericDB,
+			allowedDBUsers: []string{"rootDBUser"},
+			allowedDBNames: []string{"rootDBName"},
+			expectErr:      "not allowed access to any",
+		},
+		"only wildcard allowed due to deny rules": {
+			db:               genericDB,
+			allowedDBUsers:   []string{"*", "rootDBUser"},
+			allowedDBNames:   []string{"*", "rootDBName"},
+			expectErr:        "please provide",
+			expectDBUserHint: "[*] except [rootDBUser]",
+			expectDBNameHint: "[*] except [rootDBName]",
+		},
+		"has multiple db users": {
+			db:               genericDB,
+			allowedDBUsers:   []string{"alice", "bob"},
+			allowedDBNames:   []string{"dev", "prod"},
+			expectErr:        "please provide",
+			expectDBUserHint: "[alice bob]",
+			expectDBNameHint: "[dev prod]",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			role := &types.RoleV6{
+				Metadata: types.Metadata{Name: "test-role", Namespace: apidefaults.Namespace},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  test.allowedDBUsers,
+						DatabaseNames:  test.allowedDBNames,
+					},
+					Deny: types.RoleConditions{
+						Namespaces:    []string{apidefaults.Namespace},
+						DatabaseUsers: []string{"rootDBUser"},
+						DatabaseNames: []string{"rootDBName"},
+					},
+				},
+			}
+			dbUser, err := getDefaultDBUser(test.db, services.RoleSet{role})
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				if test.expectDBUserHint != "" {
+					require.ErrorContains(t, err, fmt.Sprintf("allowed database users for test-db: %v", test.expectDBUserHint))
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectDBUser, dbUser)
+			dbName, err := getDefaultDBName(test.db, services.RoleSet{role})
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				if test.expectDBNameHint != "" {
+					require.ErrorContains(t, err, fmt.Sprintf("allowed database names for test-db: %v", test.expectDBNameHint))
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectDBName, dbName)
 		})
 	}
 }

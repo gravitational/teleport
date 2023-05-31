@@ -751,7 +751,7 @@ func TestMakeClient(t *testing.T) {
 	conf.HomePath = t.TempDir()
 
 	// empty config won't work:
-	tc, err := makeClient(&conf, true)
+	tc, err := makeClient(&conf)
 	require.Nil(t, tc)
 	require.Error(t, err)
 
@@ -770,7 +770,7 @@ func TestMakeClient(t *testing.T) {
 	err = clientStore.SaveProfile(profile, true)
 	require.NoError(t, err)
 
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 
@@ -790,7 +790,7 @@ func TestMakeClient(t *testing.T) {
 	conf.NodePort = 46528
 	conf.LocalForwardPorts = []string{"80:remote:180"}
 	conf.DynamicForwardedPorts = []string{":8080"}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root", tc.Config.HostLogin)
@@ -820,7 +820,7 @@ func TestMakeClient(t *testing.T) {
 		{Proxy: "*roxy:3080", Headers: map[string]string{"C": "D"}},
 		{Proxy: "*hello:3080", Headers: map[string]string{"E": "F"}}, // shouldn't get included
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.Equal(t, time.Minute*time.Duration(conf.MinsToLive), tc.Config.KeyTTL)
 	require.Equal(t, "root@example.com", tc.Config.HostLogin)
@@ -857,7 +857,7 @@ func TestMakeClient(t *testing.T) {
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
@@ -873,7 +873,7 @@ func TestMakeClient(t *testing.T) {
 		Context:            context.Background(),
 		InsecureSkipVerify: true,
 	}
-	tc, err = makeClient(&conf, true)
+	tc, err = makeClient(&conf)
 	require.NoError(t, err)
 	require.NotNil(t, tc)
 	require.Equal(t, proxyWebAddr.String(), tc.Config.WebProxyAddr)
@@ -3974,8 +3974,6 @@ func spanAssertion(containsTSH, empty bool) func(t *testing.T, spans []*otlp.Sco
 }
 
 func TestForwardingTraces(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name          string
 		cfg           func(c *tracing.Collector) servicecfg.TracingConfig
@@ -4015,9 +4013,7 @@ func TestForwardingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			tmpHomePath := t.TempDir()
 
 			connector := mockConnector(t)
@@ -4053,7 +4049,7 @@ func TestForwardingTraces(t *testing.T) {
 			proxyAddr, err := proxyProcess.ProxyWebAddr()
 			require.NoError(t, err)
 
-			// --trace should have no impact on login, since login is whitelisted
+			// --trace should have no impact on login, since login is ignored
 			err = Run(context.Background(), []string{
 				"login",
 				"--insecure",
@@ -4066,12 +4062,12 @@ func TestForwardingTraces(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if traceCfg.Enabled {
+			if traceCfg.Enabled && traceCfg.SamplingRate > 0 {
 				collector.WaitForExport()
 			}
 
 			// ensure login doesn't generate any spans from tsh if spans are being sampled
-			loginAssertion := spanAssertion(false, !traceCfg.Enabled)
+			loginAssertion := spanAssertion(false, !traceCfg.Enabled || traceCfg.SamplingRate <= 0)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
@@ -4093,8 +4089,6 @@ func TestForwardingTraces(t *testing.T) {
 }
 
 func TestExportingTraces(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name                  string
 		cfg                   func(c *tracing.Collector) servicecfg.TracingConfig
@@ -4136,10 +4130,7 @@ func TestExportingTraces(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			connector := mockConnector(t)
 			alice, err := types.NewUser("alice@example.com")
 			require.NoError(t, err)

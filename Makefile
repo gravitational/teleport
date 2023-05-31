@@ -102,9 +102,6 @@ RUST_TARGET_ARCH ?= $(CARGO_TARGET_$(OS)_$(ARCH))
 # TODO: Delete when it becomes default in Rust 1.70.0
 export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-with_rdpclient := no
-RDPCLIENT_MESSAGE := without-Windows-RDP-client
-
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
@@ -112,6 +109,14 @@ CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
+# If set to 1, Windows RDP client is not built.
+RDPCLIENT_SKIP_BUILD ?= 0
+
+# Enable Windows RDP client build?
+with_rdpclient := no
+RDPCLIENT_MESSAGE := without-Windows-RDP-client
+
+ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
@@ -124,6 +129,7 @@ RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
 
+endif
 endif
 endif
 
@@ -845,6 +851,20 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 		| $(RENDER_TESTS) -report-by test
 
 #
+# Integration tests that run Kubernetes tests in order to complete successfully
+# are run separately to all other integration tests.
+#
+INTEGRATION_KUBE_REGEX := TestKube.*
+.PHONY: integration-kube
+integration-kube: FLAGS ?= -v -race
+integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -json -run "$(INTEGRATION_KUBE_REGEX)" $(PACKAGES) $(FLAGS) \
+		| tee $(TEST_LOG_DIR)/integration-kube.json \
+		| $(RENDER_TESTS) -report-by test
+
+#
 # Integration tests which need to be run as root in order to complete successfully
 # are run separately to all other integration tests. Need a TTY to work.
 #
@@ -926,7 +946,7 @@ lint-kube-agent-updater:
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
+	find . -type f \( -name '*.sh' -or -name '*.sh.tmpl' \) -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -981,6 +1001,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
+		-ignore '**/*.sql' \
 		-ignore '**/Dockerfile' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \
@@ -1096,6 +1117,9 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/grpcbox
+enter/grpcbox:
+	make -C build.assets enter/grpcbox
 
 BUF := buf
 
@@ -1117,8 +1141,17 @@ protos/lint: buf/installed
 	$(BUF) lint
 	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
+.PHONY: protos/breaking
+protos/breaking: BASE=origin/master
+protos/breaking: buf/installed
+	@echo Checking compatibility against BASE=$(BASE)
+	buf breaking . --against '.git#branch=$(BASE)'
+
 .PHONY: lint-protos
 lint-protos: protos/lint
+
+.PHONY: lint-breaking
+lint-breaking: protos/breaking
 
 .PHONY: buf/installed
 buf/installed:

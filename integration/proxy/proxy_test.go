@@ -141,7 +141,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			if tc.testALPNConnUpgrade {
 				t.Run("ALPN conn upgrade", func(t *testing.T) {
 					// Make a mock ALB which points to the Teleport Proxy Service.
-					albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+					albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
 					// Run command in root through ALB address.
 					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
@@ -400,7 +400,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
 		// Generate a self-signed CA for kube local proxy.
 		localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
@@ -888,7 +888,7 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.Root.Cluster.Web)
+		albProxy := helpers.MustStartMockALBProxy(t, pack.Root.Cluster.Web)
 
 		// Test a protocol in the alpncommon.IsDBTLSProtocol list where
 		// the database client will perform a native TLS handshake.
@@ -1104,7 +1104,7 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 
 		// Make a mock ALB which points to the Teleport Proxy Service. Then
 		// ALPN local proxies will point to this ALB instead.
-		albProxy := mustStartMockALBProxy(t, pack.RootWebAddr())
+		albProxy := helpers.MustStartMockALBProxy(t, pack.RootWebAddr())
 
 		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 			RemoteProxyAddr:         albProxy.Addr().String(),
@@ -1214,7 +1214,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 
 	// Make a mock ALB which points to the Teleport Proxy Service. Then
 	// client can point to this ALB instead.
-	albProxy := mustStartMockALBProxy(t, rc.Web)
+	albProxy := helpers.MustStartMockALBProxy(t, rc.Web)
 
 	tests := []struct {
 		name         string
@@ -1497,11 +1497,18 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
+	// stop the node so it doesn't keep trying to join the cluster with bad credentials.
+	require.NoError(t, rc.StopNodes())
+	require.Error(t, <-startErrC)
 
 	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
 
-	// with env set correctly and authorized, the node should register.
+	// with env set correctly and authorized, the node should be able to register.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
@@ -1535,7 +1542,7 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 
 	// Test register through Proxy behind a L7 load balancer.
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
-		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
 		require.NoError(t, err)
 
@@ -1601,7 +1608,7 @@ func TestALPNSNIProxyGRPCSecure(t *testing.T) {
 	})
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
 		// Make a mock ALB which points to the Teleport Proxy Service.
-		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albProxy := helpers.MustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
 		tc, err := suite.root.NewClient(helpers.ClientConfig{
 			Login:   username,

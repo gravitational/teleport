@@ -137,6 +137,10 @@ type AccessChecker interface {
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
 
+	// CheckDatabaseRoles returns whether a user should be auto-created in the
+	// database and a list of database roles to assign.
+	CheckDatabaseRoles(types.Database) (create bool, roles []string, err error)
+
 	// CheckImpersonate checks whether current user is allowed to impersonate
 	// users and roles
 	CheckImpersonate(currentUser, impersonateUser types.User, impersonateRoles []types.Role) error

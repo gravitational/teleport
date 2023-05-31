@@ -26,10 +26,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"github.com/xitongsys/parquet-go-source/s3v2"
 	"github.com/xitongsys/parquet-go/parquet"
@@ -39,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -60,7 +63,7 @@ const (
 // consumer is responsible for receiving messages from SQS, batching them up to
 // certain size or interval, and writes to s3 as parquet file.
 type consumer struct {
-	logger              *log.Entry
+	logger              log.FieldLogger
 	backend             backend.Backend
 	storeLocationPrefix string
 	storeLocationBucket string
@@ -75,6 +78,13 @@ type consumer struct {
 
 	sqsDeleter sqsDeleter
 	queueURL   string
+
+	// cancelRun is used to cancel consumer.Run
+	cancelRun context.CancelFunc
+
+	// finished is used to communicate that run (executed in background) has finished.
+	// It will be closed when run has finished.
+	finished chan struct{}
 }
 
 type sqsReceiver interface {
@@ -89,7 +99,7 @@ type s3downloader interface {
 	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
 }
 
-func newConsumer(cfg Config) (*consumer, error) {
+func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchProcessingDuration prometheus.Histogram) (*consumer, error) {
 	s3client := s3.NewFromConfig(*cfg.AWSConfig)
 	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
 
@@ -97,16 +107,21 @@ func newConsumer(cfg Config) (*consumer, error) {
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(tobiaszheller): use s3 manager from teleport observability.
-		payloadDownloader: manager.NewDownloader(s3client),
-		payloadBucket:     cfg.largeEventsBucket,
-		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
-		batchMaxItems:     cfg.BatchMaxItems,
-		errHandlingFn:     errHandlingFnFromSQS(cfg.LogEntry),
-		logger:            cfg.LogEntry,
+		payloadDownloader:                     manager.NewDownloader(s3client),
+		payloadBucket:                         cfg.largeEventsBucket,
+		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),
+		batchMaxItems:                         cfg.BatchMaxItems,
+		errHandlingFn:                         errHandlingFnFromSQS(cfg.LogEntry),
+		logger:                                cfg.LogEntry,
+		metricConsumerBatchProcessingDuration: metricConsumerBatchProcessingDuration,
 	}
 	err := collectCfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cancelFn == nil {
+		return nil, trace.BadParameter("cancelFn must be passed to consumer")
 	}
 
 	return &consumer{
@@ -121,26 +136,52 @@ func newConsumer(cfg Config) (*consumer, error) {
 		queueURL:            cfg.QueueURL,
 		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-
-			// TODO(tobiaszheller): verify later acl, kms customer, object lock etc.
-			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil)
+			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
+				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return fw, nil
 		},
+		cancelRun: cancelFn,
+		finished:  make(chan struct{}),
 	}, nil
 }
 
 // run continuously runs batching job. It is blocking operation.
 // It is stopped via canceling context.
 func (c *consumer) run(ctx context.Context) {
+	defer func() {
+		close(c.finished)
+		c.logger.Debug("Consumer finished")
+	}()
+	c.runContinuouslyOnSingleAuth(ctx, c.processEventsContinuously)
+}
+
+// Close terminates the goroutine which is running [c.run]
+func (c *consumer) Close() error {
+	c.cancelRun()
+	select {
+	case <-c.finished:
+		return nil
+	case <-time.After(1 * time.Second):
+		// ctx is use through all calls within consumer.Run so it should finished
+		// very fast, within miliseconds.
+		return errors.New("consumer not finished in time, returning earlier")
+	}
+}
+
+// processEventsContinuously runs processBatchOfEvents continuously in a loop.
+// It makes sure that the CPU won't be spammed with too many requests if something goes
+// wrong with calls to the AWS API.
+func (c *consumer) processEventsContinuously(ctx context.Context) {
 	processBatchOfEventsWithLogging := func(context.Context) (reachedMaxBatch bool) {
 		reachedMaxBatch, err := c.processBatchOfEvents(ctx)
 		if err != nil {
 			// Ctx.Cancel is used to stop batcher
 			if ctx.Err() != nil {
-				c.logger.Debug("Batcher has been stopped")
 				return false
 			}
 			c.logger.Errorf("Batcher single run failed: %v", err)
@@ -148,6 +189,9 @@ func (c *consumer) run(ctx context.Context) {
 		}
 		return reachedMaxBatch
 	}
+
+	c.logger.Debug("Processing of events started on this instance")
+	defer c.logger.Debug("Processing of events finished on this instance")
 
 	// If batch took 90% of specified interval, we don't want to wait just little bit.
 	// It's mainly to avoid cases when we will wait like 10ms.
@@ -162,6 +206,51 @@ func (c *consumer) run(ctx context.Context) {
 		stop = runWithMinInterval(ctx, processBatchOfEventsWithLogging, minInterval)
 		if stop {
 			return
+		}
+	}
+}
+
+// runContinuouslyOnSingleAuth runs eventsProcessorFn continuously on single auth instance.
+// Backend locking is used to make sure that only single auth is running consumer.
+func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProcessorFn func(context.Context)) {
+	// for 1 minute it will be 5s sleep before retry which seems like reasonable value.
+	waitTimeAfterLockingError := retryutils.NewSeventhJitter()(c.batchMaxInterval / 12)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:  c.backend,
+					LockName: "athena_lock",
+					// TTL is higher then batchMaxInterval because we want to optimize
+					// for low backend writes.
+					TTL: 5 * c.batchMaxInterval,
+					// RetryInterval means how often instance without lock will check
+					// backend if lock if ready for grab. We are fine with batchMaxInterval.
+					RetryInterval: c.batchMaxInterval,
+				},
+			}, func(ctx context.Context) error {
+				eventsProcessorFn(ctx)
+				return nil
+			})
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				// Ending up here means something went wrong in the backend while locking/waiting
+				// for lock. What we can do is log and retry whole operation.
+				c.logger.WithError(err).Warn("Could not get consumer to run with lock")
+				select {
+				// Use wait to make sure we won't spam CPU with a lot requests
+				// if something goes wrong during acquire lock.
+				case <-time.After(waitTimeAfterLockingError):
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
 		}
 	}
 }
@@ -199,12 +288,9 @@ func runWithMinInterval(ctx context.Context, fn func(context.Context) bool, minI
 func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize bool, e error) {
 	start := time.Now()
 	var size int
-	// TODO(tobiaszheller): we need some metrics to track it.
-	// And that log message should be deleted.
 	defer func() {
-		if size > 0 {
-			c.logger.Debugf("Batch of %d messages processed in %s", size, time.Since(start))
-		}
+		consumerLastProcessedTimestamp.SetToCurrentTime()
+		c.collectConfig.metricConsumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
 	}()
 
 	msgsCollector := newSqsMessagesCollector(c.collectConfig)
@@ -217,6 +303,7 @@ func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize boo
 	go func() {
 		msgsCollector.fromSQS(readSQSCtx)
 	}()
+
 	toDelete, err := c.writeToS3(ctx, msgsCollector.getEventsChan(), c.perDateFileParquetWriter)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -252,6 +339,8 @@ type sqsCollectConfig struct {
 
 	logger        log.FieldLogger
 	errHandlingFn func(ctx context.Context, errC chan error)
+
+	metricConsumerBatchProcessingDuration prometheus.Histogram
 }
 
 func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
@@ -295,6 +384,9 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.errHandlingFn == nil {
 		return trace.BadParameter("errHandlingFn is not specified")
+	}
+	if cfg.metricConsumerBatchProcessingDuration == nil {
+		return trace.BadParameter("metricConsumerBatchProcessingDuration is not specified")
 	}
 	return nil
 }
@@ -341,9 +433,9 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	defer cancel()
 
 	var (
-		count   int
-		countMu sync.Mutex
-		wg      sync.WaitGroup
+		fullBatchMetadata   collectedEventsMetadata
+		fullBatchMetadataMu sync.Mutex
+		wg                  sync.WaitGroup
 	)
 
 	wg.Add(s.cfg.noOfWorkers)
@@ -361,27 +453,63 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 				if deadline, ok := wokerCtx.Deadline(); ok && time.Until(deadline) <= s.cfg.waitOnReceiveDuration {
 					return
 				}
-				noOfReceived := s.receiveMessagesAndSendOnChan(wokerCtx, eventsC, errorsC)
-				if noOfReceived == 0 {
+				singleReceiveMetadata := s.receiveMessagesAndSendOnChan(wokerCtx, eventsC, errorsC)
+				if singleReceiveMetadata.Count == 0 {
 					// no point of locking and checking for size if nothing was returned.
 					continue
 				}
-				countMu.Lock()
-				count += noOfReceived
-				if count >= s.cfg.batchMaxItems {
-					countMu.Unlock()
+
+				fullBatchMetadataMu.Lock()
+				fullBatchMetadata.Merge(singleReceiveMetadata)
+				if fullBatchMetadata.Count >= s.cfg.batchMaxItems {
+					fullBatchMetadataMu.Unlock()
 					cancel()
 					return
 				}
-				countMu.Unlock()
+				fullBatchMetadataMu.Unlock()
 			}
 		}(i)
 	}
 	wg.Wait()
 	close(eventsC)
+	if fullBatchMetadata.Count > 0 {
+		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
+		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
+		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+	}
 }
 
-func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) (size int) {
+type collectedEventsMetadata struct {
+	// Size is total size of events.
+	Size int
+	// Count is number of events.
+	Count int
+	// OldestTimestamp is timestamp of oldest event.
+	OldestTimestamp time.Time
+}
+
+// Merge combines the metadata of two collectedEventsMetadata instances.
+// It updates the current instance by adding the size and count of events from another instance,
+// and sets the oldestTimestamp to the oldest timestamp between the two instances.
+func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
+	c.Size += in.Size
+	c.Count += in.Count
+	if c.OldestTimestamp.IsZero() || (!in.OldestTimestamp.IsZero() && c.OldestTimestamp.After(in.OldestTimestamp)) {
+		c.OldestTimestamp = in.OldestTimestamp
+	}
+}
+
+// MergeWithEvent combines collectedEventsMetadata with metadata of single event.
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent) {
+	c.Merge(collectedEventsMetadata{
+		// 1 because we are merging single event
+		Count:           1,
+		Size:            in.Size(),
+		OldestTimestamp: in.GetTime(),
+	})
+}
+
+func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
 	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:              aws.String(s.cfg.queueURL),
 		MaxNumberOfMessages:   maxNumberOfMessagesFromReceive,
@@ -392,7 +520,7 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 	if err != nil {
 		// We don't need handle canceled errors anyhow.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return 0
+			return collectedEventsMetadata{}
 		}
 		errorsC <- trace.Wrap(err)
 
@@ -400,15 +528,15 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		// on CPU if calls are contantly failing.
 		select {
 		case <-ctx.Done():
-			return 0
+			return collectedEventsMetadata{}
 		case <-time.After(s.cfg.waitOnReceiveError):
-			return 0
+			return collectedEventsMetadata{}
 		}
 	}
 	if len(sqsOut.Messages) == 0 {
-		return 0
+		return collectedEventsMetadata{}
 	}
-	var noOfValidMessages int
+	var singleReceiveMetadata collectedEventsMetadata
 	for _, msg := range sqsOut.Messages {
 		event, err := s.auditEventFromSQSorS3(ctx, msg)
 		if err != nil {
@@ -419,9 +547,9 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			event:         event,
 			receiptHandle: aws.ToString(msg.ReceiptHandle),
 		}
-		noOfValidMessages++
+		singleReceiveMetadata.MergeWithEvent(event)
 	}
-	return noOfValidMessages
+	return singleReceiveMetadata
 }
 
 // auditEventFromSQSorS3 returns events either directly from SQS message payload
@@ -490,6 +618,7 @@ func errHandlingFnFromSQS(logger log.FieldLogger) func(ctx context.Context, errC
 			if errorsCount > maxErrorCountForLogsOnSQSReceive {
 				logger.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
 			}
+			consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
 		}()
 
 		for {
@@ -526,11 +655,16 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 
 	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
 
+	var versionIDPtr *string
+	if versionID != "" {
+		versionIDPtr = aws.String(versionID)
+	}
+
 	buf := manager.NewWriteAtBuffer([]byte{})
 	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket:    aws.String(s.cfg.payloadBucket),
 		Key:       aws.String(path),
-		VersionId: aws.String(versionID),
+		VersionId: versionIDPtr,
 	})
 	if err != nil {
 		return nil, awsutils.ConvertS3Error(err)
@@ -560,7 +694,6 @@ eventLoop:
 			}
 			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
 			if err != nil {
-				// TODO(tobiaszheller): come back and add some metrics here.
 				c.logger.WithError(err).Error("Could not convert event to parquet format")
 				continue
 			}
@@ -600,7 +733,10 @@ eventLoop:
 			toDelete = append(toDelete, eventAndAckID.receiptHandle)
 		}
 	}
-
+	eventLoopFinishedTime := time.Now()
+	defer func() {
+		consumerS3parquetFlushDuration.Observe(time.Since(eventLoopFinishedTime).Seconds())
+	}()
 	for _, pw := range perDateWriter {
 		if err := pw.Close(); err != nil {
 			// Typically there will be data just for one date.
@@ -650,7 +786,10 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	if len(handles) == 0 {
 		return nil
 	}
-
+	start := time.Now()
+	defer func() {
+		consumerDeleteMessageDuration.Observe(time.Since(start).Seconds())
+	}()
 	const (
 		// maxDeleteBatchSize defines maximum number of handles passed to deleteMessage endpoint, limited by AWS.
 		maxDeleteBatchSize = 10

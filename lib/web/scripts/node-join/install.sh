@@ -661,7 +661,7 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
             fi
             if [[ ${DISTRO_TYPE} =~ "debian" ]]; then
                 TELEPORT_FORMAT="deb"
-            elif [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
+            elif [[ "$DISTRO_TYPE" =~ "amzn"* ]] || [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
                 TELEPORT_FORMAT="rpm"
             else
                 log "Couldn't match a distro type using /etc/os-release, falling back to tarball installer"
@@ -679,10 +679,8 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     TELEPORT_BINARY_TYPE="darwin"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
-    if [[ ${ARCH} == "aarch64" || ${ARCH} == "arm64" ]]; then
+    if [[ ${ARCH} == "arm64" ]]; then
         TELEPORT_ARCH="arm64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
-        exit 1
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else
@@ -851,18 +849,11 @@ install_from_repo() {
         REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
     fi
 
-    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}
-    # (warning): This expression is constant. Did you forget the $ on a variable?
-    # Disabling the warning above because expression is templated.
-    # shellcheck disable=SC2050
-    if [[ "{{.installUpdater}}" == "true" ]]; then
-        PACKAGE_LIST="${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater"
-    fi
-
     # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
     # shellcheck disable=SC1091
     . /etc/os-release
 
+    PACKAGE_LIST=$(package_list)
     if [ "$ID" == "debian" ] || [ "$ID" == "ubuntu" ]; then
         # old versions of ubuntu require that keys get added by `apt-key add`, without
         # adding the key apt shows a key signing error when installing teleport.
@@ -892,12 +883,38 @@ install_from_repo() {
         # Remove metadata cache to prevent cache from other channel (eg, prior version)
         # See: https://github.com/gravitational/teleport/issues/22581
         yum --disablerepo="*" --enablerepo="teleport" clean metadata
-        
+
         yum install -y ${PACKAGE_LIST}
     else
         echo "Unsupported distro: $ID"
         exit 1
     fi
+}
+
+# package_list returns the list of packages to install.
+# The list of packages can be fed into yum or apt because they already have the expected format when pinning versions.
+package_list() {
+    TELEPORT_PACKAGE_PIN_VERSION=${TELEPORT_PACKAGE_NAME}
+    TELEPORT_UPDATER_PIN_VERSION="${TELEPORT_PACKAGE_NAME}-updater"
+
+    if [[ "${TELEPORT_FORMAT}" == "deb" ]]; then
+        TELEPORT_PACKAGE_PIN_VERSION+="=${TELEPORT_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="=${TELEPORT_VERSION}"
+
+    elif [[ "${TELEPORT_FORMAT}" == "rpm" ]]; then
+        TELEPORT_YUM_VERSION="${TELEPORT_VERSION//-/_}"
+        TELEPORT_PACKAGE_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
+        TELEPORT_UPDATER_PIN_VERSION+="-${TELEPORT_YUM_VERSION}"
+    fi
+
+    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}
+    # (warning): This expression is constant. Did you forget the $ on a variable?
+    # Disabling the warning above because expression is templated.
+    # shellcheck disable=SC2050
+    if [[ "{{.installUpdater}}" == "true" ]]; then
+        PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
+    fi
+    echo ${PACKAGE_LIST}
 }
 
 is_repo_available() {

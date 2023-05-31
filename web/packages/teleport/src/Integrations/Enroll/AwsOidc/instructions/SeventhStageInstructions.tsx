@@ -30,7 +30,10 @@ import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import { requiredField } from 'shared/components/Validation/rules';
+import {
+  requiredField,
+  requiredRoleArn,
+} from 'shared/components/Validation/rules';
 
 import {
   IntegrationKind,
@@ -39,13 +42,13 @@ import {
 import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 
-import { InstructionsContainer } from './common';
+import { InstructionsContainer, PreviousStepProps } from './common';
 
-export function SeventhStageInstructions() {
+export function SeventhStageInstructions(props: PreviousStepProps) {
   const { attempt, setAttempt } = useAttempt('');
   const [showConfirmBox, setShowConfirmBox] = useState(false);
-  const [roleArn, setRoleArn] = useState('');
-  const [name, setName] = useState('');
+  const [roleArn, setRoleArn] = useState(props.awsOidc.roleArn);
+  const [name, setName] = useState(props.awsOidc.integrationName);
 
   function handleSubmit(validator: Validator) {
     if (!validator.validate()) {
@@ -83,7 +86,13 @@ export function SeventhStageInstructions() {
                 onChange={e => setRoleArn(e.target.value)}
                 value={roleArn}
                 placeholder="Role ARN"
-                rule={requiredField('Role ARN is required')}
+                rule={requiredRoleArn}
+                toolTipContent={
+                  <Text>
+                    Role ARN can be found in the format: <br />
+                    {`arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>`}
+                  </Text>
+                }
               />
             </Box>
             <Text mt={5}>Give this AWS integration a name</Text>
@@ -103,6 +112,19 @@ export function SeventhStageInstructions() {
               >
                 Next
               </ButtonPrimary>
+              <ButtonSecondary
+                ml={3}
+                onClick={() =>
+                  props.onPrev({
+                    ...props.awsOidc,
+                    roleArn,
+                    integrationName: name,
+                  })
+                }
+                disabled={attempt.status === 'processing'}
+              >
+                Back
+              </ButtonSecondary>
             </Box>
           </>
         )}

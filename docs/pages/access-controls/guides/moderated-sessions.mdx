@@ -295,6 +295,24 @@ comma-separated list of usernames.
 This information can be picked up by a third party integration and may for
 example be used to enable notifications over some external communication system.
 
+## File transfers
+
+File transfers within moderated sessions are available via the Web UI only. When initiating a file transfer, if the
+current active session requires moderation, a file transfer request will automatically be sent to all current party members.
+
+Both the session originator and the moderator(s) must be present in the Web UI during the file transfer initiation to receive
+the file transfer request notification. Once the file transfer has been requested, all members of the party will be notified
+and prompted with an Approve/Deny dialog.
+
+![Approve/Deny Prompt](../../../img/moderated-file-transfer-dialog.png)
+
+
+If a moderator denies the file transfer request, the request is immediately removed and all party members are notified.
+
+After enough approvals have been given to satisfy the policy (the same policy to start the session), the file transfer
+will automatically begin.
+
+
 ## RFD
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
