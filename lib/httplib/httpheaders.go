@@ -21,6 +21,8 @@ package httplib
 import (
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"golang.org/x/exp/maps"
@@ -51,13 +53,21 @@ func getContentSecurityPolicyString(cspAdditions map[string]string) string {
 	// Override any default CSP directives with any additional CSP directives.
 	maps.Copy(combined, cspAdditions)
 
+	// Create an alphabetical map of keys so the CSP can be constructed alphabetically,
+	// which makes testing/debugging easier.
+	keys := make([]string, 0, len(combined))
+	for k := range combined {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	// Build the CSP string.
 	var cspString string
-	for k, v := range combined {
-		cspString += fmt.Sprintf("%s %s; ", k, v)
+	for _, k := range keys {
+		cspString += fmt.Sprintf("%s %s; ", k, combined[k])
 	}
 
-	return cspString
+	return strings.TrimSpace(cspString)
 }
 
 // SetNoCacheHeaders tells proxies and browsers do not cache the content
