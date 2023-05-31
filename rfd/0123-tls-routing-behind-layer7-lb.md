@@ -237,7 +237,7 @@ standard [PROXY](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt) pr
 standard way for layer 7 load balancers to report correct client source IPs is through the
 ["X-Forwarded-For"](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For) (XFF) header.
 
-The Proxy service will examine the values of the XFF headers when `proxy_service.use_xff_header` is enabled (more
+The Proxy service will examine the values of the XFF headers when `proxy_service.use_x_forwarded_for` is enabled (more
 details in security section).
 
 ALL web APIs will take client source IPs from the XFF headers. This includes login APIs, Web UI APIs (including wss
@@ -335,7 +335,7 @@ proxy_service:
   # headers.
   #
   # default: false
-  use_xff_header: true
+  use_x_forwarded_for: true
 ```
 
 Note that this setting is NOT mutually exclusive with the `proxy_protocol` setting. For example, in a separate-port
@@ -365,7 +365,7 @@ routing requests, and the endpoint is publicly available regardless of whether t
 not.
 
 To minimize this risk, the web APIs will only take client source IPs from XFF headers when
-`proxy_service.use_xff_header` is explicitly set to true. Users have the responsibility to ensure that the Proxy
+`proxy_service.use_x_forwarded_for` is explicitly set to true. Users have the responsibility to ensure that the Proxy
 service is indeed behind a layer 7 load balancer AND the load balancer is configured to set correct values in the XFF
 headers.
 
