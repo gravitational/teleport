@@ -158,6 +158,9 @@ type AWSOIDCDeployDBServiceRequest struct {
 
 	// DiscoveryGroupName is the DiscoveryGroup to be used by the `discovery_service`.
 	DiscoveryGroupName *string `json:"discoveryGroupName"`
+
+	// AgentMatcherLabels are the labels to be used by the Database Service for matching on resources.
+	AgentMatcherLabels []Label `json:"agentMatcherLabels"`
 }
 
 // AWSOIDCDeployDBServiceResponse contains the resources that were used to create the Database and Discovery Service.

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -130,6 +131,11 @@ func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
+	agentMatcherLabels := make(types.Labels, len(req.AgentMatcherLabels))
+	for _, label := range req.AgentMatcherLabels {
+		agentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
 	deployDBServiceResp, err := awsoidc.DeployDBService(ctx, deployDBServiceClient, awsoidc.DeployDBServiceRequest{
 		Region:              req.Region,
 		SubnetIDs:           req.SubnetIDs,
@@ -141,6 +147,7 @@ func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request,
 		ProxyServerHostPort: h.PublicProxyAddr(),
 		TeleportVersion:     teleport.Version,
 		TeleportClusterName: h.auth.clusterName,
+		AgentMatcherLabels:  agentMatcherLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

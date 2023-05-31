@@ -29,7 +29,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -110,6 +109,9 @@ type DeployDBServiceRequest struct {
 
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
+
+	// AgentMatcherLabels are the labels to be used by the Database Service for matching on resources.
+	AgentMatcherLabels types.Labels
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -156,6 +158,10 @@ func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
 
 	if r.TeleportVersion == "" {
 		return trace.BadParameter("teleport version is required (eg, 13.0.2)")
+	}
+
+	if len(r.AgentMatcherLabels) == 0 {
+		return trace.BadParameter("at least one agent matcher label is required")
 	}
 
 	return nil
@@ -316,10 +322,7 @@ func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) 
 //
 // # Discovery and Database Service
 //
-// The Database Service only matches resources onboarded by the Discovery Service.
-// This is achieved by using the `discovery_group` to link the two:
-//   - when Discovery Service has a `discovery_group` X, it will create all the Databases with a label `teleport.internal/discovery-group-name: X`
-//   - the Database Service resource matchers only watches for resources with the following label `teleport.internal/discovery-group-name: X`
+// The Database Service will match on the suggested labels received in the request.
 func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest) (*DeployDBServiceResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -391,16 +394,9 @@ func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
 	// TODO(marco): DiscoveryConfig won't start because it has no matchers.
 	// This should be changed when RFD125 adds the DiscoveryConfig resource.
 
-	// Ensure the DatabaseService only proxies the Databases discovered by the Discovery Service.
-	//
-	// When the DiscoveryService has a DiscoveryGroup, it stamps all the added resources with the following label:
-	// > teleport.internal/discovery-group-name: <discovery-group>
-	// So, adding this as label matcher, ensures only those Databases are proxied.
 	serviceConfig.Databases.Service.EnabledFlag = "yes"
 	serviceConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
-		Labels: map[string]utils.Strings{
-			types.TeleportInternalDiscoveryGroupName: []string{*req.DiscoveryGroupName},
-		},
+		Labels: req.AgentMatcherLabels,
 	}}
 
 	teleportConfigYAMLBytes, err := yaml.Marshal(serviceConfig)
