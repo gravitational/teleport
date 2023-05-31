@@ -6133,7 +6133,7 @@ func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.DeleteAssistantConversation(ctx, req)
+	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
