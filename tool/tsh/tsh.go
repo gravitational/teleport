@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -3665,6 +3666,22 @@ func (c *CLIConf) ListProfiles() ([]*client.ProfileStatus, error) {
 	}
 
 	return profiles, nil
+}
+
+// GetProfile loads user profile.
+func (c *CLIConf) GetProfile() (*profile.Profile, error) {
+	store, err := initClientStore(c, c.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profileName, err := client.ProfileNameFromProxyAddress(store, c.Proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	profile, err := store.GetProfile(profileName)
+	return profile, trace.Wrap(err)
 }
 
 type mfaModeOpts struct {
