@@ -1790,8 +1790,7 @@ func TestTerminalRouting(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { tt.wsCloseAssertion(t, ws.Close()) })
 
-			stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
-			require.NoError(t, err)
+			stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 
 			// here we intentionally run a command where the output we're looking
 			// for is not present in the command itself
@@ -1949,8 +1948,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, json.Unmarshal([]byte(env.Payload), &chals))
 
 			// Send response over ws.
-			stream, err := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
-			require.NoError(t, err)
+			stream := NewTerminalStream(ctx, ws, utils.NewLoggerForTests())
 			err = stream.ws.WriteMessage(websocket.BinaryMessage, tc.getChallengeResponseBytes(chals, dev))
 			require.Nil(t, err)
 
@@ -2141,8 +2139,7 @@ func TestWebAgentForward(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 
 	_, err = io.WriteString(stream, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
@@ -2254,8 +2251,7 @@ func TestCloseConnectionsOnLogout(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream, err := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	stream := NewTerminalStream(s.ctx, ws, utils.NewLoggerForTests())
 
 	// to make sure we have a session
 	_, err = io.WriteString(stream, "expr 137 + 39\r\n")
@@ -7897,12 +7893,11 @@ func login(t *testing.T, clt *TestWebClient, cookieToken, reqToken string, reqDa
 
 func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 	t.Helper()
-	stream, err := NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	stream := NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
-	_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(stream, "teleport"))
 }
@@ -8973,8 +8968,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerWS.Close()) })
 
-	peerStream, err := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	peerStream := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -8983,8 +8977,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorWS.Close()) })
 
-	moderatorStream, err := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	moderatorStream := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 
@@ -9062,8 +9055,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, peerWS, peer.device)
 
-	peerStream, err := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	peerStream := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -9073,8 +9065,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, moderatorWS, moderator.device)
 
-	moderatorStream, err := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	moderatorStream := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -138,7 +139,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 }
 
 // TerminalHandlerConfig contains the configuration options necessary to
-// correctly setup the TerminalHandler
+// correctly set up the TerminalHandler
 type TerminalHandlerConfig struct {
 	// Term is the initial PTY size.
 	Term session.TerminalParams
@@ -376,33 +377,32 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
-	stream, err := NewTerminalStream(r.Context(), ws, t.log)
-	if err != nil {
-		t.log.WithError(err).Info("Failed creating a terminal stream for session")
-		t.writeError(err)
-		return
-	}
-	t.stream = stream
+	// Create a context for signaling when the terminal session is over and
+	// link it first with the trace context from the request context
+	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
+	ctx, cancel := context.WithCancel(tctx)
+	defer cancel()
+	t.stream = NewTerminalStream(ctx, ws, t.log)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(r.Context(), stream, ws.RemoteAddr().String())
+	tc, err := t.makeClient(ctx, t.stream, ws.RemoteAddr().String())
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a client for session")
-		t.writeError(err)
+		t.stream.writeError(err.Error())
 		return
 	}
 
 	t.log.Debug("Creating websocket stream")
 
 	// Start sending ping frames through websocket to client.
-	go startPingLoop(t.stream.ctx, ws, t.keepAliveInterval, t.log, t.Close)
+	go startPingLoop(ctx, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	go t.streamEvents(tc)
+	go t.streamEvents(ctx, tc)
 
 	// Block until the terminal session is complete.
-	t.streamTerminal(tc)
+	t.streamTerminal(ctx, tc)
 	t.log.Debug("Closing websocket stream")
 }
 
@@ -707,14 +707,14 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn, tc *clien
 
 // streamTerminal opens a SSH connection to the remote host and streams
 // events back to the web client.
-func (t *TerminalHandler) streamTerminal(tc *client.TeleportClient) {
-	ctx, span := t.tracer.Start(t.stream.ctx, "terminal/streamTerminal")
+func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.TeleportClient) {
+	ctx, span := t.tracer.Start(ctx, "terminal/streamTerminal")
 	defer span.End()
 
 	nc, err := t.connectToHost(ctx, t.stream.ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
-		t.writeError(err)
+		t.stream.writeError(err.Error())
 		return
 	}
 
@@ -725,7 +725,7 @@ func (t *TerminalHandler) streamTerminal(tc *client.TeleportClient) {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
 				prompt := func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-					resp, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, proxyAddr, c)
+					resp, err := promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})(ctx, proxyAddr, c)
 					return resp, trace.Wrap(err)
 				}
 				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), prompt, client.WithPresenceClock(t.clock)); err != nil {
@@ -740,7 +740,7 @@ func (t *TerminalHandler) streamTerminal(tc *client.TeleportClient) {
 	// either an error occurs or it completes successfully.
 	if err = nc.RunInteractiveShell(ctx, t.participantMode, t.tracker, beforeStart); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
-		t.writeError(err)
+		t.stream.writeError(err.Error())
 		return
 	}
 
@@ -790,7 +790,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc, &t.stream.WSStream)
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -828,7 +828,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn
 
 // streamEvents receives events over the SSH connection and forwards them to
 // the web client.
-func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
+func (t *TerminalHandler) streamEvents(ctx context.Context, tc *client.TeleportClient) {
 	for {
 		select {
 		// Send push events that come over the events channel to the web client.
@@ -856,16 +856,9 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 
 		// Once the terminal stream is over (and the close envelope has been sent),
 		// close stop streaming envelopes.
-		case <-t.stream.ctx.Done():
+		case <-ctx.Done():
 			return
 		}
-	}
-}
-
-// writeError displays an error in the terminal window.
-func (t *TerminalHandler) writeError(err error) {
-	if writeErr := t.stream.writeError(err); writeErr != nil {
-		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
 	}
 }
 
@@ -911,67 +904,57 @@ func serverHostPort(servername string) (string, int, error) {
 	return host, port, nil
 }
 
-func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger) *WSStream {
-	// Create a context for signaling when the terminal session is over and
-	// link it first with the trace context from the request context
-	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(ctx))
-	ctx, cancel := context.WithCancel(tctx)
-
+func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers map[string]WSHandlerFunc) *WSStream {
 	w := &WSStream{
-		log:                   log,
-		ws:                    ws,
-		ctx:                   ctx,
-		cancel:                cancel,
-		encoder:               unicode.UTF8.NewEncoder(),
-		decoder:               unicode.UTF8.NewDecoder(),
-		resizeC:               make(chan Envelope, 1),
-		fileTransferRequestC:  make(chan Envelope, 1),
-		fileTransferDecisionC: make(chan Envelope, 1),
-		rawC:                  make(chan Envelope, 100),
-		challengeC:            make(chan Envelope, 1),
-		completedC:            make(chan struct{}),
+		log:        log,
+		ws:         ws,
+		encoder:    unicode.UTF8.NewEncoder(),
+		decoder:    unicode.UTF8.NewDecoder(),
+		completedC: make(chan struct{}),
+		rawC:       make(chan Envelope, 100),
+		challengeC: make(chan Envelope, 1),
+		handlers:   handlers,
 	}
 
-	go w.processMessages()
+	go w.processMessages(ctx)
 
 	return w
 }
 
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
-func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) (*TerminalStream, error) {
-	if ws == nil {
-		return nil, trace.BadParameter("required parameter ws not provided")
-	}
-
+func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) *TerminalStream {
 	t := &TerminalStream{
-		WSStream:      NewWStream(ctx, ws, log),
 		sessionReadyC: make(chan struct{}),
 	}
 
-	go t.handleWindowResize()
-	go t.handleFileTransfer()
+	handlers := map[string]WSHandlerFunc{
+		defaults.WebsocketResize:               t.handleWindowResize,
+		defaults.WebsocketFileTransferRequest:  t.handleFileTransferRequest,
+		defaults.WebsocketFileTransferDecision: t.handleFileTransferDecision,
+	}
 
-	return t, nil
+	t.WSStream = NewWStream(ctx, ws, log, handlers)
+
+	return t
 }
 
+// WSHandlerFunc specifies a handler that processes received a specific
+// [Envelope] received via a web socket.
+type WSHandlerFunc func(context.Context, Envelope)
+
+// WSStream handles web socket communication with
+// the frontend.
 type WSStream struct {
 	// encoder is used to encode UTF-8 strings.
 	encoder *encoding.Encoder
 	// decoder is used to decode UTF-8 strings.
 	decoder *encoding.Decoder
 
-	// resizeC a channel to forward resize events so that
-	// they happen out of band and don't block reads
-	resizeC chan Envelope
-	// fileTransferRequestC is a channel to facilitate requesting a file transfer
-	fileTransferRequestC chan Envelope
-	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
-	// with an approval or denial
-	fileTransferDecisionC chan Envelope
-	challengeC            chan Envelope
-	rawC                  chan Envelope
-	completedC            chan struct{}
+	handlers   map[string]WSHandlerFunc
+	challengeC chan Envelope
+	rawC       chan Envelope
+	completedC chan struct{}
 
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
@@ -981,11 +964,6 @@ type WSStream struct {
 	mu sync.Mutex
 	// ws the connection to the UI
 	ws WSConn
-
-	// ctx is used to signal when the terminal session is closing.
-	ctx context.Context
-	// cancel is used to terminate the terminal session.
-	cancel context.CancelFunc
 
 	// log holds the structured logger.
 	log logrus.FieldLogger
@@ -1008,21 +986,21 @@ type TerminalStream struct {
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
 // writeError displays an error in the terminal window.
-func (t *WSStream) writeError(err error) error {
-	_, writeErr := replacer.WriteString(t, err.Error())
-	return trace.Wrap(writeErr)
+func (t *WSStream) writeError(msg string) {
+	if _, writeErr := replacer.WriteString(t, msg); writeErr != nil {
+		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", msg)
+	}
 }
 
-func (t *WSStream) processMessages() {
+func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
-		t.cancel()
 		close(t.completedC)
 	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
 	for {
 		select {
-		case <-t.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
 			ty, bytes, err := t.ws.ReadMessage()
@@ -1037,22 +1015,22 @@ func (t *WSStream) processMessages() {
 					msg = string(bytes)
 				}
 				select {
-				case <-t.ctx.Done():
-					return
-				case t.rawC <- Envelope{Payload: msg}:
+				case <-ctx.Done():
+				default:
+					t.writeError(msg)
 					return
 				}
 			}
 
 			if ty != websocket.BinaryMessage {
-				t.log.Warnf("Expected binary message, got %v", ty)
-				continue
+				t.writeError(fmt.Sprintf("Expected binary message, got %v", ty))
+				return
 			}
 
 			var envelope Envelope
 			if err := proto.Unmarshal(bytes, &envelope); err != nil {
-				t.log.Warnf("Unable to parse message payload %v", err)
-				continue
+				t.writeError(fmt.Sprintf("Unable to parse message payload %v", err))
+				return
 			}
 
 			switch envelope.Type {
@@ -1060,41 +1038,29 @@ func (t *WSStream) processMessages() {
 				return
 			case defaults.WebsocketWebauthnChallenge:
 				select {
-				case <-t.ctx.Done():
+				case <-ctx.Done():
 					return
 				case t.challengeC <- envelope:
 				default:
 				}
 			case defaults.WebsocketRaw:
 				select {
-				case <-t.ctx.Done():
-					return
+				case <-ctx.Done():
 				case t.rawC <- envelope:
 				default:
 				}
-			case defaults.WebsocketResize:
-				select {
-				case <-t.ctx.Done():
-					return
-				case t.resizeC <- envelope:
-				default:
-				}
-			case defaults.WebsocketFileTransferDecision:
-				select {
-				case <-t.ctx.Done():
-					return
-				case t.fileTransferDecisionC <- envelope:
-				default:
-				}
-			case defaults.WebsocketFileTransferRequest:
-				select {
-				case <-t.ctx.Done():
-					return
-				case t.fileTransferRequestC <- envelope:
-				default:
-				}
 			default:
-				t.log.Warnf("Received web socket envelope with unknown type %v", envelope.Type)
+				if t.handlers == nil {
+					continue
+				}
+
+				handler, ok := t.handlers[envelope.Type]
+				if !ok {
+					t.log.Warnf("Received web socket envelope with unknown type %v", envelope.Type)
+					continue
+				}
+
+				go handler(ctx, envelope)
 			}
 		}
 	}
@@ -1102,102 +1068,100 @@ func (t *WSStream) processMessages() {
 
 // handleWindowResize receives window resize events and forwards
 // them to the SSH session.
-func (t *TerminalStream) handleWindowResize() {
-	for {
-		select {
-		case <-t.ctx.Done():
-			return
-		case envelope := <-t.resizeC:
-			select {
-			case <-t.ctx.Done():
-				return
-			case <-t.sessionReadyC:
-			}
+func (t *TerminalStream) handleWindowResize(ctx context.Context, envelope Envelope) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-t.sessionReadyC:
+	}
 
-			if t.sshSession == nil {
-				return
-			}
+	if t.sshSession == nil {
+		return
+	}
 
-			var e map[string]string
-			err := json.Unmarshal([]byte(envelope.Payload), &e)
-			if err != nil {
-				t.log.Warnf("Failed to parse resize payload: %v", err)
-				continue
-			}
+	var e map[string]string
+	err := json.Unmarshal([]byte(envelope.Payload), &e)
+	if err != nil {
+		t.log.Warnf("Failed to parse resize payload: %v", err)
+		return
+	}
 
-			params, err := session.UnmarshalTerminalParams(e["size"])
-			if err != nil {
-				t.log.Warnf("Failed to retrieve terminal size: %v", err)
-				continue
-			}
+	params, err := session.UnmarshalTerminalParams(e["size"])
+	if err != nil {
+		t.log.Warnf("Failed to retrieve terminal size: %v", err)
+		return
+	}
 
-			// nil params indicates the channel was closed
-			if params == nil {
-				return
-			}
+	// nil params indicates the channel was closed
+	if params == nil {
+		return
+	}
 
-			if err := t.sshSession.WindowChange(t.ctx, params.H, params.W); err != nil {
-				t.log.Error(err)
-			}
-		}
+	if err := t.sshSession.WindowChange(ctx, params.H, params.W); err != nil {
+		t.log.Error(err)
 	}
 }
 
-func (t *TerminalStream) handleFileTransfer() {
-	for {
-		select {
-		case <-t.ctx.Done():
-			return
-		case envelope := <-t.fileTransferRequestC:
-			select {
-			case <-t.ctx.Done():
-				return
-			case <-t.sessionReadyC:
-			}
+func (t *TerminalStream) handleFileTransferDecision(ctx context.Context, envelope Envelope) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-t.sessionReadyC:
+	}
 
-			if t.sshSession == nil {
-				return
-			}
+	if t.sshSession == nil {
+		return
+	}
 
-			var e utils.Fields
-			err := json.Unmarshal([]byte(envelope.Payload), &e)
-			if err != nil {
-				continue
-			}
-			download, ok := e["download"].(bool)
-			if !ok {
-				t.log.Error("Unable to find download param in response")
-				continue
-			}
+	var e utils.Fields
+	err := json.Unmarshal([]byte(envelope.Payload), &e)
+	if err != nil {
+		return
+	}
+	approved, ok := e["approved"].(bool)
+	if !ok {
+		t.log.Error("Unable to find approved status on response")
+		return
+	}
 
-			if err := t.sshSession.RequestFileTransfer(t.ctx, tracessh.FileTransferReq{
-				Download: download,
-				Location: e.GetString("location"),
-				Filename: e.GetString("filename"),
-			}); err != nil {
-				t.log.WithError(err).Error("Unable to request file transfer")
-			}
-		case envelope := <-t.fileTransferDecisionC:
-			var e utils.Fields
-			err := json.Unmarshal([]byte(envelope.Payload), &e)
-			if err != nil {
-				continue
-			}
-			approved, ok := e["approved"].(bool)
-			if !ok {
-				t.log.Error("Unable to find approved status on response")
-				continue
-			}
+	if approved {
+		err = t.sshSession.ApproveFileTransferRequest(ctx, e.GetString("requestId"))
+	} else {
+		err = t.sshSession.DenyFileTransferRequest(ctx, e.GetString("requestId"))
+	}
+	if err != nil {
+		t.log.WithError(err).Error("Unable to respond to file transfer request")
+	}
+}
 
-			if approved {
-				err = t.sshSession.ApproveFileTransferRequest(t.ctx, e.GetString("requestId"))
-			} else {
-				err = t.sshSession.DenyFileTransferRequest(t.ctx, e.GetString("requestId"))
-			}
-			if err != nil {
-				t.log.WithError(err).Error("Unable to respond to file transfer request")
-			}
-		}
+func (t *TerminalStream) handleFileTransferRequest(ctx context.Context, envelope Envelope) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-t.sessionReadyC:
+	}
+
+	if t.sshSession == nil {
+		return
+	}
+
+	var e utils.Fields
+	err := json.Unmarshal([]byte(envelope.Payload), &e)
+	if err != nil {
+		return
+	}
+	download, ok := e["download"].(bool)
+	if !ok {
+		t.log.Error("Unable to find download param in response")
+		return
+	}
+
+	if err := t.sshSession.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+		Download: download,
+		Location: e.GetString("location"),
+		Filename: e.GetString("filename"),
+	}); err != nil {
+		t.log.WithError(err).Error("Unable to request file transfer")
 	}
 }
 
@@ -1224,8 +1188,8 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	select {
-	case <-t.ctx.Done():
-		return nil, trace.Wrap(t.ctx.Err())
+	case <-t.completedC:
+		return nil, io.EOF
 	case envelope := <-t.challengeC:
 		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 		return resp, trace.Wrap(err)
@@ -1236,8 +1200,8 @@ func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenti
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
 	select {
-	case <-t.ctx.Done():
-		return nil, trace.Wrap(t.ctx.Err())
+	case <-t.completedC:
+		return nil, io.EOF
 	case envelope := <-t.challengeC:
 		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 		return challenge, trace.Wrap(err)
@@ -1313,7 +1277,7 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	}
 
 	select {
-	case <-t.ctx.Done():
+	case <-t.completedC:
 		return 0, io.EOF
 	case envelope := <-t.rawC:
 		data, err := t.decoder.Bytes([]byte(envelope.Payload))
@@ -1333,8 +1297,6 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
-	t.cancel()
-
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{
 		Version: defaults.WebsocketVersion,
@@ -1358,10 +1320,6 @@ func (t *TerminalStream) Close() error {
 		err = t.WSStream.Close()
 
 		<-t.completedC
-
-		close(t.resizeC)
-		close(t.fileTransferRequestC)
-		close(t.fileTransferDecisionC)
 		close(t.rawC)
 		close(t.challengeC)
 	})

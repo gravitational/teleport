@@ -305,8 +305,7 @@ func getMFACacheFn() mfaFuncCache {
 			return authMethods, nil
 		}
 
-		var err error
-		authMethods, err = issueMfaAuthFn()
+		authMethods, err := issueMfaAuthFn()
 		return authMethods, trace.Wrap(err)
 	}
 }
@@ -485,7 +484,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(r.Context(), t.ws, t.log)
+	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.

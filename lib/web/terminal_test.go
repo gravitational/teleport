@@ -64,8 +64,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	stream, err := web.NewTerminalStream(context.Background(), conn, utils.NewLoggerForTests())
-	require.NoError(t, err)
+	stream := web.NewTerminalStream(context.Background(), conn, utils.NewLoggerForTests())
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
