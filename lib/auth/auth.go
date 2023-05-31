@@ -5268,6 +5268,11 @@ func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.
 	return resp, trace.Wrap(err)
 }
 
+// DeleteAssistantConversation deletes a conversation from the backend.
+func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
+	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
+}
+
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
