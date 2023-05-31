@@ -56,6 +56,11 @@ const (
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
+
+	uiIntegrationEnrollStartEvent    = "tp.ui.integrationEnroll.start"
+	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
+
+	uiCallToActionClickEvent = "tp.ui.callToAction.click"
 )
 
 // Events that require extra metadata.
@@ -72,6 +77,10 @@ var eventsWithDataRequired = []string{
 	uiDiscoverPrincipalsConfigureEvent,
 	uiDiscoverTestConnectionEvent,
 	uiDiscoverCompletedEvent,
+	uiDiscoverIntegrationAWSOIDCConnectEvent,
+	uiDiscoverDatabaseRDSEnrollEvent,
+	uiIntegrationEnrollStartEvent,
+	uiIntegrationEnrollCompleteEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -170,6 +179,19 @@ type CreateUserEventRequest struct {
 	EventData *json.RawMessage `json:"eventData"`
 }
 
+// IntegrationEnrollEventData contains the required properties
+// to create a IntegrationEnroll UsageEvent.
+type IntegrationEnrollEventData struct {
+	// ID is a unique ID per wizard session
+	ID string `json:"id"`
+
+	// Kind is the integration type that the user selected to enroll.
+	// Values should be the string version of the enum names as found
+	// in usageevents.IntegrationEnrollKind.
+	// Example: "INTEGRATION_ENROLL_KIND_AWS_OIDC"
+	Kind string `json:"kind"`
+}
+
 // CheckAndSetDefaults validates the Request has the required fields.
 func (r *CreateUserEventRequest) CheckAndSetDefaults() error {
 	if r.Event == "" {
@@ -208,6 +230,40 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				UiOnboardAddFirstResourceLaterClick: &usageeventsv1.UIOnboardAddFirstResourceLaterClickEvent{},
 			}},
 			nil
+
+	case uiIntegrationEnrollStartEvent,
+		uiIntegrationEnrollCompleteEvent:
+
+		var event IntegrationEnrollEventData
+		if err := json.Unmarshal([]byte(*req.EventData), &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[event.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", event.Kind)
+		}
+
+		switch req.Event {
+		case uiIntegrationEnrollStartEvent:
+			return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStartEvent{
+				UiIntegrationEnrollStartEvent: &usageeventsv1.UIIntegrationEnrollStartEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+						Id:   event.ID,
+						Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+					},
+				},
+			}}, nil
+		case uiIntegrationEnrollCompleteEvent:
+			return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCompleteEvent{
+				UiIntegrationEnrollCompleteEvent: &usageeventsv1.UIIntegrationEnrollCompleteEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+						Id:   event.ID,
+						Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+					},
+				},
+			}}, nil
+		}
 
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
@@ -259,6 +315,17 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			}},
 			nil
 
+	case uiCallToActionClickEvent:
+		var cta int32
+		if err := json.Unmarshal([]byte(*req.EventData), &cta); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiCallToActionClickEvent{
+				UiCallToActionClickEvent: &usageeventsv1.UICallToActionClickEvent{
+					Cta: usageeventsv1.CTA(cta),
+				}}},
+			nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

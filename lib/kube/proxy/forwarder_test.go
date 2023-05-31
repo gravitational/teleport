@@ -24,7 +24,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -637,15 +637,7 @@ func TestAuthenticate(t *testing.T) {
 				),
 			},
 		},
-		{
-			desc:           "local user and remote cluster, no tunnel",
-			user:           authz.LocalUser{},
-			roleKubeGroups: []string{"kube-group-a", "kube-group-b"},
-			routeToCluster: "remote",
-			haveKubeCreds:  true,
 
-			wantErr: true,
-		},
 		{
 			desc:              "unknown kubernetes cluster in local cluster",
 			user:              authz.LocalUser{},
@@ -795,7 +787,6 @@ func TestAuthenticate(t *testing.T) {
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
 				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
-				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
@@ -988,90 +979,13 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 	}
 }
 
-func TestNewClusterSessionLocal(t *testing.T) {
-	ctx := context.Background()
-	f := newMockForwader(ctx, t)
-	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
-
-	// Set creds for kube cluster local
-	f.clusterDetails = map[string]*kubeDetails{
-		"local": {
-			kubeCreds: &staticKubeCreds{
-				targetAddr: "k8s.example.com:443",
-				tlsConfig: &tls.Config{
-					Certificates: []tls.Certificate{
-						{
-							Certificate: [][]byte{[]byte("cert")},
-						},
-					},
-				},
-				transportConfig: &transport.Config{},
-			},
-		},
-	}
-
-	// Fail when kubeCluster is not specified
-	authCtx.kubeClusterName = ""
-	_, err := f.newClusterSession(ctx, authCtx)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-	require.Empty(t, 0, f.clientCredentials.Len())
-
-	// Fail when creds aren't available
-	authCtx.kubeClusterName = "other"
-	_, err = f.newClusterSession(ctx, authCtx)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-	require.Empty(t, 0, f.clientCredentials.Len())
-
-	// Succeed when creds are available
-	authCtx.kubeClusterName = "local"
-	sess, err := f.newClusterSession(ctx, authCtx)
-	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
-
-	// Make sure newClusterSession used provided creds
-	// instead of requesting a Teleport client cert.
-	// this validates the equality of the referenced values
-	require.Equal(t, f.clusterDetails["local"].getTLSConfig(), sess.tlsConfig)
-
-	// Make sure that sess.tlsConfig was cloned from the value we store in f.creds["local"].tlsConfig.
-	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
-	require.NotSame(t, f.clusterDetails["local"].getTLSConfig(), sess.tlsConfig)
-
-	require.Nil(t, f.cfg.AuthClient.(*mockCSRClient).lastCert)
-	require.Empty(t, 0, f.clientCredentials.Len())
-}
-
-func TestNewClusterSessionRemote(t *testing.T) {
-	ctx := context.Background()
-	f := newMockForwader(ctx, t)
-	authCtx := mockAuthCtx(ctx, t, "kube-cluster", true)
-
-	// Succeed on remote cluster session
-	sess, err := f.newClusterSession(ctx, authCtx)
-	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{{addr: reversetunnel.LocalKubernetes}}, sess.kubeClusterEndpoints)
-
-	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
-	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-	// Make sure that sess.tlsConfig was cloned from the value we store in the cache.
-	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
-	// getClientCreds returns the cached version of the client tlsConfig.
-	require.NotNil(t, f.getClientCreds(authCtx))
-	require.NotSame(t, f.getClientCreds(authCtx), sess.tlsConfig)
-	//nolint:staticcheck // SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
-	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
-	require.Equal(t, 1, f.clientCredentials.Len())
-}
-
 func TestNewClusterSessionDirect(t *testing.T) {
 	ctx := context.Background()
 	f := newMockForwader(ctx, t)
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	// helper function to create kube services
-	newKubeServer := func(name, addr, kubeCluster string) (types.KubeServer, kubeClusterEndpoint) {
+	newKubeServer := func(name, addr, kubeCluster string) types.KubeServer {
 		cluster, err := types.NewKubernetesClusterV3(types.Metadata{
 			Name: kubeCluster,
 		},
@@ -1085,15 +999,12 @@ func TestNewClusterSessionDirect(t *testing.T) {
 			Cluster:  cluster,
 		})
 		require.NoError(t, err)
-		kubeServiceEndpoint := kubeClusterEndpoint{
-			addr:     addr,
-			serverID: fmt.Sprintf("%s.%s", name, authCtx.teleportCluster.name),
-		}
-		return kubeService, kubeServiceEndpoint
+
+		return kubeService
 	}
 
 	// no kube services for kube cluster
-	otherKubeService, _ := newKubeServer("other", "other.example.com", "other-kube-cluster")
+	otherKubeService := newKubeServer("other", "other.example.com", "other-kube-cluster")
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{otherKubeService, otherKubeService, otherKubeService},
 	}
@@ -1101,67 +1012,16 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	require.Error(t, err)
 
 	// multiple kube services for kube cluster
-	publicKubeService, publicEndpoint := newKubeServer("public", "k8s.example.com", "kube-cluster")
-	tunnelKubeService, tunnelEndpoint := newKubeServer("tunnel", reversetunnel.LocalKubernetes, "kube-cluster")
+	publicKubeService := newKubeServer("public", "k8s.example.com", "kube-cluster")
+	tunnelKubeService := newKubeServer("tunnel", reversetunnelclient.LocalKubernetes, "kube-cluster")
 
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
 	}
 	authCtx.kubeServers, err = f.cfg.CachingAuthClient.GetKubernetesServers(context.Background())
 	require.NoError(t, err)
-	sess, err := f.newClusterSession(ctx, authCtx)
-	require.NoError(t, err)
-	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
 
-	// Make sure newClusterSession obtained a new client cert instead of using f.creds.
-	require.Equal(t, f.cfg.AuthClient.(*mockCSRClient).lastCert.Raw, sess.tlsConfig.Certificates[0].Certificate[0])
-	//nolint:staticcheck // SA1019 there's no non-deprecated public API for testing the contents of the RootCAs pool
-	require.Equal(t, [][]byte{f.cfg.AuthClient.(*mockCSRClient).ca.Cert.RawSubject}, sess.tlsConfig.RootCAs.Subjects())
-	// Make sure that sess.tlsConfig was cloned from the value we store in the cache.
-	// This is important because each connection must refer to a different memory address so it can be manipulated to enable/disable http2
-	require.NotNil(t, f.getClientCreds(authCtx))
-	require.NotSame(t, f.getClientCreds(authCtx), sess.tlsConfig)
-	require.Equal(t, 1, f.clientCredentials.Len())
-}
-
-func TestClusterSessionDial(t *testing.T) {
-	ctx := context.Background()
-	sess := &clusterSession{
-		authContext: authContext{
-			teleportCluster: teleportClusterClient{
-				dial: func(_ context.Context, _ string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-					if endpoint.addr == "" {
-						return nil, trace.BadParameter("no addr")
-					}
-					return &net.TCPConn{}, nil
-				},
-			},
-		},
-	}
-
-	// fail with no endpoints
-	_, err := sess.dial(ctx, "")
-	require.True(t, trace.IsBadParameter(err))
-
-	// succeed with one endpoint
-	sess.kubeClusterEndpoints = []kubeClusterEndpoint{{
-		addr:     "addr1",
-		serverID: "server1",
-	}}
-	_, err = sess.dial(ctx, "")
-	require.NoError(t, err)
-	require.Equal(t, sess.kubeAddress, "addr1")
-
-	// fail if no endpoints are reachable
-	sess.kubeClusterEndpoints = make([]kubeClusterEndpoint, 10)
-	_, err = sess.dial(ctx, "")
-	require.Error(t, err)
-
-	// succeed if at least one endpoint is reachable
-	sess.kubeClusterEndpoints[5] = kubeClusterEndpoint{addr: "addr1"}
-	_, err = sess.dial(ctx, "")
-	require.NoError(t, err)
-	require.Equal(t, "addr1", sess.kubeAddress)
+	require.Nil(t, f.getClientCreds(authCtx))
 }
 
 // TestKubeFwdHTTPProxyEnv ensures that kube forwarder doesn't respect HTTPS_PROXY env
@@ -1190,10 +1050,6 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 
 	t.Cleanup(mockKubeAPI.Close)
 
-	authCtx.teleportCluster.dial = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-		return new(net.Dialer).DialContext(ctx, mockKubeAPI.Listener.Addr().Network(), mockKubeAPI.Listener.Addr().String())
-	}
-
 	checkTransportProxy := func(rt http.RoundTripper) http.RoundTripper {
 		tr, ok := rt.(*http.Transport)
 		require.True(t, ok)
@@ -1214,10 +1070,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 					WrapTransport: checkTransportProxy,
 				},
 				transport: httpTransport{
-					h1Transport: newH1Transport(&tls.Config{
-						InsecureSkipVerify: true,
-					}, nil),
-					h2Transport: h2Transport,
+					transport: h2Transport,
 				},
 			},
 		},
@@ -1227,9 +1080,6 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	sess, err := f.newClusterSession(ctx, authCtx)
 	require.NoError(t, err)
 	t.Cleanup(sess.close)
-	require.Equal(t, []kubeClusterEndpoint{{addr: f.clusterDetails["local"].getTargetAddr()}}, sess.kubeClusterEndpoints)
-
-	sess.tlsConfig.InsecureSkipVerify = true
 
 	t.Setenv("HTTP_PROXY", "example.com:9999")
 	t.Setenv("HTTPS_PROXY", "example.com:9999")

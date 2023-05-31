@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -156,7 +156,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary")
+	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
@@ -198,9 +198,8 @@ func TryRun(commands []CLICommand, args []string) error {
 		if utils.IsUntrustedCertErr(err) {
 			err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
-		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
-			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
-			err, cfg.AuthServerAddresses()[0].Addr)
+		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
+			cfg.AuthServerAddresses()[0].Addr, err)
 		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 

@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -77,6 +78,99 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 	require.Len(t, cfg.Proxy.KeyPairs, 1)
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].Certificate)
 	require.FileExists(t, cfg.Proxy.KeyPairs[0].PrivateKey)
+}
+
+func TestAdditionalExpectedRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		cfg           func() *servicecfg.Config
+		expectedRoles map[types.SystemRole]string
+	}{
+		{
+			name: "everything enabled",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+			},
+		},
+		{
+			name: "everything enabled with additional roles",
+			cfg: func() *servicecfg.Config {
+				cfg := servicecfg.MakeDefaultConfig()
+				cfg.DataDir = t.TempDir()
+				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+				cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+				cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+
+				cfg.Auth.Enabled = true
+				cfg.SSH.Enabled = true
+				cfg.Proxy.Enabled = true
+				cfg.Kube.Enabled = true
+				cfg.Apps.Enabled = true
+				cfg.Databases.Enabled = true
+				cfg.WindowsDesktop.Enabled = true
+				cfg.Discovery.Enabled = true
+
+				cfg.AdditionalExpectedRoles = []servicecfg.RoleAndIdentityEvent{
+					{
+						Role:          types.RoleOkta,
+						IdentityEvent: "some-identity-event",
+					},
+					{
+						Role:          types.RoleBot,
+						IdentityEvent: "some-other-identity-event",
+					},
+				}
+
+				return cfg
+			},
+			expectedRoles: map[types.SystemRole]string{
+				types.RoleAuth:           AuthIdentityEvent,
+				types.RoleNode:           SSHIdentityEvent,
+				types.RoleKube:           KubeIdentityEvent,
+				types.RoleApp:            AppsIdentityEvent,
+				types.RoleDatabase:       DatabasesIdentityEvent,
+				types.RoleWindowsDesktop: WindowsDesktopIdentityEvent,
+				types.RoleDiscovery:      DiscoveryIdentityEvent,
+				types.RoleProxy:          ProxyIdentityEvent,
+				types.RoleOkta:           "some-identity-event",
+				types.RoleBot:            "some-other-identity-event",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			process, err := NewTeleport(test.cfg())
+			require.NoError(t, err)
+			require.Equal(t, test.expectedRoles, process.instanceRoles)
+		})
+	}
 }
 
 func TestMonitor(t *testing.T) {
@@ -283,7 +377,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -334,7 +428,7 @@ func TestAthenaAuditLogSetup(t *testing.T) {
 				AuditSessionsURI: "s3://testbucket/sessions-rec",
 			})
 			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend, nil /* tracingProvider */)
 			tt.wantFn(t, log, err)
 		})
 	}
@@ -384,7 +478,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",
 				"proxy-tunnel-public-1",
@@ -447,7 +541,7 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				string(teleport.PrincipalLocalhost),
 				string(teleport.PrincipalLoopbackV4),
 				string(teleport.PrincipalLoopbackV6),
-				reversetunnel.LocalKubernetes,
+				reversetunnelclient.LocalKubernetes,
 				"kube-public-1",
 				"kube-public-2",
 			},
@@ -1179,8 +1273,22 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			name:       "jamf enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Jamf: servicecfg.JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			expected: true,
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildType := modules.BuildOSS

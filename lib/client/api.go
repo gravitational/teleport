@@ -71,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -310,6 +311,10 @@ type Config struct {
 
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
+
+	// extraEnvs contains additional environment variables that will be added
+	// to SSH session.
+	extraEnvs map[string]string
 
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
@@ -936,6 +941,9 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 // dtAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
 type dtAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
+// dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
+type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
+
 // TeleportClient is a wrapper around SSH client with teleport specific
 // workflow built in.
 // TeleportClient is NOT safe for concurrent use.
@@ -955,14 +963,20 @@ type TeleportClient struct {
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
 
-	// dtAttemptLoginIgnorePing allows tests to override AttemptDeviceLogin's Ping
-	// response validation.
-	dtAttemptLoginIgnorePing bool
+	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
+	// tests to ignore Ping responses.
+	// Useful to force flows that only typically happen on Teleport Enterprise.
+	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.RunCeremony].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
+
+	// dtAutoEnroll allows tests to override the default device auto-enroll
+	// function.
+	// Defaults to [dtenroll.AutoEnroll].
+	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1595,14 +1609,22 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	mfaCancel()
 	directCancel()
 
-	// Only return the error from connecting with mfa if the error
-	// originates from the mfa ceremony. If mfa is not required then
-	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, io.EOF) && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
+	switch {
+	// No MFA errors, return any errors from the direct connection
+	case mfaErr == nil:
+		return nil, trace.Wrap(directErr)
+	// Any direct connection errors other than access denied, which should be returned
+	// if MFA is required, take precedent over MFA errors due to users not having any
+	// enrolled devices.
+	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, auth.ErrNoMFADevices):
+		return nil, trace.Wrap(directErr)
+	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
+		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
 		return nil, trace.Wrap(mfaErr)
+	default:
+		return nil, trace.Wrap(directErr)
 	}
-
-	return nil, trace.Wrap(directErr)
 }
 
 // MFARequiredUnknownErr indicates that connections to an instance failed
@@ -1777,18 +1799,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: cluster},
-		tc.Config.HostLogin,
-	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
-	}
-	defer nodeClient.Close()
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, false)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -2655,6 +2666,10 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
+
+	for key, val := range tc.extraEnvs {
+		env[key] = val
+	}
 	return env
 }
 
@@ -2915,21 +2930,26 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	)
 	defer span.End()
 
-	var err error
-	var proxyClient *ProxyClient
+	type result struct {
+		proxyClient *ProxyClient
+		err         error
+	}
+	done := make(chan result)
 
 	// Use connectContext and the cancel function to signal when a response is
 	// returned from connectToProxy.
 	connectContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	go func() {
-		defer cancel()
-		proxyClient, err = tc.connectToProxy(connectContext)
+		proxyClient, err := tc.connectToProxy(connectContext)
+		done <- result{proxyClient, err}
 	}()
 
 	select {
 	// connectToProxy returned a result, return that back to the caller.
-	case <-connectContext.Done():
-		return proxyClient, trace.Wrap(formatConnectToProxyErr(err))
+	case r := <-done:
+		return r.proxyClient, trace.Wrap(formatConnectToProxyErr(r.err))
 	// The passed in context timed out. This is often due to the network being
 	// down and the user hitting Ctrl-C.
 	case <-ctx.Done():
@@ -3161,7 +3181,9 @@ func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) err
 		eventsCh:                 make(chan events.EventFields, 1024),
 		lastPing:                 tc.lastPing,
 		dtAttemptLoginIgnorePing: tc.dtAttemptLoginIgnorePing,
+		dtAutoEnrollIgnorePing:   tc.dtAutoEnrollIgnorePing,
 		dtAuthnRunCeremony:       tc.dtAuthnRunCeremony,
+		dtAutoEnroll:             tc.dtAutoEnroll,
 	}
 	tcNoJump.JumpHosts = nil
 
@@ -3358,8 +3380,11 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 }
 
 // DeviceLogin attempts to authenticate the current device with Teleport.
+//
 // The device must be previously registered and enrolled for the authentication
-// to succeed (see `tsh device enroll`).
+// to succeed (see `tsh device enroll`). Alternatively, if the cluster supports
+// auto-enrollment, then DeviceLogin will attempt to auto-enroll the device on
+// certain failures and login again.
 //
 // DeviceLogin may fail for a variety of reasons, some of them legitimate
 // (non-Enterprise cluster, Device Trust is disabled, etc). Because of that, a
@@ -3372,10 +3397,13 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
@@ -3383,11 +3411,36 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 		runCeremony = dtauthn.RunCeremony
 	}
 
-	newCerts, err := runCeremony(ctx, authClient.DevicesClient(), certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Login without a previous auto-enroll attempt.
+	devicesClient := authClient.DevicesClient()
+	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
+	// Success or auto-enroll impossible.
+	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
+		return newCerts, trace.Wrap(loginErr)
 	}
-	return newCerts, nil
+
+	// Is auto-enroll enabled?
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		log.WithError(err).Debug("Device Trust: swallowing Ping error for previous Login error")
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+	if !tc.dtAutoEnrollIgnorePing && !pingResp.Auth.DeviceTrust.AutoEnroll {
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+
+	autoEnroll := tc.dtAutoEnroll
+	if autoEnroll == nil {
+		autoEnroll = dtenroll.AutoEnroll
+	}
+
+	// Auto-enroll and Login again.
+	if _, err := autoEnroll(ctx, devicesClient); err != nil {
+		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
+		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
+	}
+	newCerts, err = runCeremony(ctx, devicesClient, certs)
+	return newCerts, trace.Wrap(err)
 }
 
 // getSSHLoginFunc returns an SSHLoginFunc that matches client and cluster settings.
@@ -3914,6 +3967,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)
@@ -4685,6 +4739,8 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
+		InsecureAddressDiscovery: tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4744,13 +4800,20 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	headlessAuthn, err := proxyClient.currentCluster.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	headlessAuthn, err := rootClient.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4766,11 +4829,11 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	}
 
 	if !ok {
-		err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
 		return trace.Wrap(err)
 	}
 
-	chall, err := proxyClient.currentCluster.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -4784,6 +4847,6 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	return trace.Wrap(err)
 }

@@ -20,9 +20,9 @@ RUN apt-get update && \
 
 # Install libudev-zero.
 # libudev-zero replaces systemd's libudev
-RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 && \
+RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.2 && \
     cd libudev-zero && \
-    [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
+    [ "$(git rev-parse HEAD)" = '04a727df50fde3f69127aed4bc48e6cff5430175' ] && \
     make install-static && \
     make clean
 
@@ -40,11 +40,11 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
+    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
     ./config --release --libdir=/usr/local/lib && \
-    make && \
+    make -j"$(nproc)" && \
     make install_sw
 
 # Install libfido2.
@@ -100,7 +100,7 @@ FROM ubuntu:18.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
-
+COPY gpg/docker.gpg .
 ENV LANGUAGE="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
@@ -159,6 +159,15 @@ RUN apt-get -y update && \
         xauth \
         libpcsclite-dev \
         && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo \
+    "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+    "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
@@ -263,19 +272,22 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
+ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
+ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
+RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-# Install protobuf and grpc build tools.
-ARG PROTOC_VER
-ARG GOGO_PROTO_TAG
+# Install protoc.
+ARG PROTOC_VER # eg, "3.20.2"
+RUN VERSION="$PROTOC_VER" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
+# Install protoc-gen-gogofast.
+ARG GOGO_PROTO_TAG # eg, "v1.3.2"
+RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -284,15 +296,15 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.52.2/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.17.0" && \
-      curl -fsSL \
-        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-        -o "${BIN}/buf" && \
-      chmod +x "${BIN}/buf"
+ARG BUF_VERSION # eg, "1.19.0"
+RUN BIN='/usr/local/bin' && \
+  VERSION="$BUF_VERSION" && \
+  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
+  chmod +x "$BIN/buf"
 
 # Copy BPF libraries.
 ARG LIBBPF_VERSION

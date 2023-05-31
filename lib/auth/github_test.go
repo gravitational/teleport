@@ -115,7 +115,6 @@ func TestPopulateClaims(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}))
-
 }
 
 func TestCreateGithubUser(t *testing.T) {
@@ -378,7 +377,8 @@ type mockLoginRuleEvaluator struct {
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
-		Traits: m.outputTraits,
+		Traits:       m.outputTraits,
+		AppliedRules: []string{"mock"},
 	}, nil
 }
 
@@ -546,5 +546,42 @@ func TestGithubURLFormat(t *testing.T) {
 
 	for _, tt := range tts {
 		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
+	}
+}
+
+func TestBuildAPIEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no path",
+			input:    "https://github.com",
+			expected: "github.com",
+		},
+		{
+			name:     "with path",
+			input:    "https://mykewlapiendpoint/apage",
+			expected: "mykewlapiendpoint/apage",
+		},
+		{
+			name:     "with path and double slashes",
+			input:    "https://mykewlapiendpoint//apage//",
+			expected: "mykewlapiendpoint/apage/",
+		},
+		{
+			name:     "with path and query",
+			input:    "https://mykewlapiendpoint/apage?legit=nope",
+			expected: "mykewlapiendpoint/apage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildAPIEndpoint(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
 	}
 }

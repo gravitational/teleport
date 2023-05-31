@@ -238,7 +238,9 @@ exports[`render clusters 1`] = `
 
 .c19 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -304,8 +306,8 @@ exports[`render clusters 1`] = `
   line-height: 16px;
 }
 
-.c19 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c19 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c19 tbody tr:hover {

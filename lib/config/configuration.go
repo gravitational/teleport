@@ -22,12 +22,14 @@ package config
 
 import (
 	"crypto/x509"
+	"errors"
 	"io"
 	stdlog "log"
 	"net"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -175,16 +177,22 @@ type CommandLineFlags struct {
 	// if the value cannot be obtained from the database.
 	DatabaseMySQLServerVersion string
 
-	// ProxyServer is the url of the proxy server to connect to
+	// ProxyServer is the url of the proxy server to connect to.
 	ProxyServer string
-	// OpenSSHConfigPath is the path of the file to write agentless configuration to
+	// OpenSSHConfigPath is the path of the file to write agentless configuration to.
 	OpenSSHConfigPath string
-	// OpenSSHKeysPath is the path to write teleport keys and certs into
-	OpenSSHKeysPath string
-	// AdditionalPrincipals are a list of extra principals to include when generating host keys.
-	AdditionalPrincipals string
 	// RestartOpenSSH indicates whether openssh should be restarted or not.
 	RestartOpenSSH bool
+	// RestartCommand is the command to use when restarting sshd
+	RestartCommand string
+	// CheckCommand is the command to use when checking sshd config validity
+	CheckCommand string
+	// Address is the ip address of the OpenSSH node.
+	Address string
+	// AdditionalPrincipals is a list of additional principals to include in the SSH cert.
+	AdditionalPrincipals string
+	// Directory to store
+	DataDir string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -220,7 +228,7 @@ func ReadResources(filePath string) ([]types.Resource, error) {
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, trace.Wrap(err)
@@ -465,6 +473,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	// Apply regardless of Jamf being enabled.
+	// If a config is present, we want it to be valid.
+	if err := applyJamfConfig(fc, cfg); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -574,6 +588,8 @@ func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
 		logger.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
+	case "trace":
+		logger.SetLevel(log.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
@@ -889,6 +905,17 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Proxy.UI != nil {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
+	}
+
+	if fc.Proxy.Assist != nil && fc.Proxy.Assist.OpenAI != nil {
+		keyPath := fc.Proxy.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.BadParameter("failed to read OpenAI API key file at path %s: %v",
+				keyPath, trace.ConvertSystemError(err))
+		} else {
+			cfg.Proxy.AssistAPIKey = strings.TrimSpace(string(key))
+		}
 	}
 
 	if fc.Proxy.MySQLServerVersion != "" {
@@ -1385,6 +1412,9 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				ServerName: database.TLS.ServerName,
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
+			AdminUser: servicecfg.DatabaseAdminUser{
+				Name: database.AdminUser.Name,
+			},
 			AWS: servicecfg.DatabaseAWS{
 				AccountID:     database.AWS.AccountID,
 				AssumeRoleARN: database.AWS.AssumeRoleARN,
@@ -1840,7 +1870,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 			log.SetLevel(log.DebugLevel)
 			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
-			fileConf.Logger.Severity = teleport.DebugLevel
+			if fileConf.Logger.Severity != "trace" {
+				fileConf.Logger.Severity = teleport.DebugLevel
+			}
 		}
 	}
 
@@ -2125,6 +2157,63 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	return nil
 }
 
+// ConfigureOpenSSH initializes a config from the commandline flags passed
+func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
+	// Apply command line --debug flag to override logger severity.
+	if clf.Debug {
+		log.SetLevel(log.DebugLevel)
+		cfg.Log.SetLevel(log.DebugLevel)
+		cfg.Debug = clf.Debug
+	}
+
+	if clf.AuthToken != "" {
+		// store the value of the --token flag:
+		cfg.SetToken(clf.AuthToken)
+	}
+
+	log.Debugf("Disabling all services, only the Teleport OpenSSH service can run during the `teleport join openssh` command")
+	servicecfg.DisableLongRunningServices(cfg)
+
+	cfg.DataDir = clf.DataDir
+	cfg.Version = defaults.TeleportConfigVersionV3
+	cfg.OpenSSH.SSHDConfigPath = clf.OpenSSHConfigPath
+	cfg.OpenSSH.RestartSSHD = clf.RestartOpenSSH
+	cfg.OpenSSH.RestartCommand = clf.RestartCommand
+	cfg.OpenSSH.CheckCommand = clf.CheckCommand
+	cfg.JoinMethod = types.JoinMethod(clf.JoinMethod)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Hostname = hostname
+	cfg.OpenSSH.InstanceAddr = clf.Address
+	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
+		if principal == "" {
+			continue
+		}
+		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
+	}
+	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyServer, err := utils.ParseAddr(clf.ProxyServer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.SetAuthServerAddresses(nil)
+	cfg.ProxyServer = *proxyServer
+
+	return nil
+}
+
 // parseLabels parses the labels command line flag and returns static and
 // dynamic labels.
 func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
@@ -2323,5 +2412,23 @@ func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Okta.Enabled = fc.Okta.Enabled()
 	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
 	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
+	return nil
+}
+
+func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// Ignore empty configs, validate and transform anything else.
+	if reflect.DeepEqual(fc.Jamf, JamfService{}) {
+		return nil
+	}
+
+	jamfSpec, err := fc.Jamf.toJamfSpecV1()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg.Jamf = servicecfg.JamfConfig{
+		Spec:       jamfSpec,
+		ExitOnSync: fc.Jamf.ExitOnSync,
+	}
 	return nil
 }

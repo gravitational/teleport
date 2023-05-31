@@ -534,7 +534,9 @@ exports[`failed 1`] = `
 
 .c24 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -596,8 +598,8 @@ exports[`failed 1`] = `
   line-height: 16px;
 }
 
-.c24 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c24 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c24 tbody tr:hover {
@@ -1385,7 +1387,9 @@ exports[`open source loaded 1`] = `
 
 .c24 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -1447,8 +1451,8 @@ exports[`open source loaded 1`] = `
   line-height: 16px;
 }
 
-.c24 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c24 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c24 tbody tr:hover {

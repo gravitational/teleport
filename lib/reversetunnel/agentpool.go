@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
@@ -120,7 +121,7 @@ type AgentPoolConfig struct {
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// Resolver retrieves the reverse tunnel address
-	Resolver Resolver
+	Resolver reversetunnelclient.Resolver
 	// Cluster is a cluster name of the proxy.
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
@@ -552,20 +553,21 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 // transport creates a new transport instance.
 func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
 	return &transport{
-		closeContext:        ctx,
-		component:           p.Component,
-		localClusterName:    p.LocalCluster,
-		kubeDialAddr:        p.KubeDialAddr,
-		authClient:          p.Client,
-		reverseTunnelServer: p.ReverseTunnelServer,
-		server:              p.Server,
-		emitter:             p.Client,
-		sconn:               conn,
-		channel:             channel,
-		requestCh:           requests,
-		log:                 p.log,
-		authServers:         p.LocalAuthAddresses,
-		proxySigner:         p.PROXYSigner,
+		closeContext:         ctx,
+		component:            p.Component,
+		localClusterName:     p.LocalCluster,
+		kubeDialAddr:         p.KubeDialAddr,
+		authClient:           p.Client,
+		reverseTunnelServer:  p.ReverseTunnelServer,
+		server:               p.Server,
+		emitter:              p.Client,
+		sconn:                conn,
+		channel:              channel,
+		requestCh:            requests,
+		log:                  p.log,
+		authServers:          p.LocalAuthAddresses,
+		proxySigner:          p.PROXYSigner,
+		forwardClientAddress: true,
 	}
 }
 
@@ -736,7 +738,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	return nil
 }
 
-func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver Resolver) {
+func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver reversetunnelclient.Resolver) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

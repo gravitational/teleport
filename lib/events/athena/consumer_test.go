@@ -37,11 +37,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -205,6 +207,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 				t.Fail()
 			}
 		},
+		metricConsumerBatchProcessingDuration: prometheus.NewHistogram(prometheus.HistogramOpts{Name: "for_tests"}),
 	}
 }
 
@@ -358,6 +361,89 @@ func (m *mockReceiver) ReceiveMessage(ctx context.Context, params *sqs.ReceiveMe
 	return m.receiveMessageRespFn()
 }
 
+func TestConsumerRunContinuouslyOnSingleAuth(t *testing.T) {
+	log := utils.NewLoggerForTests()
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	defer backend.Close()
+
+	batchInterval := 20 * time.Millisecond
+
+	c1 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	c2 := consumer{
+		logger:           log,
+		backend:          backend,
+		batchMaxInterval: batchInterval,
+	}
+	m1 := mockEventsProcessor{interval: batchInterval}
+	m2 := mockEventsProcessor{interval: batchInterval}
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+
+	// start two consumer with different mocks in background.
+	go c1.runContinuouslyOnSingleAuth(ctx1, m1.Run)
+	go c2.runContinuouslyOnSingleAuth(ctx2, m2.Run)
+
+	// We want wait till we processing of events starts.
+	// Check if there only single consumer is processing is below.
+	require.Eventually(t, func() bool {
+		// let's wait for at least 2 iteration.
+		return m1.getCount() >= 2 || m2.getCount() >= 2
+	}, 5*batchInterval, batchInterval/2, "events were never processed by mock")
+
+	m1Processing := m1.getCount() >= 2
+	if m1Processing {
+		require.Zero(t, m2.getCount(), "expected 0 events by mock2")
+	} else {
+		require.Zero(t, m1.getCount(), "expected 0 events by mock1")
+	}
+
+	// let's cancel ctx of single mock and verify if 2nd take over.
+	if m1Processing {
+		cancel1()
+		require.Eventually(t, func() bool {
+			return m2.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock2 hasn't started processing")
+	} else {
+		cancel2()
+		require.Eventually(t, func() bool {
+			return m1.getCount() >= 1
+		}, 5*batchInterval, batchInterval/2, "mock1 hasn't started processing")
+	}
+}
+
+type mockEventsProcessor struct {
+	mu       sync.Mutex
+	count    int
+	interval time.Duration
+}
+
+func (m *mockEventsProcessor) Run(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(m.interval):
+			m.mu.Lock()
+			m.count++
+			m.mu.Unlock()
+		}
+	}
+}
+
+func (m *mockEventsProcessor) getCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.count
+}
+
 func TestRunWithMinInterval(t *testing.T) {
 	ctx := context.Background()
 	t.Run("function returns earlier than minInterval, wait should happen", func(t *testing.T) {
@@ -505,7 +591,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	})
 }
 
-// TestConsumerWriteToS3 is writing parquet files per date works.
+// TestConsumerWriteToS3 checks if writing parquet files per date works.
 // It receives events from different dates and make sure that multiple
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.
@@ -687,4 +773,76 @@ func (m *mockSQSDeleter) DeleteMessageBatch(ctx context.Context, params *sqs.Del
 	m.calls++
 	m.noOfEntries += len(params.Entries)
 	return m.respFn(ctx, params)
+}
+
+func TestCollectedEventsMetadataMerge(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		a        collectedEventsMetadata
+		b        collectedEventsMetadata
+		expected collectedEventsMetadata
+	}{
+		{
+			name: "Merge with empty a",
+			a: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			b: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+		},
+		{
+			name: "Merge with empty b",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+			b: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+		},
+		{
+			name: "Merge with non-empty metadata",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.a.Merge(tt.b)
+			require.Empty(t, cmp.Diff(tt.a, tt.expected))
+		})
+	}
 }

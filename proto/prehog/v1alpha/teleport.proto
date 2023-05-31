@@ -361,6 +361,24 @@ message UICreateNewRoleViewDocumentationClickEvent {
   string user_name = 1;
 }
 
+// UICallToActionClickEvent is a click in a Teleport Web UI's CTA
+message UICallToActionClickEvent {
+  //anonymized
+  string user_name = 1;
+  CTA cta = 2;
+}
+
+// CTA represents teleport web UI's call to action buttons
+enum CTA {
+  CTA_UNSPECIFIED = 0;
+  CTA_AUTH_CONNECTOR = 1;
+  CTA_ACTIVE_SESSIONS = 2;
+  CTA_ACCESS_REQUESTS = 3;
+  CTA_PREMIUM_SUPPORT = 4;
+  CTA_TRUSTED_DEVICES = 5;
+  CTA_UPGRADE_BANNER = 6;
+}
+
 message KubeRequestEvent {
   // anonymized
   string user_name = 1;
@@ -385,6 +403,65 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+}
+
+// AssistCompletionEvent is an event that is emitted
+// when a single completion occurs in the Teleport Assist,
+// i.e. a user submits a prompt, and receives an answer from the Assist
+message AssistCompletionEvent {
+  // anonymized
+  string user_name = 1;
+
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 2;
+
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
 }
 
 message SubmitEventRequest {
@@ -448,6 +525,13 @@ message SubmitEventRequest {
 
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+
+    UICallToActionClickEvent ui_call_to_action_click_event = 42;
+
+    AssistCompletionEvent assist_completion = 43;
+
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

@@ -35,18 +35,24 @@ const GlobalStyle = createGlobalStyle`
     font-family: ${props => props.theme.font};
   }
 
-  // custom scrollbars
-  ::-webkit-scrollbar {
+  // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]
+  :not([data-scrollbar="default"])::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
 
-  ::-webkit-scrollbar-thumb {
+  :not([data-scrollbar="default"])::-webkit-scrollbar-thumb {
     background: #757575;
   }
 
-  ::-webkit-scrollbar-corner {
+  :not([data-scrollbar="default"])::-webkit-scrollbar-corner {
     background: rgba(0,0,0,0.5);
+  }
+
+  :root {
+    color-scheme: ${props =>
+      props.theme
+        .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
   }
 
   // remove dotted Firefox outline

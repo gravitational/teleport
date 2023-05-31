@@ -253,7 +253,9 @@ exports[`render DocumentNodes 1`] = `
 
 .c30 {
   background: #222C59;
+  border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -315,8 +317,8 @@ exports[`render DocumentNodes 1`] = `
   line-height: 16px;
 }
 
-.c30 > tbody > tr:not(:last-of-type) > td {
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+.c30 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c30 tbody tr:hover {
@@ -737,6 +739,7 @@ exports[`render DocumentNodes 1`] = `
   display: flex;
   flex: 1;
   max-width: 1024px;
+  height: fit-content;
 }
 
 .c2::after {

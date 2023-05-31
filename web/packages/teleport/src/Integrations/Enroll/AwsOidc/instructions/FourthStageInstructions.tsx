@@ -19,7 +19,7 @@ import React from 'react';
 import Text from 'design/Text';
 import Box from 'design/Box';
 
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 
 import { InstructionsContainer } from './common';
 
@@ -42,6 +42,9 @@ export function FourthStageInstructions(props: CommonInstructionsProps) {
 
       <Box mt={5}>
         <ButtonPrimary onClick={() => props.onNext()}>Next</ButtonPrimary>
+        <ButtonSecondary ml={3} onClick={() => props.onPrev()}>
+          Back
+        </ButtonSecondary>
       </Box>
     </InstructionsContainer>
   );

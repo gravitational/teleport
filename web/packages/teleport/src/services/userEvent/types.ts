@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
+  UiCallToActionClickEvent = 'tp.ui.callToAction.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -37,6 +38,27 @@ export enum CaptureEvent {
   PreUserRecoveryCodesContinueClickEvent = 'tp.ui.recoveryCodesContinue.click',
   PreUserRecoveryCodesCopyClickEvent = 'tp.ui.recoveryCodesCopy.click',
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
+}
+
+export enum IntegrationEnrollEvent {
+  Started = 'tp.ui.integrationEnroll.start',
+  Complete = 'tp.ui.integrationEnroll.complete',
+}
+
+// IntegrationEnrollKind represents a integration type.
+export enum IntegrationEnrollKind {
+  Unspecified = 'INTEGRATION_ENROLL_KIND_UNSPECIFIED',
+  Slack = 'INTEGRATION_ENROLL_KIND_SLACK',
+  AwsOidc = 'INTEGRATION_ENROLL_KIND_AWS_OIDC',
+  PagerDuty = 'INTEGRATION_ENROLL_KIND_PAGERDUTY',
+  Email = 'INTEGRATION_ENROLL_KIND_EMAIL',
+  Jira = 'INTEGRATION_ENROLL_KIND_JIRA',
+  Discord = 'INTEGRATION_ENROLL_KIND_DISCORD',
+  Mattermost = 'INTEGRATION_ENROLL_KIND_MATTERMOST',
+  MsTeams = 'INTEGRATION_ENROLL_KIND_MS_TEAMS',
+  OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
+  Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
+  Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
 }
 
 export enum DiscoverEvent {
@@ -123,6 +145,16 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+};
+
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
+
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
   eventData: DiscoverEventData;
@@ -148,3 +180,14 @@ export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+// TODO(mcbattirola): import this from protofile instead of copying it here
+export enum CtaEvent {
+  CTA_UNSPECIFIED = 0,
+  CTA_AUTH_CONNECTOR = 1,
+  CTA_ACTIVE_SESSIONS = 2,
+  CTA_ACCESS_REQUESTS = 3,
+  CTA_PREMIUM_SUPPORT = 4,
+  CTA_TRUSTED_DEVICES = 5,
+  CTA_UPGRADE_BANNER = 6,
+}

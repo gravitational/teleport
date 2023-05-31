@@ -39,7 +39,7 @@ metadata:
   # running in your AWS account to use this token
   name: aws-discovery-iam-token
 spec:
-  # use the minimal set of roles required
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
   roles: [Node]
 
   # set the join method allowed for this token
@@ -339,7 +339,7 @@ The `installer` resource has the following templating options:
 - `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
 connect to.
 - `{{ .RepoChannel }}`: Optional package repository (apt/yum) channel name.
-Has format `<channel>/<version>` e.g. stable/v12. See [installation](https://goteleport.com/docs/installation/#linux) for more details.
+Has format `<channel>/<version>` e.g. stable/v(=teleport.major_version=). See [installation](../../installation.mdx#linux) for more details.
 
 These can be used as follows:
 
