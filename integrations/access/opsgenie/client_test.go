@@ -53,8 +53,8 @@ func TestCreateAlert(t *testing.T) {
 		User:          "someUser",
 		Roles:         []string{"role1", "role2"},
 		RequestReason: "someReason",
-		RequestAnnotations: map[string][]string{
-			ReqAnnotationRespondersKey: {"responder@teleport.com"},
+		ResolveAnnotations: types.Labels{
+			types.TeleportNamespace + types.ReqAnnotationSchedulesLabel: {"responder@teleport.com"},
 		},
 	})
 	assert.NoError(t, err)

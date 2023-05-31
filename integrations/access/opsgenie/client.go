@@ -36,6 +36,7 @@ import (
 const (
 	// alertKeyPrefix is the prefix for Alert's alias field used when creating an Alert.
 	alertKeyPrefix = "teleport-access-request"
+	heartbeatName  = "teleport-access-heartbeat"
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -91,15 +92,15 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	}, nil
 }
 
-func errWrapper(statusCode int) error {
+func errWrapper(statusCode int, body string) error {
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied("opsgenie API access denied: status code %v", statusCode)
+		return trace.AccessDenied("opsgenie API access denied: status code %v: %q", statusCode, body)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(trace.Errorf("status code %v", statusCode),
+		return trace.ConnectionProblem(trace.Errorf("status code %v: %q", statusCode, body),
 			"connecting to opsgenie API")
 	}
-	return trace.Errorf("connecting to opsgenie API status code %v", statusCode)
+	return trace.Errorf("connecting to opsgenie API status code %v: %q", statusCode, body)
 }
 
 // CreateAlert creates an opsgenie alert.
@@ -129,7 +130,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return OpsgenieData{}, errWrapper(resp.StatusCode())
+		return OpsgenieData{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return OpsgenieData{
 		AlertID: result.Alert.ID,
@@ -138,7 +139,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 
 func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
-	if reqSchedules, ok := reqData.RequestAnnotations[ReqAnnotationRespondersKey]; ok {
+	if reqSchedules, ok := reqData.ResolveAnnotations[types.TeleportNamespace+types.ReqAnnotationSchedulesLabel]; ok {
 		schedules = reqSchedules
 	}
 	responders := make([]Responder, 0, len(schedules))
@@ -172,7 +173,7 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return errWrapper(resp.StatusCode())
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return nil
 }
@@ -197,7 +198,7 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return errWrapper(resp.StatusCode())
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return nil
 }
@@ -220,9 +221,27 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 	}
 	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
-		return RespondersResult{}, errWrapper(resp.StatusCode())
+		return RespondersResult{}, errWrapper(resp.StatusCode(), string(resp.Body()))
 	}
 	return result, nil
+}
+
+// CheckHealth pings opsgenie.
+func (og Client) CheckHealth(ctx context.Context) error {
+	// The heartbeat pings will respond even if the heartbeat does not exist.
+	resp, err := og.client.NewRequest().
+		SetContext(ctx).
+		SetPathParams(map[string]string{"heartbeat": heartbeatName}).
+		Get("heartbeats/{heatbeat}/ping")
+
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.RawResponse.Body.Close()
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode(), string(resp.Body()))
+	}
+	return nil
 }
 
 func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
