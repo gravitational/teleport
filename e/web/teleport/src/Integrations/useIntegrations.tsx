@@ -122,7 +122,7 @@ export function useIntegrations() {
   function onDelete(plugin: Plugin) {
     return ctx.pluginsService.deletePlugin(plugin.name).then(() => {
       const updatedItems = items.filter(
-        p => p.resourceType === 'plugin' && p.name !== plugin.name
+        i => i.resourceType === 'integration' || i.name !== plugin.name
       );
       setItems(updatedItems);
     });
@@ -135,9 +135,7 @@ export function useIntegrations() {
   function removeIntegration() {
     return integrationOps.remove().then(() => {
       const updatedItems = items.filter(
-        i =>
-          i.resourceType === 'integration' &&
-          i.name !== integrationOps.item.name
+        i => i.resourceType === 'plugin' || i.name !== integrationOps.item.name
       );
       setItems(updatedItems);
       integrationOps.clear();

@@ -53,6 +53,13 @@ type pluginOnboardingCookie struct {
 	// OAuth2 "state" parameter
 	State string `json:"state"`
 
+	// EventID is the name of the user event ID that will
+	// be used to send of a "completed" event once user
+	// successfully enrolls this plugin.
+	// The ID is used to correlate with its plugin "starting"
+	// event.
+	EventID string `json:"eventId"`
+
 	pluginOnboardingCookieNonSensitiveData
 }
 
@@ -166,6 +173,8 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 	default:
 		return nil, trace.BadParameter("unknown plugin type")
 	}
+
+	cookie.EventID = r.FormValue("event_id")
 	if err := setPluginOnboardingCookie(&cookie, w); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -325,7 +334,8 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err)
 	}
 	destURL.RawQuery = url.Values{
-		"success": {string(successData)},
+		"success":  {string(successData)},
+		"event_id": {cookie.EventID},
 	}.Encode()
 	http.Redirect(w, r, destURL.String(), http.StatusFound)
 	return nil, nil

@@ -3,10 +3,10 @@ import styled from 'styled-components';
 
 import { Image } from 'design';
 
-import { pluginTypeMap } from './data';
+import { pluginMap } from '../PluginEnroll/plugins';
 
 export function PluginIcon({ size, type, ...props }: Props) {
-  const src = pluginTypeMap[type]?.icon;
+  const src = pluginMap[type]?.icon;
   if (!src) {
     return null;
   }

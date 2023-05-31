@@ -1,2 +1,2 @@
 // export as default for use with React.lazy
-export { Container as default } from './IntegrationEnroll';
+export { IntegrationEnroll as default } from './IntegrationEnroll';

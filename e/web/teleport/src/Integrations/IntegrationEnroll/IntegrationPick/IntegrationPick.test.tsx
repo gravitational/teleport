@@ -1,0 +1,122 @@
+import React, { Suspense } from 'react';
+import { MemoryRouter } from 'react-router';
+import { render, screen, userEvent } from 'design/utils/testing';
+import { ContextProvider } from 'teleport';
+import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
+import { userEventService } from 'teleport/services/userEvent';
+import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
+
+import { createTeleportContextE } from 'e-teleport/mocks/contexts';
+import cfg from 'e-teleport/config';
+import TeleportEContext from 'e-teleport/teleportContextE';
+import { pluginsService } from 'e-teleport/services/plugins';
+
+import { IntegrationEnroll } from '../IntegrationEnroll';
+
+describe('test PluginPick.tsx', () => {
+  beforeEach(() => {
+    jest
+      .spyOn(pluginsService, 'fetchAvailableTypes')
+      .mockResolvedValue(['slack']);
+    jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue([]);
+    jest
+      .spyOn(userEventService, 'captureIntegrationEnrollEvent')
+      .mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('full access and slack available to enroll', async () => {
+    const ctx = createTeleportContextE();
+    const { container } = renderIntegrationPicker(ctx);
+
+    await screen.findByText(/no-code integrations/i);
+    expect(screen.queryByTestId('plugin-checkmark')).not.toBeInTheDocument();
+
+    // snapshot that all tiles are rendered.
+    expect(container).toMatchSnapshot();
+  });
+
+  test('clicking on already enrolled slack tile does not render slack enroll view', async () => {
+    jest.spyOn(pluginsService, 'fetchPlugins').mockResolvedValue(mockPlugins);
+
+    const ctx = createTeleportContextE();
+    renderIntegrationPicker(ctx);
+
+    await screen.findByText(/no-code integrations/i);
+    expect(screen.getByTestId('plugin-checkmark')).toBeInTheDocument();
+
+    // test clicking on slack tile does not render slack enroll view.
+    await userEvent.click(screen.getByTestId('tile-slack'));
+    expect(
+      screen.queryByRole('button', { name: /connect slack/i })
+    ).not.toBeInTheDocument();
+  });
+
+  test('no plugin access disables plugin tiles', async () => {
+    const ctx = createTeleportContextE({
+      customAcl: { ...allAccessAcl, plugins: noAccess },
+    });
+    const { container } = renderIntegrationPicker(ctx);
+
+    await screen.findByText(/no-code integrations/i);
+
+    // snapshot the disabled plugin access state.
+    expect(container).toMatchSnapshot();
+
+    // eslint-disable-next-line jest-dom/prefer-enabled-disabled
+    expect(screen.getByTestId('tile-slack')).toHaveAttribute('disabled');
+
+    // test an integration tile is not disabled by clicking on it to render guide
+    await userEvent.click(screen.getByTestId('tile-aws-oidc'));
+    expect(screen.getByText(/set up your aws account/i)).toBeInTheDocument();
+  });
+
+  test('no integration access disables integration tiles', async () => {
+    const ctx = createTeleportContextE({
+      customAcl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
+    });
+    const { container } = renderIntegrationPicker(ctx);
+
+    await screen.findByText(/no-code integrations/i);
+
+    // snapshot the disabled integration access state.
+    expect(container).toMatchSnapshot();
+
+    // eslint-disable-next-line jest-dom/prefer-enabled-disabled
+    expect(screen.getByTestId('tile-aws-oidc')).toHaveAttribute('disabled');
+
+    // test a plugin tile is not disabled by clicking on it to render guide
+    await userEvent.click(screen.getByTestId('tile-slack'));
+    expect(
+      screen.getByRole('button', { name: /connect slack/i })
+    ).toBeInTheDocument();
+  });
+});
+
+function renderIntegrationPicker(ctx: TeleportEContext) {
+  return render(
+    <MemoryRouter
+      initialEntries={[{ pathname: cfg.oss.getIntegrationEnrollRoute() }]}
+    >
+      <Suspense fallback={null}>
+        <ContextProvider ctx={ctx}>
+          <IntegrationEnroll />
+        </ContextProvider>
+      </Suspense>
+    </MemoryRouter>
+  );
+}
+
+const mockPlugins: Plugin[] = [
+  {
+    resourceType: 'plugin',
+    name: 'plugin-name',
+    details: 'some detail',
+    spec: {},
+    kind: 'slack',
+    statusCode: IntegrationStatusCode.Running,
+  },
+];

@@ -6,7 +6,7 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { IntegrationList } from '@gravitational/teleport/src/Integrations';
+import { IntegrationList } from 'teleport/Integrations';
 import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
 import { Integration, Plugin } from 'teleport/services/integrations';
 import { IntegrationOperations } from 'teleport/Integrations/Operations';

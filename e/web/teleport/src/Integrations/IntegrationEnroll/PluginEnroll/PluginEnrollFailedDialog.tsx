@@ -3,28 +3,28 @@ import React from 'react';
 import { ButtonSecondary, Text } from 'design';
 import Dialog, { DialogContent, DialogFooter } from 'design/Dialog';
 
-import { PluginType } from '../data';
+import { PluginBase } from './plugins';
 
 export function PluginEnrollFailedDialog(props: State) {
-  const { resolvedType, error, errorDescription, clearError } = props;
+  const { plugin, errorDescription, clearError } = props;
 
   return (
-    <Dialog open={!!error}>
+    <Dialog open={true}>
       <DialogContent maxWidth="500px">
         <Text typography="h4" fontWeight="bold">
-          Unable to connect {resolvedType.name}
+          Unable to connect {plugin.name}
         </Text>
         <Text>
           <Text display="inline" typography="h6">
-            Access to {resolvedType.name} was denied:
+            Access to {plugin.name} was denied:
           </Text>
           <Text mono my="2">
             {errorDescription}
           </Text>
         </Text>
         <Text mt="2">
-          If you still want to set up the integration, please click the "Connect{' '}
-          {resolvedType.name}" button again.
+          If you want to try again, close this dialogue and click on "Connect{' '}
+          {plugin.name}" button again.
         </Text>
       </DialogContent>
       <DialogFooter>
@@ -37,8 +37,7 @@ export function PluginEnrollFailedDialog(props: State) {
 }
 
 type State = {
-  resolvedType: PluginType;
-  error?: string;
-  errorDescription?: string;
+  plugin: PluginBase;
+  errorDescription: string;
   clearError: () => void;
 };

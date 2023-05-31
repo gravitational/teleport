@@ -13,6 +13,7 @@ import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import msteamsIcon from 'design/assets/images/icons/msteams.svg';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
+import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 
 type Permission = {
   title: string;
@@ -33,7 +34,30 @@ export type EnrollSuccessResponse = {
   };
 };
 
-type HostedPluginData = {
+export type PluginTypes =
+  | 'slack'
+  | 'pagerduty'
+  | 'email'
+  | 'jira'
+  | 'discord'
+  | 'mattermost'
+  | 'msteams'
+  | 'opsgenie'
+  | 'okta'
+  | 'jamf';
+
+export type PluginBase = {
+  type: PluginTypes;
+  name: string;
+  icon: string;
+  url: string;
+};
+
+export type SelfHostedPlugin = PluginBase & {
+  hosted: false;
+};
+
+export type HostedPlugin = PluginBase & {
   hosted: true;
 
   // For each hosted plugin, these describe additional elements in the enroll page.
@@ -44,23 +68,7 @@ type HostedPluginData = {
   permissions?: CategoryPermissions[];
 };
 
-export type PluginTypes =
-  | 'slack'
-  | 'pagerduty'
-  | 'email'
-  | 'jira'
-  | 'discord'
-  | 'mattermost'
-  | 'msteams';
-
-export type PluginType = {
-  type: PluginTypes;
-  name: string;
-  icon: string;
-  url: string;
-} & ({ hosted: false } | HostedPluginData);
-
-export const pluginTypes: PluginType[] = [
+export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   {
     type: 'slack',
     name: 'Slack',
@@ -115,7 +123,7 @@ export const pluginTypes: PluginType[] = [
           <StyledFieldInput
             label="Default channel"
             name="fallback_channel"
-            rule={requiredField('Fallback channel must be specified')}
+            rule={requiredField('Default channel must be specified')}
             value={channel}
             onChange={e => setChannel(e.target.value)}
             autoFocus
@@ -127,7 +135,7 @@ export const pluginTypes: PluginType[] = [
       );
     },
     NextSteps: ({ successData }) => {
-      const fallbackChannel = successData.slack?.fallback_channel;
+      const fallbackChannel = successData?.slack?.fallback_channel;
       if (!fallbackChannel) {
         return <CardError>Failed to parse the response.</CardError>;
       }
@@ -183,9 +191,7 @@ export const pluginTypes: PluginType[] = [
   },
 ];
 
-export const pluginTypeMap = Object.fromEntries(
-  pluginTypes.map(p => [p.type, p])
-);
+export const pluginMap = Object.fromEntries(plugins.map(p => [p.type, p]));
 
 const InputIconContainer = styled.div`
   position: relative;
@@ -204,3 +210,30 @@ const StyledFieldInput = styled(FieldInput)`
     padding-left: 23px; /* Make room for an icon */
   }
 `;
+
+export function pluginTypeToIntegrationEnrollKind(p: PluginTypes) {
+  switch (p) {
+    case 'discord':
+      return IntegrationEnrollKind.Discord;
+    case 'email':
+      return IntegrationEnrollKind.Email;
+    case 'jira':
+      return IntegrationEnrollKind.Jira;
+    case 'mattermost':
+      return IntegrationEnrollKind.Mattermost;
+    case 'msteams':
+      return IntegrationEnrollKind.MsTeams;
+    case 'pagerduty':
+      return IntegrationEnrollKind.PagerDuty;
+    case 'slack':
+      return IntegrationEnrollKind.Slack;
+    case 'okta':
+      return IntegrationEnrollKind.Okta;
+    case 'jamf':
+      return IntegrationEnrollKind.Jamf;
+    case 'opsgenie':
+      return IntegrationEnrollKind.OpsGenie;
+    default:
+      return IntegrationEnrollKind.Unspecified;
+  }
+}
