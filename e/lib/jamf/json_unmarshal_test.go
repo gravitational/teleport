@@ -672,9 +672,7 @@ func TestJSONUnmarshal(t *testing.T) {
   } ]
 }`,
 			message: &jamf.APIError{},
-			want: &jamf.APIError{
-				HTTPStatus: 401,
-			},
+			want:    &jamf.APIError{}, // nothing mapped atm
 		},
 		{
 			// Example based on

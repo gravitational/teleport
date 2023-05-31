@@ -1,6 +1,16 @@
 package jamf
 
-import "time"
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"github.com/gravitational/trace"
+)
+
+// GetComputersInventoryRequest is the request for
+// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+type GetComputersInventoryRequest struct{}
 
 // GetComputersInventoryResponse is the response for
 // https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
@@ -67,4 +77,24 @@ type ComputerOperatingSystemSection struct {
 	// Build is the build of the operating system.
 	// Example: "13A603".
 	Build string `json:"build"`
+}
+
+// GetComputersInventory returns paginated computer inventory records.
+// See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
+func (c *Client) GetComputersInventory(ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
+	if req == nil {
+		return nil, trace.BadParameter("req required")
+	}
+
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/v1/computers-inventory"), nil /* body */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(codingllama): Implement the various GET filters.
+
+	resp := &GetComputersInventoryResponse{}
+	if err := c.doAuthnJSONRequest(getReq, resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
 }

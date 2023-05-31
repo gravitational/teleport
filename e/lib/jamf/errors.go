@@ -4,9 +4,11 @@ import "fmt"
 
 // APIError is an error returned by the Jamf API.
 type APIError struct {
-	// HTTPStatus is the status of the response, either from the response body
-	// or from the actual HTTP code.
-	HTTPStatus int `json:"httpStatus"`
+	// StatusCode is the status of the HTTP response.
+	// Jamf API errors carry an "httpStatus" field inside the error JSON, which
+	// typically (always?) matches the responses' status code. That field is not
+	// mapped here, instead we rely solely on the HTTP status code.
+	StatusCode int
 	// RawBody is the raw JSON body of the error.
 	RawBody string `json:"-"`
 }
@@ -16,5 +18,5 @@ func (e *APIError) Error() string {
 	if e == nil {
 		return "nil error"
 	}
-	return fmt.Sprintf("status=%v, body=%s", e.HTTPStatus, e.RawBody)
+	return fmt.Sprintf("status=%v, body=%s", e.StatusCode, e.RawBody)
 }
