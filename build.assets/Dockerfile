@@ -3,6 +3,9 @@
 # * run test and linters in CI
 # * building other Docker images
 #
+# For Teleport releases we're using CentOS 7 box to keep the binaries compatible
+# with older Linux distributions (glibc 2.17+).
+#
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## LIBFIDO2 ###################################################################
