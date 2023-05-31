@@ -56,21 +56,14 @@ entries](#processing-field-types) to the reference template as appropriate.
 
 ### Configuration
 
-The generator will have access to a mapping of package paths to lists of named
-struct types within each package. It will use this mapping to identify the
-struct types to use for generating the resource reference. 
+By default, the generator will attempt to include an entry in the resource
+reference for every struct type in the Teleport source that includes a field of
+the `github.com/gravitational/teleport/api/types.Metadata` type, since we
+include this field in all types that correspond to Teleport resources.
 
-Since struct definitions for Teleport resources include field types that also
-require their own entries in the resource reference (e.g., `types.Metadata`),
-the configuration only names the _root_ types for the generator to examine.
-
-We don't have a formal naming convention for the root types of each resource,
-and may not want to list *all* resources (e.g., there may be internal resources
-to keep hidden), so it would make sense to list resources explicitly. The CRD
-generator for the Teleport Kubernetes Operator [uses an explicit list of
-types](https://github.com/gravitational/teleport/blob/c9b0a601ab781e1bd34dc3c44a94e6e85e3e64ae/integrations/operator/crdgen/main.go#L96-L113),
-and the generator I'm proposing will also include package names so the generator
-loads the correct source packages and their dependencies.
+For resources that we want to _exclude_ from the reference, the generator will
+read from a mapping of package paths to lists of named struct types within each
+package. 
 
 The program will declare the mapping within the Go code as a `map`.
 
@@ -276,9 +269,9 @@ value: string
 
 The generator will use
 [`packages.Load`](https://pkg.go.dev/golang.org/x/tools/go/packages#Load) to
-load all the packages named in generator's configuration file and return a
-`[]*packages.Package`. It then recursively traverses each `packages.Package`'s
-`Imports` map, adding to a final slice of parsed packages.
+load all the packages in the `github.com/gravitational/teleport` source and
+return a `[]*packages.Package`. It then recursively traverses each
+`packages.Package`'s `Imports` map, adding to a final slice of parsed packages.
 
 The generator declares two maps. The key for each map, `declKey`, includes the
 package path and named type of a declaration:
@@ -305,17 +298,20 @@ declaration map. The `CompiledGoFiles` field in `packages.Package` lists paths
 of Go source files in the same order as the `Syntax` field, so we can use this
 to populate the `file` property of each `sourceDecl` in the map.
 
-The next step is to look up each user-configured struct type within the
-declaration map and begin generating a `Resource` for that struct type, plus
-additional `Resource` structs for the types of its fields (and their types
-and so on). The sequence is:
+The next step is to look up each struct type within the declaration map and
+begin generating a `Resource` for that struct type, plus additional `Resource`
+structs for the types of its fields (and their types and so on). The sequence
+is:
 
-- Look up a user-defined struct type from the configuration within the
+- Iterate through each struct type within the declaration map.
+- If a struct type is named within the configuration as a type to exclude, skip
+  it.
+- If a struct type has a `types.Metadata` field, construct a `Resource` from the
+  struct type and insert it into the final data map (unless a `Resource` already
+  exists there).
+- Process the fields of the struct type using the rules described
+  [below](#processing-field-types), looking up declaration data from the
   declaration map.
-- Construct a `Resource` from the struct type and insert it into the final data
-  map (unless a `Resource` already exists there).
-- Process the fields of the user-defined struct type using the rules described
-  [below](#processing-field-types).
 
 Once this is done, the generator will convert the  `map[declKey]Resource` into a
 single `[]Resource` to feed into the template.
