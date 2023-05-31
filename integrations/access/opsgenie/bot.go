@@ -50,9 +50,7 @@ func (b *Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqI
 		schedules = append(schedules, recipient.Name)
 	}
 	if len(recipients) == 0 {
-		for _, recipient := range b.client.DefaultSchedules {
-			schedules = append(schedules, recipient)
-		}
+		schedules = append(schedules, b.client.DefaultSchedules...)
 	}
 	opsgenieReqData := RequestData{
 		User:          reqData.User,
