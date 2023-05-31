@@ -32,6 +32,7 @@ func slackInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps inst
 			AccessTokenProvider: tokenProvider,
 			StatusSink:          deps.statusSink,
 		},
+		pluginType: types.PluginTypeSlack,
 	}
 
 	app := common.NewApp(pc, plugin.GetName())

@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/access/slack"
@@ -13,6 +14,7 @@ type pluginConfiguration struct {
 	client       teleport.Client
 	slackConfig  slack.Config
 	defaultRoute string
+	pluginType   types.PluginType
 }
 
 func (p *pluginConfiguration) GetRecipients() common.RawRecipientsMap {
@@ -27,4 +29,8 @@ func (p *pluginConfiguration) GetTeleportClient(ctx context.Context) (teleport.C
 
 func (p *pluginConfiguration) NewBot(clusterName string, webProxyAddr string) (common.MessagingBot, error) {
 	return p.slackConfig.NewBot(clusterName, webProxyAddr)
+}
+
+func (p *pluginConfiguration) GetPluginType() types.PluginType {
+	return p.pluginType
 }
