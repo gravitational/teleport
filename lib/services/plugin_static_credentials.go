@@ -17,11 +17,11 @@ limitations under the License.
 package services
 
 import (
-	"bytes"
 	"context"
 
-	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/protoadapt"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -57,12 +57,11 @@ func MarshalPluginStaticCredentials(pluginStaticCredentials types.PluginStaticCr
 			copy.SetResourceID(0)
 			pluginStaticCredentials = &copy
 		}
-		var buf bytes.Buffer
-		err := (&jsonpb.Marshaler{}).Marshal(&buf, pluginStaticCredentials)
+		data, err := protojson.Marshal(protoadapt.MessageV2Of(pluginStaticCredentials))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return buf.Bytes(), nil
+		return data, nil
 	default:
 		return nil, trace.BadParameter("unsupported plugin static credentials resource %T", pluginStaticCredentials)
 	}
@@ -84,7 +83,7 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	switch h.Version {
 	case types.V1:
 		var pluginStaticCredentials types.PluginStaticCredentialsV1
-		if err := jsonpb.Unmarshal(bytes.NewReader(data), &pluginStaticCredentials); err != nil {
+		if err := protojson.Unmarshal(data, protoadapt.MessageV2Of(&pluginStaticCredentials)); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 		if err := pluginStaticCredentials.CheckAndSetDefaults(); err != nil {

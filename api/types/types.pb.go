@@ -15524,9 +15524,23 @@ func (m *JamfInventoryEntry) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_JamfInventoryEntry proto.InternalMessageInfo
 
-// MessageWithheader is a message with a resource header. This is used primarily
+// MessageWithHeader is a message with a resource header. This is used primarily
 // for parsing of resource headers and isn't expected to be used directly by any
 // resources.
+//
+// When using a oneof in a protobuf messages, the existing utils.FastMarshal
+// utility does not work, so using something like protojson or jsonpb is required.
+// However, these do not respect gogoproto's extensions. When using a ResourceHeader,
+// protojson will not recognize that the ResourceHeader is intended to be embedded and
+// the resulting JSON will have the header as a separate field. This means that using
+// utils.FastUnmarshal will not work for extracting a ResourceHeader from the
+// JSON, and we explicitly extract this header to do things like version checking in
+// lib/services.
+//
+// This can be avoided by explicitly embedding the members of the ResourceHeader in
+// a message. However, if we would like to avoid this, we can use this MessageWitHheader
+// to extract the resource header and its elements, which can later be used for the
+// aforementioned processing in lib/services.
 type MessageWithHeader struct {
 	// Header is the resource header for a resource.
 	ResourceHeader       `protobuf:"bytes,1,opt,name=Header,proto3,embedded=Header" json:""`
