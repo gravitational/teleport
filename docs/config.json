@@ -335,23 +335,6 @@
           ],
           "entries": [
             {
-              "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "oss"
-              ]
-            },
-            {
-              "title": "Azure Active Directory (AD)",
-              "slug": "/access-controls/sso/azuread/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
               "title": "Active Directory (ADFS)",
               "slug": "/access-controls/sso/adfs/",
               "forScopes": [
@@ -360,11 +343,20 @@
               ]
             },
             {
-              "title": "Google Workspace",
-              "slug": "/access-controls/sso/google-workspace/",
+              "title": "Azure Active Directory",
+              "slug": "/access-controls/sso/azuread/",
               "forScopes": [
                 "enterprise",
                 "cloud"
+              ]
+            },
+            {
+              "title": "GitHub",
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": [
+                "enterprise",
+                "cloud",
+                "oss"
               ]
             },
             {
@@ -376,8 +368,8 @@
               ]
             },
             {
-              "title": "OneLogin",
-              "slug": "/access-controls/sso/one-login/",
+              "title": "Google Workspace",
+              "slug": "/access-controls/sso/google-workspace/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -394,6 +386,14 @@
             {
               "title": "Okta",
               "slug": "/access-controls/sso/okta/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "OneLogin",
+              "slug": "/access-controls/sso/one-login/",
               "forScopes": [
                 "enterprise",
                 "cloud"
