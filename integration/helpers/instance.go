@@ -1560,11 +1560,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	stream := web.NewTerminalStream(context.Background(), ws, utils.NewLoggerForTests())
 	return stream, nil
 }
 
