@@ -20,7 +20,7 @@ import "github.com/gravitational/trace"
 
 // PluginStaticCredentials are static credentials for plugins.
 type PluginStaticCredentials interface {
-	// ResourceWithSecrets provides common resource methods.
+	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 
 	// GetAPIToken will return a flag indicating whether this object contains an API token
