@@ -1777,6 +1777,16 @@ func TestSSHAccessRequest(t *testing.T) {
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.NoError(t, err)
+
+	err = Run(ctx, []string{
+		"login",
+		"--insecure",
+		"--auth", connector.GetName(),
+	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
+		cf.mockSSOLogin = mockSSOLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
 }
 
 func TestAccessRequestOnLeaf(t *testing.T) {
@@ -1927,14 +1937,14 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func TestSSHHeadless(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx := context.Background()
 
 	user, err := user.Current()
 	require.NoError(t, err)
 
 	// Headless ssh should pass session mfa requirements
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			RequireMFAType: types.RequireMFAType_SESSION,
 		},
@@ -1947,12 +1957,27 @@ func TestSSHHeadless(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"ssh-login"})
+	alice.SetRoles([]string{"node-access"})
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(sshLoginRole, alice))
-
-	authAddr, err := rootAuth.AuthAddr()
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"node-access"},
+			},
+		},
+	})
 	require.NoError(t, err)
+
+	bob, err := types.NewUser("bob@example.com")
+	require.NoError(t, err)
+	bob.SetRoles([]string{"requester"})
+
+	sshHostName := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice, requester, bob), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostName
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
@@ -1967,71 +1992,51 @@ func TestSSHHeadless(t *testing.T) {
 		},
 	}))
 
-	sshHostname := "test-ssh-server"
-	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no user",
+			args: []string{"--headless"},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
+			},
+		}, {
+			name:      "node access",
+			args:      []string{"--headless", "--user", "alice"},
+			assertErr: require.NoError,
+		}, {
+			name:      "auth connector cli flag",
+			args:      []string{"--auth", "headless", "--user", "alice"},
+			assertErr: require.NoError,
+		}, {
+			name:      "resource request",
+			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt"},
+			assertErr: require.NoError,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	hasNodes := func(hostIDs ...string) func() bool {
-		return func() bool {
-			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
-			foundCount := 0
-			for _, node := range nodes {
-				if slices.Contains(hostIDs, node.GetName()) {
-					foundCount++
-				}
-			}
-			return foundCount == len(hostIDs)
-		}
+			args := append([]string{
+				"ssh",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, tc.args...)
+			args = append(args,
+				fmt.Sprintf("%s@%s", user.Username, "localhost"),
+				"echo", "test",
+			)
+			err := Run(ctx, args, cliOption(func(cf *CLIConf) error {
+				cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+				return nil
+			}))
+			tc.assertErr(t, err)
+		})
 	}
-
-	// wait for auth to see nodes
-	require.Eventually(t, hasNodes(sshHostID), 10*time.Second, 100*time.Millisecond, "nodes never showed up")
-
-	// perform "tsh --headless ssh"
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// "tsh --auth headless ssh" should also perform headless ssh
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--auth", constants.HeadlessConnector,
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// headless ssh should fail if user is not set.
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
 }
 
 func TestFormatConnectCommand(t *testing.T) {
