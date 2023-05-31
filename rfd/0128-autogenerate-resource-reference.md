@@ -1,7 +1,7 @@
 ---
 authors: Paul Gottschling (paul.gottschling@goteleport.com)
 state: draft
-title: NNN - Automatically Generate the Teleport Resource Reference
+title: 0128 - Automatically Generate the Teleport Resource Reference
 ---
 
 ## Required Approvers
