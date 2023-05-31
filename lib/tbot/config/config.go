@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -118,7 +119,7 @@ type CLIConf struct {
 	// Oneshot controls whether the bot quits after a single renewal.
 	Oneshot bool
 
-	// InitDir specifies which destination to initialize if multiple are
+	// InitDir specifies which Destination to initialize if multiple are
 	// configured.
 	InitDir string
 
@@ -128,7 +129,7 @@ type CLIConf struct {
 	// ReaderUser is the Unix username that will be reading the files
 	ReaderUser string
 
-	// Owner is the user:group that will own the destination files. Due to SSH
+	// Owner is the user:group that will own the Destination files. Due to SSH
 	// restrictions on key permissions, it cannot be the same as the reader
 	// user. If ACL support is unused or unavailable, the reader user will own
 	// files directly.
@@ -180,7 +181,7 @@ type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
-	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
+	// You should use Token() instead - this has to be an exported field for YAML unmarshaling
 	// to work correctly, but this could be a path instead of a token
 	TokenValue string `yaml:"token,omitempty"`
 
@@ -238,9 +239,11 @@ func (conf *OnboardingConfig) Token() (string, error) {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
-	Onboarding   OnboardingConfig     `yaml:"onboarding,omitempty"`
-	Storage      *StorageConfig       `yaml:"storage,omitempty"`
-	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
+	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
+	Storage    *StorageConfig   `yaml:"storage,omitempty"`
+
+	// Polymorphic marshaling/unmarshaling is used for outputs
+	Outputs []Output `yaml:"-"` // `outputs`
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server"`
@@ -279,8 +282,8 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	for _, dest := range conf.Destinations {
-		if err := dest.CheckAndSetDefaults(); err != nil {
+	for _, output := range conf.Outputs {
+		if err := output.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -305,15 +308,114 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GetDestinationByPath attempts to fetch a destination by its filesystem path.
-// Only valid for filesystem destinations; returns nil if no matching
-// destination exists.
-func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, error) {
-	for _, dest := range conf.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
+func (c *BotConfig) unmarshalOutputs(node *yaml.Node) error {
+	// Special handling for polymorphic unmarshaling of destinations
+	rawOutputs := struct {
+		Outputs []yaml.Node `yaml:"outputs"`
+	}{}
+	if err := node.Decode(&rawOutputs); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, rawDest := range rawOutputs.Outputs {
+		header := struct {
+			Type string `yaml:"type"`
+		}{}
+		if err := rawDest.Decode(&header); err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch header.Type {
+		case IdentityOutputType:
+			v := &IdentityOutput{}
+			if err := rawDest.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			c.Outputs = append(c.Outputs, v)
+		case ApplicationOutputType:
+			v := &ApplicationOutput{}
+			if err := rawDest.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			c.Outputs = append(c.Outputs, v)
+		case KubernetesOutputType:
+			v := &KubernetesOutput{}
+			if err := rawDest.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			c.Outputs = append(c.Outputs, v)
+		case DatabaseOutputType:
+			v := &DatabaseOutput{}
+			if err := rawDest.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			c.Outputs = append(c.Outputs, v)
+		default:
+			return trace.BadParameter("unrecognized output type (%s)", header.Type)
+		}
+	}
+
+	return nil
+}
+
+func unmarshalDestination(raw *yaml.Node) (bot.Destination, error) {
+	header := struct {
+		Type string `yaml:"type"`
+	}{}
+	if err := raw.Decode(&header); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch header.Type {
+	case DestinationMemoryType:
+		v := &DestinationMemory{}
+		if err := raw.Decode(v); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		return v, nil
+	case DestinationDirectoryType:
+		v := &DestinationDirectory{}
+		if err := raw.Decode(v); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return v, nil
+	default:
+		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
+	}
+}
+
+func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) {
+	header := struct {
+		Type    string `yaml:"type"`
+		Payload T      `yaml:",inline"`
+	}{
+		Type:    payloadType,
+		Payload: payload,
+	}
+
+	return header, nil
+}
+
+func (c *BotConfig) UnmarshalYAML(node *yaml.Node) error {
+	// Alias the type to get rid of the UnmarshalYAML :)
+	type rawConf BotConfig
+	if err := node.Decode((*rawConf)(c)); err != nil {
+		return trace.Wrap(err)
+	}
+	// We now have set up all the fields except those with special handling
+	if err := c.unmarshalOutputs(node); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// GetOutputByPath attempts to fetch a Destination by its filesystem path.
+// Only valid for filesystem destinations; returns nil if no matching
+// Destination exists.
+func (conf *BotConfig) GetOutputByPath(path string) (Output, error) {
+	for _, output := range conf.Outputs {
+		destImpl := output.GetDestination()
 
 		destDir, ok := destImpl.(*DestinationDirectory)
 		if !ok {
@@ -324,7 +426,7 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 		// might want to compare .Abs() if that proves to be confusing (though
 		// this may have its own problems)
 		if destDir.Path == path {
-			return dest, nil
+			return output, nil
 		}
 	}
 
@@ -348,8 +450,8 @@ func newTestConfig(authServer string) (*BotConfig, error) {
 	return &cfg, nil
 }
 
-func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
-	uri, err := url.Parse(dataDir)
+func destinationFromURI(uriString string) (bot.Destination, error) {
+	uri, err := url.Parse(uriString)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing --data-dir")
 	}
@@ -362,12 +464,8 @@ func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
 		}
 		// TODO(strideynet): eventually we can allow for URI query parameters
 		// to be used to configure symlinks/acl protection.
-		return &StorageConfig{
-			DestinationMixin: DestinationMixin{
-				Directory: &DestinationDirectory{
-					Path: uri.Path,
-				},
-			},
+		return &DestinationDirectory{
+			Path: uri.Path,
 		}, nil
 	case "memory":
 		if uri.Host != "" || uri.Path != "" {
@@ -375,11 +473,7 @@ func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
 				"memory-backed data storage should not have host or path specified",
 			)
 		}
-		return &StorageConfig{
-			DestinationMixin: DestinationMixin{
-				Memory: &DestinationMemory{},
-			},
-		}, nil
+		return &DestinationMemory{}, nil
 	default:
 		return nil, trace.BadParameter(
 			"unrecognized data storage scheme",
@@ -435,35 +529,42 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if config.Storage != nil {
-			if _, err := config.Storage.GetDestination(); err != nil {
-				log.Warnf(
-					"CLI parameters are overriding storage location from %s",
-					cf.ConfigPath,
-				)
-			}
+		if config.Storage != nil && config.Storage.Destination != nil {
+			log.Warnf(
+				"CLI parameters are overriding storage location from %s",
+				cf.ConfigPath,
+			)
 		}
-		config.Storage, err = storageConfigFromCLIConf(cf.DataDir)
+		dest, err := destinationFromURI(cf.DataDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		config.Storage = &StorageConfig{Destination: dest}
 	}
 
 	if cf.DestinationDir != "" {
-		// CLI only supports a single filesystem destination with SSH client config
+		// WARNING:
+		// See: https://github.com/gravitational/teleport/issues/27206 for
+		// potential gotchas that currently exist when dealing with this
+		// override behavior.
+
+		// CLI only supports a single filesystem Destination with SSH client config
 		// and all roles.
-		if len(config.Destinations) > 0 {
+		if len(config.Outputs) > 0 {
 			log.Warnf("CLI parameters are overriding destinations from %s", cf.ConfigPath)
 		}
 
-		// CheckAndSetDefaults() will configure default kinds and templates
-		config.Destinations = []*DestinationConfig{{
-			DestinationMixin: DestinationMixin{
-				Directory: &DestinationDirectory{
-					Path: cf.DestinationDir,
+		// When using the CLI --Destination-dir we configure an Identity type
+		// output for that directory.
+		config.Outputs = []Output{
+			&IdentityOutput{
+				Common: OutputCommon{
+					Destination: &DestinationDirectory{
+						Path: cf.DestinationDir,
+					},
 				},
 			},
-		}}
+		}
 	}
 
 	// If any onboarding flags are set, override the whole section.

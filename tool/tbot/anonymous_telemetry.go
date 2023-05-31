@@ -96,13 +96,13 @@ func sendTelemetry(
 		data.Helper = helper
 		data.HelperVersion = envGetter(helperVersionEnv)
 	}
-	for _, dest := range cfg.Destinations {
-		switch {
-		case dest.App != nil:
+	for _, output := range cfg.Outputs {
+		switch output.(type) {
+		case *config.ApplicationOutput:
 			data.DestinationsApplication++
-		case dest.Database != nil:
+		case *config.DatabaseOutput:
 			data.DestinationsDatabase++
-		case dest.KubernetesCluster != nil:
+		case *config.KubernetesOutput:
 			data.DestinationsKubernetes++
 		default:
 			data.DestinationsOther++

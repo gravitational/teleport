@@ -27,66 +27,58 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-// defaultMongoPrefix is the default prefix in generated MongoDB certs.
-const defaultMongoPrefix = "mongo"
+const defaultTLSPrefix = "tls"
 
-// TemplateMongo is a config template that generates TLS certs formatted for
-// use with MongoDB.
-type TemplateMongo struct {
-	Prefix string `yaml:"prefix,omitempty"`
+// templateTLS is a config template that wraps identityfile's TLS writer.
+// It's not generally needed but can be used to write out TLS certificates with
+// alternative prefix and file extensions if needed for application
+// compatibility reasons.
+type templateTLS struct {
+	// caCertType is the type of CA cert to be written
+	caCertType types.CertAuthType
 }
 
-func (t *TemplateMongo) CheckAndSetDefaults() error {
-	if t.Prefix == "" {
-		t.Prefix = defaultMongoPrefix
-	}
-
-	return nil
+func (t *templateTLS) name() string {
+	return TemplateTLSName
 }
 
-func (t *TemplateMongo) Name() string {
-	return TemplateMongoName
-}
-
-func (t *TemplateMongo) Describe(destination bot.Destination) []FileDescription {
+func (t *templateTLS) describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name: t.Prefix + ".crt",
+			Name: defaultTLSPrefix + ".key",
 		},
 		{
-			Name: t.Prefix + ".cas",
+			Name: defaultTLSPrefix + ".crt",
+		},
+		{
+			Name: defaultTLSPrefix + ".cas",
 		},
 	}
 }
 
-func (t *TemplateMongo) Render(
+func (t *templateTLS) render(
 	ctx context.Context,
 	bot provider,
 	identity *identity.Identity,
-	destination *DestinationConfig,
+	destination bot.Destination,
 ) error {
-	dest, err := destination.GetDestination()
+	cas, err := bot.GetCertAuthorities(ctx, t.caCertType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	key, err := newClientKey(identity, dbCAs)
+	key, err := newClientKey(identity, cas)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.Prefix,
+		OutputPath: defaultTLSPrefix,
 		Writer: &BotConfigWriter{
-			dest: dest,
+			dest: destination,
 		},
 		Key:    key,
-		Format: identityfile.FormatMongo,
+		Format: identityfile.FormatTLS,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,
@@ -97,7 +89,7 @@ func (t *TemplateMongo) Render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote MongoDB identity files: %+v", files)
+	log.Debugf("Wrote TLS identity files: %+v", files)
 
 	return nil
 }

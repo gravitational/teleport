@@ -62,34 +62,25 @@ func TestSendTelemetry(t *testing.T) {
 			Onboarding: config.OnboardingConfig{
 				JoinMethod: types.JoinMethodGitHub,
 			},
-			Destinations: []*config.DestinationConfig{
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
+			Outputs: []config.Output{
+				&config.IdentityOutput{
+					Common: config.OutputCommon{
+						Destination: &config.DestinationDirectory{},
 					},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					KubernetesCluster: &config.KubernetesCluster{
-						ClusterName: "foo",
+				&config.KubernetesOutput{
+					Common: config.OutputCommon{
+						Destination: &config.DestinationDirectory{},
 					},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					App: &config.App{
-						App: "bar",
+				&config.ApplicationOutput{
+					Common: config.OutputCommon{
+						Destination: &config.DestinationDirectory{},
 					},
 				},
-				{
-					DestinationMixin: config.DestinationMixin{
-						Directory: &config.DestinationDirectory{},
-					},
-					Database: &config.Database{
-						Database: "biz",
+				&config.DatabaseOutput{
+					Common: config.OutputCommon{
+						Destination: &config.DestinationDirectory{},
 					},
 				},
 			},

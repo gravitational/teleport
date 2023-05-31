@@ -39,4 +39,8 @@ type Destination interface {
 	// TryLock should be used to lock a destination so it cannot be used by
 	// multiple processes of tbot concurrently.
 	TryLock() (func() error, error)
+
+	CheckAndSetDefaults() error
+
+	MarshalYAML() (interface{}, error)
 }

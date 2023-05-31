@@ -27,62 +27,51 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
-const defaultIdentityFileName = "identity"
+// defaultMongoPrefix is the default prefix in generated MongoDB certs.
+const defaultMongoPrefix = "mongo"
 
-// TemplateIdentity is a config template that generates a Teleport identity
-// file that can be used by tsh and tctl.
-type TemplateIdentity struct {
-	FileName string `yaml:"file_name,omitempty"`
+// templateMongo is a config template that generates TLS certs formatted for
+// use with MongoDB.
+type templateMongo struct{}
+
+func (t *templateMongo) name() string {
+	return TemplateMongoName
 }
 
-func (t *TemplateIdentity) CheckAndSetDefaults() error {
-	if t.FileName == "" {
-		t.FileName = defaultIdentityFileName
-	}
-
-	return nil
-}
-
-func (t *TemplateIdentity) Name() string {
-	return TemplateIdentityName
-}
-
-func (t *TemplateIdentity) Describe(destination bot.Destination) []FileDescription {
+func (t *templateMongo) describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name: t.FileName,
+			Name: defaultMongoPrefix + ".crt",
+		},
+		{
+			Name: defaultMongoPrefix + ".cas",
 		},
 	}
 }
 
-func (t *TemplateIdentity) Render(
+func (t *templateMongo) render(
 	ctx context.Context,
 	bot provider,
 	identity *identity.Identity,
-	destination *DestinationConfig,
+	destination bot.Destination,
 ) error {
-	dest, err := destination.GetDestination()
+	dbCAs, err := bot.GetCertAuthorities(ctx, types.DatabaseCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	key, err := newClientKey(identity, hostCAs)
+	key, err := newClientKey(identity, dbCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg := identityfile.WriteConfig{
-		OutputPath: t.FileName,
+		OutputPath: defaultMongoPrefix,
 		Writer: &BotConfigWriter{
-			dest: dest,
+			dest: destination,
 		},
 		Key:    key,
-		Format: identityfile.FormatFile,
+		Format: identityfile.FormatMongo,
 
 		// Always overwrite to avoid hitting our no-op Stat() and Remove() functions.
 		OverwriteDestination: true,
@@ -93,7 +82,7 @@ func (t *TemplateIdentity) Render(
 		return trace.Wrap(err)
 	}
 
-	log.Debugf("Wrote identity file: %+v", files)
+	log.Debugf("Wrote MongoDB identity files: %+v", files)
 
 	return nil
 }

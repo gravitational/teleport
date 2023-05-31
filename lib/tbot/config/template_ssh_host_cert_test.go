@@ -32,32 +32,25 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 
 	mockBot := newMockProvider(cfg)
 
-	template := TemplateSSHHostCert{
-		Prefix:     "example",
-		Principals: []string{"foo.example.com"},
+	tmpl := templateSSHHostCert{
+		principals: []string{"foo.example.com"},
 	}
-	require.NoError(t, template.CheckAndSetDefaults())
 
-	memory := &DestinationMemory{}
-	dest := &DestinationConfig{
-		DestinationMixin: DestinationMixin{
-			Memory: memory,
-		},
-	}
+	dest := &DestinationMemory{}
 	require.NoError(t, dest.CheckAndSetDefaults())
 
 	ident := getTestIdent(t, "bot-test")
-	err = template.Render(context.Background(), mockBot, ident, dest)
+	err = tmpl.render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
-	certBytes, err := memory.Read(template.Prefix + sshHostCertSuffix)
+	certBytes, err := dest.Read(defaultSSHHostCertPrefix + sshHostCertSuffix)
 	require.NoError(t, err)
 
 	require.Equal(t, fixtures.SSHCAPublicKey, string(certBytes))
 
 	// Make sure a CA is written.
-	caBytes, err := memory.Read(template.Prefix + sshHostUserCASuffix)
+	caBytes, err := dest.Read(defaultSSHHostCertPrefix + sshHostUserCASuffix)
 	require.NoError(t, err)
 
 	require.True(t, strings.HasPrefix(string(caBytes), fixtures.SSHCAPublicKey))
