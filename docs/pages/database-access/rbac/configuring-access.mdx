@@ -1,5 +1,5 @@
 ---
-title: Database Role-Based Access Controls
+title: Database Access RBAC
 description: Role-based access control (RBAC) for Teleport database access.
 ---
 
@@ -11,7 +11,7 @@ everything, QA team and engineers have full access to staging databases, and
 engineers can gain temporary access to the production database in case of
 emergency"*.
 
-For a more general description of Teleport roles and examples see [RBAC](../access-controls/introduction.mdx), as
+For a more general description of Teleport roles and examples see [RBAC](../../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for database access.
 
 ## Role configuration
@@ -98,7 +98,7 @@ is not currently enforced on MySQL connection attempts.
 
 Similar to other role fields, `db_*` fields support templating variables.
 
-The `{{external.xyz}}` variables are replaced with values from external [SSO](../access-controls/sso.mdx)
+The `{{external.xyz}}` variables are replaced with values from external [SSO](../../access-controls/sso.mdx)
 providers. For OIDC, they will be expanded with a value of an "xyz" claim; for
 SAML — with an "xyz" assertion value.
 
