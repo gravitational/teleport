@@ -251,6 +251,8 @@ export function ChatItem(props: ChatItemProps) {
               </MachineName>
               {props.message.content.errorMsg ? (
                 <ErrorMessage>{props.message.content.errorMsg}</ErrorMessage>
+              ) : props.message.content.payload === '' ? (
+                <p>Empty output.</p>
               ) : (
                 <Output>{props.message.content.payload}</Output>
               )}
