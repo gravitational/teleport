@@ -122,27 +122,13 @@ $ tctl create terraform-impersonator.yaml
 
 (!docs/pages/includes/add-role-to-user.mdx role="terraform-impersonator"!)
 
-Next, request a signed certificate for the Terraform user:
+Next, request a signed identity file for the Terraform user:
 
-<Tabs>
-  <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
-```code
-$ tctl auth sign --format=tls --user=terraform --out=auth
-```
-
-This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
-and `auth.cas` (certificate, private key, and CA certs, respectively).
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
 ```code
 $ tctl auth sign --user=terraform --out=terraform-identity
 ```
 
-The above sequence should result in one PEM-encoded file: `terraform-identity`.
-
-</TabItem>
-</Tabs>
+This command should result in one file: `terraform-identity`.
 
 ## Step 2/3. Create a Terraform configuration
 
@@ -166,24 +152,10 @@ role using Terraform.
 
 Check the contents of the `teleport-terraform` folder:
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
-
 ```code
 $ ls
 # main.tf  terraform-identity  terraform-impersonator.yaml  terraform.yaml
 ```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-```code
-$ ls
-# main.tf  auth.crt  auth.key  auth.cas  terraform-impersonator.yaml  terraform.yaml
-```
-
-</TabItem>
-</Tabs>
 
 Init terraform and apply the spec:
 
