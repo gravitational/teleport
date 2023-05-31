@@ -419,7 +419,7 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 			Signer:        proxyAuthClient,
 			AccessPoint:   proxyAuthClient,
 			Emitter:       testCtx.Emitter,
-			KubeProxyAddr: testCtx.KubeServiceAddress(),
+			KubeProxyAddr: testCtx.KubeProxyAddress(),
 			Authz:         testCtx.Authz,
 		},
 	)

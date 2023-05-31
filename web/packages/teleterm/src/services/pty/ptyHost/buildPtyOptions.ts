@@ -18,6 +18,7 @@ import path, { delimiter } from 'path';
 
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { PtyProcessOptions } from 'teleterm/sharedProcess/ptyHost';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
   PtyCommand,
@@ -67,13 +68,13 @@ export async function buildPtyOptions(
     });
 }
 
-function getPtyProcessOptions(
+export function getPtyProcessOptions(
   settings: RuntimeSettings,
   cmd: PtyCommand,
   env: typeof process.env
 ): PtyProcessOptions {
   switch (cmd.kind) {
-    case 'pty.shell':
+    case 'pty.shell': {
       // Teleport Connect bundles a tsh binary, but the user might have one already on their system.
       // Since we use our own TELEPORT_HOME which might differ in format with the version that the
       // user has installed, let's prepend our bin directory to PATH.
@@ -92,8 +93,8 @@ function getPtyProcessOptions(
         args: [],
         cwd: cmd.cwd,
         env,
-        initCommand: cmd.initCommand,
       };
+    }
 
     case 'pty.tsh-kube-login': {
       const isWindows = settings.platform === 'win32';
@@ -120,7 +121,7 @@ function getPtyProcessOptions(
       };
     }
 
-    case 'pty.tsh-login':
+    case 'pty.tsh-login': {
       const loginHost = cmd.login
         ? `${cmd.login}@${cmd.serverId}`
         : cmd.serverId;
@@ -135,8 +136,20 @@ function getPtyProcessOptions(
         ],
         env,
       };
+    }
+
+    case 'pty.gateway-cli-client': {
+      // TODO(ravicious): Set argv0 when node-pty adds support for it.
+      // https://github.com/microsoft/node-pty/issues/472
+      return {
+        path: cmd.path,
+        args: cmd.args,
+        env: { ...env, ...cmd.env },
+      };
+    }
+
     default:
-      throw Error(`Unknown pty command: ${cmd}`);
+      assertUnreachable(cmd);
   }
 }
 

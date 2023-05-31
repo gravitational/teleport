@@ -61,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 type mockSSMClient struct {
@@ -303,7 +304,7 @@ func TestDiscoveryServer(t *testing.T) {
 			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
 				scanner := bufio.NewScanner(logs)
 				instances := genEC2Instances(58)
-				findAll := []string{genEC2InstancesLogStr(instances[:50]), genEC2InstancesLogStr(instances[50:])}
+				findAll := []string{genEC2InstancesLogStr(server.ToEC2Instances(instances[:50])), genEC2InstancesLogStr(server.ToEC2Instances(instances[50:]))}
 				index := 0
 				for scanner.Scan() {
 					if index == len(findAll) {
@@ -368,6 +369,9 @@ func TestDiscoveryServer(t *testing.T) {
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
 					SSM:     &services.AWSSSM{DocumentName: "document"},
+					Params: services.InstallerParams{
+						InstallTeleport: true,
+					},
 				}},
 				Emitter: tc.emitter,
 				Log:     logger,

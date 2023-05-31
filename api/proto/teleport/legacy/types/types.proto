@@ -452,6 +452,8 @@ message RDS {
   string ResourceID = 3 [(gogoproto.jsontag) = "resource_id,omitempty"];
   // IAMAuth indicates whether database IAM authentication is enabled.
   bool IAMAuth = 4 [(gogoproto.jsontag) = "iam_auth"];
+  // Subnets is a list of subnets for the RDS instance.
+  repeated string Subnets = 5 [(gogoproto.jsontag) = "subnets,omitempty"];
 }
 
 // RDSProxy contains AWS RDS Proxy specific database metadata.
@@ -710,9 +712,6 @@ message ServerV2List {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
-  reserved 8;
-  reserved 10;
-
   // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
   // PublicAddr is the public address where this server can be reached.
@@ -748,6 +747,10 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+
+  reserved 8;
+  reserved 10;
+  reserved "KubernetesClusters";
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -1648,6 +1651,7 @@ message AuthPreferenceSpecV2 {
   ];
 
   reserved 5; // RequireSessionMFA replaced by RequireMFAType
+  reserved "RequireSessionMFA";
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -1783,6 +1787,15 @@ message DeviceTrust {
   // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
   // Mode="off".
   bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
+
+  // Allow list of EKCert CAs in PEM format.
+  // If present, only TPM devices that present an EKCert that is signed by a
+  // CA specified here may be enrolled (existing enrollments are
+  // unchanged).
+  //
+  // If not present, then the CA of TPM EKCerts will not be checked during
+  // enrollment, this allows any device to enroll.
+  repeated string EKCertAllowedCAs = 3 [(gogoproto.jsontag) = "ekcert_allowed_cas,omitempty"];
 }
 
 // Namespace represents namespace resource specification
@@ -2122,6 +2135,14 @@ message AccessCapabilities {
   repeated string SuggestedReviewers = 2 [(gogoproto.jsontag) = "suggested_reviewers,omitempty"];
   // ApplicableRolesForResources is a list of the roles applicable for access to a given set of resources.
   repeated string ApplicableRolesForResources = 3 [(gogoproto.jsontag) = "applicable_roles,omitempty"];
+  // RequestPrompt is an optional message which tells users what they aught to request.
+  string RequestPrompt = 4 [(gogoproto.jsontag) = "request_prompt,omitempty"];
+  // RequireReason indicates whether the request strategy is one that requires
+  // users to always supply reasons with their requests.
+  bool RequireReason = 5 [(gogoproto.jsontag) = "require_reason,omitempty"];
+  // AutoRequest indicates whether the request strategy indicates that a
+  // request should be automatically generated on login.
+  bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
@@ -2337,10 +2358,11 @@ message RoleOptions {
     (gogoproto.casttype) = "RequestStrategy"
   ];
 
-  // RequestPrompt is an optional message which tells users what they aught to
+  // RequestPrompt is an optional message which tells users what they aught to request.
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
   reserved 13; // RequireSessionMFA replaced by RequireMFAType
+  reserved "RequireSessionMFA";
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -2606,6 +2628,31 @@ message RoleConditions {
 
   // DatabaseRoles is a list of databases roles for automatic user creation.
   repeated string DatabaseRoles = 29 [(gogoproto.jsontag) = "db_roles,omitempty"];
+
+  // NodeLabelsExpression is a predicate expression used to allow/deny access to
+  // SSH nodes.
+  string NodeLabelsExpression = 30 [(gogoproto.jsontag) = "node_labels_expression,omitempty"];
+  // AppLabelsExpression is a predicate expression used to allow/deny access to
+  // Apps.
+  string AppLabelsExpression = 31 [(gogoproto.jsontag) = "app_labels_expression,omitempty"];
+  // ClusterLabelsExpression is a predicate expression used to allow/deny access
+  // to remote Teleport clusters.
+  string ClusterLabelsExpression = 32 [(gogoproto.jsontag) = "cluster_labels_expression,omitempty"];
+  // KubernetesLabelsExpression is a predicate expression used to allow/deny
+  // access to kubernetes clusters.
+  string KubernetesLabelsExpression = 33 [(gogoproto.jsontag) = "kubernetes_labels_expression,omitempty"];
+  // DatabaseLabelsExpression is a predicate expression used to allow/deny
+  // access to Databases.
+  string DatabaseLabelsExpression = 34 [(gogoproto.jsontag) = "db_labels_expression,omitempty"];
+  // DatabaseServiceLabelsExpression is a predicate expression used to
+  // allow/deny access to Database Services.
+  string DatabaseServiceLabelsExpression = 35 [(gogoproto.jsontag) = "db_service_labels_expression,omitempty"];
+  // WindowsDesktopLabelsExpression is a predicate expression used to allow/deny
+  // access to Windows desktops.
+  string WindowsDesktopLabelsExpression = 36 [(gogoproto.jsontag) = "windows_desktop_labels_expression,omitempty"];
+  // GroupLabelsExpression is a predicate expression used to allow/deny
+  // access to user groups.
+  string GroupLabelsExpression = 37 [(gogoproto.jsontag) = "group_labels_expression,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -2660,6 +2707,7 @@ message SessionJoinPolicy {
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
 // access-requests.
+// Please remember to update IsEmpty when updating this message.
 message AccessRequestConditions {
   // Roles is the name of roles which will match the request rule.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -2704,6 +2752,7 @@ message AccessRequestConditions {
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
 // access reviews.
+// Please remember to update IsEmpty when updating this message.
 message AccessReviewConditions {
   // Roles is the name of roles which may be reviewed.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -4704,6 +4753,11 @@ message SessionTrackerSpecV1 {
 
   // DesktopName is the windows desktop server this session belongs to.
   string DesktopName = 20 [(gogoproto.jsontag) = "desktop_name,omitempty"];
+
+  // HostID is the target host id that created the session tracker.
+  // It's useful for Kubernetes moderated sessions when running in high availabilty
+  // otherwise kube proxy is not able to know which agent runs the session.
+  string HostID = 21 [(gogoproto.jsontag) = "host_id,omitempty"];
 }
 
 // SessionTrackerPolicySet is a set of RBAC policies held by the session tracker
@@ -5095,14 +5149,17 @@ message PluginSlackAccessSettings {
 message PluginOpsgenieAccessSettings {
   option (gogoproto.equal) = true;
 
-  // Addr is the address of Opsgenie API.
-  string addr = 1;
+  reserved 1;
+  reserved "addr";
+
   // Priority to create Opsgenie alerts with
   string priority = 2;
   // List of tags to be added to alerts created in Opsgenie
   repeated string alert_tags = 3;
   // Default on-call schedules to check if none are provided in the access request annotations
   repeated string default_schedules = 4;
+  // APIEndpoint is the address of Opsgenie API.
+  string api_endpoint = 5;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
@@ -5188,19 +5245,56 @@ message PluginBearerTokenCredentials {
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
-  // TokenFile is a path to the local file containing a bearer token.
-  // This takes precedence over Token, and is currently only used by
-  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
-  // This avoids exposing the token itself to the cluster.
-  // The file must exist and be readable on whatever runs the plugin
-  // (in the OpenAI case, it is the Proxy).
-  string token_file = 2;
+  reserved 2; // token_file
+  reserved "token_file";
 }
 
 // PluginList represents a list of plugin resources
 message PluginListV1 {
   // Plugins is a list of plugin resources.
   repeated PluginV1 plugins = 1;
+}
+
+// PluginStaticCredentialsV1 is a representation of static credentials for plugins.
+message PluginStaticCredentialsV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for the plugin static credentials object.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // Spec contains the actual credentials for the object.
+  PluginStaticCredentialsSpecV1 Spec = 2;
+}
+
+// PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
+message PluginStaticCredentialsSpecV1 {
+  oneof credentials {
+    string APIToken = 1;
+    PluginStaticCredentialsBasicAuth BasicAuth = 2;
+    PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
+  }
+}
+
+// PluginStaticCredentialsBasicAuth represents username and password credentials for a plugin.
+message PluginStaticCredentialsBasicAuth {
+  // Username is the username to use for basic auth.
+  string Username = 1 [(gogoproto.jsontag) = "username"];
+
+  // Password is the password to use for basic auth.
+  string Password = 2 [(gogoproto.jsontag) = "password"];
+}
+
+// PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
+message PluginStaticCredentialsOAuthClientSecret {
+  // ClientId is the client ID to use for OAuth client secret.
+  string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
+
+  // ClientSecret is the client secret to use.
+  string ClientSecret = 2 [(gogoproto.jsontag) = "client_secret"];
 }
 
 // SAMLIdPServiceProviderV1 is the representation of a SAML IdP service provider.
@@ -5389,6 +5483,10 @@ message OktaImportRuleMatchV1 {
   repeated string AppIDs = 1 [(gogoproto.jsontag) = "app_ids,omitempty"];
   // GroupIDs is a list of group IDs to match against.
   repeated string GroupIDs = 2 [(gogoproto.jsontag) = "group_ids,omitempty"];
+  // AppNameRegexes is a list of regexes to match against app names.
+  repeated string AppNameRegexes = 3 [(gogoproto.jsontag) = "app_name_regexes,omitempty"];
+  // GroupNameRegexes is a list of regexes to match against group names.
+  repeated string GroupNameRegexes = 4 [(gogoproto.jsontag) = "group_name_regexes,omitempty"];
 }
 
 // OktaAssignmentV1 is a representation of an action or set of actions taken by Teleport to assign Okta users to applications or groups.
@@ -5695,4 +5793,33 @@ message JamfInventoryEntry {
   // Must be either "NOOP" or "DELETE".
   // Defaults to "NOOP".
   string on_missing = 4 [(gogoproto.jsontag) = "on_missing,omitempty"];
+}
+
+// MessageWithHeader is a message with a resource header. This is used primarily
+// for parsing of resource headers and isn't expected to be used directly by any
+// resources.
+//
+// When using a oneof in a protobuf messages, the existing utils.FastMarshal
+// utility does not work, so using something like protojson or jsonpb is required.
+// However, these do not respect gogoproto's extensions. When using a ResourceHeader,
+// protojson will not recognize that the ResourceHeader is intended to be embedded and
+// the resulting JSON will have the header as a separate field. This means that using
+// utils.FastUnmarshal will not work for extracting a ResourceHeader from the
+// JSON, and we explicitly extract this header to do things like version checking in
+// lib/services.
+//
+// This can be avoided by explicitly embedding the members of the ResourceHeader in
+// a message. However, if we would like to avoid this, we can use this MessageWitHheader
+// to extract the resource header and its elements, which can later be used for the
+// aforementioned processing in lib/services.
+message MessageWithHeader {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for a resource.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
 }

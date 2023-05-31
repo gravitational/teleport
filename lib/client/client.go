@@ -870,6 +870,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
+
 	ws, err := authClient.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -879,6 +881,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer accessPoint.Close()
+
 	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)

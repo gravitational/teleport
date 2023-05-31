@@ -50,6 +50,7 @@ func TestLocalProxy(t *testing.T) {
 		KubeClusters:        []string{"kube2"},
 		Credentials:         creds,
 		Exec:                exec,
+		SelectCluster:       "kube2",
 	}, false))
 	require.NoError(t, Update(kubeconfigPath, Values{
 		TeleportClusterName: leafClusterName,
@@ -84,6 +85,63 @@ func TestLocalProxy(t *testing.T) {
 				ImpersonateGroups: []string{"group1", "group2"},
 			},
 		}, clusters)
+	})
+
+	t.Run("FindTeleportClusterForLocalProxy", func(t *testing.T) {
+		inputConfig := configAfterLogins.DeepCopy()
+
+		// Simulate a scenario that kube3 is already pointing to a local proxy
+		// through ProxyURL.
+		inputConfig.Clusters[leafClusterName].ProxyURL = "https://localhost:8443"
+
+		tests := []struct {
+			name          string
+			selectContext string
+			checkResult   require.BoolAssertionFunc
+			wantCluster   LocalProxyCluster
+		}{
+			{
+				name:          "not Teleport cluster",
+				selectContext: "dev",
+				checkResult:   require.False,
+			},
+			{
+				name:          "context not found",
+				selectContext: "not-found",
+				checkResult:   require.False,
+			},
+			{
+				name:          "find Teleport cluster by context name",
+				selectContext: rootClusterName + "-kube1",
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube1",
+				},
+			},
+			{
+				name:          "find Teleport cluster by current context",
+				selectContext: "",
+				checkResult:   require.True,
+				wantCluster: LocalProxyCluster{
+					TeleportCluster: rootClusterName,
+					KubeCluster:     "kube2",
+				},
+			},
+			{
+				name:          "skip local proxy config",
+				selectContext: leafClusterName + "-kube3",
+				checkResult:   require.False,
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				cluster, found := FindTeleportClusterForLocalProxy(inputConfig, rootKubeClusterAddr, test.selectContext)
+				test.checkResult(t, found)
+				require.Equal(t, test.wantCluster, cluster)
+			})
+		}
 	})
 
 	t.Run("CreateLocalProxyConfig", func(t *testing.T) {

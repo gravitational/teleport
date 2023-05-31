@@ -47,7 +47,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		return s
 	}
 
-	var eventType = getFieldEmpty(EventType)
+	eventType := getFieldEmpty(EventType)
 	var e events.AuditEvent
 
 	switch eventType {
@@ -352,6 +352,18 @@ func GetSessionID(event events.AuditEvent) string {
 	}
 
 	return sessionID
+}
+
+// GetTeleportUser pulls the teleport user from the events that have a
+// UserMetadata. For other events an empty string is returned.
+func GetTeleportUser(event events.AuditEvent) string {
+	type userGetter interface {
+		GetUser() string
+	}
+	if g, ok := event.(userGetter); ok {
+		return g.GetUser()
+	}
+	return ""
 }
 
 // ToEventFields converts from the typed interface-style event representation

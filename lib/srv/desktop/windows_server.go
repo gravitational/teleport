@@ -62,7 +62,7 @@ const (
 
 	// ldapDialTimeout is the timeout for dialing the LDAP server
 	// when making an initial connection
-	ldapDialTimeout = 5 * time.Second
+	ldapDialTimeout = 15 * time.Second
 
 	// ldapRequestTimeout is the timeout for making LDAP requests.
 	// It is larger than the dial timeout because LDAP queries in large
@@ -932,7 +932,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 }
 
 func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message, b []byte) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
+) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypePNG2Frame), byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
@@ -978,7 +979,8 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, emitter events.
 }
 
 func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, emitter events.Emitter, delay func() int64,
-	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn) func(m tdp.Message) {
+	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
+) func(m tdp.Message) {
 	return func(m tdp.Message) {
 		switch msg := m.(type) {
 		case tdp.ClientScreenSpec, tdp.MouseButton, tdp.MouseMove:
@@ -1038,7 +1040,8 @@ func (s *WindowsService) getServiceHeartbeatInfo() (types.Resource, error) {
 // staticHostHeartbeatInfo generates the Windows Desktop resource
 // for heartbeating statically defined hosts
 func (s *WindowsService) staticHostHeartbeatInfo(netAddr utils.NetAddr,
-	getHostLabels func(string) map[string]string, nonAD bool) func() (types.Resource, error) {
+	getHostLabels func(string) map[string]string, nonAD bool,
+) func() (types.Resource, error) {
 	return func() (types.Resource, error) {
 		addr := netAddr.String()
 		name, err := s.nameForStaticHost(addr)
@@ -1211,6 +1214,7 @@ func (s *WindowsService) trackSession(ctx context.Context, id *tlsca.Identity, w
 		}},
 		HostUser: id.Username,
 		Created:  s.cfg.Clock.Now(),
+		HostID:   s.cfg.Heartbeat.HostUUID,
 	}
 
 	s.cfg.Log.Debugf("Creating tracker for session %v", sessionID)

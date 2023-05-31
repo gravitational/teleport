@@ -541,7 +541,6 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		return trace.Wrap(err)
 	}
 	return nil
-
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
@@ -1112,6 +1111,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		}},
 		HostUser: sessionCtx.Identity.Username,
 		Created:  s.cfg.Clock.Now(),
+		HostID:   sessionCtx.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
