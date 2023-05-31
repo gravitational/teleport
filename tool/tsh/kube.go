@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	dockerterm "github.com/moby/term"
 	"golang.org/x/exp/slices"
@@ -121,7 +121,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	cf.SiteName = c.siteName
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -420,7 +420,7 @@ type kubeExecCommand struct {
 
 func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 	c := &kubeExecCommand{
-		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod"),
+		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
 	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
@@ -437,17 +437,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 }
 
 func (c *kubeExecCommand) run(cf *CLIConf) error {
-	var p ExecOptions
-	var err error
+	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn()
 
+	f := c.kubeCmdFactory(newKubeConfigLocation)
+	var p ExecOptions
 	p.IOStreams = genericclioptions.IOStreams{
 		In:     os.Stdin,
 		Out:    os.Stdout,
 		ErrOut: os.Stderr,
 	}
-	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
-	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
-	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
 	p.ResourceName = c.target
 	p.ContainerName = c.container
 	p.Quiet = c.quiet
@@ -481,6 +483,17 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	return trace.Wrap(p.Run(cf.Context))
 }
 
+func (c *kubeExecCommand) kubeCmdFactory(overwriteKubeConfigLocation string) cmdutil.Factory {
+	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+
+	if overwriteKubeConfigLocation != "" {
+		kubeConfigFlags.KubeConfig = &overwriteKubeConfigLocation
+	}
+
+	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
+	return cmdutil.NewFactory(matchVersionKubeConfigFlags)
+}
+
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
 	format   string
@@ -500,7 +513,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	if c.siteName != "" {
 		cf.SiteName = c.siteName
 	}
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -576,24 +589,36 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 		// tsh generates and never by users directly.
 		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
 	}
-	c.Flag("teleport-cluster", "Name of the teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
+	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
 	return c
 }
 
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
+	profile, err := cf.GetProfile()
+	if err != nil {
+		// Cannot find the profile, continue to c.issueCert for a login.
+		return trace.Wrap(c.issueCert(cf))
+	}
+
+	if err := c.checkLocalProxyRequirement(profile.TLSRoutingConnUpgradeRequired); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// client.LoadKeysToKubeFromStore function is used to speed up the credentials
 	// loading process since Teleport Store transverses the entire store to find the keys.
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 3 different files from the disk:
-	// - $TSH_HOME/$profile.yaml
+	// it removes all transversals, it still has to read 2 different files from the disk:
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 	// - $TSH_HOME/keys/$PROXY/$USER
+	//
+	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
+	// cf.GetProfile call above.
 	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
+		profile,
 		cf.HomePath,
-		cf.Proxy,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
@@ -604,8 +629,15 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	tc, err := makeClient(cf, true)
+	return trace.Wrap(c.issueCert(cf))
+}
+
+func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
+	tc, err := makeClient(cf)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -638,6 +670,12 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
+		// The requirement may change after a new login so check again just in
+		// case.
+		if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
+			return trace.Wrap(err)
+		}
+
 		var err error
 		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
@@ -663,6 +701,13 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	}
 
 	return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
+}
+
+func (c *kubeCredentialsCommand) checkLocalProxyRequirement(connUpgradeRequired bool) error {
+	if connUpgradeRequired {
+		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
+	}
+	return nil
 }
 
 // checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
@@ -771,7 +816,7 @@ type kubeLSCommand struct {
 
 func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
 	c := &kubeLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters"),
+		CmdClause: parent.Command("ls", "Get a list of Kubernetes clusters."),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Flag("search", searchHelp).StringVar(&c.searchKeywords)
@@ -832,7 +877,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(c.runAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -991,17 +1036,18 @@ func selectedKubeCluster(currentTeleportCluster string) string {
 
 type kubeLoginCommand struct {
 	*kingpin.CmdClause
-	kubeCluster       string
-	siteName          string
-	impersonateUser   string
-	impersonateGroups []string
-	namespace         string
-	all               bool
+	kubeCluster         string
+	siteName            string
+	impersonateUser     string
+	impersonateGroups   []string
+	namespace           string
+	all                 bool
+	overrideContextName string
 }
 
 func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
-		CmdClause: parent.Command("login", "Login to a Kubernetes cluster"),
+		CmdClause: parent.Command("login", "Login to a Kubernetes cluster."),
 	}
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
@@ -1010,6 +1056,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to.").BoolVar(&c.all)
+	c.Flag("set-context-name", "Define a custom context name.").StringVar(&c.overrideContextName)
 	return c
 }
 
@@ -1017,6 +1064,10 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if c.kubeCluster == "" && !c.all {
 		return trace.BadParameter("kube-cluster name is required. Check 'tsh kube ls' for a list of available clusters.")
 	}
+	if c.all && c.overrideContextName != "" {
+		return trace.BadParameter("cannot use --set-context-name with --all")
+	}
+
 	// Set CLIConf.KubernetesCluster so that the kube cluster's context is automatically selected.
 	cf.KubernetesCluster = c.kubeCluster
 	cf.SiteName = c.siteName
@@ -1027,7 +1078,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	cf.kubeNamespace = c.namespace
 	cf.ListAll = c.all
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1044,7 +1095,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 	// Update default kubeconfig file located at ~/.kube/config or the value of
 	// KUBECONFIG env var even if the context exists.
-	if err := updateKubeConfig(cf, tc, ""); err != nil {
+	if err := updateKubeConfig(cf, tc, "", c.overrideContextName); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1053,15 +1104,47 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	profileKubeconfigPath := keypaths.KubeConfigPath(
 		profile.FullProfilePath(cf.HomePath), tc.WebProxyHost(), tc.Username, currentTeleportCluster, c.kubeCluster,
 	)
-	if err := updateKubeConfig(cf, tc, profileKubeconfigPath); err != nil {
+	if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.kubeCluster != "" {
-		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
-	} else {
-		fmt.Printf("Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
-	}
+
+	c.printUserMessage(cf, tc)
 	return nil
+}
+
+func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
+	if c.localProxyRequired(tc) {
+		c.printLocalProxyUserMessage(cf)
+		return
+	}
+
+	if c.kubeCluster != "" {
+		fmt.Fprintf(cf.Stdout(), "Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	} else {
+		fmt.Fprintf(cf.Stdout(), "Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
+	}
+}
+
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
+	switch {
+	case c.kubeCluster != "":
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
+  tsh proxy kube -p 8443
+
+Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
+`, c.kubeCluster)
+
+	default:
+		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+  tsh proxy kube -p 8443
+
+Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+`)
+	}
+}
+
+func (c *kubeLoginCommand) localProxyRequired(tc *client.TeleportClient) bool {
+	return tc.TLSRoutingConnUpgradeRequired
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
@@ -1136,7 +1219,7 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 
 // buildKubeConfigUpdate returns a kubeconfig.Values suitable for updating the user's kubeconfig
 // based on the CLI parameters and the given kubernetesStatus.
-func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconfig.Values, error) {
+func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideContextName string) (*kubeconfig.Values, error) {
 	v := &kubeconfig.Values{
 		ClusterAddr:         kubeStatus.clusterAddr,
 		TeleportClusterName: kubeStatus.teleportClusterName,
@@ -1147,7 +1230,8 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus) (*kubeconf
 		ImpersonateGroups:   cf.kubernetesImpersonationConfig.kubernetesGroups,
 		Namespace:           cf.kubeNamespace,
 		// Only switch the current context if kube-cluster is explicitly set on the command line.
-		SelectCluster: cf.KubernetesCluster,
+		SelectCluster:   cf.KubernetesCluster,
+		OverrideContext: overrideContextName,
 	}
 
 	if cf.executablePath == "" {
@@ -1199,7 +1283,7 @@ type impersonationConfig struct {
 // updateKubeConfig adds Teleport configuration to the users's kubeconfig based on the CLI
 // parameters and the kubernetes services in the current Teleport cluster. If no path for
 // the kubeconfig is given, it will use environment values or known defaults to get a path.
-func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error {
+func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string, overrideContext string) error {
 	// Fetch proxy's advertised ports to check for k8s support.
 	if _, err := tc.Ping(cf.Context); err != nil {
 		return trace.Wrap(err)
@@ -1218,7 +1302,7 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		cf.Proxy = tc.WebProxyAddr
 	}
 
-	values, err := buildKubeConfigUpdate(cf, kubeStatus)
+	values, err := buildKubeConfigUpdate(cf, kubeStatus, overrideContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}

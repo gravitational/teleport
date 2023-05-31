@@ -20,8 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 const (
@@ -118,7 +119,7 @@ func (w *AgentUpgradeWindow) Export(from time.Time, n int) AgentUpgradeSchedule 
 }
 
 func (s *AgentUpgradeSchedule) Clone() *AgentUpgradeSchedule {
-	return proto.Clone(s).(*AgentUpgradeSchedule)
+	return utils.CloneProtoMsg(s)
 }
 
 // NewClusterMaintenanceConfig creates a new maintenance config with no parameters set.

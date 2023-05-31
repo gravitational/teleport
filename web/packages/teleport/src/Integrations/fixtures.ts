@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { IntegrationStatusCode } from 'teleport/services/integrations';
+
 import type { Plugin, Integration } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
@@ -22,7 +24,7 @@ export const plugins: Plugin[] = [
     name: 'slack-default',
     details: `plugin running status`,
     kind: 'slack',
-    statusCode: 'Running',
+    statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
   {
@@ -30,7 +32,7 @@ export const plugins: Plugin[] = [
     name: 'slack-secondary',
     details: `plugin unknown status`,
     kind: 'slack',
-    statusCode: 'Unknown',
+    statusCode: IntegrationStatusCode.Unknown,
     spec: {},
   },
   {
@@ -38,15 +40,15 @@ export const plugins: Plugin[] = [
     name: 'acmeco-default',
     details: `plugin unauthorized status`,
     kind: 'acmeco' as any, // unknown plugin, should handle gracefuly
-    statusCode: 'Unauthorized',
+    statusCode: IntegrationStatusCode.Unauthorized,
     spec: {},
   },
   {
     resourceType: 'plugin',
     name: 'slack',
-    details: 'plugin unknown error status',
+    details: 'plugin other error status',
     kind: 'slack',
-    statusCode: 'Unknown error',
+    statusCode: IntegrationStatusCode.OtherError,
     spec: {},
   },
   {
@@ -54,7 +56,15 @@ export const plugins: Plugin[] = [
     name: 'slack',
     details: '',
     kind: 'slack',
-    statusCode: 'Bot not invited to channel',
+    statusCode: IntegrationStatusCode.SlackNotInChannel,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'openai',
+    details: '',
+    kind: 'openai',
+    statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
 ];
@@ -64,14 +74,14 @@ export const integrations: Integration[] = [
     resourceType: 'integration',
     name: 'aws',
     kind: 'aws-oidc',
-    statusCode: 'Running',
+    statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '' },
   },
   {
     resourceType: 'integration',
     name: 'some-integration-name',
     kind: '' as any,
-    statusCode: 'Running',
+    statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '' },
   },
 ];

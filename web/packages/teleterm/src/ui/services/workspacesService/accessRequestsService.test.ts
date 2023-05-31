@@ -41,6 +41,7 @@ function getMockPendingAccessRequest(): PendingAccessRequest {
       access: 'access',
     },
     kube_cluster: {},
+    user_group: {},
   };
 }
 

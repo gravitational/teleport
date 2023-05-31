@@ -116,7 +116,7 @@ type agentConfig struct {
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 
@@ -189,7 +189,7 @@ type agent struct {
 	// drainWG tracks transports and other concurrent operations required
 	// to drain a connection are finished.
 	drainWG sync.WaitGroup
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 
@@ -663,22 +663,4 @@ const (
 	chanDiscovery    = "teleport-discovery"
 	chanDiscoveryReq = "discovery"
 	reconnectRequest = "reconnect@goteleport.com"
-)
-
-const (
-	// LocalNode is a special non-resolvable address that indicates the request
-	// wants to connect to a dialed back node.
-	LocalNode = "@local-node"
-	// RemoteAuthServer is a special non-resolvable address that indicates client
-	// requests a connection to the remote auth server.
-	RemoteAuthServer = "@remote-auth-server"
-	// LocalKubernetes is a special non-resolvable address that indicates that clients
-	// requests a connection to the kubernetes endpoint of the local proxy.
-	// This has to be a valid domain name, so it lacks @
-	LocalKubernetes = "remote.kube.proxy." + constants.APIDomain
-	// LocalWindowsDesktop is a special non-resolvable address that indicates
-	// that clients requests a connection to the windows service endpoint of
-	// the local proxy.
-	// This has to be a valid domain name, so it lacks @
-	LocalWindowsDesktop = "remote.windows_desktop.proxy." + constants.APIDomain
 )

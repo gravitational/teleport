@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
@@ -175,17 +176,23 @@ type configureDatabaseAWSFlags struct {
 	user string
 	// policyName name of the generated policy.
 	policyName string
+	// assumesRoles comma-separated list of external AWS IAM role ARNs that the policy
+	// will include in sts:AssumeRole statement.
+	assumesRoles string
 }
 
 func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
-	if f.types == "" {
-		return trace.BadParameter("at least one --types should be provided: %s", strings.Join(awsDatabaseTypes, ","))
+	if f.types == "" && f.assumesRoles == "" {
+		return trace.BadParameter("at least one of --assumes-roles or --types should be provided. Valid --types: %s",
+			strings.Join(awsDatabaseTypes, ","))
 	}
 
-	f.typesList = strings.Split(f.types, ",")
-	for _, dbType := range f.typesList {
-		if !slices.Contains(awsDatabaseTypes, dbType) {
-			return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
+	if f.types != "" {
+		f.typesList = strings.Split(f.types, ",")
+		for _, dbType := range f.typesList {
+			if !slices.Contains(awsDatabaseTypes, dbType) {
+				return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
+			}
 		}
 	}
 
@@ -210,12 +217,12 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 		return nil, trace.Wrap(err)
 	}
 
-	fileConfig := &config.FileConfig{}
 	configuratorFlags := configurators.BootstrapFlags{
-		Manual:       manual,
-		PolicyName:   flags.policyName,
-		AttachToUser: flags.user,
-		AttachToRole: flags.role,
+		Manual:            manual,
+		PolicyName:        flags.policyName,
+		AttachToUser:      flags.user,
+		AttachToRole:      flags.role,
+		ForceAssumesRoles: flags.assumesRoles,
 	}
 
 	for _, dbType := range flags.typesList {
@@ -240,8 +247,8 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 	}
 
 	configurator, err := awsconfigurators.NewAWSConfigurator(awsconfigurators.ConfiguratorConfig{
-		Flags:      configuratorFlags,
-		FileConfig: fileConfig,
+		Flags:         configuratorFlags,
+		ServiceConfig: &servicecfg.Config{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

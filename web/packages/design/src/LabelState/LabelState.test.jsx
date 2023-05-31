@@ -26,10 +26,10 @@ import LabelState, {
 } from './LabelState';
 
 const colors = {
-  primary: theme.colors.brand.main,
-  info: theme.colors.levels.sunkenSecondary,
-  warning: theme.colors.warning,
-  danger: theme.colors.danger,
+  primary: theme.colors.brand,
+  info: theme.colors.spotBackground[0],
+  warning: theme.colors.warning.main,
+  danger: theme.colors.error.main,
   success: theme.colors.success,
 };
 

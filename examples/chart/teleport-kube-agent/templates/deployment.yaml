@@ -119,8 +119,11 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if or .Values.extraEnv .Values.tls.existingCASecretName .Values.updater.enabled }}
         env:
+        # This variable is set for telemetry purposes.
+        # Telemetry is opt-in for oss users and controlled at the auth level.
+        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+          value: "true"
         {{- if .Values.updater.enabled }}
         - name: TELEPORT_EXT_UPGRADER
           value: kube
@@ -131,10 +134,6 @@ spec:
         {{- if .Values.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
-        # Used to track whether a Teleport agent was installed using this method.
-        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-          value: true
-        {{- end }}
         {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
@@ -194,7 +193,7 @@ spec:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ .Values.secretName }}
+          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
       {{- if not .Values.existingDataVolume }}
       - name: "data"
         emptyDir: {}

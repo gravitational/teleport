@@ -188,6 +188,13 @@ spec:
       # 'region': '^us-west-1|eu-central-1$'
       'cluster_name': '^us.*\.example\.com$'
 
+    # group_labels: a user with this role will be given permissions to the
+    # underlying user_groups. Services such as the Okta service may use these
+    # permissions to grant access to external services.
+    group_labels:
+      # A user is given group membership to production related groups.
+      'env': 'prod'
+
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI
     aws_role_arns:
@@ -235,8 +242,15 @@ spec:
 
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
-      # can also be matchers. the below mapping says that users with
-      # the claims `groups: admins` can request any role in the system.
+      # can also be matchers. 
+      #
+      # This example leverages Teleport's regular expression support, which allows 
+      # for dynamic mapping from claims. The below mapping says that users with
+      # claims that match "projects: project-(.*)" can request roles that match 
+      # "$1-admin", where "$1" is the first capture group in the 
+      # regular expression.
+      # Example: the "projects: product-foo" claim allows a user to request the
+      # "foo-admin" role
       claims_to_roles:
         - claim: 'projects'
           # matches all group names with a leading 'product-'

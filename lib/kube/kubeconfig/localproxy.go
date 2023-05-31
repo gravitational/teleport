@@ -17,7 +17,6 @@ package kubeconfig
 import (
 	"fmt"
 
-	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -67,10 +66,10 @@ type LocalProxyValues struct {
 	TeleportKubeClusterAddr string
 	// LocalProxyURL is the local forward proxy's URL.
 	LocalProxyURL string
-	// LocalProxyCAPaths are the paths to local proxy's self-signed CA by Teleport cluster name.
-	LocalProxyCAPaths map[string]string
-	// ClientKeyPath is the path to the client key.
-	ClientKeyPath string
+	// LocalProxyCAs are the local proxy's self-signed CAs PEM encoded data, by Teleport cluster name.
+	LocalProxyCAs map[string][]byte
+	// ClientKeyData is self generated private key data used by kubectl and linked to proxy self-signed CA
+	ClientKeyData []byte
 	// Clusters is a list of Teleport kube clusters to include.
 	Clusters LocalProxyClusters
 }
@@ -84,13 +83,13 @@ func (v *LocalProxyValues) TeleportClusterNames() []string {
 	return utils.Deduplicate(names)
 }
 
-// SaveLocalProxyValues creates a kubeconfig for local proxy.
-func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) error {
-	prevContext := defaultConfig.CurrentContext
+// CreateLocalProxyConfig creates a kubeconfig for local proxy.
+func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyValues *LocalProxyValues) *clientcmdapi.Config {
+	prevContext := originalKubeConfig.CurrentContext
 
 	// Make a deep copy from default config then remove existing Teleport
 	// entries before adding the ones for local proxy.
-	config := defaultConfig.DeepCopy()
+	config := originalKubeConfig.DeepCopy()
 	config.CurrentContext = ""
 	removeByServerAddr(config, localProxyValues.TeleportKubeClusterAddr)
 
@@ -98,10 +97,10 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 		contextName := ContextName(cluster.TeleportCluster, cluster.KubeCluster)
 
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
-			ProxyURL:             localProxyValues.LocalProxyURL,
-			Server:               localProxyValues.TeleportKubeClusterAddr,
-			CertificateAuthority: localProxyValues.LocalProxyCAPaths[cluster.TeleportCluster],
-			TLSServerName:        common.KubeLocalProxySNI(cluster.TeleportCluster, cluster.KubeCluster),
+			ProxyURL:                 localProxyValues.LocalProxyURL,
+			Server:                   localProxyValues.TeleportKubeClusterAddr,
+			CertificateAuthorityData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
+			TLSServerName:            common.KubeLocalProxySNI(cluster.TeleportCluster, cluster.KubeCluster),
 		}
 		config.Contexts[contextName] = &clientcmdapi.Context{
 			Namespace: cluster.Namespace,
@@ -109,10 +108,10 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 			AuthInfo:  contextName,
 		}
 		config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-			ClientCertificate: localProxyValues.LocalProxyCAPaths[cluster.TeleportCluster],
-			ClientKey:         localProxyValues.ClientKeyPath,
-			Impersonate:       cluster.Impersonate,
-			ImpersonateGroups: cluster.ImpersonateGroups,
+			ClientCertificateData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
+			ClientKeyData:         localProxyValues.ClientKeyData,
+			Impersonate:           cluster.Impersonate,
+			ImpersonateGroups:     cluster.ImpersonateGroups,
 		}
 
 		// Set the first as current context or if matching the one from default
@@ -121,7 +120,7 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 			config.CurrentContext = contextName
 		}
 	}
-	return trace.Wrap(Save(path, *config))
+	return config
 }
 
 // LocalProxyClustersFromDefaultConfig loads Teleport kube clusters data saved
@@ -151,4 +150,37 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 		}
 	}
 	return clusters
+}
+
+// FindTeleportClusterForLocalProxy finds the Teleport kube cluster based on
+// provided cluster address and context name, and prepares a LocalProxyCluster.
+//
+// When the cluster has a ProxyURL set, it means the provided kubeconfig is
+// already pointing to a local proxy through this ProxyURL and thus can be
+// skipped as there is no need to create a new local proxy.
+func FindTeleportClusterForLocalProxy(defaultConfig *clientcmdapi.Config, clusterAddr, contextName string) (LocalProxyCluster, bool) {
+	if contextName == "" {
+		contextName = defaultConfig.CurrentContext
+	}
+
+	context, found := defaultConfig.Contexts[contextName]
+	if !found {
+		return LocalProxyCluster{}, false
+	}
+	cluster, found := defaultConfig.Clusters[context.Cluster]
+	if !found || cluster.Server != clusterAddr || cluster.ProxyURL != "" {
+		return LocalProxyCluster{}, false
+	}
+	auth, found := defaultConfig.AuthInfos[context.AuthInfo]
+	if !found {
+		return LocalProxyCluster{}, false
+	}
+
+	return LocalProxyCluster{
+		TeleportCluster:   context.Cluster,
+		KubeCluster:       KubeClusterFromContext(contextName, context.Cluster),
+		Namespace:         context.Namespace,
+		Impersonate:       auth.Impersonate,
+		ImpersonateGroups: auth.ImpersonateGroups,
+	}, true
 }

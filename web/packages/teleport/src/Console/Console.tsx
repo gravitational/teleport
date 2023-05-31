@@ -36,6 +36,8 @@ import useTabRouting from './useTabRouting';
 import useOnExitConfirmation from './useOnExitConfirmation';
 import useKeyboardNav from './useKeyboardNav';
 
+import { ConsoleThemeProvider } from './ThemeProvider';
+
 const POLL_INTERVAL = 5000; // every 5 sec
 
 export default function Console() {
@@ -85,37 +87,39 @@ export default function Console() {
   ));
 
   return (
-    <StyledConsole>
-      {attempt.status === 'failed' && (
-        <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
-      )}
-      {attempt.status === 'processing' && (
-        <Box textAlign="center" m={10}>
-          <Indicator />
-        </Box>
-      )}
-      {attempt.status === 'success' && (
-        <>
-          <Flex bg={colors.terminalDark} height="32px">
-            <Tabs
-              flex="1"
-              items={documents}
-              onClose={onTabClose}
-              onSelect={onTabClick}
-              activeTab={activeDocId}
-              clusterId={clusterId}
-              disableNew={disableNewTab}
-              onNew={onTabNew}
-            />
-            <ActionBar onLogout={onLogout} />
-          </Flex>
-          {$docs}
-          {hasSshSessions && (
-            <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
-          )}
-        </>
-      )}
-    </StyledConsole>
+    <ConsoleThemeProvider>
+      <StyledConsole>
+        {attempt.status === 'failed' && (
+          <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
+        )}
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'success' && (
+          <>
+            <Flex bg={colors.terminalDark} height="32px">
+              <Tabs
+                flex="1"
+                items={documents}
+                onClose={onTabClose}
+                onSelect={onTabClick}
+                activeTab={activeDocId}
+                clusterId={clusterId}
+                disableNew={disableNewTab}
+                onNew={onTabNew}
+              />
+              <ActionBar onLogout={onLogout} />
+            </Flex>
+            {$docs}
+            {hasSshSessions && (
+              <AjaxPoller time={POLL_INTERVAL} onFetch={onRefresh} />
+            )}
+          </>
+        )}
+      </StyledConsole>
+    </ConsoleThemeProvider>
   );
 }
 

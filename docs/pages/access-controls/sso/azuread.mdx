@@ -37,52 +37,49 @@ Before you get started you’ll need:
 
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-3. Select a **Non-gallery application**
+3. Select **Create your own application**, enter the application name (e.g Teleport),
+   and select **Integrate any other application you don't find in the gallery (Non-gallery)**.
 
-   ![Select Non-gallery application](../../../img/azuread/azuread-3-selectnongalleryapp.png)
+   ![Select Non-gallery application](../../../img/azuread/azuread-3-createnongalleryapp.png)
 
-4. Enter the display name (e.g, Teleport)
+4. Select **Properties** under **Manage** and set **User assignment required?** to **No**
 
-   ![Enter application name](../../../img/azuread/azuread-4-enterappname.png)
+![Turn off user assignment](../../../img/azuread/azuread-4-turnoffuserassign.png)
 
-5. Select **Properties** under **Manage** and set **User assignment required?** to **No**
+5. Select **Single sign-on** under **Manage** and choose **SAML**
 
-![Turn off user assignment](../../../img/azuread/azuread-5-turnoffuserassign.png)
+   ![Select SAML](../../../img/azuread/azuread-5-selectsaml.png)
 
-6. Select **Single sign-on** under **Manage** and choose **SAML**
+6. Edit the **Basic SAML Configuration**
 
-   ![Select SAML](../../../img/azuread/azuread-6-selectsaml.png)
+   ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
-7. Edit the **Basic SAML Configuration**
-
-   ![Edit Basic SAML Configuration](../../../img/azuread/azuread-7-editbasicsaml.png)
-
-8. For **Entity ID** and **Reply URL**, enter the same proxy URL.
+7. For **Entity ID** and **Reply URL**, enter the same proxy URL.
 
    For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
 
    For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
 
-   ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-8-entityandreplyurl.png)
+   ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
-9. Edit **User Attributes & Claims**
+8. Edit **User Attributes & Claims**
 
    - Edit the claim name.
    - Change the name identifier format to **Default**. Make sure the source attribute is `user.userprincipalname`.
 
-   ![Confirm Name Identifier](../../../img/azuread/azuread-9a-nameidentifier.png)
+   ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
    - Add a group claim to make user security groups available to the connector
 
-   ![Put in Security group claim](../../../img/azuread/azuread-9b-groupclaim.png)
+   ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
 
    - Add a claim that transforms an Azure AD username in order to pass it to Teleport.
 
-   ![Add a transformed username](../../../img/azuread/azuread-9c-usernameclaim.png)
+   ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
 
-10. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
+9. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
 
-    ![Download Federation Metadata XML](../../../img/azuread/azuread-10-fedmeatadataxml.png)
+   ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
 
 <Admonition
   type="warning"
@@ -112,8 +109,8 @@ spec:
   # The last segment of the URL must be identical to the connector metadata name.
   acs: https://teleport.example.com:3080/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
+    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "930210...", roles: ["editor"]}
+    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "93b110...", roles: ["dev"]}
   # Populate entity_descriptor with the federator data xml or set entity_descriptor_url to automatically load from the SSO
   entity_descriptor: |
     <federationmedata.xml contents>

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
@@ -70,6 +71,12 @@ func init() {
 	}
 }
 
+// AuthServiceClient keeps the interfaces implemented by the auth service.
+type AuthServiceClient struct {
+	proto.AuthServiceClient
+	assist.AssistServiceClient
+}
+
 // Client is a gRPC Client that connects to a Teleport Auth server either
 // locally or over ssh through a Teleport web proxy or tunnel proxy.
 //
@@ -86,7 +93,7 @@ type Client struct {
 	// conn is a grpc connection to the auth server.
 	conn *grpc.ClientConn
 	// grpc is the gRPC client specification for the auth server.
-	grpc proto.AuthServiceClient
+	grpc AuthServiceClient
 	// JoinServiceClient is a client for the JoinService, which runs on both the
 	// auth and proxy.
 	*JoinServiceClient
@@ -151,9 +158,16 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 }
 
 // connectInBackground connects the client to the server in the background.
-// The client will use the first credentials and the given dialer. If
-// no dialer is given, the first address will be used. This address must
-// be an auth server address.
+//
+// The client will use the first credentials and the given dialer.
+//
+// If no dialer is given, the first address will be used. If no
+// ALPNSNIAuthDialClusterName is given, this address must be an auth server
+// address.
+//
+// If ALPNSNIAuthDialClusterName is given, the address is expected to be a web
+// proxy address and the client will connect auth through the web proxy server
+// using TLS Routing.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
@@ -259,7 +273,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
 							tlsConfig: tlsConfig,
@@ -325,9 +339,15 @@ type (
 	}
 )
 
-// authConnect connects to the Teleport Auth Server directly.
+// authConnect connects to the Teleport Auth Server directly or through Proxy.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
+		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+		WithPROXYHeaderGetter(params.cfg.PROXYHeaderGetter),
+	)
+
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -340,7 +360,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -353,7 +373,7 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithTLSConfig(params.tlsConfig))
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -370,6 +390,20 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
+// tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
+// through the proxy using TLS Routing with ALPN connection upgrade.
+func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
 	}
 	return clt, nil
 }
@@ -431,7 +465,10 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 	}
 
 	c.conn = conn
-	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.grpc = AuthServiceClient{
+		AuthServiceClient:   proto.NewAuthServiceClient(c.conn),
+		AssistServiceClient: assist.NewAssistServiceClient(c.conn),
+	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
 	return nil
@@ -525,6 +562,20 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
+	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
+	// required for making TLS Routing requests.
+	//
+	// In DialInBackground mode without a Dialer, a valid value must be
+	// provided as it's assumed that the caller knows the context if connection
+	// upgrades are required for TLS Routing.
+	//
+	// In default mode, this value is optional as some of the connect methods
+	// will perform necessary tests to decide if connection upgrade is
+	// required.
+	ALPNConnUpgradeRequired bool
+	// PROXYHeaderGetter returns signed PROXY header that is sent to allow Proxy to propagate client's real IP to the
+	// auth server from the Proxy's web server, when we create user's client for the web session.
+	PROXYHeaderGetter PROXYHeaderGetter
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -556,9 +607,17 @@ func (c *Config) CheckAndSetDefaults() error {
 		PermitWithoutStream: true,
 	}))
 	if !c.DialInBackground {
-		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+		c.DialOpts = append(
+			c.DialOpts,
+			// Provides additional feedback on connection failure, otherwise,
+			// users will only receive a `context deadline exceeded` error when
+			// c.DialInBackground == false.
+			//
+			// grpc.WithReturnConnectionError implies grpc.WithBlock which is
+			// necessary for connection route selection to work properly.
+			grpc.WithReturnConnectionError(),
+		)
 	}
-
 	return nil
 }
 
@@ -920,7 +979,7 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 	var reqs []types.AccessRequest
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 
@@ -1319,7 +1378,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (c *Client) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllAppSessions(ctx, &emptypb.Empty{})
+	_, err := c.grpc.DeleteAllSnowflakeSessions(ctx, &emptypb.Empty{})
 	return trail.FromGRPC(err)
 }
 
@@ -2737,6 +2796,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubeCluster()
 		case types.KindKubeServer:
 			resources[i] = respResource.GetKubernetesServer()
+		case types.KindUserGroup:
+			resources[i] = respResource.GetUserGroup()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}
@@ -2827,6 +2888,8 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 				resource = respResource.GetKubeCluster()
 			case types.KindKubeServer:
 				resource = respResource.GetKubernetesServer()
+			case types.KindUserGroup:
+				resource = respResource.GetUserGroup()
 			default:
 				out.Resources = nil
 				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -3012,7 +3075,7 @@ func (c *Client) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionT
 	for {
 		session, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -3036,7 +3099,7 @@ func (c *Client) GetActiveSessionTrackersWithFilter(ctx context.Context, filter 
 	for {
 		session, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 
@@ -3459,6 +3522,18 @@ func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
 	return trail.FromGRPC(err)
 }
 
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (c *Client) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	resp, err := c.integrationsClient().GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -3500,6 +3575,14 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trail.FromGRPC(err)
+}
+
+// OktaClient returns an Okta client.
+// Clients connecting older Teleport versions still get an okta client when
+// calling this method, but all RPCs will return "not implemented" errors (as per
+// the default gRPC behavior).
+func (c *Client) OktaClient() *okta.Client {
+	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -3577,4 +3660,59 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 		return nil, trail.FromGRPC(err)
 	}
 	return headlessAuthn, nil
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	resp, err := c.grpc.CreateAssistantConversation(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+// GetAssistantMessages retrieves assistant messages with given conversation ID.
+func (c *Client) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	messages, err := c.grpc.GetAssistantMessages(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (c *Client) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	resp, err := c.grpc.IsAssistEnabled(ctx, &assist.IsAssistEnabledRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (c *Client) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	messages, err := c.grpc.GetAssistantConversations(ctx, request)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// CreateAssistantMessage saves a new conversation message.
+func (c *Client) CreateAssistantMessage(ctx context.Context, in *assist.CreateAssistantMessageRequest) error {
+	_, err := c.grpc.CreateAssistantMessage(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// UpdateAssistantConversationInfo updates conversation info.
+func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist.UpdateAssistantConversationInfoRequest) error {
+	_, err := c.grpc.UpdateAssistantConversationInfo(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }

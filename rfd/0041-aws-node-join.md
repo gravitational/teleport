@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 41 - Simplified Node Joining for AWS

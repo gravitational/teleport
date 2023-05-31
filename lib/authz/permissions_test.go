@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const clusterName = "test-cluster"
@@ -455,6 +456,73 @@ func TestContext_GetAccessState(t *testing.T) {
 	}
 }
 
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "expected type net.Addr, got <nil>",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP, nil)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
+	}
+}
+
 func TestAuthorizeWithVerbs(t *testing.T) {
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -549,6 +617,36 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 			log := logrus.New()
 			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
 			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
+		})
+	}
+}
+
+func TestRoleSetForBuiltinRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		clusterName   string
+		recConfig     types.SessionRecordingConfig
+		roles         []types.SystemRole
+		assertRoleSet func(t *testing.T, rs services.RoleSet)
+	}{
+		{
+			name:        "RoleMDM is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rs, err := RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
+			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
+			test.assertRoleSet(t, rs)
 		})
 	}
 }

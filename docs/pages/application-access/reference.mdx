@@ -93,8 +93,10 @@ spec:
     - "grafana.internal.dev"
     # Headers passthrough configuration.
     headers:
-    - "X-Custom-Header: example"
-    - "X-External-Trait: {{external.env}}"
+    - name: "X-Custom-Header"
+      value: "example"
+    - name: "X-External-Trait"
+      value: "{{external.env}}"
   # Optional dynamic labels.
   dynamic_labels:
   - name: "hostname"

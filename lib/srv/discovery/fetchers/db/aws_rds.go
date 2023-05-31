@@ -110,7 +110,7 @@ func (f *rdsDBInstancesFetcher) getRDSDatabases(ctx context.Context) (types.Data
 			continue
 		}
 
-		if !services.IsRDSInstanceAvailable(instance) {
+		if !services.IsRDSInstanceAvailable(instance.DBInstanceStatus, instance.DBInstanceIdentifier) {
 			f.log.Debugf("The current status of RDS instance %q is %q. Skipping.",
 				aws.StringValue(instance.DBInstanceIdentifier),
 				aws.StringValue(instance.DBInstanceStatus))
@@ -208,7 +208,7 @@ func (f *rdsAuroraClustersFetcher) getAuroraDatabases(ctx context.Context) (type
 			continue
 		}
 
-		if !services.IsRDSClusterAvailable(cluster) {
+		if !services.IsRDSClusterAvailable(cluster.Status, cluster.DBClusterIdentifier) {
 			f.log.Debugf("The current status of Aurora cluster %q is %q. Skipping.",
 				aws.StringValue(cluster.DBClusterIdentifier),
 				aws.StringValue(cluster.Status))

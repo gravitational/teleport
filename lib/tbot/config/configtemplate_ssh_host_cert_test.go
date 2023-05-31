@@ -25,9 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 )
 
 type mockHostCertAuth struct {
@@ -46,17 +44,6 @@ func (m *mockHostCertAuth) GenerateHostCert(
 	return []byte(fixtures.SSHCAPublicKey), nil
 }
 
-type mockHostCertBot struct {
-	mockBot
-}
-
-func (b *mockHostCertBot) AuthenticatedUserClientFromIdentity(
-	ctx context.Context, id *identity.Identity,
-) (auth.ClientI, error) {
-	// For our purposes here, the mock client is sufficient.
-	return b.auth, nil
-}
-
 func TestTemplateSSHHostCertRender(t *testing.T) {
 	mockAuth := &mockHostCertAuth{
 		mockAuth: *newMockAuth(t),
@@ -65,9 +52,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	cfg, err := NewDefaultConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := &mockHostCertBot{
-		mockBot: *newMockBot(cfg, mockAuth),
-	}
+	mockBot := newMockBot(cfg, mockAuth)
 
 	template := TemplateSSHHostCert{
 		Prefix:     "example",
@@ -84,7 +69,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	require.NoError(t, dest.CheckAndSetDefaults())
 
 	ident := getTestIdent(t, "bot-test")
-	err = template.Render(context.Background(), mockBot, ident, dest)
+	err = template.Render(context.Background(), mockBot, ident, ident, dest)
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)

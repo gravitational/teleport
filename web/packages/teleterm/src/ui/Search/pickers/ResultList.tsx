@@ -20,12 +20,15 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
-import styled from 'styled-components';
-
+import { Flex } from 'design';
+import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
+
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -35,18 +38,32 @@ type ResultListProps<T> = {
    */
   attempts: Attempt<T[]>[];
   /**
-   * ExtraComponent is the element that is rendered above the items.
+   * ExtraTopComponent is the element that is rendered above the items.
    */
-  ExtraComponent?: ReactElement;
+  ExtraTopComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const pickAndResetActiveItem = useCallback(
+    (item: T) => {
+      setActiveItemIndex(0);
+      onPick(item);
+    },
+    [onPick]
+  );
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -75,7 +92,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 
           const item = items[activeItemIndex];
           if (item) {
-            onPick(item);
+            pickAndResetActiveItem(item);
           }
           break;
         }
@@ -98,9 +115,17 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
+  }, [
+    items,
+    pickAndResetActiveItem,
+    onBack,
+    activeItemIndex,
+    addWindowEventListener,
+  ]);
 
   return (
     <>
@@ -110,7 +135,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
         )}
       </Separator>
       <Overflow role="menu">
-        {ExtraComponent}
+        {ExtraTopComponent}
         {items.map((r, index) => {
           const isActive = index === activeItemIndex;
           const { Component, key } = props.render(r);
@@ -119,9 +144,9 @@ export function ResultList<T>(props: ResultListProps<T>) {
             <InteractiveItem
               ref={isActive ? activeItemRef : null}
               role="menuitem"
-              $active={isActive}
+              active={isActive}
               key={key}
-              onClick={() => props.onPick(r)}
+              onClick={() => pickAndResetActiveItem(r)}
             >
               {Component}
             </InteractiveItem>
@@ -135,29 +160,57 @@ export function ResultList<T>(props: ResultListProps<T>) {
 export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
-  background: ${props =>
-    props.$active
-      ? props.theme.colors.levels.elevated
-      : props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
+  cursor: pointer;
+
   &:hover,
   &:focus {
-    cursor: pointer;
-    background: ${props => props.theme.colors.levels.elevated};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
+
+  ${props => {
+    if (props.active) {
+      return css`
+        background: ${props => props.theme.colors.spotBackground[0]};
+      `;
+    }
+  }}
 `;
+
+/**
+ * IconAndContent is supposed to be used within InteractiveItem & NonInteractiveItem.
+ */
+export function IconAndContent(
+  props: React.PropsWithChildren<{
+    Icon: React.ComponentType<{
+      color: string;
+      fontSize: string;
+      lineHeight: string;
+    }>;
+    iconColor: string;
+  }>
+) {
+  return (
+    <Flex alignItems="flex-start" gap={2}>
+      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
+      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
+      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
+        {props.children}
+      </Flex>
+    </Flex>
+  );
+}
 
 function getNext(selectedIndex = 0, max = 0) {
   let index = selectedIndex % max;
@@ -169,7 +222,7 @@ function getNext(selectedIndex = 0, max = 0) {
 
 const Separator = styled.div`
   position: relative;
-  background: ${props => props.theme.colors.action.hover};
+  background: ${props => props.theme.colors.spotBackground[0]};
   height: 1px;
 `;
 

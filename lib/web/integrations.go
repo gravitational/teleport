@@ -133,7 +133,7 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }
 
 // integrationsGet returns an Integration based on its name

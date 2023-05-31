@@ -571,30 +571,20 @@ func getLeafClusterCAs(ctx context.Context, srv *Server, domainName string, vali
 // getCATypesForLeaf returns the list of CA certificates that should be sync in response to ValidateTrustedClusterRequest.
 func getCATypesForLeaf(validateRequest *ValidateTrustedClusterRequest) ([]types.CertAuthType, error) {
 	var (
-		err                 error
-		databaseCASupported bool
-		openSSHCASupported  bool
+		err                error
+		openSSHCASupported bool
 	)
 
 	if validateRequest.TeleportVersion != "" {
 		// (*ValidateTrustedClusterRequest).TeleportVersion was added in Teleport 10.0. If the request comes from an older
 		// cluster this field will be empty.
-		databaseCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.DatabaseCAMinVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
-		}
 		openSSHCASupported, err = utils.MinVerWithoutPreRelease(validateRequest.TeleportVersion, constants.OpenSSHCAMinVersion)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse Teleport version: %q", validateRequest.TeleportVersion)
 		}
 	}
 
-	certTypes := []types.CertAuthType{types.HostCA, types.UserCA}
-	if databaseCASupported {
-		// Database CA was introduced in Teleport 10.0. Do not send it to older clusters
-		// as they don't understand it.
-		certTypes = append(certTypes, types.DatabaseCA)
-	}
+	certTypes := []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA}
 	if openSSHCASupported {
 		// OpenSSH CA was introduced in Teleport 12.0. Do not send it to older clusters
 		// as they don't understand it.

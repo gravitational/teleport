@@ -20,13 +20,6 @@ This guide will help you to:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-<Notice type="warning">
-
-Teleport database access for Cloud SQL MySQL is available starting from the
-`7.0` release.
-
-</Notice>
-
 - Google Cloud account
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
@@ -129,7 +122,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 ## Step 4/5. Set up the Teleport Database service
 
-Below is an example of a database service configuration file that proxies
+Below is an example of a Database Service configuration file that proxies
 a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 
 <ScopedBlock scope={["oss", "enterprise"]}>

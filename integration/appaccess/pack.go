@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -313,7 +314,7 @@ func (p *Pack) CreateAppSessionWithClientCert(t *testing.T) []tls.Certificate {
 		ClusterName: p.rootAppClusterName,
 	})
 	require.NoError(t, err)
-	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName)
+	config := p.makeTLSConfig(t, session.GetName(), session.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName, "")
 	return config.Certificates
 }
 
@@ -357,16 +358,15 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 }
 
 func (p *Pack) ensureAuditEvent(t *testing.T, eventType string, checkEvent func(event apievents.AuditEvent)) {
+	ctx := context.Background()
 	require.Eventuallyf(t, func() bool {
-		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(
-			time.Now().Add(-time.Hour),
-			time.Now().Add(time.Hour),
-			apidefaults.Namespace,
-			[]string{eventType},
-			1,
-			types.EventOrderDescending,
-			"",
-		)
+		events, _, err := p.rootCluster.Process.GetAuthServer().SearchEvents(ctx, events.SearchEventsRequest{
+			From:       time.Now().Add(-time.Hour),
+			To:         time.Now().Add(time.Hour),
+			EventTypes: []string{eventType},
+			Limit:      1,
+			Order:      types.EventOrderDescending,
+		})
 		require.NoError(t, err)
 		if len(events) == 0 {
 			return false
@@ -414,7 +414,7 @@ func (p *Pack) startLocalProxy(t *testing.T, tlsConfig *tls.Config) string {
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
-func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName string) *tls.Config {
+func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName, pinnedIP string) *tls.Config {
 	privateKey, publicKey, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
@@ -433,6 +433,7 @@ func (p *Pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clus
 			PublicAddr:  publicAddr,
 			ClusterName: clusterName,
 			SessionID:   sessionID,
+			PinnedIP:    pinnedIP,
 		})
 	require.NoError(t, err)
 

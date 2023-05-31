@@ -35,10 +35,6 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Enables collecting of anonymous usage data.'),
-    'feature.searchBar': z
-      .boolean()
-      .default(false)
-      .describe('Replaces the command bar with the new search bar'),
     'keymap.tab1': shortcutSchema
       .default(defaultKeymap['tab1'])
       .describe(getShortcutDesc('open tab 1')),

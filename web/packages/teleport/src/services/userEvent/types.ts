@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleSaveClickEvent = 'tp.ui.createNewRoleSave.click',
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
+  UiCallToActionClickEvent = 'tp.ui.callToAction.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -39,9 +40,32 @@ export enum CaptureEvent {
   PreUserRecoveryCodesPrintClickEvent = 'tp.ui.recoveryCodesPrint.click',
 }
 
+export enum IntegrationEnrollEvent {
+  Started = 'tp.ui.integrationEnroll.start',
+  Complete = 'tp.ui.integrationEnroll.complete',
+}
+
+// IntegrationEnrollKind represents a integration type.
+export enum IntegrationEnrollKind {
+  Unspecified = 'INTEGRATION_ENROLL_KIND_UNSPECIFIED',
+  Slack = 'INTEGRATION_ENROLL_KIND_SLACK',
+  AwsOidc = 'INTEGRATION_ENROLL_KIND_AWS_OIDC',
+  PagerDuty = 'INTEGRATION_ENROLL_KIND_PAGERDUTY',
+  Email = 'INTEGRATION_ENROLL_KIND_EMAIL',
+  Jira = 'INTEGRATION_ENROLL_KIND_JIRA',
+  Discord = 'INTEGRATION_ENROLL_KIND_DISCORD',
+  Mattermost = 'INTEGRATION_ENROLL_KIND_MATTERMOST',
+  MsTeams = 'INTEGRATION_ENROLL_KIND_MS_TEAMS',
+  OpsGenie = 'INTEGRATION_ENROLL_KIND_OPSGENIE',
+  Okta = 'INTEGRATION_ENROLL_KIND_OKTA',
+  Jamf = 'INTEGRATION_ENROLL_KIND_JAMF',
+}
+
 export enum DiscoverEvent {
   Started = 'tp.ui.discover.started',
   ResourceSelection = 'tp.ui.discover.resourceSelection',
+  IntegrationAWSOIDCConnectEvent = 'tp.ui.discover.integration.awsoidc.connect',
+  DatabaseRDSEnrollEvent = 'tp.ui.discover.database.enroll.rds',
   DeployService = 'tp.ui.discover.deployService',
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
@@ -121,6 +145,16 @@ export type EventMeta = {
 
 export type PreUserEvent = UserEvent & EventMeta;
 
+export type IntegrationEnrollEventData = {
+  id: string;
+  kind: IntegrationEnrollKind;
+};
+
+export type IntegrationEnrollEventRequest = {
+  event: IntegrationEnrollEvent;
+  eventData: IntegrationEnrollEventData;
+};
+
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
   eventData: DiscoverEventData;
@@ -129,13 +163,31 @@ export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
   resource: DiscoverEventResource;
-  // AutoDiscoverResourcesCount is the number of
+  // autoDiscoverResourcesCount is the number of
   // auto-discovered resources in the Auto Discovering resources screen.
   // This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
   autoDiscoverResourcesCount?: number;
+  // selectedResourcesCount is the number of
+  // resources that a user has selected
+  //
+  // eg: number of RDS databases selected
+  // in the RDS enrollment screen for event
+  // tp.ui.discover.database.enroll.rds
+  selectedResourcesCount?: number;
 };
 
 export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+// TODO(mcbattirola): import this from protofile instead of copying it here
+export enum CtaEvent {
+  CTA_UNSPECIFIED = 0,
+  CTA_AUTH_CONNECTOR = 1,
+  CTA_ACTIVE_SESSIONS = 2,
+  CTA_ACCESS_REQUESTS = 3,
+  CTA_PREMIUM_SUPPORT = 4,
+  CTA_TRUSTED_DEVICES = 5,
+  CTA_UPGRADE_BANNER = 6,
+}

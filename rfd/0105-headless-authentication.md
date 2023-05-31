@@ -1,6 +1,6 @@
 ---
 authors: Brian Joerger (bjoerger@goteleport.com)
-state: draft
+state: implemented (v12.2)
 ---
 
 # RFD 105 - Headless Authentication
@@ -103,7 +103,7 @@ sequenceDiagram
     participant Headless Machine as Remote (Headless) Machine
     participant Teleport Proxy
     participant Teleport Auth
-    
+
     Note over Headless Machine: tsh --headless ssh user@node01
     Note over Headless Machine: print URL proxy.example.com/headless/<request_id>
     par headless client request
@@ -116,7 +116,7 @@ sequenceDiagram
         Note over Local Machine: proxy.example.com/headless/<request_id>
         opt user is not already logged in locally
             Local Machine->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Local Machine: 
+            Teleport Proxy->>Local Machine:
         end
         Local Machine->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
         Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
@@ -215,7 +215,7 @@ message UpdateHeadlessAuthenticationStateRequest {
   State new_state = 2;
 
   // MFAResponse is an mfa challenge response used to verify the user.
-  // MFA Auth Challenges can be created for a user with the 
+  // MFA Auth Challenges can be created for a user with the
   // authservice.GenerateAuthenticateChallenge rpc.
   proto.MFAAuthenticateResponse mfa_response = 3;
 }

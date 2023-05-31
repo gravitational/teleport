@@ -31,12 +31,13 @@ const (
 
 // AccessRequestData represents generic plugin data required for access request processing
 type AccessRequestData struct {
-	User             string
-	Roles            []string
-	RequestReason    string
-	ReviewsCount     int
-	ResolutionTag    ResolutionTag
-	ResolutionReason string
+	User               string
+	Roles              []string
+	RequestReason      string
+	ReviewsCount       int
+	ResolutionTag      ResolutionTag
+	ResolutionReason   string
+	ResolveAnnotations map[string][]string
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.

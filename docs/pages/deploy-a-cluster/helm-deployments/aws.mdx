@@ -29,8 +29,9 @@ cluster to Teleport.
 
 ## Step 3/7. Set up AWS IAM configuration
 
-For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
-you'll need to configure AWS IAM policies to allow access.
+For Teleport to be able to manage the DynamoDB tables, indexes, and the S3
+storage bucket it needs, you'll need to configure AWS IAM policies to allow
+access.
 
 <Admonition type="note">
   These IAM policies should be added to your AWS account, then granted to the instance role associated with the
@@ -44,10 +45,6 @@ you'll need to configure AWS IAM policies to allow access.
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
-
-Note that Teleport will only use S3 buckets with versioning enabled. This
-ensures that a session log cannot be permanently altered or deleted, as
-Teleport will always look at the oldest version of a recording.
 
 ## Step 4/7. Configure TLS certificates for Teleport
 
@@ -271,9 +268,7 @@ Edit your `values.yaml` file to refer to the name of your secret:
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
-Download your Teleport Enterprise license from the
-[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
-a file called `license.pem`.
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
@@ -620,8 +615,9 @@ $ helm --namespace cert-manager uninstall cert-manager
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../management/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
-Teleport cluster.
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/introduction.mdx) section to get started enrolling
+users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 

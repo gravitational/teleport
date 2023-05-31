@@ -102,3 +102,27 @@ func MakeIntegration(ig types.Integration) Integration {
 		},
 	}
 }
+
+// AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.
+type AWSOIDCListDatabasesRequest struct {
+	// RDSType is either `instance` or `cluster`.
+	RDSType string `json:"rdsType"`
+	// Engines filters the returned Databases based on their engine.
+	// Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+	Engines []string `json:"engines"`
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListDatabasesResponse contains a list of databases and a next token if more pages are available.
+type AWSOIDCListDatabasesResponse struct {
+	// Databases contains the page of Databases
+	Databases []Database `json:"databases"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}

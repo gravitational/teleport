@@ -19,8 +19,9 @@ package types
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // ClusterAuditConfig defines cluster-wide audit log configuration. This is
@@ -253,7 +254,7 @@ func (c *ClusterAuditConfigV2) RetentionPeriod() *Duration {
 
 // Clone performs a deep copy.
 func (c *ClusterAuditConfigV2) Clone() ClusterAuditConfig {
-	return proto.Clone(c).(*ClusterAuditConfigV2)
+	return utils.CloneProtoMsg(c)
 }
 
 // setStaticFields sets static resource header and metadata fields.

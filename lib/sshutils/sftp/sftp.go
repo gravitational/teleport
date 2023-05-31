@@ -18,7 +18,6 @@ limitations under the License.
 package sftp
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,7 +25,6 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"os/user"
 	"path" // SFTP requires UNIX-style path separators
 	"runtime"
 	"strconv"
@@ -39,7 +37,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
@@ -53,8 +50,6 @@ type Options struct {
 	PreserveAttrs bool
 }
 
-type homeDirRetriever func() (string, error)
-
 // Config describes the settings of a file transfer
 type Config struct {
 	srcPaths []string
@@ -62,10 +57,6 @@ type Config struct {
 	srcFS    FileSystem
 	dstFS    FileSystem
 	opts     Options
-
-	// getHomeDir returns the home directory of the remote user of the
-	// SSH session
-	getHomeDir homeDirRetriever
 
 	// ProgressStream is a callback to return a read/writer for printing the progress
 	// (used only on the client)
@@ -254,6 +245,8 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 	if fileTransferRequestID, ok := ctx.Value(FileTransferRequestID).(string); ok {
 		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
 	}
+	// set dstPath in env var to check against file transfer request location
+	s.Setenv(FileTransferDstPath, c.dstPath)
 
 	pe, err := s.StderrPipe()
 	if err != nil {
@@ -322,95 +315,70 @@ func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 		return nil
 	}
 
-	if c.getHomeDir == nil {
-		c.getHomeDir = func() (string, error) {
-			return getRemoteHomeDir(sshClient)
-		}
-	}
-
 	return trace.Wrap(c.expandPaths(srcOK, dstOK))
 }
 
 func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
-	srcHomeRetriever := getLocalHomeDir
 	if srcIsRemote {
-		srcHomeRetriever = c.getHomeDir
-	}
-	for i, srcPath := range c.srcPaths {
-		c.srcPaths[i], err = expandPath(srcPath, srcHomeRetriever)
-		if err != nil {
-			return trace.Wrap(err)
+		for i, srcPath := range c.srcPaths {
+			c.srcPaths[i], err = expandPath(srcPath)
+			if err != nil {
+				return trace.Wrap(err, "error expanding %q", srcPath)
+			}
 		}
 	}
 
-	dstHomeRetriever := getLocalHomeDir
 	if dstIsRemote {
-		dstHomeRetriever = c.getHomeDir
+		c.dstPath, err = expandPath(c.dstPath)
+		if err != nil {
+			return trace.Wrap(err, "error expanding %q", c.dstPath)
+		}
 	}
-	c.dstPath, err = expandPath(c.dstPath, dstHomeRetriever)
 
-	return trace.Wrap(err)
+	return nil
 }
 
-func getLocalHomeDir() (string, error) {
-	u, err := user.Current()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return u.HomeDir, nil
-}
-
-func expandPath(pathStr string, getHomeDir homeDirRetriever) (string, error) {
-	if !needsExpansion(pathStr) {
+func expandPath(pathStr string) (string, error) {
+	pfxLen, ok := homeDirPrefixLen(pathStr)
+	if !ok {
 		return pathStr, nil
 	}
 
-	homeDir, err := getHomeDir()
-	if err != nil {
-		return "", trace.Wrap(err)
+	// Removing the home dir prefix would mean returning an empty string,
+	// which is supported by SFTP but won't be as clear in logs or audit
+	// events. Since the SFTP server will be rooted at the user's home
+	// directory, "." and "" are equivalent in this context.
+	if pathStr == "~" {
+		return ".", nil
+	}
+	if pfxLen == 1 && len(pathStr) > 1 {
+		return "", trace.BadParameter("expanding remote ~user paths is not supported, specify an absolute path instead")
 	}
 
-	// this is safe because we verified that all paths are non-empty
-	// in CreateUploadConfig/CreateDownloadConfig
-	return path.Join(homeDir, pathStr[1:]), nil
+	// if an SFTP path is not absolute, it is assumed to start at the user's
+	// home directory so just strip the prefix and let the SFTP server
+	// figure out the correct remote path
+	return pathStr[pfxLen:], nil
 }
 
-// needsExpansion returns true if path is '~', '~/', or '~\' on Windows
-func needsExpansion(path string) bool {
-	if len(path) == 1 {
-		return path == "~"
+// homeDirPrefixLen returns the length of a set of characters that
+// indicates the user wants the path to begin with a user's home
+// directory and a bool that indicates whether such a prefix exists.
+func homeDirPrefixLen(path string) (int, bool) {
+	if strings.HasPrefix(path, "~/") {
+		return 2, true
 	}
-
 	// allow '~\' or '~/' on Windows since '\' is the canonical path
 	// separator but some users may use '/' instead
 	if runtime.GOOS == "windows" && strings.HasPrefix(path, `~\`) {
-		return true
-	}
-	return strings.HasPrefix(path, "~/")
-}
-
-// getRemoteHomeDir returns the home directory of the remote user of
-// the SSH connection
-func getRemoteHomeDir(sshClient *ssh.Client) (string, error) {
-	s, err := sshClient.NewSession()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer s.Close()
-	if err := s.RequestSubsystem(teleport.GetHomeDirSubsystem); err != nil {
-		return "", trace.Wrap(err)
-	}
-	r, err := s.StdoutPipe()
-	if err != nil {
-		return "", trace.Wrap(err)
+		return 2, true
 	}
 
-	var homeDirBuf bytes.Buffer
-	if _, err := io.Copy(&homeDirBuf, r); err != nil {
-		return "", trace.Wrap(err)
+	if len(path) >= 1 && path[0] == '~' {
+		return 1, true
 	}
 
-	return homeDirBuf.String(), nil
+	return -1, false
 }
 
 // transfer performs file transfers
@@ -513,6 +481,8 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+	c.Log.Debugf("copying %s dir %q to %s dir %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+
 	err := c.dstFS.Mkdir(ctx, dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
@@ -555,6 +525,8 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+	c.Log.Debugf("copying %s file %q to %s file %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+
 	srcFile, err := c.srcFS.Open(ctx, srcPath)
 	if err != nil {
 		return trace.Errorf("error opening %s file %q: %w", c.srcFS.Type(), srcPath, err)

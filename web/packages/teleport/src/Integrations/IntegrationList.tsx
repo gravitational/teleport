@@ -18,16 +18,30 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Image } from 'design';
-import awsIcon from 'design/assets/images/icons/aws.svg';
+import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
+import openaiIcon from 'design/assets/images/icons/openai.svg';
+import jamfIcon from 'design/assets/images/icons/jamf.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import type { Integration, Plugin } from 'teleport/services/integrations';
+import {
+  getStatusCodeDescription,
+  getStatusCodeTitle,
+  Integration,
+  IntegrationStatusCode,
+  IntegrationKind,
+  Plugin,
+} from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
-  onDelete(i: IntegrationLike): void;
+  onDeletePlugin?(p: Plugin): void;
+  integrationOps?: {
+    onDeleteIntegration(i: Integration): void;
+    onEditIntegration(i: Integration): void;
+  };
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -61,11 +75,38 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         },
         {
           altKey: 'options-btn',
-          render: item => (
-            <ActionCell
-              onDelete={props.onDelete ? () => props.onDelete(item) : null}
-            />
-          ),
+          render: item => {
+            if (item.resourceType === 'plugin') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            return (
+              <Cell align="right">
+                <MenuButton>
+                  <MenuItem
+                    onClick={() => props.integrationOps.onEditIntegration(item)}
+                  >
+                    Edit...
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() =>
+                      props.integrationOps.onDeleteIntegration(item)
+                    }
+                  >
+                    Delete...
+                  </MenuItem>
+                </MenuButton>
+              </Cell>
+            );
+          },
         },
       ]}
       emptyText="No Results Found"
@@ -75,27 +116,19 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
   const status = getStatus(item);
+  const statusDescription = getStatusCodeDescription(item.statusCode);
 
   return (
     <Cell>
       <Flex alignItems="center">
         <StatusLight status={status} />
-        {item.statusCode}
+        {getStatusCodeTitle(item.statusCode)}
+        {statusDescription && (
+          <Box mx="1">
+            <ToolTipInfo>{statusDescription}</ToolTipInfo>
+          </Box>
+        )}
       </Flex>
-    </Cell>
-  );
-};
-
-const ActionCell = ({ onDelete }: { onDelete: () => void }) => {
-  if (!onDelete) {
-    return null;
-  }
-
-  return (
-    <Cell align="right">
-      <MenuButton>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
     </Cell>
   );
 };
@@ -106,17 +139,20 @@ enum Status {
   Error,
 }
 
-function getStatus(item: IntegrationLike) {
+function getStatus(item: IntegrationLike): Status | null {
+  if (item.resourceType !== 'plugin') {
+    return Status.Success;
+  }
+
   switch (item.statusCode) {
-    case 'Running':
+    case IntegrationStatusCode.Unknown:
+      return null;
+    case IntegrationStatusCode.Running:
       return Status.Success;
-
-    case 'Unauthorized':
-    case 'Unknown error':
-      return Status.Error;
-
-    case 'Bot not invited to channel':
+    case IntegrationStatusCode.SlackNotInChannel:
       return Status.Warning;
+    default:
+      return Status.Error;
   }
 }
 
@@ -130,10 +166,10 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.light;
+      return theme.colors.error.main;
     }
     if (status === Status.Warning) {
-      return theme.colors.warning;
+      return theme.colors.warning.main;
     }
     return theme.colors.grey[300]; // Unknown
   }};
@@ -148,13 +184,25 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
         formattedText = 'Slack';
         icon = <IconContainer src={slackIcon} />;
         break;
+      case 'openai':
+        formattedText = 'OpenAI';
+        icon = <IconContainer src={openaiIcon} />;
+        break;
+      case 'jamf':
+        formattedText = 'Jamf';
+        icon = <IconContainer src={jamfIcon} />;
+        break;
     }
   } else {
     // Default is integration.
     switch (item.kind) {
-      case 'aws-oidc':
-        formattedText = 'Amazon Web Services (OIDC)';
-        icon = <IconContainer src={awsIcon} />;
+      case IntegrationKind.AwsOidc:
+        formattedText = item.name;
+        icon = (
+          <SvgIconContainer>
+            <AWSIcon />
+          </SvgIconContainer>
+        );
         break;
     }
   }
@@ -175,5 +223,9 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(Image)`
   width: 22px;
-  padding-right: 8px;
+  margin-right: 10px;
+`;
+
+const SvgIconContainer = styled(Flex)`
+  margin-right: 10px;
 `;

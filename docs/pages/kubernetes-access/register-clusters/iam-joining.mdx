@@ -14,6 +14,9 @@ Once the Kubernetes cluster is registered for the first time, the agent will sto
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
 
+Support for joining a cluster with the Proxy Service behind a layer 7 load
+balancer or reverse proxy is available in Teleport 13.0+.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -71,9 +74,9 @@ Then create the IAM policy:
 $ aws iam create-policy --policy-name <Var name="kube-iam-policy"/> --policy-document file://iam-policy.json
 {
     "Policy": {
-        "PolicyName": "<Var name="kube-iam-policy"/>",
+        "PolicyName": "kube-iam-policy",
         "PolicyId": "ANPAW2Y2Q2Y2Y2Y2Y2Y2Y",
-        "Arn": "arn:aws:iam::aws:policy/<Var name="kube-iam-policy"/>",
+        "Arn": "arn:aws:iam::aws:policy/kube-iam-policy",
         "Path": "/",
         "DefaultVersionId": "v1",
         "AttachmentCount": 0,
@@ -130,10 +133,10 @@ Kubernetes service account.
 
 ```code
 $ kubectl create ns <Var name="teleport-agent"/>
-namespace/<Var name="teleport-agent"/> created
+namespace/teleport-agent created
 
 $ kubectl create sa <Var name="teleport-kube-agent-sa"/> -n  <Var name="teleport-agent"/>
-serviceaccount/<Var name="teleport-kube-agent-sa"/> created
+serviceaccount/teleport-kube-agent-sa created
 ```
 
 Then we need to create the IAM role and trust relationship. For that, we need

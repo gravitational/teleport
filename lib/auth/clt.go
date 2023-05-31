@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -65,8 +66,6 @@ type Client struct {
 	*APIClient
 	// HTTPClient is used to make http requests to the server
 	*HTTPClient
-	// oktaClient is used to make Okta resoruce requests to the server.
-	oktaClient services.Okta
 }
 
 // Make sure Client implements all the necessary methods.
@@ -99,9 +98,13 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout, client.WithTLSConfig(httpTLS))
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
+				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
+					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
+				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil
@@ -121,15 +124,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
-	oktaClient, err := client.NewOktaClient(cfg.Context, cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &Client{
 		APIClient:  apiClient,
 		HTTPClient: httpClient,
-		oktaClient: oktaClient,
 	}, nil
 }
 
@@ -293,8 +290,8 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 }
 
 // SearchEvents allows searching for audit events with pagination support.
-func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(context.TODO(), fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -303,8 +300,8 @@ func (c *Client) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventT
 }
 
 // SearchSessionEvents returns session related events to find completed sessions.
-func (c *Client) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchSessionEvents(context.TODO(), fromUTC, toUTC, limit, order, startKey)
+func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	events, lastKey, err := c.APIClient.SearchSessionEvents(ctx, req.From, req.To, req.Limit, req.Order, req.StartKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -468,7 +465,7 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 }
 
 func (c *Client) OktaClient() services.Okta {
-	return c.oktaClient
+	return c.APIClient.OktaClient()
 }
 
 // WebService implements features used by Web UI clients
@@ -705,6 +702,7 @@ type ClientI interface {
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
+	services.Assistant
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -795,6 +793,9 @@ type ClientI interface {
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
 	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+
+	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
+	GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error)
 
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error

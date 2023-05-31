@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -57,11 +59,17 @@ func TestDatabaseLogin(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
+	alice.SetDatabaseUsers([]string{"admin"})
+	alice.SetDatabaseNames([]string{"default"})
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
 		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withConfig(func(cfg *servicecfg.Config) {
+			// separate MySQL port with TLS routing.
+			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess,
 		servicecfg.Database{
@@ -140,8 +148,8 @@ func TestDatabaseLogin(t *testing.T) {
 		{
 			databaseName:          "mysql",
 			expectCertsLen:        1,
-			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
-			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+			expectErrForConfigCmd: false, // "tsh db config" is supported for MySQL with TLS routing & separate MySQL port.
+			expectErrForEnvCmd:    false, // "tsh db env" not supported for MySQL with TLS routing & separate MySQL port.
 		},
 		{
 			databaseName:          "cassandra",
@@ -165,12 +173,18 @@ func TestDatabaseLogin(t *testing.T) {
 
 	// Note: keystore currently races when multiple tsh clients work in the
 	// same profile dir (e.g. StatusCurrent might fail reading if someone else
-	// is writing a key at the same time). Thus running all `tsh db login` in
-	// sequence first before running other test cases in parallel.
+	// is writing a key at the same time).
+	// Thus, in order to speed up this test, we clone the profile dir for each subtest
+	// to enable parallel test runs.
+	// Copying the profile dir is faster than sequential login for each database.
 	for _, test := range testCases {
+		test := test
 		t.Run(fmt.Sprintf("%v/%v", "tsh db login", test.databaseName), func(t *testing.T) {
+			t.Parallel()
+			tmpHomePath := mustCloneTempDir(t, tmpHomePath)
 			err := Run(context.Background(), []string{
-				"db", "login", "--db-user", "admin", test.databaseName,
+				// default --db-user and --db-name are selected from roles.
+				"db", "login", test.databaseName,
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
 
@@ -185,38 +199,32 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectCertsLen, len(certs)) // don't use require.Len, because it spams PEM bytes on fail.
 			require.Equal(t, test.expectKeysLen, len(keys))   // don't use require.Len, because it spams PEM bytes on fail.
-		})
-	}
 
-	for _, test := range testCases {
-		test := test
+			t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
+				t.Parallel()
+				err := Run(context.Background(), []string{
+					"db", "config", test.databaseName,
+				}, setHomePath(tmpHomePath))
 
-		t.Run(fmt.Sprintf("%v/%v", "tsh db config", test.databaseName), func(t *testing.T) {
-			t.Parallel()
+				if test.expectErrForConfigCmd {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 
-			err := Run(context.Background(), []string{
-				"db", "config", test.databaseName,
-			}, setHomePath(tmpHomePath))
+			t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
+				t.Parallel()
+				err := Run(context.Background(), []string{
+					"db", "env", test.databaseName,
+				}, setHomePath(tmpHomePath))
 
-			if test.expectErrForConfigCmd {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-
-		t.Run(fmt.Sprintf("%v/%v", "tsh db env", test.databaseName), func(t *testing.T) {
-			t.Parallel()
-
-			err := Run(context.Background(), []string{
-				"db", "env", test.databaseName,
-			}, setHomePath(tmpHomePath))
-
-			if test.expectErrForEnvCmd {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+				if test.expectErrForEnvCmd {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
 		})
 	}
 }
@@ -309,18 +317,18 @@ func TestLocalProxyRequirement(t *testing.T) {
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
 			}
-			tc, err := makeClient(cf, false)
+			tc, err := makeClient(cf)
 			require.NoError(t, err)
 			if tt.setupTC != nil {
 				tt.setupTC(tc)
 			}
-			route := &tlsca.RouteToDatabase{
+			route := tlsca.RouteToDatabase{
 				ServiceName: "foo-db",
 				Protocol:    "postgres",
 				Username:    "alice",
 				Database:    "postgres",
 			}
-			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
+			requires := getDBConnectLocalProxyRequirement(ctx, tc, route)
 			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
 			require.Equal(t, tt.wantTunnel, requires.tunnel)
 			if requires.tunnel {
@@ -672,6 +680,127 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out := formatDatabaseConnectArgs(tt.cluster, tt.route)
 			require.Equal(t, tt.wantFlags, out)
+		})
+	}
+}
+
+// TestGetDefaultDBNameAndUser tests getting a default --db-name and --db-user
+// from a user's roles.
+func TestGetDefaultDBNameAndUser(t *testing.T) {
+	t.Parallel()
+	genericDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "test-db",
+		Labels: map[string]string{"foo": "bar"},
+	}, types.DatabaseSpecV3{
+		Protocol: "protocol",
+		URI:      "uri",
+	})
+	require.NoError(t, err)
+	dbRedis, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		db               types.Database
+		allowedDBUsers   []string
+		allowedDBNames   []string
+		expectDBUser     string
+		expectDBName     string
+		expectErr        string
+		expectDBUserHint string
+		expectDBNameHint string
+	}{
+		"one allowed": {
+			db:             genericDB,
+			allowedDBUsers: []string{"alice"},
+			allowedDBNames: []string{"dev"},
+			expectDBUser:   "alice",
+			expectDBName:   "dev",
+		},
+		"wildcard allowed but one explicit": {
+			db:             genericDB,
+			allowedDBUsers: []string{"*", "alice"},
+			allowedDBNames: []string{"*", "dev"},
+			expectDBUser:   "alice",
+			expectDBName:   "dev",
+		},
+		"select default user from wildcard for Redis": {
+			db:             dbRedis,
+			allowedDBUsers: []string{"*"},
+			allowedDBNames: []string{"*", "dev"},
+			expectDBUser:   "default",
+			expectDBName:   "dev",
+		},
+		"none allowed": {
+			db:        genericDB,
+			expectErr: "not allowed access to any",
+		},
+		"denied matches allowed": {
+			db:             genericDB,
+			allowedDBUsers: []string{"rootDBUser"},
+			allowedDBNames: []string{"rootDBName"},
+			expectErr:      "not allowed access to any",
+		},
+		"only wildcard allowed due to deny rules": {
+			db:               genericDB,
+			allowedDBUsers:   []string{"*", "rootDBUser"},
+			allowedDBNames:   []string{"*", "rootDBName"},
+			expectErr:        "please provide",
+			expectDBUserHint: "[*] except [rootDBUser]",
+			expectDBNameHint: "[*] except [rootDBName]",
+		},
+		"has multiple db users": {
+			db:               genericDB,
+			allowedDBUsers:   []string{"alice", "bob"},
+			allowedDBNames:   []string{"dev", "prod"},
+			expectErr:        "please provide",
+			expectDBUserHint: "[alice bob]",
+			expectDBNameHint: "[dev prod]",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			role := &types.RoleV6{
+				Metadata: types.Metadata{Name: "test-role", Namespace: apidefaults.Namespace},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Namespaces:     []string{apidefaults.Namespace},
+						DatabaseLabels: types.Labels{"*": []string{"*"}},
+						DatabaseUsers:  test.allowedDBUsers,
+						DatabaseNames:  test.allowedDBNames,
+					},
+					Deny: types.RoleConditions{
+						Namespaces:    []string{apidefaults.Namespace},
+						DatabaseUsers: []string{"rootDBUser"},
+						DatabaseNames: []string{"rootDBName"},
+					},
+				},
+			}
+			dbUser, err := getDefaultDBUser(test.db, services.RoleSet{role})
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				if test.expectDBUserHint != "" {
+					require.ErrorContains(t, err, fmt.Sprintf("allowed database users for test-db: %v", test.expectDBUserHint))
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectDBUser, dbUser)
+			dbName, err := getDefaultDBName(test.db, services.RoleSet{role})
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				if test.expectDBNameHint != "" {
+					require.ErrorContains(t, err, fmt.Sprintf("allowed database names for test-db: %v", test.expectDBNameHint))
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.expectDBName, dbName)
 		})
 	}
 }

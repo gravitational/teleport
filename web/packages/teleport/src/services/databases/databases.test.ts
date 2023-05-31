@@ -32,7 +32,7 @@ test('correct formatting of database fetch response', async () => {
       {
         name: 'aurora',
         description: 'PostgreSQL 11.6: AWS Aurora',
-        type: 'RDS PostgreSQL',
+        type: 'Amazon RDS PostgreSQL',
         protocol: 'postgres',
         names: [],
         users: [],
@@ -40,6 +40,19 @@ test('correct formatting of database fetch response', async () => {
           { name: 'cluster', value: 'root' },
           { name: 'env', value: 'aws' },
         ],
+        aws: {
+          rds: {
+            resourceId: 'resource-id',
+          },
+        },
+      },
+      {
+        name: 'self-hosted',
+        type: 'Self-hosted PostgreSQL',
+        protocol: 'postgres',
+        names: [],
+        users: [],
+        labels: [],
       },
     ],
     startKey: mockResponse.startKey,
@@ -64,16 +77,29 @@ test('null response from database fetch', async () => {
 
 describe('correct formatting of all type and protocol combos', () => {
   test.each`
-    type                 | protocol                 | combined
-    ${'self-hosted'}     | ${'mysql'}               | ${'Self-hosted MySQL/MariaDB'}
-    ${'rds'}             | ${'mysql'}               | ${'RDS MySQL/MariaDB'}
-    ${'self-hosted'}     | ${'postgres'}            | ${'Self-hosted PostgreSQL'}
-    ${'rds'}             | ${'postgres'}            | ${'RDS PostgreSQL'}
-    ${'gcp'}             | ${'postgres'}            | ${'Cloud SQL PostgreSQL'}
-    ${'redshift'}        | ${'postgres'}            | ${'Redshift'}
-    ${'self-hosted'}     | ${'sqlserver'}           | ${'Self-hosted SQL Server'}
-    ${'self-hosted'}     | ${'redis'}               | ${'Self-hosted Redis'}
-    ${'some other type'} | ${'some other protocol'} | ${'some other type some other protocol'}
+    type                     | protocol                 | combined
+    ${'self-hosted'}         | ${'mysql'}               | ${'Self-hosted MySQL/MariaDB'}
+    ${'rds'}                 | ${'mysql'}               | ${'Amazon RDS MySQL/MariaDB'}
+    ${'self-hosted'}         | ${'postgres'}            | ${'Self-hosted PostgreSQL'}
+    ${'rds'}                 | ${'postgres'}            | ${'Amazon RDS PostgreSQL'}
+    ${'rdsproxy'}            | ${'sqlserver'}           | ${'Amazon RDS Proxy SQL Server'}
+    ${'gcp'}                 | ${'postgres'}            | ${'Cloud SQL PostgreSQL'}
+    ${'redshift'}            | ${'postgres'}            | ${'Amazon Redshift'}
+    ${'redshift-serverless'} | ${'postgres'}            | ${'Amazon Redshift Serverless'}
+    ${'dynamodb'}            | ${'dynamodb'}            | ${'Amazon DynamoDB'}
+    ${'elasticache'}         | ${'redis'}               | ${'Amazon ElastiCache'}
+    ${'memorydb'}            | ${'redis'}               | ${'Amazon MemoryDB'}
+    ${'opensearch'}          | ${'opensearch'}          | ${'Amazon OpenSearch'}
+    ${'keyspace'}            | ${'cassandra'}           | ${'Amazon Keyspaces'}
+    ${'self-hosted'}         | ${'sqlserver'}           | ${'Self-hosted SQL Server'}
+    ${'self-hosted'}         | ${'redis'}               | ${'Self-hosted Redis'}
+    ${'self-hosted'}         | ${'mongodb'}             | ${'Self-hosted MongoDB'}
+    ${'self-hosted'}         | ${'cassandra'}           | ${'Self-hosted Cassandra'}
+    ${'self-hosted'}         | ${'cockroachdb'}         | ${'Self-hosted CockroachDB'}
+    ${'self-hosted'}         | ${'oracle'}              | ${'Self-hosted Oracle'}
+    ${'self-hosted'}         | ${'snowflake'}           | ${'Snowflake'}
+    ${'self-hosted'}         | ${'elasticsearch'}       | ${'Self-hosted Elasticsearch'}
+    ${'some other type'}     | ${'some other protocol'} | ${'some other type some other protocol'}
   `(
     'should combine type: $type and protocol: $protocol correctly',
     async ({ type, protocol, combined }) => {
@@ -137,6 +163,7 @@ test('null array fields in database services fetch response', async () => {
 
 const mockResponse = {
   items: [
+    // aws rds
     {
       name: 'aurora',
       desc: 'PostgreSQL 11.6: AWS Aurora',
@@ -147,6 +174,19 @@ const mockResponse = {
         { name: 'cluster', value: 'root' },
         { name: 'env', value: 'aws' },
       ],
+      aws: {
+        rds: {
+          resource_id: 'resource-id',
+        },
+      },
+    },
+    // non-aws self-hosted
+    {
+      name: 'self-hosted',
+      type: 'self-hosted',
+      protocol: 'postgres',
+      uri: 'localhost:5432',
+      labels: [],
     },
   ],
   startKey: 'mockKey',

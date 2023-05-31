@@ -19,8 +19,9 @@ package types
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // PluginType represents the type of the plugin
@@ -31,6 +32,26 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	// PluginTypeOpenAI is the OpenAI plugin
+	PluginTypeOpenAI = "openai"
+	// PluginTypeOkta is the Okta plugin
+	PluginTypeOkta = "okta"
+	// PluginTypeJamf is the Jamf MDM plugin
+	PluginTypeJamf = "jamf"
+	// PluginTypeOpsgenie is the Opsgenie access request plugin
+	PluginTypeOpsgenie = "opsgenie"
+)
+
+// PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
+type PluginSubkind string
+
+const (
+	// PluginSubkindUnknown is returned when no plugin subkind matches.
+	PluginSubkindUnknown PluginSubkind = ""
+	// PluginSubkindMDM represents MDM plugins collectively
+	PluginSubkindMDM = "mdm"
+	// PluginSubkindAccess represents access request plugins collectively
+	PluginSubkindAccess = "access"
 )
 
 // Plugin represents a plugin instance
@@ -97,6 +118,62 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Opsgenie:
+		if settings.Opsgenie == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if err := settings.Opsgenie.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("opsgenie plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Jamf:
+		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
+			return trace.BadParameter("api endpoint must be set")
+		}
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
+			return trace.BadParameter("Jamf plugin requires Jamf account username and password")
+		}
+	case *PluginSpecV1_Okta:
+		// Check settings.
+		if settings.Okta == nil {
+			return trace.BadParameter("missing Okta settings")
+		}
+		if err := settings.Okta.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -122,7 +199,7 @@ func (p *PluginV1) setStaticFields() {
 
 // Clone returns a copy of the Plugin instance
 func (p *PluginV1) Clone() Plugin {
-	return proto.Clone(p).(*PluginV1)
+	return utils.CloneProtoMsg(p)
 }
 
 // GetVersion returns resource version
@@ -227,6 +304,12 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_Openai:
+		return PluginTypeOpenAI
+	case *PluginSpecV1_Okta:
+		return PluginTypeOkta
+	case *PluginSpecV1_Jamf:
+		return PluginTypeJamf
 	default:
 		return PluginTypeUnknown
 	}
@@ -238,6 +321,23 @@ func (s *PluginSlackAccessSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("fallback_channel must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values.
+func (s *PluginOktaSettings) CheckAndSetDefaults() error {
+	if s.OrgUrl == "" {
+		return trace.BadParameter("org_url must be set")
+	}
+
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
 	return nil
 }
 

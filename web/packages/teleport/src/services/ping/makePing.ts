@@ -18,9 +18,10 @@ import { PingResponse } from './types';
 
 export function makePing(json: any): PingResponse {
   json = json || {};
-  const { automatic_upgrades } = json;
+  const { proxy, automatic_upgrades } = json;
 
   return {
     automaticUpgrades: automatic_upgrades,
+    assistEnabled: proxy?.assist_enabled,
   };
 }

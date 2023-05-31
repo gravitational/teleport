@@ -33,10 +33,11 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
 
 type ResourceCollection interface {
@@ -788,7 +789,7 @@ func (c *windowsDesktopServiceCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"Name", "Address", "Version"})
 	for _, service := range c.services {
 		addr := service.GetAddr()
-		if addr == reversetunnel.LocalWindowsDesktop {
+		if addr == reversetunnelclient.LocalWindowsDesktop {
 			addr = "<proxy tunnel>"
 		}
 		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
@@ -1164,7 +1165,7 @@ type oktaAssignmentCollection struct {
 func (c *oktaAssignmentCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.assignments))
 	for i, resource := range c.assignments {
-		r[i] = resource
+		r[i] = oktaassignment.ToResource(resource)
 	}
 	return r
 }

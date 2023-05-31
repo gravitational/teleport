@@ -26,6 +26,14 @@ db_service:
   - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
+    # Optional AWS role that the Database Service will assume to discover
+    # and register AWS-hosted databases.
+    # Discovered databases are also accessed by the Database Service via
+    # this role.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
     # AWS resource tags to match when registering databases.
     tags:
       "*": "*"
@@ -92,6 +100,12 @@ db_service:
     aws:
       # Region the database is deployed in.
       region: "us-east-1"
+      # Optional AWS role that the Database Service will assume to access
+      # this database.
+      assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+      # Optional AWS external ID that the Database Service will use to assume
+      # a role in an external AWS account.
+      external_id: "example-external-id"
       # Redshift-specific configuration.
       redshift:
         # Redshift cluster identifier.

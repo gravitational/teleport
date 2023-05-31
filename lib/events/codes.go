@@ -185,6 +185,13 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
+	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
+	ElasticsearchRequestFailureCode = "TES00E"
+
+	// OpenSearchRequestCode is the db.session.opensearch.request event code.
+	OpenSearchRequestCode = "TOS00I"
+	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
+	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
@@ -434,6 +441,27 @@ const (
 
 	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
 	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
+
+	// OktaGroupsUpdateCode is the Okta groups updated code.
+	OktaGroupsUpdateCode = "TOK001I"
+
+	// OktaApplicationsUpdateCode is the Okta applications updated code.
+	OktaApplicationsUpdateCode = "TOK002I"
+
+	// OktaSyncFailureCode is the Okta synchronization failure code.
+	OktaSyncFailureCode = "TOK003E"
+
+	// OktaAssignmentProcessSuccessCode is the Okta assignment process success code.
+	OktaAssignmentProcessSuccessCode = "TOK004I"
+
+	// OktaAssignmentProcessFailureCode is the Okta assignment process failure code.
+	OktaAssignmentProcessFailureCode = "TOK004E"
+
+	// OktaAssignmentCleanupSuccessCode is the Okta assignment cleanup success code.
+	OktaAssignmentCleanupSuccessCode = "TOK005I"
+
+	// OktaAssignmentCleanupFailureCode is the Okta assignment cleanup failure code.
+	OktaAssignmentCleanupFailureCode = "TOK005E"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
