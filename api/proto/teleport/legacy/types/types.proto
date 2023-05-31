@@ -5289,7 +5289,7 @@ message PluginStaticCredentialsBasicAuth {
   string Password = 2 [(gogoproto.jsontag) = "password"];
 }
 
-// PluginStaticCredentialsOAuthClientSecret represents an oauth client and secret.
+// PluginStaticCredentialsOAuthClientSecret represents an oauth client id and secret.
 message PluginStaticCredentialsOAuthClientSecret {
   // ClientId is the client ID to use for OAuth client secret.
   string ClientId = 1 [(gogoproto.jsontag) = "client_id"];
