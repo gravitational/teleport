@@ -333,6 +333,9 @@ const (
 	// KindPlugin represents a plugin instance
 	KindPlugin = "plugin"
 
+	// KindPluginStaticCredentials represents plugin static credentials.
+	KindPluginStaticCredentials = "plugin_static_credentials"
+
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
 
