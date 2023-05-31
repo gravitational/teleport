@@ -282,6 +282,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -291,6 +294,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeCacheSubnetGroups",
 					"elasticache:DescribeUsers",
 					"elasticache:ModifyUser",
+					"elasticache:Connect",
 				}},
 				{
 					Effect: awslib.EffectAllow,
@@ -302,6 +306,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 					Resources: []string{"arn:aws:secretsmanager:*:123456789012:secret:teleport/*"},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 		},
 		"ElastiCache static database": {
@@ -358,6 +365,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 			boundaryStatements: []*awslib.Statement{
 				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
@@ -367,6 +377,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"elasticache:DescribeCacheSubnetGroups",
 					"elasticache:DescribeUsers",
 					"elasticache:ModifyUser",
+					"elasticache:Connect",
 				}},
 				{
 					Effect: "Allow",
@@ -388,6 +399,9 @@ func TestAWSIAMDocuments(t *testing.T) {
 						"arn:aws:kms:*:123456789012:key/my-kms-id",
 					},
 				},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
 			},
 		},
 		"MemoryDB auto discovery": {
