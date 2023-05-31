@@ -148,12 +148,13 @@ func (b *Bot) renewBotIdentity(
 	}
 
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Info("Fetched new bot identity.")
+	b.setIdent(newIdentity)
+
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
 	b.log.WithField("identity", describeTLSIdentity(b.log, newIdentity)).Debug("Bot identity persisted.")
 
-	b.setIdent(newIdentity)
 	return nil
 }
 
