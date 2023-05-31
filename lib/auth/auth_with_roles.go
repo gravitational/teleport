@@ -6118,6 +6118,15 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.
 	return a.authServer.GetAssistantMessages(ctx, req)
 }
 
+// DeleteAssistantConversation deletes a conversation by ID.
+func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+}
+
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
