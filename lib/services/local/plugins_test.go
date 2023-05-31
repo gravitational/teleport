@@ -43,7 +43,8 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(mem)
+	service, err := NewPluginsService(mem)
+	require.NoError(t, err)
 
 	// Define two plugins
 	plugin1 := types.NewPluginV1(types.Metadata{Name: "p1"}, types.PluginSpecV1{
@@ -142,7 +143,8 @@ func TestListPlugins(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(mem)
+	service, err := NewPluginsService(mem)
+	require.NoError(t, err)
 
 	var insertedPlugins []types.Plugin
 	for i := 0; i < numPlugins; i++ {
