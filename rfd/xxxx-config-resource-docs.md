@@ -1,29 +1,36 @@
 ---
 authors: Paul Gottschling (paul.gottschling@goteleport.com)
 state: draft
-title: NNN - Automatically Generate the Configuration Resource Reference
+title: NNN - Automatically Generate the Teleport Resource Reference
 ---
 
 ## Required Approvers
 
-- Engineering: @codingllama
+- Engineering: @codingllama, @zmb3
 - Product: (@alexfornuto || @xinding33)
 
 ## What
 
-Automatically generate the "Dynamic resources" section of the configuration
-resource reference (`docs/pages/reference/resources.mdx`), a list of the
-resources you can apply via `tctl`, from the Teleport source code. 
+Dynamic resources (also called "Teleport resources" in this RFD) are
+configuration objects that Teleport users can apply using `tctl`, Terraform, and
+other methods.
+
+The scope of this RFD is to automatically generate the "Dynamic resources"
+section of the resource reference (`docs/pages/reference/resources.mdx`), a list
+of the dynamic resources you can apply via `tctl`, from the Teleport source
+code. 
 
 To do this, write a program that we can run as a new Make target in a clone of
-`gravitational/teleport`. When we make changes to Teleport's dynamic
-configuration resources, we can run the program manually, generate a new
-iteration of the reference, and manually open a pull request with the new
-content.
+`gravitational/teleport`. When we make changes to Teleport's dynamic resources ,
+we can run the program manually, generate a new iteration of the reference, and
+manually open a pull request with the new content.
+
+The Make target will depend on `make grpc` so the generator always works from
+the latest `proto` files.
 
 ## Why
 
-We want to ensure that the configuration resource reference is complete and up
+We want to ensure that the Teleport resource reference is complete and up
 to date so Teleport operators can manage their clusters without creating support
 load.
 
@@ -53,7 +60,7 @@ The generator will have access to a mapping of package paths to lists of named
 struct types within each package. It will use this mapping to identify the
 struct types to use for generating the resource reference. 
 
-Since struct definitions for `tctl` resources include field types that also
+Since struct definitions for Teleport resources include field types that also
 require their own entries in the resource reference (e.g., `types.Metadata`),
 the configuration only names the _root_ types for the generator to examine.
 
@@ -65,32 +72,34 @@ types](https://github.com/gravitational/teleport/blob/c9b0a601ab781e1bd34dc3c44a
 and the generator I'm proposing will also include package names so the generator
 loads the correct source packages and their dependencies.
 
-The program could read the mapping from a YAML configuration file or declare it
-directly as a Go `map`.
+The program will declare the mapping within the Go code as a `map`.
 
-Here is an example in YAML:
+Here is an example:
 
-```yaml
-github.com/gravitational/teleport/api/types
-- ProvisionTokenV2
-- AuthPreferenceV2
-- AccessRequestV3
-
-github.com/gravitational/teleport/api/loginrulev1
-- LoginRule
+```go
+var resources = map[string][]string{
+  "github.com/gravitational/teleport/api/types": {
+    "ProvisionTokenV2",
+    "AuthPreferenceV2",
+    "AccessRequestV3,
+  },
+  "github.com/gravitational/teleport/api/loginrulev1": {
+    "LoginRule",
+  },
+}
 ```
 
 #### Alternative: Working from protobuf message definitions
 
-We could write a `protoc` plugin that generates the configuration resource
-reference from our protobuf message definitions. This is how we generate our
-Terraform provider source in `github.com/gravitational/protoc-gen-terraform`.
+We could write a `protoc` plugin that generates the Teleport resource reference
+from our protobuf message definitions. This is how we generate our Terraform
+provider source in `github.com/gravitational/protoc-gen-terraform`.
 
-However, we can't guarantee that every configuration resource available to
-`tctl` will correspond to a protobuf message definition. Since we generate Go
-source files based on our `.proto` files, and Teleport needs to unmarshal all
-configuration resources into structs from YAML, it's a safe bet that all
-configuration resources will have a corresponding Go struct.
+However, we can't guarantee that every Teleport resource available to `tctl`
+will correspond to a protobuf message definition. Since we generate Go source
+files based on our `.proto` files, and Teleport needs to unmarshal all Teleport
+resources into structs from YAML, it's a safe bet that all Teleport resources
+will have a corresponding Go struct.
 
 The downside of using Go source files is that, if we want to change the
 description of a field or some other aspect of the generated reference, we need
@@ -110,9 +119,11 @@ I don't imagine this will be prohibitive, though, as long as we:
 - Edit the comments in Go type definitions and `proto` files to ensure
   consistency, clarity, and grammatical correctness.
 
+Having this Make target depend on `make grpc` will also automate this flow.
+
 ### The output
 
-The output of the program will be a configuration resource reference generated
+The output of the program will be a Teleport resource reference generated
 from a template.
 
 #### Template format and data
@@ -340,10 +351,15 @@ In Go's `ast` package, a [`Decl`](https://pkg.go.dev/go/ast#Decl) is an
 interface representing a declaration. The logic for generating a `Resource`
 from a given type declaration depends on the nature of the type declaration. 
 
-Start by asserting that the `Decl` is an `*ast.GenDecl` with a `Specs`
-containing a `TypeSpec` with `Type: StructType`. From there, we can map the
-fields within [`ast.StructType`](https://pkg.go.dev/go/ast#StructType) to fields
-in a new `Resource`.
+First, check whether a given `struct` declaration has a custom `UnmarshalJSON`
+or `UnmarshalYAML` method. In this case, treat the type as a [custom
+type](#custom-fields) and print a message.
+
+Next, if there is no custom unmarshaler for the type, assert that the `Decl` is
+an `*ast.GenDecl` with a `Specs` containing a `TypeSpec` with `Type:
+StructType`. From there, we can map the fields within
+[`ast.StructType`](https://pkg.go.dev/go/ast#StructType) to fields in a new
+`Resource`.
 
 Each `StructType` has a [`*FieldList`](https://pkg.go.dev/go/ast#FieldList) that
 we can use to obtain field data, including comments and tags. The generator
@@ -354,8 +370,8 @@ ignores fields that are not exported.
 |`Resource.SourcePath`|The `file` property of the underlying `sourceDecl`.|
 |`Resource.Description`|`GenDecl.Doc`|
 |`Resource.SectionName`|`TypeSpec.Name.Name`, with camelcase converted to separate words.|
-|`Fields[*].Name`|Process the `Field.Tag` in the `FieldList`, extracting the value of the `json` tag.|
-|`Fields[*].Description`|Each [`Field`](https://pkg.go.dev/go/ast#Field) in a `FieldList` has a `*CommentGroup` that we can use to extract the field's GoDoc. If a comment begins with the name of the field, we can remove the field name (and "is" if it follows the field name) and capitalize the new first letter of the GoDoc (e.g., `MyField is a field` becomes `A field`). If there is no GoDoc for the field, exit with a descriptive error so we can manually add one.|
+|`Fields[*].Name`|Process the `Field.Tag` in the `FieldList`, extracting the value of the `json` tag. If there is no `json` tag, use the original struct field name.|
+|`Fields[*].Description`|Each [`Field`](https://pkg.go.dev/go/ast#Field) in a `FieldList` has a `*CommentGroup` that we can use to extract the field's GoDoc. Replace mentions of the field name in the GoDoc with the value of `Fields[*].Name`. If there is no GoDoc for the field, exit with a descriptive error so we can manually add one.|
 |`Fields[*].Type`|We can use `Field.Type` within the `FieldList` for this. Follow the rules for processing field types [below](#processing-field-types) |
 |`YAMLExample`|Follow the rules for processing field types [below](#processing-field-types).|
 
@@ -371,19 +387,25 @@ themselves to automatic generation because they implement custom unmarshalers,
 and we can't rely on `json` struct tags to indicate the types of these fields.
 
 For simplicity, we can describe custom fields by hardcoding their descriptions
-and example YAML values. To do so, we can include an `examples` directory within
-the project directory for the generator. We can define a convention that the
-generator will use to look up the name of a field from a filename within the
-directory, e.g., `labels.md` for `Labels`. Each example file contains a
-description and example YAML snippet.
+and example YAML values. The generator expects a custom type to include a
+comment with a description and example YAML. Everything in a custom type's
+comment between the following delimiters is treated as example YAML:
 
-This approach also gives us flexibility in whether to include a table of fields.
-Entries for custom field types like `Labels`, for example, would not include a
-table of fields, but rather a description of how labels work.
+```
+Example YAML:
+---
+```
 
-If a field has a custom type, we will include a link to an entry for that type
-in the field's table. The YAML example will include an ellipsis, leaving it to
-the custom field's entry in the reference to provide the example:
+Comments before the `Example YAML` delimiter are treated as the type's
+description.
+
+The generator exits with an error if a custom type has no `Example YAML` comment
+block, giving the operator an opportunity to add this.
+
+If a field of a struct type has a custom type, we will include a link to an
+entry for that type in the struct type's table. The YAML example will include an
+ellipsis, leaving it to the custom field's entry in the reference to provide the
+example:
 
 ```markdown
 ## My Resource
@@ -400,14 +422,29 @@ the custom field's entry in the reference to provide the example:
 \`\`\`
 ```
 
-Here is an example of an override file called `labels.md`:
+Here is an example of a comment we could add to the `Labels` [type
+declaration](https://github.com/gravitational/teleport/blob/c91da46765953688d218dcba4a4ce7acf606639f/api/types/role.go#L1137-L1140):
+
+```go
+// Labels is a wrapper around map
+// that can marshal and unmarshal itself
+// from scalar and list values
+// Example YAML:
+// 'env': 'test'
+// '*': '*'
+// 'region': ['us-west-1', -eu-central-1]
+// 'reg': ^us-west-1|eu-central-1$'
+// ---
+type Labels map[string]utils.Strings
+```
+
+This would lead to the following entry in the reference:
 
 ```markdown
 ## Labels
 
-Labels are an object where keys are strings. The value of each key can either be
-a list of strings or a single string. You can use wildcards or regular
-expressions.
+Labels is a wrapper around map that can marshal and unmarshal itself from scalar
+and list values.
 
 \`\`\`yaml
 'env': 'test'
@@ -563,6 +600,5 @@ generator will follow the rules above.
 
 ## Test plan
 
-We can add an item to the "Documentation" section of the test plan ensuring that
-we run the generator (in addition to other docs generators) when we release a
-new version of Teleport.
+We can make it part of our release procedure to ensure that we run the generator
+when we release a new version of Teleport.
