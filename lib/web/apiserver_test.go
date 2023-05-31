@@ -7141,7 +7141,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 }
 
 func waitForOutput(stream *TerminalStream, substr string) error {
-	timeoutCh := time.After(100 * time.Second)
+	timeoutCh := time.After(10 * time.Second)
 
 	size := len(substr) * 2
 	for {
