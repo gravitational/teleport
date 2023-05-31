@@ -4339,9 +4339,6 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if profile.IsVirtual {
-		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
-	}
 	params := client.ReissueParams{
 		AccessRequests:     newRequests,
 		DropAccessRequests: dropRequests,
