@@ -6,6 +6,9 @@
 # For Teleport releases we're using CentOS 7 box to keep the binaries compatible
 # with older Linux distributions (glibc 2.17+).
 #
+# This image uses Ubuntu 20.04 as a base as Connect links against glibc and
+# we want to keep the required version as low as possible.
+#
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## LIBFIDO2 ###################################################################
