@@ -15,8 +15,12 @@
  */
 import React from 'react';
 
+import { useTheme } from 'styled-components';
+
+import { IconCircle } from 'design/Icon/IconCircle';
+
 import Flex from '../Flex';
-import Box from '../Box';
+import Text from '../Text';
 
 import * as SvgIcons from '.';
 
@@ -30,17 +34,55 @@ export const PreferSvgIcons = () => {
     <Flex flexWrap="wrap">
       {icons.map(icon => {
         // eslint-disable-next-line import/namespace
-        return <IconBox Icon={SvgIcons[icon]} text={icon} />;
+        const S = SvgIcons[icon];
+        const size = 64;
+
+        return (
+          <>
+            <IconBox text={icon}>
+              <IconContainer Icon={S} size={size} />
+            </IconBox>
+            <IconBox text={icon}>
+              <IconCircle Icon={S} size={size} />
+            </IconBox>
+          </>
+        );
       })}
     </Flex>
   );
 };
 
-const IconBox = ({ Icon, text }) => (
-  <Flex m={3} width="300px">
-    <Box width="40px" textAlign="center">
-      <Icon />
-    </Box>
-    <Box ml={2}>{text}</Box>
-  </Flex>
-);
+const IconBox = ({ children, text }) => {
+  const theme = useTheme();
+
+  return (
+    <Flex
+      width="150px"
+      height="150px"
+      alignItems="center"
+      justifyContent="center"
+      bg={theme.colors.spotBackground[0]}
+      flexDirection="column"
+      m={1}
+    >
+      <Flex justifyContent="center" p={2}>
+        {children}
+      </Flex>
+      <Text typography="paragraph2" mt={2}>
+        {text}
+      </Text>
+    </Flex>
+  );
+};
+
+const IconContainer = ({ Icon, size }) => {
+  const theme = useTheme();
+
+  return (
+    <Icon
+      size={size}
+      bg={theme.colors.spotBackground[0]}
+      fill={theme.colors.text.main}
+    />
+  );
+};
