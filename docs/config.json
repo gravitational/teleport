@@ -1107,10 +1107,6 @@
           "slug": "/kubernetes-access/register-clusters/",
           "entries": [
             {
-              "title": "Register a Cluster by Deploying Teleport",
-              "slug": "/kubernetes-access/register-clusters/register-via-deployment/"
-            },
-            {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
             },
@@ -1982,7 +1978,7 @@
     },
     {
       "source": "/cluster/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
@@ -2622,7 +2618,7 @@
     },
     {
       "source": "/kubernetes-access/guides/multiple-clusters/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {

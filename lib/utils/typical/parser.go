@@ -82,14 +82,38 @@ type Function interface {
 // Parser is a predicate expression parser configured to parse expressions of a
 // specific expression language.
 type Parser[TEnv, TResult any] struct {
-	spec ParserSpec
-	pred predicate.Parser
+	spec    ParserSpec
+	pred    predicate.Parser
+	options parserOptions
+}
+
+type parserOptions struct {
+	invalidNamespaceHack bool
+}
+
+// ParserOption is an optional option for configuring a Parser.
+type ParserOption func(*parserOptions)
+
+// WithInvalidNamespaceHack is necessary because old parser versions
+// accidentally allowed "<anything>.trait" as an alias for "external.trait". Some
+// people wrote typos and now we have to maintain this.
+// See https://github.com/gravitational/teleport/pull/21551
+func WithInvalidNamespaceHack() ParserOption {
+	return func(opts *parserOptions) {
+		opts.invalidNamespaceHack = true
+	}
 }
 
 // NewParser creates a predicate expression parser with the given specification.
-func NewParser[TEnv, TResult any](spec ParserSpec) (*Parser[TEnv, TResult], error) {
+func NewParser[TEnv, TResult any](spec ParserSpec, opts ...ParserOption) (*Parser[TEnv, TResult], error) {
+	var options parserOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	p := &Parser[TEnv, TResult]{
-		spec: spec,
+		spec:    spec,
+		options: options,
 	}
 	def := predicate.Def{
 		GetIdentifier: p.getIdentifier,
@@ -172,6 +196,23 @@ func (p *Parser[TEnv, TResult]) getIdentifier(selector []string) (any, error) {
 			// actually a map
 		}
 	}
+
+	if p.options.invalidNamespaceHack && len(selector) < 3 {
+		// With invalidNamespaceHack enabled, anything not matched above is an
+		// alias for "external"
+		external, ok := p.spec.Variables["external"]
+		if !ok {
+			return nil, trace.BadParameter(`invalidNamespaceHack enabled but "external" not present (this is a bug)`)
+		}
+		switch len(selector) {
+		case 1:
+			return external, nil
+		case 2:
+			expr, err := getProperty[TEnv](external, selector[1])
+			return expr, trace.Wrap(err)
+		}
+	}
+
 	return nil, UnknownIdentifierError(joined)
 }
 
@@ -194,6 +235,7 @@ func getProperty[TEnv any](mapVal, keyVal any) (any, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing key of index expression")
 	}
+
 	if mapExpr, ok := mapVal.(Expression[TEnv, map[string]string]); ok {
 		return propertyExpr[TEnv, string]{mapExpr, keyExpr}, nil
 	}
@@ -731,12 +773,12 @@ func not[TEnv any](a any) (Expression[TEnv, bool], error) {
 	return notExpr[TEnv]{tExpr}, nil
 }
 
-type literalExpr[TEnv, T any] struct {
-	v T
+type LiteralExpr[TEnv, T any] struct {
+	Value T
 }
 
-func (l literalExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
-	return l.v, nil
+func (l LiteralExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
+	return l.Value, nil
 }
 
 // coerce is called at parse time to attempt to convert arg to an
@@ -763,10 +805,10 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 		var sliceExpr Expression[TEnv, []string]
 		switch typedArg := arg.(type) {
 		case string:
-			sliceExpr = literalExpr[TEnv, []string]{[]string{typedArg}}
+			sliceExpr = LiteralExpr[TEnv, []string]{[]string{typedArg}}
 		case []string:
 			// This case will be necessary if we caught a slice literal.
-			sliceExpr = literalExpr[TEnv, []string]{typedArg}
+			sliceExpr = LiteralExpr[TEnv, []string]{typedArg}
 		case Expression[TEnv, string]:
 			sliceExpr = dynamicVariable[TEnv, []string]{
 				func(env TEnv) ([]string, error) {
@@ -859,7 +901,7 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 	if typedArg, ok := arg.(TArg); ok {
 		// This argument is a literal matching TArg. This must be checked last
 		// in case TArg is (any).
-		return literalExpr[TEnv, TArg]{typedArg}, nil
+		return LiteralExpr[TEnv, TArg]{typedArg}, nil
 	}
 
 	return nil, unexpectedTypeError[TArg](arg)

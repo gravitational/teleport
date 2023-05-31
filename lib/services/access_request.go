@@ -215,6 +215,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
+	caps.RequireReason = v.requireReason
+	caps.RequestPrompt = v.prompt
+	caps.AutoRequest = v.autoRequest
+
 	return &caps, nil
 }
 
@@ -920,6 +924,8 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
+	autoRequest   bool
+	prompt        string
 	opts          struct {
 		expandVars bool
 	}
@@ -1199,6 +1205,10 @@ func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
+	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
+	if m.prompt == "" {
+		m.prompt = role.GetOptions().RequestPrompt
+	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 

@@ -84,3 +84,29 @@ func TestProfileStore(t *testing.T) {
 		require.ElementsMatch(t, profiles, retProfiles)
 	})
 }
+
+func TestProfileNameFromProxyAddress(t *testing.T) {
+	t.Parallel()
+
+	store := NewMemProfileStore()
+	require.NoError(t, store.SaveProfile(&profile.Profile{
+		WebProxyAddr: "proxy1.example.com:443",
+		Username:     "test-user",
+		SiteName:     "root",
+	}, true))
+
+	t.Run("current profile", func(t *testing.T) {
+		profileName, err := ProfileNameFromProxyAddress(store, "")
+		require.NoError(t, err)
+		require.Equal(t, "proxy1.example.com", profileName)
+	})
+	t.Run("proxy host", func(t *testing.T) {
+		profileName, err := ProfileNameFromProxyAddress(store, "proxy2.example.com:443")
+		require.NoError(t, err)
+		require.Equal(t, "proxy2.example.com", profileName)
+	})
+	t.Run("invalid proxy address", func(t *testing.T) {
+		_, err := ProfileNameFromProxyAddress(store, ":443")
+		require.Error(t, err)
+	})
+}

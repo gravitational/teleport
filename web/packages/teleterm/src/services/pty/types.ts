@@ -41,7 +41,6 @@ export type PtyServiceClient = {
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
   cwd?: string;
-  initCommand?: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {

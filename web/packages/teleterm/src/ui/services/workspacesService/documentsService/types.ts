@@ -148,7 +148,6 @@ export interface DocumentAccessRequests extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
-  initCommand?: string;
   rootClusterId?: string;
   leafClusterId?: string;
 }
@@ -211,9 +210,3 @@ export type CreateAccessRequestDocumentOpts = {
 };
 
 export type AccessRequestDocumentState = 'browsing' | 'creating' | 'reviewing';
-
-export type CreateNewTerminalOpts = {
-  initCommand?: string;
-  rootClusterId: string;
-  leafClusterId?: string;
-};

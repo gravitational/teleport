@@ -1,5 +1,29 @@
 # Changelog
 
+## 14.0.0 (xx/xx/23)
+
+### Breaking Changes
+
+Please familiarize yourself with the following potentially disruptive changes
+in Teleport 14 before upgrading.
+
+#### `tsh db` --db-user and --db-name defaults
+
+In Teleport 14 `tsh db` sub-commands will check if `--db-user` or `--db-name`
+flags are required and not provided by the user, and attempt to choose a default
+value.
+If the user's role(s) matching the database's labels have the `create_db_user`
+option enabled, then the Teleport user's username will be chosen as the default
+for `--db-user`.
+Otherwise, a default is chosen by examining the allowed `db_users` and
+`db_names` in the user's role(s) that apply for the given database.
+
+If, after applying user traits, only one non-wildcard db name/user is allowed,
+`tsh` will use it as the default value for the corresponding flag.
+Prior versions of Teleport would return an error from `tsh db` commands if those
+flags were empty (the only exception is Redis, where it would choose the Redis
+username "default" for `--db-user`).
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts

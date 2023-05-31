@@ -213,32 +213,116 @@ func ValidateRoleName(role types.Role) error {
 	return nil
 }
 
+type validateRoleOptions struct {
+	warningReporter func(error)
+}
+
+func defaultValidateRoleOptions() validateRoleOptions {
+	return validateRoleOptions{
+		warningReporter: func(error) {},
+	}
+}
+
+type validateRoleOption func(*validateRoleOptions)
+
+// withWarningReporter is meant for tests to assert the presence of expected
+// warnings.
+func withWarningReporter(f func(error)) validateRoleOption {
+	return func(opts *validateRoleOptions) {
+		opts.warningReporter = f
+	}
+}
+
 // ValidateRole parses validates the role, and sets default values.
-func ValidateRole(r types.Role) error {
+func ValidateRole(r types.Role, opts ...validateRoleOption) error {
+	options := defaultValidateRoleOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return err
 	}
 
-	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
-		for _, login := range r.GetLogins(condition) {
-			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.NewExpression(login)
+	// Expression parsers in new versions sometimes get smarter/more strict and
+	// catch more syntax or type errors that previously would only be caught
+	// when they were evaluated. To avoid any possibility of bricking a cluster
+	// by making all roles invalid due to a buggy expression that may not even
+	// be used, only log expression parse errors as a warning.
+	if err := validateRoleExpressions(r); err != nil {
+		options.warningReporter(err)
+		log.Warnf("Detected invalid role %q: %v", r.GetName(), err)
+	}
+	return nil
+}
+
+func validateRoleExpressions(r types.Role) error {
+	var errs []error
+	for _, condition := range []struct {
+		name      string
+		condition types.RoleConditionType
+	}{
+		{"allow", types.Allow},
+		{"deny", types.Deny},
+	} {
+		for _, rule := range r.GetRules(condition.condition) {
+			if err := validateRule(rule); err != nil {
+				err = trace.BadParameter("parsing %s rule: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+		}
+
+		for _, values := range []struct {
+			name   string
+			values []string
+		}{
+			{"logins", r.GetLogins(condition.condition)},
+			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
+			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
+			{"azure_identities", r.GetAzureIdentities(condition.condition)},
+			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},
+			{"kubernetes_groups", r.GetKubeGroups(condition.condition)},
+			{"kubernetes_users", r.GetKubeUsers(condition.condition)},
+			{"db_names", r.GetDatabaseNames(condition.condition)},
+			{"db_users", r.GetDatabaseUsers(condition.condition)},
+			{"host_groups", r.GetHostGroups(condition.condition)},
+			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
+			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
+			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
+		} {
+			for _, value := range values.values {
+				_, err := parse.NewTraitsTemplateExpression(value)
 				if err != nil {
-					return trace.BadParameter("invalid login found: %v", login)
+					err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err)
+					errs = append(errs, err)
+				}
+			}
+		}
+
+		for _, labels := range []struct {
+			name   string
+			labels types.Labels
+		}{
+			{"node_labels", r.GetNodeLabels(condition.condition)},
+			{"app_labels", r.GetAppLabels(condition.condition)},
+			{"kubernetes_labels", r.GetKubernetesLabels(condition.condition)},
+			{"db_labels", r.GetDatabaseLabels(condition.condition)},
+			{"windows_desktop_labels", r.GetWindowsDesktopLabels(condition.condition)},
+			{"cluster_labels", r.GetClusterLabels(condition.condition)},
+		} {
+			for _, labelValues := range labels.labels {
+				for _, label := range labelValues {
+					_, err := parse.NewTraitsTemplateExpression(label)
+					if err != nil {
+						err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, labels.name, err)
+						errs = append(errs, err)
+					}
 				}
 			}
 		}
 	}
-
-	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
-	for _, rule := range rules {
-		if err := validateRule(rule); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // validateRule parses the where and action fields to validate the rule.
@@ -518,7 +602,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 // at least one value in case if return value is nil
 func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	expr, err := parse.NewExpression(val)
+	expr, err := parse.NewTraitsTemplateExpression(val)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
