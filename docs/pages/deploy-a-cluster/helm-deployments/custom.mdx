@@ -38,14 +38,14 @@ of this page to choose the correct version.
 
 ## Step 3/4. Setting up a Teleport cluster with Helm using a custom config
 
-`teleport-cluster` deploys two sets of pods: proxy and auth. You can provide two configurations, one for each pod type.
+`teleport-cluster` deploys two sets of pods: one for the Proxy Service and one for the Auth Service. You can provide two configurations, one for each pod type.
 
-- Any values set under the `proxy` section of your chart values will be applied to the proxy service pods
+- Any values set under the `proxy` section of your chart values will be applied to the Proxy Service pods
   only. You can provide custom YAML under `proxy.teleportConfig` to override elements of the default Teleport
-  proxy service configuration with your own.
-- Any values set under the `auth` section of your chart values will be applied to the auth service pods only.
-  You can provide custom YAML under `auth.teleportConfig` to override elements of the default Teleport auth
-  service configuration with your own.
+  Proxy Service configuration with your own.
+- Any values set under the `auth` section of your chart values will be applied to the Auth Service pods only.
+  You can provide custom YAML under `auth.teleportConfig` to override elements of the default Teleport Auth
+  Service configuration with your own.
 
 Any YAML you provide under a `teleportConfig` section will be merged with the chart's default YAML configuration,
 with your overrides taking precedence. This allows you to override only the exact behaviour that you need, while keeping
