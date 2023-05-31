@@ -95,7 +95,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Fetch static credentials by label.
-	creds, err := service.GetPluginStaticCredentialsByLabel(ctx, map[string]string{
+	creds, err := service.GetPluginStaticCredentialsByLabels(ctx, map[string]string{
 		"label1": "value1",
 		"label2": "value2",
 	})
@@ -104,7 +104,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	creds, err = service.GetPluginStaticCredentialsByLabel(ctx, map[string]string{
+	creds, err = service.GetPluginStaticCredentialsByLabels(ctx, map[string]string{
 		"label2": "value2",
 	})
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestPluginStaticCredentialsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
-	creds, err = service.GetPluginStaticCredentialsByLabel(ctx, map[string]string{
+	creds, err = service.GetPluginStaticCredentialsByLabels(ctx, map[string]string{
 		"label2": "value2",
 		"label3": "value3",
 	})

@@ -5260,23 +5260,19 @@ message PluginStaticCredentialsV1 {
   // Header is the resource header for the plugin static credentials object.
   ResourceHeader Header = 1 [
     (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
 
   // Spec contains the actual credentials for the object.
-  PluginStaticCredentialsSpecV1 Spec = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "spec"
-  ];
+  PluginStaticCredentialsSpecV1 Spec = 2;
 }
 
 // PluginStaticCredentialsSpecV1 is the specification for the static credentials object.
 message PluginStaticCredentialsSpecV1 {
   oneof credentials {
-    string APIToken = 1 [(gogoproto.jsontag) = "api_token"];
-    PluginStaticCredentialsBasicAuth BasicAuth = 2 [(gogoproto.jsontag) = "basic_auth"];
-    PluginStaticCredentialsOAuthClientSecret OauthClientSecret = 3 [(gogoproto.jsontag) = "oauth_client_secret"];
+    string APIToken = 1;
+    PluginStaticCredentialsBasicAuth BasicAuth = 2;
+    PluginStaticCredentialsOAuthClientSecret OAuthClientSecret = 3;
   }
 }
 

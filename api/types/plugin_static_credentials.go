@@ -23,16 +23,15 @@ type PluginStaticCredentials interface {
 	// ResourceWithLabels provides common resource methods.
 	ResourceWithLabels
 
-	// GetAPIToken will return a flag indicating whether this object contains an API token
-	// credentials and the attached API token if possible.
+	// GetAPIToken will return the attached API token if possible or empty if it is not present.
 	GetAPIToken() (apiToken string)
 
-	// GetBasicAuth will return a flag indicating whether this object contains basic auth
-	// credentials and the attached username and password if possible.
+	// GetBasicAuth will return the attached username and password. If they are not present, both
+	// the username and password will be mpty.
 	GetBasicAuth() (username string, password string)
 
-	// GetOAuthClientSecret will return a flag indicating whether this object contains OAuth
-	// client secret credentials and the attached client ID and client secret.
+	// GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
+	// present, the client ID and client secret will be empty.
 	GetOAuthClientSecret() (clientID string, clientSecret string)
 }
 
@@ -42,7 +41,7 @@ func NewPluginStaticCredentials(metadata Metadata, spec PluginStaticCredentialsS
 		ResourceHeader: ResourceHeader{
 			Metadata: metadata,
 		},
-		Spec: spec,
+		Spec: &spec,
 	}
 
 	if err := p.CheckAndSetDefaults(); err != nil {
@@ -77,16 +76,16 @@ func (p *PluginStaticCredentialsV1) CheckAndSetDefaults() error {
 		if credentials.BasicAuth.Password == "" {
 			return trace.BadParameter("password is empty")
 		}
-	case *PluginStaticCredentialsSpecV1_OauthClientSecret:
-		if credentials.OauthClientSecret == nil {
+	case *PluginStaticCredentialsSpecV1_OAuthClientSecret:
+		if credentials.OAuthClientSecret == nil {
 			return trace.BadParameter("oauth client secret object is missing")
 		}
 
-		if credentials.OauthClientSecret.ClientId == "" {
+		if credentials.OAuthClientSecret.ClientId == "" {
 			return trace.BadParameter("client ID is empty")
 		}
 
-		if credentials.OauthClientSecret.ClientSecret == "" {
+		if credentials.OAuthClientSecret.ClientSecret == "" {
 			return trace.BadParameter("client secret is empty")
 		}
 	default:
@@ -102,8 +101,7 @@ func (p *PluginStaticCredentialsV1) setStaticFields() {
 	p.Version = V1
 }
 
-// GetAPIToken will return a flag indicating whether this object contains an API token
-// credentials and the attached API token if possible.
+// GetAPIToken will return the attached API token if possible or empty if it is not present.
 func (p *PluginStaticCredentialsV1) GetAPIToken() (apiToken string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_APIToken)
 	if !ok {
@@ -113,8 +111,8 @@ func (p *PluginStaticCredentialsV1) GetAPIToken() (apiToken string) {
 	return credentials.APIToken
 }
 
-// GetBasicAuth will return a flag indicating whether this object contains basic auth
-// credentials and the attached username and password if possible.
+// GetBasicAuth will return the attached username and password. If they are not present, both
+// the username and password will be mpty.
 func (p *PluginStaticCredentialsV1) GetBasicAuth() (username string, password string) {
 	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_BasicAuth)
 	if !ok {
@@ -124,15 +122,15 @@ func (p *PluginStaticCredentialsV1) GetBasicAuth() (username string, password st
 	return credentials.BasicAuth.Username, credentials.BasicAuth.Password
 }
 
-// GetOAuthClientSecret will return a flag indicating whether this object contains OAuth
-// client secret credentials and the attached client ID and client secret.
+// GetOAuthClientSecret will return the attached client ID and client secret. IF they are not
+// present, the client ID and client secret will be empty.
 func (p *PluginStaticCredentialsV1) GetOAuthClientSecret() (clientID string, clientSecret string) {
-	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_OauthClientSecret)
+	credentials, ok := p.Spec.Credentials.(*PluginStaticCredentialsSpecV1_OAuthClientSecret)
 	if !ok {
 		return "", ""
 	}
 
-	return credentials.OauthClientSecret.ClientId, credentials.OauthClientSecret.ClientSecret
+	return credentials.OAuthClientSecret.ClientId, credentials.OAuthClientSecret.ClientSecret
 }
 
 // MatchSearch is a dummy value as credentials are not searchable.
