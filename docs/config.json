@@ -1283,7 +1283,7 @@
           "slug": "/database-access/rbac/",
           "entries": [
             {
-              "title": "Configuring Access",
+              "title": "RBAC",
               "slug": "/database-access/rbac/configuring-access/"
             },
             {

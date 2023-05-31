@@ -25,8 +25,8 @@ RDS PostgreSQL databases.
 
 ## Prerequisites
 
-- Teleport cluster with a configured [self-hosted](../guides/postgres-self-hosted.mdx)
-  or [RDS](../guides/rds.mdx) PostgreSQL database.
+- Teleport cluster with a configured [self-hosted PostgreSQL](../guides/postgres-self-hosted.mdx)
+  or [RDS PostgreSQL](../guides/rds.mdx) database.
 - Ability to connect to and create user accounts in the target database.
 
 ## Step 1/3. Configure database admin
@@ -44,18 +44,35 @@ users and grant them privileges.
 <Tabs>
 <TabItem label="RDS PostgreSQL">
 RDS PostgreSQL admin user must have `rds_iam` role attached to allow IAM
-authentication as described in the [RDS guide](../guides/rds.mdx#step-56-create-a-database-iam-user).
+authentication.
+
 ```sql
 CREATE USER "teleport-admin" login createrole;
 GRANT rds_iam TO "teleport-admin";
 ```
+
+Note that the RDS database must have IAM authentication enabled.
+
+Refer to the [RDS guide](../guides/rds.mdx#step-56-create-a-database-iam-user)
+for more information.
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
-Self-hosted PostgreSQL admin user must have X.509 authentication configured as
-described in the [self-hosted guide](../guides/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server).
+Self-hosted PostgreSQL admin user must have X.509 authentication configured.
+
 ```sql
 CREATE USER "teleport-admin" login createrole;
 ```
+
+Note that the database must be configured to accept client certificate auth
+for the admin user by having the following entries in `pg_hba.conf`:
+
+```conf
+hostssl all             all             ::/0                    cert
+hostssl all             all             0.0.0.0/0               cert
+```
+
+Refer to the [self-hosted PostgreSQL guide](../guides/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+for more information.
 </TabItem>
 </Tabs>
 
@@ -104,7 +121,7 @@ the `teleport.dev/db-admin` label.
 ## Step 2/3. Configure Teleport role
 
 To specify the database roles a user should be assigned within the database,
-use `db_roles` role option:
+use the `db_roles` role option:
 
 ```yaml
 kind: role
@@ -131,19 +148,16 @@ With automatic user provisioning, users always connect to the database with
 their Teleport username so the `db_users` role field is ignored for roles
 that have database user provisioning enabled.
 
-The `db_roles` role option supports all the same [interpolation rules](../../access-controls/guides/role-templates.mdx#interpolation-rules)
-as other role fields.
-
 User created within the database will:
 
 - Have the same name as Teleport username.
 - Be a part of the `teleport-auto-users` role.
-- Assigned all roles from the Teleport user's roleset that match the database.
+- Be assigned all roles from the Teleport user's roleset that match the database.
   The role names must be valid and exist in the database. See PostgreSQL
   [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html)
-  documentation for details.
+  for information on how to create database roles.
 
-Note that in case of the name conflict where the user with the same name already
+Note that in case of a name conflict where a user with the same name already
 exists in the database and is not managed by Teleport (i.e. not a part of the
 `teleport-auto-users` group), the connection will be aborted.
 
@@ -156,11 +170,12 @@ $ tsh login --proxy=teleport.example.com
 $ tsh db connect example
 ```
 
-If using a [GUI database client](../../connect-your-client/gui-clients.mdx) like
-pgAdmin, make sure to use your Teleport username as a database username.
-`tsh db connect` will default to it automatically when connecting to a database
-with user provisioning enabled.
+If using a GUI database client like pgAdmin, make sure to use your Teleport
+username as a database username. `tsh db connect` will default to it automatically
+when connecting to a database with user provisioning enabled.
 
 ## Next steps
 
+- Connect using your [GUI database client](../../connect-your-client/gui-clients.mdx).
+- Learn about [role templating](../../access-controls/guides/role-templates.mdx#interpolation-rules).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
