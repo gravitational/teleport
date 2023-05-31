@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -43,7 +44,7 @@ const (
 )
 
 func onGcloud(cf *CLIConf) error {
-	app, err := pickActiveGCPApp(cf)
+	app, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -66,7 +67,7 @@ func onGcloud(cf *CLIConf) error {
 }
 
 func onGsutil(cf *CLIConf) error {
-	app, err := pickActiveGCPApp(cf)
+	app, err := pickGCPApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -292,17 +293,17 @@ func (a *gcpApp) RunCommand(cmd *exec.Cmd) error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *gcpApp) startLocalALPNProxy(port string) error {
-	tc, err := makeClient(a.cf, false)
+	tc, err := makeClient(a.cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCerts, err := loadAppCertificateWithAppLogin(a.cf, tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.app.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	appCerts, err := loadAppCertificate(tc, a.app.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -472,52 +473,11 @@ func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (
 	}
 }
 
-func pickActiveGCPApp(cf *CLIConf) (*gcpApp, error) {
-	profile, err := cf.ProfileStatus()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
-	}
-	name := cf.AppName
-	if name != "" {
-		app, err := findApp(profile.Apps, name)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
-			}
-			return nil, trace.Wrap(err)
-		}
-		if app.GCPServiceAccount == "" {
-			return nil, trace.BadParameter(
-				"Selected app %q is not an GCP application", name,
-			)
-		}
-		return newGCPApp(cf, profile, *app)
-	}
-	gcpApps := getGCPApps(profile.Apps)
-	if len(gcpApps) == 0 {
-		return nil, trace.NotFound("Please login to a GCP App using 'tsh apps login' first")
-	}
-	if len(gcpApps) > 1 {
-		var names []string
-		for _, app := range gcpApps {
-			names = append(names, app.Name)
-		}
-		return nil, trace.BadParameter(
-			"Multiple GCP apps are available (%v), please specify one using --app CLI argument", strings.Join(names, ", "),
-		)
-	}
-	return newGCPApp(cf, profile, gcpApps[0])
+func matchGCPApp(app tlsca.RouteToApp) bool {
+	return app.GCPServiceAccount != ""
 }
 
-func getGCPApps(apps []tlsca.RouteToApp) []tlsca.RouteToApp {
-	var out []tlsca.RouteToApp
-	for _, app := range apps {
-		if app.GCPServiceAccount != "" {
-			out = append(out, app)
-		}
-	}
-	return out
+func pickGCPApp(cf *CLIConf) (*gcpApp, error) {
+	app, err := pickCloudApp(cf, types.CloudGCP, matchGCPApp, newGCPApp)
+	return app, trace.Wrap(err)
 }

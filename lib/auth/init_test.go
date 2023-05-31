@@ -614,7 +614,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
+		presetRoleCount := 4
 
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),

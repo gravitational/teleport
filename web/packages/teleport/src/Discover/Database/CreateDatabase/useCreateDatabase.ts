@@ -16,11 +16,13 @@
 import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
+import { getErrMessage } from 'shared/utils/errorType';
 
 import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
+import { ApiError } from 'teleport/services/api/parseError';
 
 import { matchLabels } from '../util';
 
@@ -133,6 +135,14 @@ export function useCreateDatabase() {
       });
   }
 
+  function fetchDatabaseServers(query: string, limit: number) {
+    const request = {
+      query,
+      limit,
+    };
+    return ctx.databaseService.fetchDatabases(clusterId, request);
+  }
+
   async function registerDatabase(db: CreateDatabaseRequest, newDb = false) {
     // Set the timeout now, because this entire registering process
     // should take less than WAITING_TIMEOUT.
@@ -146,6 +156,13 @@ export function useCreateDatabase() {
         await ctx.databaseService.createDatabase(clusterId, db);
         setCreatedDb(db);
       } catch (err) {
+        // Check if the error is a result of an existing database.
+        if (err instanceof ApiError) {
+          if (err.response.status === 409) {
+            const isAwsRds = Boolean(db.awsRds && db.awsRds.accountId);
+            return attemptDbServerQueryAndBuildErrMsg(db.name, isAwsRds);
+          }
+        }
         handleRequestError(err, 'failed to create database: ');
         setIsDbCreateErr(true);
         return;
@@ -192,6 +209,45 @@ export function useCreateDatabase() {
     setPollActive(true);
   }
 
+  // attemptDbServerQueryAndBuildErrMsg tests if the duplicated `dbName`
+  // (determined by an error returned from the initial register db attempt)
+  // is already a part of the cluster by querying for its db server.
+  // This is an attempt to provide accurate actionable steps for the
+  // user.
+  async function attemptDbServerQueryAndBuildErrMsg(
+    dbName: string,
+    isAwsRds = false
+  ) {
+    const preErrMsg = 'failed to register database: ';
+    const nonAwsMsg = `use a different name and try again`;
+    const awsMsg = `change (or define) the value of the \
+    tag "teleport.dev/database_name" on the RDS instance and try again`;
+
+    try {
+      await ctx.databaseService.fetchDatabase(clusterId, dbName);
+      let message = `a database with the name "${dbName}" is already \
+      a part of this cluster, ${isAwsRds ? awsMsg : nonAwsMsg}`;
+      handleRequestError(new Error(message), preErrMsg);
+    } catch (e) {
+      // No database server were found for the database name.
+      if (e instanceof ApiError) {
+        if (e.response.status === 404) {
+          let message = `a database with the name "${dbName}" already exists \
+          but there are no database servers for it, you can remove this \
+          database using the command, “tctl rm db/${dbName}”, or ${
+            isAwsRds ? awsMsg : nonAwsMsg
+          }`;
+          handleRequestError(new Error(message), preErrMsg);
+        }
+        return;
+      }
+
+      // Display other errors as is.
+      handleRequestError(e, preErrMsg);
+    }
+    setIsDbCreateErr(true);
+  }
+
   function requiresDbUpdate(db: CreateDatabaseRequest) {
     if (!createdDb) {
       return false;
@@ -223,8 +279,7 @@ export function useCreateDatabase() {
   }
 
   function handleRequestError(err: Error, preErrMsg = '') {
-    let message = 'something went wrong';
-    if (err instanceof Error) message = err.message;
+    const message = getErrMessage(err);
     setAttempt({ status: 'failed', statusText: `${preErrMsg}${message}` });
     emitErrorEvent(`${preErrMsg}${message}`);
   }
@@ -235,6 +290,7 @@ export function useCreateDatabase() {
     attempt,
     clearAttempt,
     registerDatabase,
+    fetchDatabaseServers,
     canCreateDatabase: access.create,
     pollTimeout,
     dbEngine: resourceSpec.dbMeta.engine,

@@ -120,11 +120,25 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		// 2. The server closes the connection without responding to the client.
 		return trace.Wrap(e.handleCancelRequest(ctx, sessionCtx))
 	}
-	// This is where we connect to the actual Postgres database.
-	server, hijackedConn, err := e.connect(ctx, sessionCtx)
+	// Automatically create the database user if needed.
+	cancelAutoUserLease, err := e.GetUserProvisioner(e).Activate(ctx, sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		err := e.GetUserProvisioner(e).Deactivate(ctx, sessionCtx)
+		if err != nil {
+			e.Log.WithError(err).Error("Failed to deactivate the user.")
+		}
+	}()
+	// This is where we connect to the actual Postgres database.
+	server, hijackedConn, err := e.connect(ctx, sessionCtx)
+	if err != nil {
+		cancelAutoUserLease()
+		return trace.Wrap(err)
+	}
+	// Release the auto-users semaphore now that we've successfully connected.
+	cancelAutoUserLease()
 	// Upon successful connect, indicate to the Postgres client that startup
 	// has been completed, and it can start sending queries.
 	err = e.makeClientReady(e.client, hijackedConn)
@@ -197,21 +211,29 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Sess
 }
 
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
+	// When using auto-provisioning, force the database username to be same
+	// as Teleport username. If it's not provided explicitly, some database
+	// clients (e.g. psql) get confused and display incorrect username.
+	if sessionCtx.AutoCreateUser {
+		if sessionCtx.DatabaseUser != sessionCtx.Identity.Username {
+			return trace.AccessDenied("please use your Teleport username (%q) to connect instead of %q",
+				sessionCtx.Identity.Username, sessionCtx.DatabaseUser)
+		}
+	}
 	authPref, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	state := sessionCtx.GetAccessState(authPref)
-	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database,
-		sessionCtx.DatabaseUser,
-		sessionCtx.DatabaseName,
-	)
+	matchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+		Database:       sessionCtx.Database,
+		DatabaseUser:   sessionCtx.DatabaseUser,
+		DatabaseName:   sessionCtx.DatabaseName,
+		AutoCreateUser: sessionCtx.AutoCreateUser,
+	})
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		state,
-		dbRoleMatchers...,
+		sessionCtx.GetAccessState(authPref),
+		matchers...,
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)

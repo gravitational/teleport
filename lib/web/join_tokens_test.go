@@ -931,12 +931,12 @@ func TestJoinScript(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
 				"    if [[ \"true\" == \"true\" ]]; then\n"+
-				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
 		})
@@ -945,32 +945,23 @@ func TestJoinScript(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Contains(t, script, ""+
-				"    PACKAGE_LIST=${TELEPORT_PACKAGE_NAME}\n"+
+				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
 				"    # Disabling the warning above because expression is templated.\n"+
 				"    # shellcheck disable=SC2050\n"+
 				"    if [[ \"false\" == \"true\" ]]; then\n"+
-				"        PACKAGE_LIST=\"${PACKAGE_LIST} ${TELEPORT_PACKAGE_NAME}-updater\"\n"+
+				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
 		})
-		t.Run("cloud and automatic upgrades", func(t *testing.T) {
+		t.Run("using stable/cloud channel", func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
 			require.NoError(t, err)
-			// Uses the stable/cloud channel.
 			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
 		})
-		t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-			// Using the Enterprise Version, the package name must be teleport-ent
-			modules.SetTestModules(t, &modules.TestModules{
-				TestFeatures: modules.Features{
-					Cloud:             true,
-					AutomaticUpgrades: false,
-				},
-			})
+		t.Run("not hard-coding a particular channel", func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
 			require.NoError(t, err)
-			// Setting an empty string, means it will use `stable/v<majorVersion>` later on.
 			require.Contains(t, script, "REPO_CHANNEL=''")
 		})
 	})

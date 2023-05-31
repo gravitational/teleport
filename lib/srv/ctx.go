@@ -1073,13 +1073,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 
 		for key, value := range localPAMConfig.Environment {
-			expr, err := parse.NewExpression(value)
+			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 			varValidation := func(namespace, name string) error {
-				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
+				if namespace != teleport.TraitExternalPrefix {
 					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
 				}
 				return nil

@@ -30,12 +30,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -72,6 +75,9 @@ type querierConfig struct {
 	clock  clockwork.Clock
 	awsCfg *aws.Config
 	logger log.FieldLogger
+
+	// tracer is used to create spans
+	tracer oteltrace.Tracer
 }
 
 func (cfg *querierConfig) CheckAndSetDefaults() error {
@@ -99,6 +105,10 @@ func (cfg *querierConfig) CheckAndSetDefaults() error {
 		cfg.clock = clockwork.NewRealClock()
 	}
 
+	if cfg.tracer == nil {
+		cfg.tracer = tracing.NoopTracer(teleport.ComponentAthena)
+	}
+
 	return nil
 }
 
@@ -113,43 +123,59 @@ func newQuerier(cfg querierConfig) (*querier, error) {
 	}, nil
 }
 
-func (q *querier) SearchEvents(fromUTC, toUTC time.Time, namespace string,
-	eventTypes []string, limit int, order types.EventOrder, startKey string,
-) ([]apievents.AuditEvent, string, error) {
-	filter := searchEventsFilter{eventTypes: eventTypes}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
-		fromUTC:   fromUTC,
-		toUTC:     toUTC,
-		limit:     limit,
-		order:     order,
-		startKey:  startKey,
+func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"audit/SearchEvents",
+		oteltrace.WithAttributes(
+			attribute.Int("limit", req.Limit),
+			attribute.String("from", req.From.Format(time.RFC3339)),
+			attribute.String("to", req.To.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
+	filter := searchEventsFilter{eventTypes: req.EventTypes}
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
+		fromUTC:   req.From.UTC(),
+		toUTC:     req.To.UTC(),
+		limit:     req.Limit,
+		order:     req.Order,
+		startKey:  req.StartKey,
 		filter:    filter,
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
 }
 
-func (q *querier) SearchSessionEvents(fromUTC, toUTC time.Time, limit int,
-	order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string,
-) ([]apievents.AuditEvent, string, error) {
+func (q *querier) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"audit/SearchSessionEvents",
+		oteltrace.WithAttributes(
+			attribute.Int("limit", req.Limit),
+			attribute.String("from", req.From.Format(time.RFC3339)),
+			attribute.String("to", req.To.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
 	// TODO(tobiaszheller): maybe if fromUTC is 0000-00-00, ask first last 30days and fallback to -inf - now-30
 	// for sessionID != "". This kind of call is done on RBAC to check if user can access that session.
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if cond != nil {
-		condFn, err := utils.ToFieldsCondition(cond)
+	if req.Cond != nil {
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
-	events, keyset, err := q.searchEvents(context.TODO(), searchEventsRequest{
-		fromUTC:   fromUTC,
-		toUTC:     toUTC,
-		limit:     limit,
-		order:     order,
-		startKey:  startKey,
+	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
+		fromUTC:   req.From.UTC(),
+		toUTC:     req.To.UTC(),
+		limit:     req.Limit,
+		order:     req.Order,
+		startKey:  req.StartKey,
 		filter:    filter,
-		sessionID: sessionID,
+		sessionID: req.SessionID,
 	})
 	return events, keyset, trace.Wrap(err)
 }
@@ -304,12 +330,17 @@ func prepareQuery(params searchParams) (query string, execParams []string) {
 		qb.Append(` ORDER BY event_time DESC, uid DESC`)
 	}
 
-	qb.Append(` LIMIT ?`, strconv.Itoa(params.limit))
+	// Athena engine v2 supports ? placeholders only in Where part.
+	// To be compatible with v2, limit value is added as part of query.
+	// It's safe because it was already validated and it's just int.
+	qb.Append(` LIMIT ` + strconv.Itoa(params.limit) + `;`)
 
 	return qb.String(), qb.Args()
 }
 
 func (q *querier) startQueryExecution(ctx context.Context, query string, params []string) (string, error) {
+	ctx, span := q.tracer.Start(ctx, "athena/startQueryExecution")
+	defer span.End()
 	startQueryInput := &athena.StartQueryExecutionInput{
 		QueryExecutionContext: &athenaTypes.QueryExecutionContext{
 			Database: aws.String(q.database),
@@ -335,6 +366,14 @@ func (q *querier) startQueryExecution(ctx context.Context, query string, params 
 }
 
 func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"athena/waitForSuccess",
+		oteltrace.WithAttributes(
+			attribute.String("queryId", queryId),
+		),
+	)
+	defer span.End()
 	ctx, cancel := context.WithTimeout(ctx, getQueryResultsMaxTime)
 	defer cancel()
 
@@ -361,11 +400,11 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 		case athenaTypes.QueryExecutionStateSucceeded:
 			return nil
 		case athenaTypes.QueryExecutionStateCancelled, athenaTypes.QueryExecutionStateFailed:
-			return trace.Errorf("got unexpected state: %s", state)
+			return trace.Errorf("got unexpected state: %s from queryID: %s", state, queryId)
 		case athenaTypes.QueryExecutionStateQueued, athenaTypes.QueryExecutionStateRunning:
 			continue
 		default:
-			return trace.Errorf("got unknown state: %s", state)
+			return trace.Errorf("got unknown state: %s from queryID: %s", state, queryId)
 		}
 	}
 }
@@ -374,6 +413,14 @@ func (q *querier) waitForSuccess(ctx context.Context, queryId string) error {
 // Athena API allows only fetch 1000 results, so if client asks for more, multiple
 // calls to GetQueryResults will be necessary.
 func (q *querier) fetchResults(ctx context.Context, queryId string, limit int, condition utils.FieldsCondition) ([]apievents.AuditEvent, string, error) {
+	ctx, span := q.tracer.Start(
+		ctx,
+		"athena/fetchResults",
+		oteltrace.WithAttributes(
+			attribute.String("queryId", queryId),
+		),
+	)
+	defer span.End()
 	rb := &responseBuilder{}
 	// nextToken is used as offset to next calls for GetQueryResults.
 	var nextToken string

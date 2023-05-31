@@ -179,6 +179,9 @@ type webSuiteConfig struct {
 
 	// OpenAIConfig is a custom OpenAI config for the test.
 	OpenAIConfig *openai.ClientConfig
+
+	// ClusterFeatures allows overriding default auth server features
+	ClusterFeatures *authproto.Features
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -431,8 +434,12 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 
+	features := *modules.GetModules().Features().ToProto() // safe to dereference because ToProto creates a struct and return a pointer to it
+	if cfg.ClusterFeatures != nil {
+		features = *cfg.ClusterFeatures
+	}
 	handlerConfig := Config{
-		ClusterFeatures:                 *modules.GetModules().Features().ToProto(), // safe to dereference because ToProto creates a struct and return a pointer to it
+		ClusterFeatures:                 features,
 		Proxy:                           revTunServer,
 		AuthServers:                     utils.FromAddr(s.server.TLS.Addr()),
 		DomainName:                      s.server.ClusterName(),
@@ -2281,15 +2288,14 @@ func TestLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(
-		s.clock.Now().Add(-time.Hour),
-		s.clock.Now().Add(time.Hour),
-		apidefaults.Namespace,
-		[]string{events.UserLoginEvent},
-		1,
-		types.EventOrderDescending,
-		"",
-	)
+	ctx := context.Background()
+	events, _, err := s.server.AuthServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       s.clock.Now().Add(-time.Hour),
+		To:         s.clock.Now().Add(time.Hour),
+		EventTypes: []string{events.UserLoginEvent},
+		Limit:      1,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 	event := events[0].(*apievents.UserLogin)
 	require.Equal(t, true, event.Success)
@@ -2464,6 +2470,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		// Variables must be injected
 		require.Contains(t, responseString, "echo Teleport-v")
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
+		require.NotContains(t, responseString, "echo Repository Channel: stable/cloud")
 		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
@@ -2472,7 +2479,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			TestFeatures: modules.Features{
 				Cloud:             true,
 				AutomaticUpgrades: true,
-			}})
+			},
+		})
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -2485,9 +2493,10 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
+				"  # shellcheck disable=SC2050\n"+
+				"  if [ \"true\" = \"true\" ]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
+				"  fi",
 			)
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2500,7 +2509,8 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent\"\n"+
+				"  PACKAGE_LIST=\"jq teleport-ent\"\n"+
+				"  # shellcheck disable=SC2050\n"+
 				"  if [[ \"true\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
 				"  fi\n",
@@ -2519,9 +2529,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is stable/v<majorVersion>
-			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/cloud")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2529,9 +2537,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is stable/v<majorVersion>
-			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/cloud")
 		})
 	})
 }
@@ -8133,6 +8139,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		}
 		errChan <- err
 	}()
+	// wait for the watcher to init or it may race with test cleanup.
+	require.NoError(t, watcher.WaitInitialization())
 
 	// Waits for len(clusters) heartbeats to start
 	heartbeatsToExpect := len(cfg.clusters)

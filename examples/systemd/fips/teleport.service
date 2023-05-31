@@ -1,5 +1,5 @@
 [Unit]
-Description=Teleport SSH Service FIPS 
+Description=Teleport Service FIPS 
 After=network.target
 
 [Service]

@@ -29,7 +29,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -75,7 +75,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 }
 
 func (c *proxyKubeCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -90,10 +90,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	defer localProxy.Close()
-
-	if err := localProxy.WriteKubeConfig(); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if err := c.printTemplate(cf, localProxy); err != nil {
 		return trace.Wrap(err)
@@ -260,6 +256,9 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		return nil, trace.Wrap(err)
 	}
 
+	if err := kubeProxy.WriteKubeConfig(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return kubeProxy, nil
 }
 

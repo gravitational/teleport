@@ -16,9 +16,16 @@
 
 import styled from 'styled-components';
 
-export interface CommonInstructionsProps {
-  onNext: () => void;
+import { AwsOidc } from '../AwsOidc';
+
+export interface CommonInstructionsProps extends PreviousStepProps {
+  onNext: (updatedAwsOidc?: AwsOidc) => void;
   clusterPublicUri: string;
+}
+
+export interface PreviousStepProps {
+  onPrev: (updatedAwsOidc?: AwsOidc) => void;
+  awsOidc?: AwsOidc;
 }
 
 export const InstructionsContainer = styled.div`

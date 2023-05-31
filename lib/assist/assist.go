@@ -21,9 +21,7 @@ package assist
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -58,6 +56,8 @@ const (
 	MessageKindAssistantPartialFinalize MessageType = "CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE"
 	// MessageKindSystemMessage is the type of Assist message that contains the system message.
 	MessageKindSystemMessage MessageType = "CHAT_MESSAGE_SYSTEM"
+	// MessageKindError is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
+	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
 // Assist is the Teleport Assist client.
@@ -210,7 +210,7 @@ type TokensUsed struct {
 	// Prompt is a number of tokens used in the prompt.
 	Prompt int
 	// Completion is a number of tokens used in the completion.
-	Competition int
+	Completion int
 }
 
 // ProcessComplete processes the completion request and returns the number of tokens used.
@@ -386,8 +386,8 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	}
 
 	return &TokensUsed{
-		Prompt:      promptTokens,
-		Competition: numTokens,
+		Prompt:     promptTokens,
+		Completion: numTokens,
 	}, nil
 }
 
@@ -420,13 +420,6 @@ func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.Clien
 	creds := openaiPlugin.Credentials.GetBearerToken()
 	if creds == nil {
 		return "", trace.BadParameter("malformed credentials")
-	}
-	if creds.TokenFile != "" {
-		tokenBytes, err := os.ReadFile(creds.TokenFile)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return strings.TrimSpace(string(tokenBytes)), nil
 	}
 
 	return creds.Token, nil
