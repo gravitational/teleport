@@ -26,23 +26,39 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
-// vars below are used to swap native methods for fakes in tests.
-var (
-	getDeviceCredential          = native.GetDeviceCredential
-	collectDeviceData            = native.CollectDeviceData
-	signChallenge                = native.SignChallenge
-	solveTPMAuthnDeviceChallenge = native.SolveTPMAuthnDeviceChallenge
-	getDeviceOSType              = native.GetDeviceOSType
-)
+// Ceremony is the device authentication ceremony.
+// It takes the client role of
+// [devicepb.DeviceTrustServiceClient.AuthenticateDevice]
+type Ceremony struct {
+	GetDeviceCredential          func() (*devicepb.DeviceCredential, error)
+	CollectDeviceData            func() (*devicepb.DeviceCollectedData, error)
+	SignChallenge                func(chal []byte) (sig []byte, err error)
+	SolveTPMAuthnDeviceChallenge func(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
+	GetDeviceOSType              func() devicepb.OSType
+}
 
-// RunCeremony performs the client-side device authentication ceremony.
+// NewCeremony creates a new ceremony that delegates per-device behavior
+// to lib/devicetrust/native.
+// If you want to customize a [Ceremony], for example for testing purposes, you
+// may create a configure an instance directly, without calling this method.
+func NewCeremony() *Ceremony {
+	return &Ceremony{
+		GetDeviceCredential:          native.GetDeviceCredential,
+		CollectDeviceData:            native.CollectDeviceData,
+		SignChallenge:                native.SignChallenge,
+		SolveTPMAuthnDeviceChallenge: native.SolveTPMAuthnDeviceChallenge,
+		GetDeviceOSType:              native.GetDeviceOSType,
+	}
+}
+
+// Run performs the client-side device authentication ceremony.
 //
 // Device authentication requires a previously registered and enrolled device
 // (see the lib/devicetrust/enroll package).
 //
 // The outcome of the authentication ceremony is a pair of user certificates
 // augmented with device extensions.
-func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustServiceClient, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
 	switch {
 	case devicesClient == nil:
 		return nil, trace.BadParameter("devicesClient required")
@@ -51,7 +67,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	}
 	// Start by checking the OSType, this lets us exit early with a nicer message
 	// for unsupported OSes.
-	osType := getDeviceOSType()
+	osType := c.GetDeviceOSType()
 	if !slices.Contains([]devicepb.OSType{
 		devicepb.OSType_OS_TYPE_MACOS,
 		devicepb.OSType_OS_TYPE_WINDOWS,
@@ -68,11 +84,11 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	}
 
 	// 1. Init.
-	cred, err := getDeviceCredential()
+	cred, err := c.GetDeviceCredential()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cd, err := collectDeviceData()
+	cd, err := c.CollectDeviceData()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,10 +116,10 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	// 2. Challenge.
 	switch osType {
 	case devicepb.OSType_OS_TYPE_MACOS:
-		err = authenticateDeviceMacOS(stream, resp)
+		err = c.authenticateDeviceMacOS(stream, resp)
 		// err handled below
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		err = authenticateDeviceWindows(stream, resp)
+		err = c.authenticateDeviceWindows(stream, resp)
 		// err handled below
 	default:
 		// This should be caught by the OSType guard at start of function.
@@ -126,7 +142,7 @@ func RunCeremony(ctx context.Context, devicesClient devicepb.DeviceTrustServiceC
 	return newCerts, nil
 }
 
-func authenticateDeviceMacOS(
+func (c *Ceremony) authenticateDeviceMacOS(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
 ) error {
@@ -134,7 +150,7 @@ func authenticateDeviceMacOS(
 	if chalResp == nil {
 		return trace.BadParameter("unexpected payload from server, expected AuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	sig, err := signChallenge(chalResp.Challenge)
+	sig, err := c.SignChallenge(chalResp.Challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -148,7 +164,7 @@ func authenticateDeviceMacOS(
 	return trace.Wrap(err)
 }
 
-func authenticateDeviceWindows(
+func (c *Ceremony) authenticateDeviceWindows(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	resp *devicepb.AuthenticateDeviceResponse,
 ) error {
@@ -156,7 +172,7 @@ func authenticateDeviceWindows(
 	if challenge == nil {
 		return trace.BadParameter("unexpected payload from server, expected TPMAuthenticateDeviceChallenge: %T", resp.Payload)
 	}
-	challengeResponse, err := solveTPMAuthnDeviceChallenge(challenge)
+	challengeResponse, err := c.SolveTPMAuthnDeviceChallenge(challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
