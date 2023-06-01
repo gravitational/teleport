@@ -21,7 +21,7 @@ of the dynamic resources you can apply via `tctl`, from the Teleport source
 code. 
 
 To do this, write a program that we can run as a new Make target in a clone of
-`gravitational/teleport`. When we make changes to Teleport's dynamic resources ,
+`gravitational/teleport`. When we make changes to Teleport's dynamic resources,
 we can run the program manually, generate a new iteration of the reference, and
 manually open a pull request with the new content.
 
@@ -70,7 +70,7 @@ The program will declare the mapping within the Go code as a `map`.
 Here is an example:
 
 ```go
-var resources = map[string][]string{
+var exclude = map[string][]string{
   "github.com/gravitational/teleport/api/types": {
     "ProvisionTokenV2",
     "AuthPreferenceV2",
