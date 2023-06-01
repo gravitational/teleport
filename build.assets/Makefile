@@ -239,14 +239,8 @@ endif
 .PHONY:buildbox-connect
 buildbox-connect:
 	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
-	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
+	DOCKER_BUILDKIT=1 docker build \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
-		--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--cache-from $(BUILDBOX_CONNECT) \
 		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
 

@@ -1,7 +1,7 @@
 # This Dockerfile makes the "build box connect" the container used
 # to build the Teleport Connect.
 #
-# This image is base on the node image, which is based on Debian.
+# This image is base on the node image, which is based on Debian Buster.
 # Using it as a image allows us to link agains the same version of
 # glibc as Node.js.
 #
@@ -9,8 +9,9 @@
 
 ## BUILDBOX-CONNECT ###################################################################
 
+# Pin the tag to Debian Buster to make sure the Glibc compatibility.
 ARG NODE_VERSION
-FROM node:${NODE_VERSION} AS buildbox
+FROM node:${NODE_VERSION}-buster AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -22,9 +23,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 # Install packages.
 RUN apt-get -y update && \
-    apt-get -y install software-properties-common && \
     apt-get install -q -y --no-install-recommends \
-        apt-utils \
         build-essential \
         ca-certificates \
         git \
@@ -32,10 +31,10 @@ RUN apt-get -y update && \
         libssl-dev \
         locales \
         openssh-client \
+        pkg-config \
         python3-pip \
         python3-setuptools \
         python3-wheel \
-        pkg-config \
         # Used during tag builds to build the RPM package of Connect.
         rpm \
         && \
