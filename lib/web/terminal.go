@@ -951,7 +951,9 @@ type WSStream struct {
 	// decoder is used to decode UTF-8 strings.
 	decoder *encoding.Decoder
 
-	handlers   map[string]WSHandlerFunc
+	handlers map[string]WSHandlerFunc
+	// once ensures that all channels are closed at most one time.
+	once       sync.Once
 	challengeC chan Envelope
 	rawC       chan Envelope
 	completedC chan struct{}
@@ -977,9 +979,6 @@ type TerminalStream struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession    *tracessh.Session
 	sessionReadyC chan struct{}
-
-	// once ensures that all channels are closed at most one time.
-	once sync.Once
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
@@ -1046,6 +1045,7 @@ func (t *WSStream) processMessages(ctx context.Context) {
 			case defaults.WebsocketRaw:
 				select {
 				case <-ctx.Done():
+					return
 				case t.rawC <- envelope:
 				default:
 				}
@@ -1297,29 +1297,24 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
-	// Send close envelope to web terminal upon exit without an error.
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketClose,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return trace.NewAggregate(err, t.ws.Close())
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
-}
-
-// Close sends a close message on the web socket
-// prior to closing the web socket altogether.
-func (t *TerminalStream) Close() error {
 	var err error
 	t.once.Do(func() {
-		err = t.WSStream.Close()
+		// Send close envelope to web terminal upon exit without an error.
+		envelope := &Envelope{
+			Version: defaults.WebsocketVersion,
+			Type:    defaults.WebsocketClose,
+		}
+		envelopeBytes, err := proto.Marshal(envelope)
+		if err != nil {
+			err = trace.NewAggregate(err, t.ws.Close())
+		}
+
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		err = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 
 		<-t.completedC
+
 		close(t.rawC)
 		close(t.challengeC)
 	})
