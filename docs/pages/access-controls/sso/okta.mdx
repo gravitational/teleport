@@ -190,7 +190,8 @@ the assertion from Okta into a list of Teleport roles to apply to the session.
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
-You can optionally test the connector before applying it to your cluster:
+You can test the connector before applying it to your cluster. This is strongly
+encouraged to avoid interruption to active clusters:
 
 ```code
 $ cat okta.yaml | tctl sso test
