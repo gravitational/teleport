@@ -27,7 +27,7 @@ The flexibility of JSON as a storage format and ProtoBuf as an exchange format (
 
 - if the format of the data stays compatible (in terms of JSON and ProtoBuf unmarshaling) but the meaning of the data changes enough that we want older versions of teleport to refuse parsing it, we bump the "minor" component of the version string; if the latest version of `role` is `v6`, such a change would introduce a `role` with version `v6.1`. This is not intended to be [Semantic Versioning](https://semver.org/), as there shouldn't be any need for interoperability outside of Teleport in the first place, so we are going to have a list of all the supported versions anyway.
 
-- if the format of the data requires a total compatibility break in either the JSON or ProtoBuf serialization, a new "major" version of the resource should be introduced, with a new ProtoBuf message definition (together with a set of new RPCs using the resource).
+- if the format of the data requires a total compatibility break in either the JSON or ProtoBuf serialization, a new "major" version of the resource should be introduced, with a new ProtoBuf message definition (together with a set of new RPCs using the resource). This should be avoided in all but the most extreme situations.
 
 ### Rejected alternatives
 
