@@ -1240,6 +1240,11 @@ func buildKubeConfigUpdate(cf *CLIConf, kubeStatus *kubernetesStatus, overrideCo
 		return v, nil
 	}
 
+	// if AddKeysToAgent is not the default, set it to the specified value.
+	if cf.AddKeysToAgent != client.AddKeysToAgentAuto {
+		v.AddKeysToAgent = cf.AddKeysToAgent
+	}
+
 	if len(kubeStatus.kubeClusters) == 0 {
 		// If there are no registered k8s clusters, we may have an older teleport cluster.
 		// Fall back to the old kubeconfig, with static credentials from v.Credentials.
