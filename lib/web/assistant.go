@@ -73,6 +73,31 @@ func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Req
 	}, nil
 }
 
+// deleteAssistantConversation is a handler for DELETE /webapi/assistant/conversations/:conversation_id.
+func (h *Handler) deleteAssistantConversation(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationID := p.ByName("conversation_id")
+
+	if err := authClient.DeleteAssistantConversation(r.Context(), &assistpb.DeleteAssistantConversationRequest{
+		ConversationId: conversationID,
+		Username:       sctx.GetUser(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
 // assistantMessage is an assistant message that is sent to the client.
 type assistantMessage struct {
 	// Type is a type of the message.
