@@ -4630,7 +4630,6 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 
 // CreateSAMLIdPSession creates a SAML IdP session.
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	// Check if this a proxy service.
 	if err := a.currentUserAction(req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
