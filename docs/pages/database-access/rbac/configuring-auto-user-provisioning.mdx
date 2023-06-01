@@ -43,8 +43,8 @@ users and grant them privileges.
 
 <Tabs>
 <TabItem label="RDS PostgreSQL">
-RDS PostgreSQL admin user must have `rds_iam` role attached to allow IAM
-authentication.
+The RDS PostgreSQL admin user must have the `rds_iam` role attached to allow IAM
+authentication:
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
@@ -53,11 +53,11 @@ GRANT rds_iam TO "teleport-admin";
 
 Note that the RDS database must have IAM authentication enabled.
 
-Refer to the [RDS guide](../guides/rds.mdx#step-56-create-a-database-iam-user)
+Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
 for more information.
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
-Self-hosted PostgreSQL admin user must have X.509 authentication configured.
+The self-hosted PostgreSQL admin user must have X.509 authentication configured.
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
@@ -72,7 +72,7 @@ hostssl all             all             0.0.0.0/0               cert
 ```
 
 Refer to the [self-hosted PostgreSQL guide](../guides/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
-for more information.
+to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
