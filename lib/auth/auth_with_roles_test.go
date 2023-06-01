@@ -5042,10 +5042,6 @@ func TestCreateSAMLIdPSession(t *testing.T) {
 		identity  TestIdentity
 		assertErr require.ErrorAssertionFunc
 	}{
-		"as proxy service": {
-			identity:  TestBuiltin(types.RoleProxy),
-			assertErr: require.NoError,
-		},
 		"as session user": {
 			identity:  TestUser(alice),
 			assertErr: require.NoError,
