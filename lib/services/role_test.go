@@ -6866,7 +6866,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test:    "test exact match, one sudoer entry, one role",
+			test: "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
@@ -6874,7 +6874,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6946,7 +6946,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -6971,7 +6971,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test:    "line deny",
+			test: "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
@@ -7286,7 +7286,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 		createDefaultTCWithMode(
 			"test can create when create host user mode is remain",
 			true,
-			constants.HostUserModeRemain,
+			constants.HostUserModeKeep,
 		),
 		{
 			test:      "test three roles, 3 exact match, one off",
@@ -7294,7 +7294,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUserMode: constants.HostUserModeRemain,
+						CreateHostUserMode: constants.HostUserModeKeep,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -7328,13 +7328,13 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			},
 		},
 		{
-			test:         "test three roles, 3 exact match, mode lowered to drop",
+			test:         "test three roles, 3 exact match, mode defaults to keep",
 			canCreate:    true,
-			expectedMode: constants.HostUserModeDrop,
+			expectedMode: constants.HostUserModeKeep,
 			roles: NewRoleSet(&types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUserMode: constants.HostUserModeRemain,
+						CreateHostUserMode: constants.HostUserModeKeep,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},
@@ -7352,7 +7352,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			}, &types.RoleV6{
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
-						CreateHostUserMode: constants.HostUserModeRemain,
+						CreateHostUserMode: constants.HostUserModeKeep,
 					},
 					Allow: types.RoleConditions{
 						NodeLabels: types.Labels{"success": []string{"abc"}},

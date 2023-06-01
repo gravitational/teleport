@@ -444,6 +444,6 @@ const (
 	HostUserModeOff = HostUserMode("off")
 	// HostUserModeDrop enables host user creation and deletes users at session end.
 	HostUserModeDrop = HostUserMode("drop")
-	// HostUserModeRemain enables host user creation and leaves users behind at session end.
-	HostUserModeRemain = HostUserMode("remain")
+	// HostUserModeKeep enables host user creation and leaves users behind at session end.
+	HostUserModeKeep = HostUserMode("keep")
 )

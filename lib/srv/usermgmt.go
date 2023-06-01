@@ -249,7 +249,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		err = u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 	}
 
-	if ui.Mode == constants.HostUserModeRemain {
+	if ui.Mode == constants.HostUserModeKeep {
 		return nil, trace.Wrap(err)
 	}
 

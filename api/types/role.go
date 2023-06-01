@@ -960,7 +960,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		constants.HostUserMode(""),
 		constants.HostUserModeOff,
 		constants.HostUserModeDrop,
-		constants.HostUserModeRemain,
+		constants.HostUserModeKeep,
 	}
 
 	if !slices.Contains(modes, r.Spec.Options.CreateHostUserMode) {
