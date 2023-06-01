@@ -30,4 +30,8 @@ const (
 
 	// OktaAssignmentSourceLabel is the label for the source of the Okta assignment.
 	OktaAssignmentSourceLabel = types.TeleportInternalLabelPrefix + "source"
+
+	// PluginLabel is a unique label generated for plugins that use static credentials
+	// in order to ensure that the static credentials are only readable by specific plugins.
+	PluginLabel = types.TeleportInternalLabelPrefix + "plugin"
 )

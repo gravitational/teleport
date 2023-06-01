@@ -2,25 +2,28 @@ package pluginsv1
 
 import (
 	"context"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/gravitational/teleport/api/defaults"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // ServiceConfig holds configuration options for the plugins gRPC service.
 type ServiceConfig struct {
-	Authorizer        authz.Authorizer
-	PluginAuthorizers *plugins.AuthorizerSet
-	BackendService    services.Plugins
-	Log               *logrus.Entry
+	Authorizer                     authz.Authorizer
+	PluginAuthorizers              *plugins.AuthorizerSet
+	PluginService                  services.Plugins
+	PluginStaticCredentialsService services.PluginStaticCredentials
+	Log                            *logrus.Entry
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -31,8 +34,11 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.PluginAuthorizers == nil {
 		return trace.BadParameter("pluginAuthorizers must be set")
 	}
-	if cfg.BackendService == nil {
-		return trace.BadParameter("backendService must be set")
+	if cfg.PluginService == nil {
+		return trace.BadParameter("pluginService must be set")
+	}
+	if cfg.PluginStaticCredentialsService == nil {
+		return trace.BadParameter("pluginStaticCredentialService must be set")
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.NewEntry(logrus.StandardLogger())
@@ -44,10 +50,11 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	pluginspb.UnimplementedPluginServiceServer
 
-	authorizer        authz.Authorizer
-	pluginAuthorizers *plugins.AuthorizerSet
-	backendService    services.Plugins
-	log               *logrus.Entry
+	authorizer                     authz.Authorizer
+	pluginAuthorizers              *plugins.AuthorizerSet
+	pluginService                  services.Plugins
+	pluginStaticCredentialsService services.PluginStaticCredentials
+	log                            *logrus.Entry
 }
 
 var _ pluginspb.PluginServiceServer = (*Service)(nil)
@@ -58,10 +65,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
-		authorizer:        cfg.Authorizer,
-		pluginAuthorizers: cfg.PluginAuthorizers,
-		backendService:    cfg.BackendService,
-		log:               cfg.Log,
+		authorizer:                     cfg.Authorizer,
+		pluginAuthorizers:              cfg.PluginAuthorizers,
+		pluginService:                  cfg.PluginService,
+		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
+		log:                            cfg.Log,
 	}, nil
 }
 
@@ -80,7 +88,11 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backendService.CreatePlugin(ctx, req.Plugin); err != nil {
+	if err := s.updatePluginWithStaticCredentials(ctx, plugin, req.StaticCredentials); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.pluginService.CreatePlugin(ctx, req.Plugin); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -122,6 +134,42 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 	}))
 }
 
+// updatePluginWithStaticCredetials will update the plugin with static credentials if needed.
+func (s *Service) updatePluginWithStaticCredentials(ctx context.Context, plugin types.Plugin, staticCreds *types.PluginStaticCredentialsV1) error {
+	if staticCreds == nil {
+		return nil
+	}
+
+	// Add in a random UUID to the static credentials and attach it to both the static credentials
+	// and the static credentials reference to ensure that the plugin only reads the static credentials
+	// specified here.
+	pluginUUID := uuid.NewString()
+	labels := staticCreds.GetStaticLabels()
+
+	// Make sure that we remove any teleport internal labels. Also, apparently it's safe to delete from
+	// a map that's currently being iterated over:
+	// https://go.dev/doc/effective_go#for
+	for k := range labels {
+		if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
+			delete(labels, k)
+		}
+	}
+	labels[teleport.PluginLabel] = pluginUUID
+	staticCreds.SetStaticLabels(labels)
+
+	if err := s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCreds); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(plugin.SetCredentials(&types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+				Labels: labels,
+			},
+		},
+	}))
+}
+
 // GetPlugin returns a plugin instance by name.
 func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest) (*types.PluginV1, error) {
 	readVerb := types.VerbReadNoSecrets
@@ -130,7 +178,7 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		readVerb = types.VerbRead
 	}
 
-	plugin, err := s.backendService.GetPlugin(ctx, req.Name, req.WithSecrets)
+	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, req.WithSecrets)
 	if err != nil {
 		// If the user has no RBAC to list the plugins,
 		// avoid leaking the information on whether the resource exists,
@@ -166,7 +214,7 @@ func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsReq
 	}
 
 	const withSecrets = false
-	results, nextKey, err := s.backendService.ListPlugins(ctx, int(req.PageSize), req.StartKey, withSecrets)
+	results, nextKey, err := s.pluginService.ListPlugins(ctx, int(req.PageSize), req.StartKey, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,13 +233,33 @@ func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsReq
 	}, nil
 }
 
-// DeletePlugin removes the specified plugin instance.
+// DeletePlugin removes the specified plugin instance and any associated static credentials.
 func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeVerbs(ctx, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backendService.DeletePlugin(ctx, req.Name); err != nil {
+	// Get the plugin so that we can find any static credentials references and delete them.
+	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	staticCredsRef := plugin.GetCredentials().GetStaticCredentialsRef()
+	if staticCredsRef != nil {
+		allStaticCreds, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, cred := range allStaticCreds {
+			if err := s.pluginStaticCredentialsService.DeletePluginStaticCredentials(ctx, cred.GetName()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	if err := s.pluginService.DeletePlugin(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -202,7 +270,7 @@ func (s *Service) SetPluginCredentials(ctx context.Context, req *pluginspb.SetPl
 	if err := s.authorizeVerbs(ctx, types.VerbRead, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.backendService.SetPluginCredentials(ctx, req.Name, req.Credentials); err != nil {
+	if err := s.pluginService.SetPluginCredentials(ctx, req.Name, req.Credentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -213,7 +281,7 @@ func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginS
 	if err := s.authorizeVerbs(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.backendService.SetPluginStatus(ctx, req.Name, req.Status); err != nil {
+	if err := s.pluginService.SetPluginStatus(ctx, req.Name, req.Status); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -241,26 +309,11 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {
-	return s.authorizeVerbsWithResource(ctx, nil, verbs...)
+	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, false /* quiet */, types.KindPlugin, verbs...)
+	return trace.Wrap(err)
 }
 
 func (s *Service) authorizeVerbsWithResource(ctx context.Context, resource types.Resource, verbs ...string) error {
-	authCtx, err := s.authorizer.Authorize(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ruleCtx := &services.Context{
-		User:     authCtx.User,
-		Resource: resource,
-	}
-	errs := make([]error, len(verbs))
-	for i, verb := range verbs {
-		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, types.KindPlugin, verb, false /* silent */)
-	}
-	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
-	if err := trace.NewAggregate(errs...); err != nil {
-		return trace.AccessDenied(err.Error())
-	}
-	return nil
+	_, err := authz.AuthorizeResourceWithVerbs(ctx, s.log, s.authorizer, false /* quiet */, resource, verbs...)
+	return trace.Wrap(err)
 }

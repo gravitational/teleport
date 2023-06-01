@@ -19,10 +19,11 @@ import (
 )
 
 type suite struct {
-	authorizer        *fakeAuthorizer
-	backendService    services.Plugins
-	pluginAuthorizers *plugins.AuthorizerSet
-	svc               *Service
+	authorizer                     *fakeAuthorizer
+	pluginService                  services.Plugins
+	pluginStaticCredentialsService services.PluginStaticCredentials
+	pluginAuthorizers              *plugins.AuthorizerSet
+	svc                            *Service
 }
 
 // createPlugin creates a simple plugin directly in the underlying backend service.
@@ -50,7 +51,7 @@ func (s *suite) createPlugin(t *testing.T, name string) {
 		},
 	}
 
-	err := s.backendService.CreatePlugin(context.Background(), plugin)
+	err := s.pluginService.CreatePlugin(context.Background(), plugin)
 	require.NoError(t, err)
 }
 
@@ -66,18 +67,22 @@ func createSuite(t *testing.T) *suite {
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
-	backendService := local.NewPluginsService(mem)
+	pluginService := local.NewPluginsService(mem)
+	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
+	require.NoError(t, err)
 	pluginAuthorizers := plugins.NewAuthorizerSet()
 
 	return &suite{
-		authorizer:        authorizer,
-		backendService:    backendService,
-		pluginAuthorizers: pluginAuthorizers,
+		authorizer:                     authorizer,
+		pluginService:                  pluginService,
+		pluginStaticCredentialsService: pluginStaticCredentialsService,
+		pluginAuthorizers:              pluginAuthorizers,
 		svc: &Service{
-			authorizer:        authorizer,
-			backendService:    backendService,
-			pluginAuthorizers: pluginAuthorizers,
-			log:               logrus.NewEntry(logrus.StandardLogger()),
+			authorizer:                     authorizer,
+			pluginService:                  pluginService,
+			pluginStaticCredentialsService: pluginStaticCredentialsService,
+			pluginAuthorizers:              pluginAuthorizers,
+			log:                            logrus.NewEntry(logrus.StandardLogger()),
 		},
 	}
 }

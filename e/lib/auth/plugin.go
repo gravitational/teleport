@@ -254,11 +254,16 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 	}
 
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
-	backendService := local.NewPluginsService(server.GetBackend())
+	pluginService := local.NewPluginsService(server.GetBackend())
+	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(server.GetBackend())
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
-		Authorizer:        p.authServer.Authorizer,
-		BackendService:    backendService,
-		PluginAuthorizers: authorizers,
+		Authorizer:                     p.authServer.Authorizer,
+		PluginService:                  pluginService,
+		PluginStaticCredentialsService: pluginStaticCredentialsService,
+		PluginAuthorizers:              authorizers,
 	})
 	if err != nil {
 		return trace.Wrap(err)
