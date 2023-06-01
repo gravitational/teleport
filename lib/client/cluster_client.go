@@ -16,6 +16,7 @@ package client
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -38,6 +39,9 @@ type ClusterClient struct {
 	AuthClient  auth.ClientI
 	Tracer      oteltrace.Tracer
 	cluster     string
+
+	mu          sync.Mutex
+	rootCluster *auth.Client
 }
 
 // ClusterName returns the name of the cluster that the client
@@ -48,8 +52,44 @@ func (c *ClusterClient) ClusterName() string {
 
 // Close terminates the connections to Auth and Proxy.
 func (c *ClusterClient) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.rootCluster == nil {
+		// close auth client first since it is tunneled through the proxy client
+		return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
+	}
+
 	// close auth client first since it is tunneled through the proxy client
-	return trace.NewAggregate(c.AuthClient.Close(), c.ProxyClient.Close())
+	return trace.NewAggregate(c.AuthClient.Close(), c.rootCluster.Close(), c.ProxyClient.Close())
+}
+
+// RootClient return an [auth.ClientI] that is connected to the root
+// cluster Auth server.
+func (c *ClusterClient) RootClient(ctx context.Context) (auth.ClientI, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.rootCluster != nil {
+		return sharedAuthClient{ClientI: c.rootCluster}, nil
+	}
+
+	root, err := c.tc.rootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if root == c.cluster {
+		return sharedAuthClient{ClientI: c.AuthClient}, nil
+	}
+
+	clt, err := auth.NewClient(c.ProxyClient.ClientConfig(ctx, root))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.rootCluster = clt
+	return sharedAuthClient{ClientI: c.AuthClient}, nil
 }
 
 // SessionSSHConfig returns the [ssh.ClientConfig] that should be used to connected to the

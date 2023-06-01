@@ -307,8 +307,21 @@ func createKubeAccessRequest(cf *CLIConf, resources []resourceKind, args []strin
 			filepath.Join("/", tc.SiteName, rec.kind, kubeName, rec.subResourceName),
 		)
 	}
+
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
 	cf.Reason = fmt.Sprintf("Resource request automatically created for %v", args)
-	if err := executeAccessRequest(cf, tc); err != nil {
+	if err := executeAccessRequest(cf, tc, rootAuth); err != nil {
 		// TODO(tigrato): intercept the error to validate the origin
 		return trace.Wrap(err)
 	}

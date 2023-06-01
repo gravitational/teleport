@@ -565,12 +565,29 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		}
 		return trace.Wrap(err)
 	}
-	if err := tc.ActivateKey(ctx, key); err != nil {
+
+	if err := tc.ActivateKeyWithoutTrustedCerts(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
+	if err := tc.UpdateTrustedCA(ctx, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Attempt device login. This activates a fresh key if successful.
-	if err := tc.AttemptDeviceLogin(ctx, key); err != nil {
+	if err := tc.AttemptDeviceLogin(ctx, key, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3332,7 +3349,14 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 // successful, as skipping the ceremony is valid for various reasons (Teleport
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
-func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) error {
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, rootAuth auth.ClientI) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/AttemptDeviceLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	pingResp, err := tc.Ping(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3343,11 +3367,15 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 		return nil
 	}
 
-	newCerts, err := tc.DeviceLogin(ctx, &devicepb.UserCertificates{
-		// Augment the SSH certificate.
-		// The TLS certificate is already part of the connection.
-		SshAuthorizedKey: key.Cert,
-	})
+	newCerts, err := tc.DeviceLogin(
+		ctx,
+		&devicepb.UserCertificates{
+			// Augment the SSH certificate.
+			// The TLS certificate is already part of the connection.
+			SshAuthorizedKey: key.Cert,
+		},
+		rootAuth,
+	)
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
 		log.Debug("Device Trust: Skipping device authentication, device key not found")
@@ -3370,7 +3398,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 		Type:  "CERTIFICATE",
 		Bytes: newCerts.X509Der,
 	})
-	return trace.Wrap(tc.ActivateKey(ctx, &cp))
+	return trace.Wrap(tc.ActivateKey(ctx, &cp, rootAuth))
 }
 
 // DeviceLogin attempts to authenticate the current device with Teleport.
@@ -3386,18 +3414,13 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key) erro
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	authClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer authClient.Close()
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserCertificates, rootAuth auth.ClientI) (*devicepb.UserCertificates, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DeviceLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
@@ -3406,7 +3429,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	}
 
 	// Login without a previous auto-enroll attempt.
-	devicesClient := authClient.DevicesClient()
+	devicesClient := rootAuth.DevicesClient()
 	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
 	// Success or auto-enroll impossible.
 	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
@@ -3530,6 +3553,13 @@ type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*auth.SSHLoginRespons
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
 func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFunc) (*Key, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/SSHLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	priv, err := tc.GetNewLoginKey(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3591,6 +3621,13 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 
 // GetNewLoginKey gets a new private key for login.
 func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.PrivateKey, err error) {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetNewLoginKey",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	switch tc.PrivateKeyPolicy {
 	case keys.PrivateKeyPolicyHardwareKey:
 		log.Debugf("Attempting to login with YubiKey private key.")
@@ -3603,10 +3640,7 @@ func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.Privat
 		priv, err = native.GeneratePrivateKey()
 	}
 
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return priv, nil
+	return priv, trace.Wrap(err)
 }
 
 // new SSHLogin generates a new SSHLogin using the given login key.
@@ -3631,6 +3665,13 @@ func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/pwdlessLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	// Only pass on the user if explicitly set, otherwise let the credential
 	// picker kick in.
 	user := ""
@@ -3682,6 +3723,13 @@ func (tc *TeleportClient) localLogin(ctx context.Context, priv *keys.PrivateKey,
 
 // directLogin asks for a password + OTP token, makes a request to CA via proxy
 func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/directLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3714,6 +3762,13 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 
 // mfaLocalLogin asks for a password and performs the challenge-response authentication
 func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/mfaLocalLogin",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3799,7 +3854,7 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, c
 
 // ActivateKey saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
-func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
+func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key, getter services.AuthorityGetter) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ActivateKey",
@@ -3817,21 +3872,27 @@ func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
 		return trace.Wrap(err)
 	}
 
-	// Connect to the Auth Server of the root cluster and fetch the known hosts.
-	rootClusterName := key.TrustedCerts[0].ClusterName
-	if err := tc.UpdateTrustedCA(ctx, rootClusterName); err != nil {
-		if len(tc.JumpHosts) == 0 {
-			return trace.Wrap(err)
-		}
-		errViaJumphost := err
-		// If JumpHosts was pointing at the leaf cluster (e.g. during 'tsh ssh
-		// -J leaf.example.com'), this could've caused the above error. Try to
-		// fetch CAs without JumpHosts to force it to use the root cluster.
-		if err := tc.WithoutJumpHosts(func(tc *TeleportClient) error {
-			return tc.UpdateTrustedCA(ctx, rootClusterName)
-		}); err != nil {
-			return trace.NewAggregate(errViaJumphost, err)
-		}
+	return trace.Wrap(tc.UpdateTrustedCA(ctx, getter))
+}
+
+// ActivateKeyWithoutTrustedCerts saves the target session cert into the local
+// keystore (and into the ssh-agent) for future use.
+func (tc *TeleportClient) ActivateKeyWithoutTrustedCerts(ctx context.Context, key *Key) error {
+	_, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ActivateKey",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if tc.localAgent == nil {
+		// skip activation if no local agent is present
+		return nil
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	if err := tc.localAgent.AddKey(key); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -3935,57 +3996,25 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 	return nil
 }
 
-// GetTrustedCA returns a list of host certificate authorities
-// trusted by the cluster client is authenticated with.
-func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) ([]types.CertAuthority, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/GetTrustedCA",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
-	)
-	defer span.End()
-
-	// Connect to the proxy.
-	if !tc.Config.ProxySpecified() {
-		return nil, trace.BadParameter("proxy server is not specified")
-	}
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	// Get a client to the Auth Server.
-	clt, err := proxyClient.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	// Get the list of host certificates that this cluster knows about.
-	return clt.GetCertAuthorities(ctx, types.HostCA, false)
-}
-
 // UpdateTrustedCA connects to the Auth Server and fetches all host certificates
 // and updates ~/.tsh/keys/proxy/certs.pem and ~/.tsh/known_hosts.
-func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, clusterName string) error {
+func (tc *TeleportClient) UpdateTrustedCA(ctx context.Context, getter services.AuthorityGetter) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/UpdateTrustedCA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
 	)
 	defer span.End()
 
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.UpdateTrustedCA called on a client without localAgent")
 	}
-	// Get the list of host certificates that this cluster knows about.
-	hostCerts, err := tc.GetTrustedCA(ctx, clusterName)
+
+	hostCerts, err := getter.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	trustedCerts := auth.AuthoritiesToTrustedCerts(hostCerts)
 
 	// Update the CA pool and known hosts for all CAs the cluster knows about.
@@ -4286,6 +4315,13 @@ func Username() (string, error) {
 
 // AskOTP prompts the user to enter the OTP token.
 func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/AskOTP",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	stdin := prompt.Stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
@@ -4295,6 +4331,13 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 
 // AskPassword prompts the user to enter the password
 func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/AskPassword",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	stdin := prompt.Stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")

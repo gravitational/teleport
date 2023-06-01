@@ -144,20 +144,31 @@ func onRequestShow(cf *CLIConf) error {
 		cf.Username = tc.Username
 	}
 
-	var req types.AccessRequest
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		req, err = services.GetAccessRequest(cf.Context, clt, cf.RequestID)
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
 		return trace.Wrap(err)
-	})
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
+	req, err := services.GetAccessRequest(cf.Context, rootAuth, cf.RequestID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	return trace.Wrap(printAccessRequest(cf, req))
+}
+
+func printAccessRequest(cf *CLIConf, req types.AccessRequest) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		err = printRequest(cf, req)
-		if err != nil {
+		if err := printRequest(cf, req); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON, teleport.YAML:
@@ -274,7 +285,19 @@ func onRequestCreate(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := executeAccessRequest(cf, tc); err != nil {
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
+	if err := executeAccessRequest(cf, tc, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 

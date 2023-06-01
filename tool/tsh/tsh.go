@@ -1659,6 +1659,18 @@ func onLogin(cf *CLIConf) error {
 
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		rootAuth, err := clusterClient.RootClient(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer rootAuth.Close()
+
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -1727,7 +1739,7 @@ func onLogin(cf *CLIConf) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if err := executeAccessRequest(cf, tc); err != nil {
+			if err := executeAccessRequest(cf, tc, rootAuth); err != nil {
 				return trace.Wrap(err)
 			}
 			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
@@ -1764,7 +1776,23 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	if err := tc.ActivateKey(cf.Context, key); err != nil {
+	if err := tc.ActivateKeyWithoutTrustedCerts(cf.Context, key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
+	if err := tc.UpdateTrustedCA(cf.Context, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1774,8 +1802,7 @@ func onLogin(cf *CLIConf) error {
 		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
-		rootClusterName := key.TrustedCerts[0].ClusterName
-		authorities, err := tc.GetTrustedCA(cf.Context, rootClusterName)
+		authorities, err := rootAuth.GetCertAuthorities(cf.Context, types.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1807,7 +1834,7 @@ func onLogin(cf *CLIConf) error {
 	// Attempt device login. This activates a fresh key if successful.
 	// We do not save the resulting in the identity file above on purpose, as this
 	// certificate is bound to the present device.
-	if err := tc.AttemptDeviceLogin(cf.Context, key); err != nil {
+	if err := tc.AttemptDeviceLogin(cf.Context, key, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1824,23 +1851,14 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if autoRequest && cf.DesiredRoles == "" && cf.RequestID == "" {
-		var capabailities *types.AccessCapabilities
-		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			cap, err := clt.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
-				User: cf.Username,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			capabailities = cap
-
-			return nil
+		capabailities, err := rootAuth.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
+			User: cf.Username,
 		})
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
+
 		if capabailities.RequireReason && cf.RequestReason == "" {
 			msg := "--request-reason must be specified"
 			if capabailities.RequestPrompt != "" {
@@ -1857,7 +1875,7 @@ func onLogin(cf *CLIConf) error {
 
 	if cf.DesiredRoles != "" || cf.RequestID != "" {
 		fmt.Println("") // visually separate access request output
-		if err := executeAccessRequest(cf, tc); err != nil {
+		if err := executeAccessRequest(cf, tc, rootAuth); err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
@@ -1886,7 +1904,7 @@ func onLogin(cf *CLIConf) error {
 		alertSeverityMax = types.AlertSeverity_HIGH
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
+	if err := common.ShowClusterAlerts(cf.Context, clusterClient.AuthClient, cf.Stderr(), map[string]string{
 		types.AlertOnLogin: "yes",
 	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
@@ -2291,23 +2309,18 @@ func serializeNodesWithClusters(nodes []nodeListing, format string) (string, err
 	return string(out), trace.Wrap(err)
 }
 
-func getAccessRequest(ctx context.Context, tc *client.TeleportClient, requestID, username string) (types.AccessRequest, error) {
-	var req types.AccessRequest
-	err := tc.WithRootClusterClient(ctx, func(clt auth.ClientI) error {
-		reqs, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{
-			ID:   requestID,
-			User: username,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(reqs) != 1 {
-			return trace.BadParameter(`invalid access request "%v"`, requestID)
-		}
-		req = reqs[0]
-		return nil
+func getAccessRequest(ctx context.Context, rootAuth auth.ClientI, requestID, username string) (types.AccessRequest, error) {
+	reqs, err := rootAuth.GetAccessRequests(ctx, types.AccessRequestFilter{
+		ID:   requestID,
+		User: username,
 	})
-	return req, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(reqs) != 1 {
+		return nil, trace.BadParameter(`invalid access request "%v"`, requestID)
+	}
+	return reqs[0], nil
 }
 
 func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
@@ -2341,7 +2354,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	return req, nil
 }
 
-func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
+func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient, rootAuth auth.ClientI) error {
 	if cf.DesiredRoles == "" && cf.RequestID == "" && len(cf.RequestedResourceIDs) == 0 {
 		return trace.BadParameter("at least one role or resource or a request ID must be specified")
 	}
@@ -2359,7 +2372,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	var err error
 	if cf.RequestID != "" {
 		// This access request already exists, fetch it.
-		req, err = getAccessRequest(cf.Context, tc, cf.RequestID, cf.Username)
+		req, err = getAccessRequest(cf.Context, rootAuth, cf.RequestID, cf.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2384,7 +2397,7 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 	defer requestWatcher.Close()
 	if !cf.NoWait {
 		// Don't initialize the watcher unless we'll actually use it.
-		if err := requestWatcher.initialize(cf.Context, tc); err != nil {
+		if err := requestWatcher.initialize(cf.Context, rootAuth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2394,15 +2407,12 @@ func executeAccessRequest(cf *CLIConf, tc *client.TeleportClient) error {
 		cf.RequestID = req.GetName()
 		fmt.Fprint(os.Stdout, "Creating request...\n")
 		// always create access request against the root cluster
-		if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			err := clt.CreateAccessRequest(cf.Context, req)
-			return trace.Wrap(err)
-		}); err != nil {
+		if err := rootAuth.CreateAccessRequest(cf.Context, req); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	onRequestShow(cf)
+	printAccessRequest(cf, req)
 	fmt.Println("")
 
 	// Don't wait for request to get resolved, just print out request info.
@@ -3061,19 +3071,29 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 	}
 	req.SetRequestReason(requestReason)
 
+	clusterClient, err := tc.ConnectToCluster(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	rootAuth, err := clusterClient.RootClient(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootAuth.Close()
+
 	// Watch for resolution events on the given request. Start watcher and wait
 	// for it to be ready before creating the request to avoid a potential race.
 	requestWatcher := newAccessRequestWatcher(req)
 	defer requestWatcher.Close()
-	if err := requestWatcher.initialize(cf.Context, tc); err != nil {
+	if err := requestWatcher.initialize(cf.Context, rootAuth); err != nil {
 		return trace.Wrap(err)
 	}
 
 	fmt.Fprint(os.Stdout, "Creating request...\n")
 	// Always create access request against the root cluster.
-	if err := tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		return trace.Wrap(clt.CreateAccessRequest(cf.Context, req))
-	}); err != nil {
+	if err := rootAuth.CreateAccessRequest(cf.Context, req); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3081,7 +3101,15 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 		cf.Username = tc.Username
 	}
 	// re-fetch the request to display it with roles populated.
-	onRequestShow(cf)
+	req, err = services.GetAccessRequest(cf.Context, rootAuth, cf.RequestID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := printAccessRequest(cf, req); err != nil {
+		return trace.Wrap(err)
+	}
+
 	fmt.Println("")
 
 	// Wait for the request to be resolved.
@@ -3760,8 +3788,6 @@ func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
 func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) error {
-	ctx, span := cf.tracer.Start(ctx, "makeClientForProxy/setClientWebProxyAddr")
-	defer span.End()
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
 
@@ -4185,7 +4211,6 @@ func host(in string) string {
 type accessRequestWatcher struct {
 	req     types.AccessRequest
 	watcher types.Watcher
-	closers []io.Closer
 	sync.RWMutex
 }
 
@@ -4200,7 +4225,7 @@ func newAccessRequestWatcher(req types.AccessRequest) *accessRequestWatcher {
 // initialize sets up the underlying event watcher, when this returns without
 // error the watcher is guaranteed to be in a ready state. Call this before
 // creating the request to prevent a race.
-func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.TeleportClient) error {
+func (w *accessRequestWatcher) initialize(ctx context.Context, rootClient auth.ClientI) error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -4208,23 +4233,11 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 		return trace.BadParameter("cannot re-initialize accessRequestWatcher")
 	}
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, proxyClient)
-
-	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	w.closers = append(w.closers, rootClient)
-
 	filter := types.AccessRequestFilter{
 		User: w.req.GetUser(),
 		ID:   w.req.GetName(),
 	}
-	w.watcher, err = rootClient.NewWatcher(ctx, types.Watch{
+	watcher, err := rootClient.NewWatcher(ctx, types.Watch{
 		Name: "await-request-approval",
 		Kinds: []types.WatchKind{{
 			Kind:   types.KindAccessRequest,
@@ -4234,7 +4247,7 @@ func (w *accessRequestWatcher) initialize(ctx context.Context, tc *client.Telepo
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	w.closers = append(w.closers, w.watcher)
+	w.watcher = watcher
 
 	// Wait for OpInit event so that returned watcher is ready.
 	select {
@@ -4284,23 +4297,16 @@ func (w *accessRequestWatcher) awaitResolution() (types.AccessRequest, error) {
 	}
 }
 
-// Close closes the clients held by the watcher.
+// Close terminates the watcher.
 func (w *accessRequestWatcher) Close() error {
-	var errs []error
-	// Close in reverse order, like defer.
 	w.RLock()
-	for i := len(w.closers) - 1; i >= 0; i-- {
-		errs = append(errs, w.closers[i].Close())
+	defer w.RUnlock()
+
+	if w.watcher == nil {
+		return nil
 	}
-	w.RUnlock()
 
-	// Closed the watcher above, awaitResolution should now terminate and we can
-	// grab the lock.
-	w.Lock()
-	w.closers = nil
-	w.Unlock()
-
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(w.watcher.Close())
 }
 
 func onRequestResolution(cf *CLIConf, tc *client.TeleportClient, req types.AccessRequest) error {
