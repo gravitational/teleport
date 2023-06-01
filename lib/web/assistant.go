@@ -321,12 +321,17 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	// Create a new remote client to the auth server instead of using the one
 	// from the session context. This is because the session context client
-	// expires after with the web session, and we need a client that will
-	// persist for the duration of the chat session.
+	// is closed when the web session expires, and we need a client that
+	// persists for the duration of the chat session.
 	authClient, err := newRemoteClient(r.Context(), sctx, site)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if err := authClient.Close(); err != nil {
+			h.log.Warnf("Failed to close auth client: %v", err)
+		}
+	}()
 
 	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
 		return trace.Wrap(err)
