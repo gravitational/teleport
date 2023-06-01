@@ -36,6 +36,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	AssistService_CreateAssistantConversation_FullMethodName     = "/teleport.assist.v1.AssistService/CreateAssistantConversation"
 	AssistService_GetAssistantConversations_FullMethodName       = "/teleport.assist.v1.AssistService/GetAssistantConversations"
+	AssistService_DeleteAssistantConversation_FullMethodName     = "/teleport.assist.v1.AssistService/DeleteAssistantConversation"
 	AssistService_GetAssistantMessages_FullMethodName            = "/teleport.assist.v1.AssistService/GetAssistantMessages"
 	AssistService_CreateAssistantMessage_FullMethodName          = "/teleport.assist.v1.AssistService/CreateAssistantMessage"
 	AssistService_UpdateAssistantConversationInfo_FullMethodName = "/teleport.assist.v1.AssistService/UpdateAssistantConversationInfo"
@@ -50,6 +51,8 @@ type AssistServiceClient interface {
 	CreateAssistantConversation(ctx context.Context, in *CreateAssistantConversationRequest, opts ...grpc.CallOption) (*CreateAssistantConversationResponse, error)
 	// GetAssistantConversations returns all conversations for the connected user.
 	GetAssistantConversations(ctx context.Context, in *GetAssistantConversationsRequest, opts ...grpc.CallOption) (*GetAssistantConversationsResponse, error)
+	// DeleteAssistantConversation deletes the conversation and all messages associated with it.
+	DeleteAssistantConversation(ctx context.Context, in *DeleteAssistantConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetAssistantMessages returns all messages associated with the given conversation ID.
 	GetAssistantMessages(ctx context.Context, in *GetAssistantMessagesRequest, opts ...grpc.CallOption) (*GetAssistantMessagesResponse, error)
 	// CreateAssistantMessage creates a new message in the given conversation.
@@ -80,6 +83,15 @@ func (c *assistServiceClient) CreateAssistantConversation(ctx context.Context, i
 func (c *assistServiceClient) GetAssistantConversations(ctx context.Context, in *GetAssistantConversationsRequest, opts ...grpc.CallOption) (*GetAssistantConversationsResponse, error) {
 	out := new(GetAssistantConversationsResponse)
 	err := c.cc.Invoke(ctx, AssistService_GetAssistantConversations_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *assistServiceClient) DeleteAssistantConversation(ctx context.Context, in *DeleteAssistantConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, AssistService_DeleteAssistantConversation_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +142,8 @@ type AssistServiceServer interface {
 	CreateAssistantConversation(context.Context, *CreateAssistantConversationRequest) (*CreateAssistantConversationResponse, error)
 	// GetAssistantConversations returns all conversations for the connected user.
 	GetAssistantConversations(context.Context, *GetAssistantConversationsRequest) (*GetAssistantConversationsResponse, error)
+	// DeleteAssistantConversation deletes the conversation and all messages associated with it.
+	DeleteAssistantConversation(context.Context, *DeleteAssistantConversationRequest) (*emptypb.Empty, error)
 	// GetAssistantMessages returns all messages associated with the given conversation ID.
 	GetAssistantMessages(context.Context, *GetAssistantMessagesRequest) (*GetAssistantMessagesResponse, error)
 	// CreateAssistantMessage creates a new message in the given conversation.
@@ -150,6 +164,9 @@ func (UnimplementedAssistServiceServer) CreateAssistantConversation(context.Cont
 }
 func (UnimplementedAssistServiceServer) GetAssistantConversations(context.Context, *GetAssistantConversationsRequest) (*GetAssistantConversationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantConversations not implemented")
+}
+func (UnimplementedAssistServiceServer) DeleteAssistantConversation(context.Context, *DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteAssistantConversation not implemented")
 }
 func (UnimplementedAssistServiceServer) GetAssistantMessages(context.Context, *GetAssistantMessagesRequest) (*GetAssistantMessagesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantMessages not implemented")
@@ -208,6 +225,24 @@ func _AssistService_GetAssistantConversations_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AssistServiceServer).GetAssistantConversations(ctx, req.(*GetAssistantConversationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AssistService_DeleteAssistantConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteAssistantConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistServiceServer).DeleteAssistantConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistService_DeleteAssistantConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistServiceServer).DeleteAssistantConversation(ctx, req.(*DeleteAssistantConversationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -298,6 +333,10 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAssistantConversations",
 			Handler:    _AssistService_GetAssistantConversations_Handler,
+		},
+		{
+			MethodName: "DeleteAssistantConversation",
+			Handler:    _AssistService_DeleteAssistantConversation_Handler,
 		},
 		{
 			MethodName: "GetAssistantMessages",

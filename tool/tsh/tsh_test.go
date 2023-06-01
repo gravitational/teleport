@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
@@ -114,6 +115,7 @@ func init() {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -2951,6 +2953,10 @@ func setOverrideStdout(stdout io.Writer) cliOption {
 		cf.overrideStdout = stdout
 		return nil
 	}
+}
+
+func setCopyStdout(stdout io.Writer) cliOption {
+	return setOverrideStdout(io.MultiWriter(os.Stdout, stdout))
 }
 
 func setHomePath(path string) cliOption {

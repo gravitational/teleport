@@ -41,15 +41,6 @@ import {
 
 import type { CreateDatabaseRequest } from 'teleport/services/databases';
 
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
-
 const dbLabels = [
   { name: 'env', value: 'prod' },
   { name: 'os', value: 'mac' },
