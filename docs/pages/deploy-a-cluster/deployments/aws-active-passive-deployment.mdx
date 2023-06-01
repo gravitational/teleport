@@ -88,9 +88,14 @@ Terraform v1.2.6
 
 <Notice type="warning">
 
-If you would like the Teleport Application Service and Database Service to
-function as expected, you should use the `cert-manager` approach unless there is
-a specific reason to use ACM.
+With DynamoDB, the kube operator supports >2 pod replicas only per cluster. This restriction for all Teleport clusters with DynamoDB 
+with or with out kube operator.
+We support multiple auth replicas. The operator sidecar elects a leader with a Kubernetes lease
+if both operators sidecars are not in the same Kubernetes cluster and namespace they can't elect a leader. 
+Without leader election they will fight against each other and harm Teleport's availability
+If we enable kube operator for some on two clusters at a time then Teleport conflicts among both clusters and results in no availabilty.
+They can disable the operator on the backup region, then perform a pod rollout on the primary region. When the operator starts, 
+it deletes the existing operator bot user, and re-creates all required resources.
 
 </Notice>
 
