@@ -15,11 +15,13 @@ Supported resources:
 - [teleport_github_connector](#teleport_github_connector)
 - [teleport_login_rule](#teleport_login_rule)
 - [teleport_oidc_connector](#teleport_oidc_connector)
+- [teleport_okta_import_rule](#teleport_okta_import_rule)
 - [teleport_provision_token](#teleport_provision_token)
 - [teleport_role](#teleport_role)
 - [teleport_saml_connector](#teleport_saml_connector)
 - [teleport_session_recording_config](#teleport_session_recording_config)
 - [teleport_trusted_cluster](#teleport_trusted_cluster)
+- [teleport_trusted_device](#teleport_trusted_device)
 - [teleport_user](#teleport_user)
 
 ## Provider configuration
@@ -865,6 +867,100 @@ resource "teleport_oidc_connector" "example" {
     }]
 
     redirect_url = ["https://example.com/redirect"]
+  }
+}
+
+```
+
+## teleport_okta_import_rule
+
+|   Name   |  Type  | Required |                           Description                            |
+|----------|--------|----------|------------------------------------------------------------------|
+| metadata | object |          | Metadata is resource metadata                                    |
+| spec     | object | *        | Spec is the specification for the Okta import rule.              |
+| sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
+| version  | string |          | Version is version                                               |
+
+### metadata
+
+Metadata is resource metadata
+
+|    Name     |      Type      | Required |                                              Description                                               |
+|-------------|----------------|----------|--------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                      |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                       |
+| labels      | map of strings |          | Labels is a set of labels                                                                              |
+| name        | string         | *        | Name is an object name                                                                                 |
+| namespace   | string         |          | Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4. |
+
+### spec
+
+Spec is the specification for the Okta import rule.
+
+|   Name   |  Type  | Required |                                              Description                                              |
+|----------|--------|----------|-------------------------------------------------------------------------------------------------------|
+| mappings | object |          | Mappings is a list of matches that will map match conditions to labels.                               |
+| priority | number |          | Priority represents the priority of the rule application. Lower numbered rules will be applied first. |
+
+#### spec.mappings
+
+Mappings is a list of matches that will map match conditions to labels.
+
+|    Name    |      Type      | Required |                                                 Description                                                 |
+|------------|----------------|----------|-------------------------------------------------------------------------------------------------------------|
+| add_labels | map of strings |          | AddLabels specifies which labels to add if any of the previous matches match.                               |
+| match      | object         |          | Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied. |
+
+##### spec.mappings.match
+
+Match is a set of matching rules for this mapping. If any of these match, then the mapping will be applied.
+
+|        Name        |       Type       | Required |                             Description                             |
+|--------------------|------------------|----------|---------------------------------------------------------------------|
+| app_ids            | array of strings |          | AppIDs is a list of app IDs to match against.                       |
+| app_name_regexes   | array of strings |          | AppNameRegexes is a list of regexes to match against app names.     |
+| group_ids          | array of strings |          | GroupIDs is a list of group IDs to match against.                   |
+| group_name_regexes | array of strings |          | GroupNameRegexes is a list of regexes to match against group names. |
+
+Example:
+
+```
+# Teleport Okta Import Rule resource
+
+resource "teleport_okta_import_rule" "example" {
+  metadata = {
+    description = "Example Okta Import Rule"
+    labels = {
+      "example" = "yes"
+    }
+  }
+
+  version  = "v1"
+
+  spec = {
+    priority = 100
+    mappings = [
+      {
+        add_labels = {
+          "label1": "value1"
+        }
+        matches = [
+          {
+            app_ids = ["1", "2", "3"]
+          },
+        ],
+      },
+      {
+        add_labels = {
+          "label2": "value2"
+        }
+        matches = [
+          {
+            group_ids = ["1", "2", "3"]
+          },
+        ],
+      },
+    ]
   }
 }
 
@@ -1737,6 +1833,47 @@ resource "teleport_trusted_cluster" "cluster" {
     }]
     proxy_addr = "localhost:3080"
     token = "salami"
+  }
+}
+
+```
+
+## teleport_trusted_device
+
+|   Name   |  Type  | Required |          Description          |
+|----------|--------|----------|-------------------------------|
+| metadata | object |          | Metadata is resource metadata |
+| spec     | object |          | Specification of the device.  |
+| version  | string |          | Version is version            |
+
+### metadata
+
+Metadata is resource metadata
+
+|  Name  |      Type      | Required |        Description        |
+|--------|----------------|----------|---------------------------|
+| labels | map of strings |          | Labels is a set of labels |
+| name   | string         |          | Name is an object name    |
+
+### spec
+
+Specification of the device.
+
+|     Name      |  Type  | Required | Description |
+|---------------|--------|----------|-------------|
+| asset_tag     | string | *        |             |
+| enroll_status | string |          |             |
+| os_type       | string | *        |             |
+
+Example:
+
+```
+# Trusted device resource
+
+resource "teleport_trusted_device" "TESTDEVICE1" {
+  spec = {
+    asset_tag = "TESTDEVICE1"
+    os_type   = "macos"
   }
 }
 
