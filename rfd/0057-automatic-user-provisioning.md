@@ -148,7 +148,7 @@ it with an option called `create_host_user_mode`. The new option will
 have 3 possible settings:
 - `off`: disables host user creation
 - `drop`: deletes users after the session ends (current behaviour)
-- `remain`: leaves host users after the session ends.
+- `keep`: leaves host users after the session ends.
 
 If the deprecated `create_host_user` option is specified and
 `create_host_user_mode` is not, it will default to using `drop` when
@@ -158,8 +158,7 @@ If `create_host_user_mode` is set, its setting will always be used
 instead of the `create_host_user` setting.
 
 If multiple roles matching a node specify the `create_host_user_mode`
-option with both `drop` and `remain`, the more restrictive `drop`
-option will be used.
+option with both `drop` and `keep`, teleport will default to `keep`
 
 ### Examples
 
@@ -203,7 +202,7 @@ metadata:
 spec:
   options:
     # allow auto provisioning of users and for them to remain after session ends.
-    create_host_user_mode: remain
+    create_host_user_mode: keep
   allow:
     # username from external okta attribute
     logins: [ "{{external.username}}" ]
@@ -211,8 +210,7 @@ spec:
 
 #### Multiple roles specify `create_host_user_mode`:
 
-Multiple roles specify `create_host_user_mode`, drops users as the
-second role is more restrictive
+Multiple roles specify `create_host_user_mode`, teleport will default to `keep`
 
 ```yaml
 kind: role
@@ -222,7 +220,7 @@ metadata:
 spec:
   options:
     # allow auto provisioning of users and for them to remain after session ends.
-    create_host_user_mode: remain
+    create_host_user_mode: keep
   allow:
     # username from external okta attribute
     logins: [ "{{external.username}}" ]
