@@ -5253,7 +5253,7 @@ message PluginBearerTokenCredentials {
 // PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
 message PluginStaticCredentialsRef {
   // Labels is the set of labels to use to match against a set of static credentials.
-  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+  map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // PluginList represents a list of plugin resources
