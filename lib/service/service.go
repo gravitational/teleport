@@ -68,6 +68,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -1601,6 +1602,11 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	var openAIClient *ai.Client
+	if cfg.Auth.AssistAPIKey != "" {
+		openAIClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+	}
+
 	traceClt := tracing.NewNoopClient()
 	if cfg.Tracing.Enabled {
 		traceConf, err := process.Config.Tracing.Config()
@@ -1655,6 +1661,7 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+		AIClient:                openAIClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1693,6 +1700,27 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	if authServer.Embeddings != nil {
+		log.Infof("Starting embedding watcher")
+		nodeEmbeddingWatcher, err := services.NewNodeEmbeddingWatcher(process.ExitContext(), services.NodeEmbeddingWatcherConfig{
+			NodeWatcherConfig: services.NodeWatcherConfig{
+				ResourceWatcherConfig: services.ResourceWatcherConfig{
+					Component: teleport.ComponentAssist,
+					Log:       log,
+					Client:    authServer.Services,
+				},
+				NodesGetter: authServer.Services,
+			},
+			Embeddings: authServer,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		authServer.SetNodeEmbeddingsWatcher(nodeEmbeddingWatcher)
+
+		go nodeEmbeddingWatcher.RunPeriodicEmbedding(process.ExitContext(), ai.EmbeddingPeriod)
+	}
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,

@@ -270,6 +270,9 @@ const (
 	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
+	// ComponentAssist represents Teleport Assist
+	ComponentAssist = "assist"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
