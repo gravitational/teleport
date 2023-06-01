@@ -32,10 +32,10 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
-	// PluginTypeOkta is the Okta plugin
-	PluginTypeOkta = "okta"
 	// PluginTypeOpenAI is the OpenAI plugin
 	PluginTypeOpenAI = "openai"
+	// PluginTypeOkta is the Okta plugin
+	PluginTypeOkta = "okta"
 )
 
 // Plugin represents a plugin instance
@@ -103,6 +103,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
@@ -121,17 +133,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
-		}
-	case *PluginSpecV1_Openai:
-		if p.Credentials == nil {
-			return trace.BadParameter("credentials must be set")
-		}
-		bearer := p.Credentials.GetBearerToken()
-		if bearer == nil {
-			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
-		}
-		if bearer.Token == "" {
-			return trace.BadParameter("Token must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -263,10 +264,10 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
-	case *PluginSpecV1_Okta:
-		return PluginTypeOkta
 	case *PluginSpecV1_Openai:
 		return PluginTypeOpenAI
+	case *PluginSpecV1_Okta:
+		return PluginTypeOkta
 	default:
 		return PluginTypeUnknown
 	}
