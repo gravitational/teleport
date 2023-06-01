@@ -573,8 +573,22 @@ func (s *Server) Serve() {
 		return
 	}
 
+	// OpenSSH nodes don't support moderated sessions, send an error to
+	// the user and gracefully fail the user is attempting to create one.
+	if s.targetServer != nil && s.targetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		policySets := s.identityContext.AccessChecker.SessionPolicySets()
+		evaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, s.identityContext.TeleportUser)
+		if evaluator.IsModerated() {
+			s.rejectChannel(chans, "Moderated sessions cannot be created for OpenSSH nodes")
+			sconn.Close()
+
+			s.log.Debugf("Dropping connection to %s@%s that needs moderation", sconn.User(), s.clientConn.RemoteAddr())
+			return
+		}
+	}
+
 	// Connect and authenticate to the remote node.
-	s.log.Debugf("Creating remote connection to %v@%v", sconn.User(), s.clientConn.RemoteAddr().String())
+	s.log.Debugf("Creating remote connection to %s@%s", sconn.User(), s.clientConn.RemoteAddr())
 	s.remoteClient, err = s.newRemoteClient(ctx, sconn.User())
 	if err != nil {
 		// Reject the connection with an error so the client doesn't hang then
