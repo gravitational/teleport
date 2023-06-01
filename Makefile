@@ -1141,8 +1141,17 @@ protos/lint: buf/installed
 	$(BUF) lint
 	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
+.PHONY: protos/breaking
+protos/breaking: BASE=origin/master
+protos/breaking: buf/installed
+	@echo Checking compatibility against BASE=$(BASE)
+	buf breaking . --against '.git#branch=$(BASE)'
+
 .PHONY: lint-protos
 lint-protos: protos/lint
+
+.PHONY: lint-breaking
+lint-breaking: protos/breaking
 
 .PHONY: buf/installed
 buf/installed:

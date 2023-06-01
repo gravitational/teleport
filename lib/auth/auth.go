@@ -3571,6 +3571,16 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	}, nil
 }
 
+// UpdateLabels updates the labels on an instance over the inventory control
+// stream.
+func (a *Server) UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error {
+	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	if !ok {
+		return trace.NotFound("no control stream found for server %q", req.ServerID)
+	}
+	return trace.Wrap(stream.UpdateLabels(ctx, req.Kind, req.Labels))
+}
+
 // TokenExpiredOrNotFound is a special message returned by the auth server when provisioning
 // tokens are either past their TTL, or could not be found.
 const TokenExpiredOrNotFound = "token expired or not found"
@@ -5266,6 +5276,11 @@ func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.Cr
 func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	resp, err := a.Services.GetAssistantConversations(ctx, request)
 	return resp, trace.Wrap(err)
+}
+
+// DeleteAssistantConversation deletes a conversation from the backend.
+func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
+	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare

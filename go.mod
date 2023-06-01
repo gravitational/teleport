@@ -128,6 +128,7 @@ require (
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.2
 	github.com/snowflakedb/gosnowflake v1.6.21
+	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.3
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -347,7 +348,6 @@ require (
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
-	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
