@@ -2055,10 +2055,10 @@ Configure the GitHub auth connector.
 Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
 The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
-In this example, members of the `octocats` team in GitHub will be assigned the `devs`, `access`, and `editor` roles in Teleport.
+In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
 
 ```code
-$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 #### Arguments
