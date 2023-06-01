@@ -151,7 +151,7 @@ saml](../../reference/cli.mdx#tctl-sso-configure-saml) for a full reference of
 flags for this command:
 
 ```code
-$ tctl sso configure saml --name=okta \
+$ tctl sso configure saml --preset=okta \
 --entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
 --attributes-to-roles=groups,okta-admin,editor \
 --attributes-to-roles=groups,okta-dev,access > okta.yaml
@@ -176,7 +176,7 @@ spec:
     value: okta-dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
-  display: ""
+  display: "Okta"
   entity_descriptor: ""
   entity_descriptor_url: https://example.okta.com/app/000000/sso/saml/metadata
   issuer: ""
