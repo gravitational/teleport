@@ -23,7 +23,6 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import wasm from 'vite-plugin-wasm';
-import topLevelAwait from 'vite-plugin-top-level-await';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
@@ -39,10 +38,12 @@ export function createViteConfig(
 
     if (mode === 'development') {
       if (process.env.PROXY_TARGET) {
+        // eslint-disable-next-line no-console
         console.log(
           `  \x1b[32m✔ Proxying requests to ${target.toString()}\x1b[0m`
         );
       } else {
+        // eslint-disable-next-line no-console
         console.warn(
           '  \x1b[33m⚠ PROXY_TARGET was not set, defaulting to localhost:3080\x1b[0m'
         );
@@ -76,7 +77,6 @@ export function createViteConfig(
         }),
         transformPlugin(),
         wasm(),
-        topLevelAwait(),
       ],
       define: {
         'process.env': { NODE_ENV: process.env.NODE_ENV },
