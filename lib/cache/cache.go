@@ -2094,19 +2094,6 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	return rg.snowflakeSession.GetSnowflakeSession(ctx, req)
 }
 
-// GetSAMLIdPSession gets a SAML IdP session.
-func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
-	defer span.End()
-
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.samlIdPSession.GetSAMLIdPSession(ctx, req)
-}
-
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
