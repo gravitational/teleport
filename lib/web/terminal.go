@@ -1297,8 +1297,15 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
-	var err error
+	var closeErr error
 	t.once.Do(func() {
+		defer func() {
+			<-t.completedC
+
+			close(t.rawC)
+			close(t.challengeC)
+		}()
+
 		// Send close envelope to web terminal upon exit without an error.
 		envelope := &Envelope{
 			Version: defaults.WebsocketVersion,
@@ -1306,20 +1313,16 @@ func (t *WSStream) Close() error {
 		}
 		envelopeBytes, err := proto.Marshal(envelope)
 		if err != nil {
-			err = trace.NewAggregate(err, t.ws.Close())
+			closeErr = trace.NewAggregate(err, t.ws.Close())
+			return
 		}
 
 		t.mu.Lock()
 		defer t.mu.Unlock()
-		err = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
-
-		<-t.completedC
-
-		close(t.rawC)
-		close(t.challengeC)
+		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 	})
 
-	return trace.Wrap(err)
+	return trace.Wrap(closeErr)
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.
