@@ -4793,7 +4793,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 func TestCreateSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 
 	tests := map[string]struct {
 		identity  TestIdentity
@@ -4837,7 +4837,7 @@ func TestCreateSnowflakeSession(t *testing.T) {
 func TestGetSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 	dbClient, err := srv.NewClient(TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
 
@@ -4892,7 +4892,7 @@ func TestGetSnowflakeSession(t *testing.T) {
 func TestGetSnowflakeSessions(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	alice, _, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
 
 	tests := map[string]struct {
 		identity  TestIdentity
@@ -4929,7 +4929,7 @@ func TestGetSnowflakeSessions(t *testing.T) {
 func TestDeleteSnowflakeSession(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	alice, bob, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 	tests := map[string]struct {
 		identity  TestIdentity
 		assertErr require.ErrorAssertionFunc
@@ -4979,7 +4979,7 @@ func TestDeleteSnowflakeSession(t *testing.T) {
 func TestDeleteAllSnowflakeSessions(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
-	alice, _, admin := createSnowflakeSessionTestUsers(t, srv.Auth())
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
 
 	tests := map[string]struct {
 		identity  TestIdentity
@@ -5013,8 +5013,232 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 	}
 }
 
-// Create test users for snowflake web session CRUD authz tests.
-func createSnowflakeSessionTestUsers(t *testing.T, authServer *Server) (string, string, string) {
+func TestCreateSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			_, err = client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+				SessionID:   "test",
+				Username:    alice,
+				SAMLSession: &types.SAMLSessionData{},
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestGetSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	// setup a session to get, for user "alice".
+	aliceClient, err := srv.NewClient(TestUser(alice))
+	require.NoError(t, err)
+
+	sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   "test",
+		Username:    alice,
+		SAMLSession: &types.SAMLSessionData{},
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, err = client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestListSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, _, err = client.ListSAMLIdPSessions(ctx, 0, "", "")
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	aliceClient, err := srv.NewClient(TestUser(alice))
+	require.NoError(t, err)
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			sess, err := aliceClient.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+				SessionID:   uuid.NewString(),
+				Username:    alice,
+				SAMLSession: &types.SAMLSessionData{},
+			})
+			require.NoError(t, err)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			err = client.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteAllSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			err = client.DeleteAllSAMLIdPSessions(ctx)
+			test.assertErr(t, err)
+		})
+	}
+}
+
+// Create test users for web session CRUD authz tests.
+func createSessionTestUsers(t *testing.T, authServer *Server) (string, string, string) {
 	t.Helper()
 	// create alice and bob who have no permissions.
 	_, _, err := CreateUserAndRole(authServer, "alice", nil, []types.Rule{})
