@@ -1,5 +1,42 @@
 # Changelog
 
+## 13.0.4 (05/31/23)
+
+* Application Access
+  * Updated `tsh proxy app` to not require explicit `tsh app login`. [#26820](https://github.com/gravitational/teleport/pull/26820)
+* Auth
+  * Fixed issue with headless authentication not working when leaf cluster is selected. [#26878](https://github.com/gravitational/teleport/pull/26878)
+  * Fixed issue with GitHub Enterprise connector API endpoint URL path getting ignored. [#26863](https://github.com/gravitational/teleport/pull/26863)
+* CLI
+  * Added `tsh kubectl` support for tracer exporter. [#27130](https://github.com/gravitational/teleport/pull/27130)
+  * Added support for bash and zsh autocompletion. [#26999](https://github.com/gravitational/teleport/pull/26999)
+  * Added support for calling `tctl alert` commands remotely. [#26789](https://github.com/gravitational/teleport/pull/26789)
+* Database Access
+  * Added support for ElastiCache Redis IAM authentication. [#26990](https://github.com/gravitational/teleport/pull/26990)
+* Desktop Access
+  * Increased LDAP dial timeout from 5 to 15 seconds. [#27045](https://github.com/gravitational/teleport/pull/27045)
+  * Improved LDAP error reporting. [#26984](https://github.com/gravitational/teleport/pull/26984)
+* Helm Charts
+  * Improved `clusterName` validation in `teleport-cluster` Helm chart. [#26973](https://github.com/gravitational/teleport/pull/26973)
+* Kubernetes Operator
+  * Fixed access denied issue when creating token resources. [#27001](https://github.com/gravitational/teleport/pull/27001)
+* Okta
+  * Updated Okta import rules regex to support glob matching. [#27126](https://github.com/gravitational/teleport/pull/27126)
+  * Updated Okta import rules to support filtering user groups by description. [#27021](https://github.com/gravitational/teleport/pull/27021)
+* Performance & Scalability
+  * Improved `tsh login` latency by making sure cluster alerts are fetched once. [#27110](https://github.com/gravitational/teleport/pull/27110)
+* Server Access
+  * Added CA rotation support to EC2 OpenSSH discovery. [#26888](https://github.com/gravitational/teleport/pull/26888)
+  * Extended Proxy Templates support to `tsh ssh`. [#26852](https://github.com/gravitational/teleport/pull/26852)
+  * Fixed issue where system agent is not forwarded when using `--add-keys-to-agent=no`. [#26929](https://github.com/gravitational/teleport/pull/26929)
+* Tooling
+  * Upgraded OpenSSL to `3.0.9`. [#27123](https://github.com/gravitational/teleport/pull/27123)
+* TLS Routing
+  * Added multiple UX improvements for `tsh kube` commands in TLS Routing mode behind ALB. [#27155](https://github.com/gravitational/teleport/pull/27155)
+* Web UI
+  * Added back buttons to Access Management and Integrations flows where possible. [#26727](https://github.com/gravitational/teleport/pull/26727)
+  * Fixed issue with pagination buttons sometimes being invisible on the Nodes page. [#26906](https://github.com/gravitational/teleport/pull/26906)
+
 ## 13.0.3 (05/24/23)
 
 * Access Management
