@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -471,6 +472,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			httplib.SetNoCacheHeaders(w.Header())
 
+			// /web/cluster/:clusterId/desktops/:desktopName/:username
+			// is a desktop session, which uses WASM and therefore needs a different CSP.
+			// We use a regex here to match that path in order to determine which CSP
+			// to set.
+			pattern := `^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`
+			re := regexp.MustCompile(pattern)
+			isDesktopSession := re.MatchString(r.URL.Path)
+
 			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
 			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
 				parts := strings.Split(r.URL.Path, "/")
@@ -478,6 +487,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				applicationURL := "https://" + parts[3] + ":*"
 
 				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
+			} else if isDesktopSession {
+				httplib.SetIndexContentSecurityPolicyWithWasm(w.Header())
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header())
 			}

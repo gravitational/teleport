@@ -28,6 +28,10 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+const (
+	defaultScriptSrc = "'self' https://js.stripe.com"
+)
+
 var defaultContentSecurityPolicy map[string]string = map[string]string{
 	"default-src": "'self'",
 	// specify CSP directives not covered by `default-src`
@@ -37,7 +41,7 @@ var defaultContentSecurityPolicy map[string]string = map[string]string{
 	// additional default restrictions
 	"object-src": "'none'",
 	// auto-pay plans in Cloud use stripe.com to manage billing information
-	"script-src": "'self' https://js.stripe.com",
+	"script-src": defaultScriptSrc,
 	"frame-src":  "https://js.stripe.com",
 	"img-src":    "'self' data: blob:",
 	"style-src":  "'self' 'unsafe-inline'",
@@ -81,7 +85,7 @@ func getContentSecurityPolicyString(cspMaps ...map[string]string) string {
 	return strings.TrimSpace(cspString)
 }
 
-// SetNoCacheHeaders tells proxies and browsers do not cache the content
+// SetNoCacheHeaders tells proxies and browsers to not cache the content
 func SetNoCacheHeaders(h http.Header) {
 	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	h.Set("Pragma", "no-cache")
@@ -117,13 +121,28 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header) {
-	cspString := getContentSecurityPolicyString(
+func getIndexContentSecurityPolicy() map[string]string {
+	return combineCSPMaps(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
 		map[string]string{
 			"connect-src": "'self' wss:",
+		},
+	)
+}
+
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header) {
+	cspString := getContentSecurityPolicyString(getIndexContentSecurityPolicy())
+
+	h.Set("Content-Security-Policy", cspString)
+}
+
+func SetIndexContentSecurityPolicyWithWasm(h http.Header) {
+	cspString := getContentSecurityPolicyString(
+		getIndexContentSecurityPolicy(),
+		map[string]string{
+			"script-src": defaultScriptSrc + " 'wasm-unsafe-eval'",
 		},
 	)
 
