@@ -1,5 +1,9 @@
-# This Dockerfile makes the "build box connect" the container used to:
-# * build Teleport Connect
+# This Dockerfile makes the "build box connect" the container used
+# to build the Teleport Connect.
+#
+# This image is base on the node image, which is based on Debian.
+# Using it as a image allows us to link agains the same version of
+# glibc as Node.js.
 #
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
