@@ -29,13 +29,15 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
 
 const storage = {
   clear() {
+    const keys = [];
     for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-
+      keys.push(window.localStorage.key(i));
+    }
+    keys.forEach(key => {
       if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
         window.localStorage.removeItem(key);
       }
-    }
+    });
   },
 
   subscribe(fn) {
