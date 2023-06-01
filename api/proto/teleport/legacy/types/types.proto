@@ -5140,6 +5140,7 @@ message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginStaticCredentialsRef static_credentials_ref = 4;
   }
 }
 
@@ -5163,6 +5164,12 @@ message PluginBearerTokenCredentials {
   // The file must exist and be readable on whatever runs the plugin
   // (in the OpenAI case, it is the Proxy).
   string token_file = 2;
+}
+
+// PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
+message PluginStaticCredentialsRef {
+  // Labels is the set of labels to use to match against a set of static credentials.
+  map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // PluginList represents a list of plugin resources

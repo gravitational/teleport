@@ -51,6 +51,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
 // PluginStatus is the plugin status
@@ -112,12 +113,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
-		bearer := p.Credentials.GetBearerToken()
-		if bearer == nil {
-			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("okta plugin must be used with the static credentials ref type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
