@@ -8929,6 +8929,7 @@ func (m mockedPingTestProxy) Ping(ctx context.Context) (authproto.PingResponse, 
 func TestModeratedSession(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
+	ctx := context.Background()
 	s := newWebSuite(t)
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
@@ -8968,7 +8969,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, peerWS.Close()) })
 
-	peerStream := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
+	peerStream := NewTerminalStream(ctx, peerWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -8977,7 +8978,7 @@ func TestModeratedSession(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, moderatorWS.Close()) })
 
-	moderatorStream := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
+	moderatorStream := NewTerminalStream(ctx, moderatorWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 
@@ -9002,6 +9003,7 @@ func TestModeratedSession(t *testing.T) {
 // the session is aborted.
 func TestModeratedSessionWithMFA(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	ctx := context.Background()
 
 	const RPID = "localhost"
 
@@ -9055,7 +9057,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, peerWS, peer.device)
 
-	peerStream := NewTerminalStream(context.Background(), peerWS, utils.NewLoggerForTests())
+	peerStream := NewTerminalStream(ctx, peerWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > User foo joined the session with participant mode: peer."))
 
@@ -9065,7 +9067,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	handleMFAWebauthnChallenge(t, moderatorWS, moderator.device)
 
-	moderatorStream := NewTerminalStream(context.Background(), moderatorWS, utils.NewLoggerForTests())
+	moderatorStream := NewTerminalStream(ctx, moderatorWS, utils.NewLoggerForTests())
 
 	require.NoError(t, waitForOutput(peerStream, "Teleport > Connecting to node over SSH"))
 
