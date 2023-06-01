@@ -115,7 +115,7 @@ When migrating backends, you should back up your Auth Service's
 ### Example of backing up and restoring a cluster
 
 ```code
-# Run this command on one of the Teleport Auth Service hosts
+# Run this command on one of the Teleport Auth Service hosts.
 # Export dynamic configuration state from old cluster
 $ tctl get all > state.yaml
 
@@ -133,15 +133,20 @@ $ sudo teleport start --config fresh.yaml --bootstrap state.yaml
 $ tctl --config fresh.yaml get all
 # <your state here>
 ```
-<Notice>
-The `tctl get all` must be run on a Teleport Auth Service host 
-or existing User records will cause a permission error.  This is due
-to User secrets only being available from a a direct `tctl` connection
-on a Teleport Auth Service machine. As a workaround, retrieve resources
-individually with the `--with-secrets` parameter except for users. Local user secrets
-including passwords would need to be reset after creating without secrets.
+<Notice type="danger">
 
-All trusted cluster certificate resources should be removed for use
+The `tctl get all` command must be run on a Teleport Auth Service host or existing user records will cause a permission error.
+
+</Notice>
+
+Teleport user secrets are only available when running `tctl` commands
+on a Teleport Auth Service machine. 
+
+As a workaround, retrieve resources
+individually with the `--with-secrets` parameter except for users. Local user secrets
+including passwords will need to be reset after being created without secrets.
+
+All Trusted Cluster certificate resources should be removed for use
 in a bootstrap or you will receive an error.  These are the `kind: cert_authority`
 records identifiable with `cluster_name` values that match to the leaf cluster names.
 </Notice>
