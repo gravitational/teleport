@@ -699,6 +699,7 @@ func TestJSONUnmarshal(t *testing.T) {
 						ID:   "1",
 						UDID: "123",
 						General: &jamf.ComputerGeneralSection{
+							Name:              "Boalime",
 							JamfBinaryVersion: "9.27",
 							Platform:          "Mac",
 							ReportDate:        time.Date(2018, 10, 31, 18, 4, 13, 0, time.UTC),
@@ -736,6 +737,7 @@ func TestJSONUnmarshal(t *testing.T) {
 						ID:   "9",
 						UDID: "54C764F5-7DC6-5CC0-B877-641BEDF8AF20",
 						General: &jamf.ComputerGeneralSection{
+							Name:              "llama’s MacBook Air",
 							JamfBinaryVersion: "10.43.1-t1674743888",
 							Platform:          "Mac",
 							ReportDate:        time.Date(2023, 2, 15, 14, 7, 45, 348000000, time.UTC),

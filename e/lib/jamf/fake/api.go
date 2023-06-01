@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -259,15 +261,193 @@ func (a *API) postAuthKeepAlive(w http.ResponseWriter, req *http.Request) {
 }
 
 func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	q := req.URL.Query()
 
-	// TODO(codingllama): Implement pagination and other necessary params.
+	// page.
+	var page int
+	if val := q.Get("page"); val != "" {
+		// API ignores errors/negative.
+		n, err := strconv.Atoi(val)
+		if err == nil && n > 0 {
+			page = n
+		}
+	}
+
+	// page-size.
+	pageSize := 100 // default
+	if val := q.Get("page-size"); val != "" {
+		// API ignores errors/negative.
+		n, err := strconv.Atoi(val)
+		if err == nil && n > 0 {
+			pageSize = n
+		}
+	}
+
+	// section.
+	sections := q["section"]
+	if _, err := copySections(&jamf.ComputerInventory{}, sections); err != nil {
+		a.replyError(w, errorResponse{
+			HTTPStatus: 400,
+			Errors: []*apiError{
+				{
+					Code:        "INVALID_REQUEST_PARAMETER_VALUE",
+					Description: err.Error(),
+					ID:          "0",
+				},
+			},
+		})
+		return
+	}
+
+	// sort.
+	sorter := byGeneralName
+	switch val, ok := q["sort"]; {
+	case len(val) > 1:
+		a.replyError(w, errorResponse{
+			HTTPStatus: 500,
+			Errors: []*apiError{
+				{Description: "multiple sort values not supported by the fake API"},
+			},
+		})
+		return
+	case ok:
+		tmp := strings.Split(val[0], ":")
+		field := tmp[0]
+		// verb is tmp[1], defaults to "asc".
+
+		switch field {
+		case "general.name":
+			sorter = byGeneralName
+		case "general.lastContactTime":
+			sorter = byGeneralLastContactTime
+		// Many more fields are supported by the actual API, but not by us.
+		default:
+			a.replyError(w, errorResponse{
+				HTTPStatus: 400,
+				Errors: []*apiError{
+					{
+						Code: "INVALID_FIELD",
+						// Example of an actual error:
+						// "No property '$field' found for type 'ComputersDenormalizedEntity'!"
+						Description: fmt.Sprintf("sorting by %q not implemented by fake", field),
+						ID:          "0",
+					},
+				},
+			})
+			return
+		}
+
+		// Verb validation is lenient, any errors are ignored.
+		// Note: unsure if verb matching is case-sensitive.
+		if len(tmp) > 1 && tmp[1] == "desc" {
+			prev := sorter
+			sorter = func(a []*jamf.ComputerInventory) sort.Interface {
+				return sort.Reverse(prev(a))
+			}
+		}
+	}
+
+	// Lock inventory, then:
+	// - Sort underlying inventory
+	// - Paginate
+	// - Copy devices applying section filters
+	a.mu.Lock()
+	totalCount := len(a.inventory)
+
+	// Sort.
+	sort.Sort(sorter(a.inventory))
+
+	// Paginate results.
+	start := page * pageSize
+	if start > totalCount {
+		start = totalCount
+	}
+	end := start + pageSize
+	if end > totalCount {
+		end = totalCount
+	}
+	inv := a.inventory[start:end]
+
+	// Copy and apply sections.
+	resp := make([]*jamf.ComputerInventory, 0, pageSize)
+	for _, c := range inv {
+		// err safe to swallow, sections are validated above.
+		cp, _ := copySections(c, sections)
+		resp = append(resp, cp)
+	}
+	a.mu.Unlock()
 
 	a.replyJSON(w, 200, &jamf.GetComputersInventoryResponse{
-		TotalCount: len(a.inventory),
-		Results:    a.inventory,
+		TotalCount: totalCount,
+		Results:    resp,
 	})
+}
+
+func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerInventory, error) {
+	cp := &jamf.ComputerInventory{
+		ID:   c.ID,
+		UDID: c.UDID,
+	}
+	if len(sections) == 0 {
+		sections = []string{jamf.SectionGeneral} // default
+	}
+
+	for _, s := range sections {
+		// Note: section matching _IS_ case-sensitive.
+		switch s {
+		case jamf.SectionGeneral:
+			cp.General = c.General
+		case jamf.SectionHardware:
+			cp.Hardware = c.Hardware
+		case jamf.SectionLocalUserAccounts:
+			cp.LocalUserAccounts = c.LocalUserAccounts
+		case jamf.SectionOperatingSystem:
+			cp.OperatingSystem = c.OperatingSystem
+		default:
+			allSections := []string{jamf.SectionGeneral, jamf.SectionHardware, jamf.SectionLocalUserAccounts, jamf.SectionOperatingSystem}
+			// Error message copied from actual API.
+			return nil, fmt.Errorf(
+				"invalid value of request parameter: %v, Possible values: %v",
+				s, strings.Join(allSections, ","))
+		}
+	}
+
+	return cp, nil
+}
+
+func byGeneralName(a []*jamf.ComputerInventory) sort.Interface {
+	return computerInventorySorter{
+		elems: a,
+		less: func(c1, c2 *jamf.ComputerInventory) bool {
+			return c1.General.Name < c2.General.Name
+		},
+	}
+}
+
+func byGeneralLastContactTime(a []*jamf.ComputerInventory) sort.Interface {
+	return computerInventorySorter{
+		elems: a,
+		less: func(c1, c2 *jamf.ComputerInventory) bool {
+			return c1.General.LastContactTime.Before(c2.General.LastContactTime)
+		},
+	}
+}
+
+type computerInventorySorter struct {
+	elems []*jamf.ComputerInventory
+	less  func(c1, c2 *jamf.ComputerInventory) bool
+}
+
+func (s computerInventorySorter) Len() int {
+	return len(s.elems)
+}
+
+func (s computerInventorySorter) Less(i int, j int) bool {
+	return s.less(s.elems[i], s.elems[j])
+}
+
+func (s computerInventorySorter) Swap(i int, j int) {
+	s.elems[i], s.elems[j] = s.elems[j], s.elems[i]
 }
 
 func (a *API) replyError(w http.ResponseWriter, resp errorResponse) {

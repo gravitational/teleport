@@ -107,6 +107,7 @@ func (c *Client) nowUTC() time.Time {
 }
 
 func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
+	req.Header.Set("Accept", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return trace.Wrap(err)

@@ -3,14 +3,46 @@ package jamf
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
 )
 
+const (
+	// SectionGeneral is the GENERAL section of a [ComputerInventory] instance.
+	SectionGeneral = "GENERAL"
+	// SectionHardware is the HARDWARE section of a [ComputerInventory] instance.
+	SectionHardware = "HARDWARE"
+	// SectionLocalUserAccounts is the LOCAL_USER_ACCOUNTS section of a
+	// [ComputerInventory] instance.
+	SectionLocalUserAccounts = "LOCAL_USER_ACCOUNTS"
+	// SectionOperatingSystem is the OPERATING_SYSTEM section of a
+	// [ComputerInventory] instance.
+	SectionOperatingSystem = "OPERATING_SYSTEM"
+)
+
 // GetComputersInventoryRequest is the request for
 // https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
-type GetComputersInventoryRequest struct{}
+type GetComputersInventoryRequest struct {
+	// Section is the slice of sections to query.
+	// If empty, the general section is returned.
+	Section []string
+	// Page to query, starting from zero.
+	Page int
+	// PageSize is the length of the returned page.
+	// If zero, server defaults are used.
+	PageSize int
+	// Sort is the sort filter slice to use, in the form "property:asc/desc".
+	// See the API docs for supported fields.
+	// Example: "general.name:asc".
+	Sort []string
+	// Filter is the RSQL filter applied to the query.
+	// See the API docs for supported fields.
+	// Example: `general.name=="Orchard"`.
+	Filter string
+}
 
 // GetComputersInventoryResponse is the response for
 // https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
@@ -34,6 +66,11 @@ type ComputerInventory struct {
 }
 
 type ComputerGeneralSection struct {
+	// Name is the descriptive name of the computer.
+	// Example: "llama's MacBook".
+	Name string `json:"name"`
+	// JamfBinaryVersion is the jamf binary version, if present.
+	// Example: "9.27".
 	JamfBinaryVersion string `json:"jamfBinaryVersion"`
 	// Platform is the computer platform.
 	// Example: "Mac".
@@ -86,11 +123,32 @@ func (c *Client) GetComputersInventory(ctx context.Context, req *GetComputersInv
 		return nil, trace.BadParameter("req required")
 	}
 
+	q := make(url.Values)
+	if req.Page > 0 {
+		q.Set("page", strconv.Itoa(req.Page))
+	}
+	if req.PageSize > 0 {
+		q.Set("page-size", strconv.Itoa(req.PageSize))
+	}
+	for _, s := range req.Section {
+		if s != "" {
+			q.Add("section", s)
+		}
+	}
+	for _, s := range req.Sort {
+		if s != "" {
+			q.Add("sort", s)
+		}
+	}
+	if req.Filter != "" {
+		q.Set("filter", req.Filter)
+	}
+
 	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/v1/computers-inventory"), nil /* body */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(codingllama): Implement the various GET filters.
+	getReq.URL.RawQuery = q.Encode()
 
 	resp := &GetComputersInventoryResponse{}
 	if err := c.doAuthnJSONRequest(getReq, resp); err != nil {
