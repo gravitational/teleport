@@ -1321,6 +1321,10 @@ version switcher.
 
 - [ ] Verify Teleport versions throughout documentation are correct and reflect upcoming release. Check `docs/config.json` for this.
 
+- [ ] Remove any version warnings in the docs that mention a version we no
+  longer support. E.g., if we no longer support version n, remove messages
+  saying "You need at least version n to use this feature."
+
 - [ ] Verify that all necessary documentation for the release was backported to
   the release branch:
   - [ ] Diff between master and release branch and make sure there are no missed
