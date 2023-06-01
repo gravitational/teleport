@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/net/http2"
 
@@ -291,10 +291,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 	t.mu.Lock()
 	t.listener = mux.TLS()
-	if err = http2.ConfigureServer(t.Server, &http2.Server{}); err != nil {
+	err = http2.ConfigureServer(t.Server, &http2.Server{})
+	t.mu.Unlock()
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.mu.Unlock()
 
 	// startStaticClusterHeartbeats starts the heartbeat process for static clusters.
 	// static clusters can be specified via kubeconfig or clusterName for Teleport agent

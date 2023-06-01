@@ -49,7 +49,7 @@
 
 // WriteToBuffer is a dummy function that writes a sequence event rather than
 // to a buffer.
-int
+size_t
 WriteToBuffer(char* source, size_t len)
 {
 	// NOTE: Modified to emit an event to the Go lib rather than mutate a
@@ -78,17 +78,17 @@ DataAvailable(HANDLE hInput, HANDLE hQuitEvent)
 	return FALSE;
 }
 
-int
+size_t
 ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 {
 	DWORD dwInput = 0;
 	unsigned char octets[20];
 	INPUT_RECORD inputRecordArray[16];
-	int inputRecordArraySize = sizeof(inputRecordArray) / sizeof(INPUT_RECORD);
+	size_t inputRecordArraySize = sizeof(inputRecordArray) / sizeof(INPUT_RECORD);
 	static WCHAR utf16_surrogatepair[2] = {0,};
-	int n = 0;
+	size_t n = 0;
 
-	int outlen = 0;
+	size_t outlen = 0;
 	while (DataAvailable(hInput, hQuitEvent)) {
 		ReadConsoleInputW(hInput, inputRecordArray, inputRecordArraySize, &dwInput);
 

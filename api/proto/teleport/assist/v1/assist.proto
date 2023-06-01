@@ -113,6 +113,14 @@ message IsAssistEnabledResponse {
   bool enabled = 1;
 }
 
+// DeleteAssistantConversationRequest is a request to delete the conversation.
+message DeleteAssistantConversationRequest {
+  // conversationId is a unique conversation ID.
+  string conversation_id = 1;
+  // username is a username of the user who created the conversation.
+  string username = 2;
+}
+
 // AssistService is a service that provides an ability to communicate with the Teleport Assist.
 service AssistService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -120,6 +128,9 @@ service AssistService {
 
   // GetAssistantConversations returns all conversations for the connected user.
   rpc GetAssistantConversations(GetAssistantConversationsRequest) returns (GetAssistantConversationsResponse);
+
+  // DeleteAssistantConversation deletes the conversation and all messages associated with it.
+  rpc DeleteAssistantConversation(DeleteAssistantConversationRequest) returns (google.protobuf.Empty);
 
   // GetAssistantMessages returns all messages associated with the given conversation ID.
   rpc GetAssistantMessages(GetAssistantMessagesRequest) returns (GetAssistantMessagesResponse);
