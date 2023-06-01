@@ -312,10 +312,10 @@ earlier.
 See [Authenticating as a service account](https://cloud.google.com/docs/authentication/production)
 in the Google Cloud documentation for more details.
 
-If you are using `systemd` to start `teleport`, then you should edit `teleport.service`
-(`/etc/systemd/system/teleport.service`) and add the following into the `[Service]` section:
-```
-Environment=GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+If you are using `systemd` to start `teleport`, then you should edit the service's `EnvironmentFile`
+to include the following env var:
+```code
+$ echo 'GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json' | sudo tee -a /etc/default/teleport
 ```
 
 ## Step 7/7. Connect
