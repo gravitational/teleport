@@ -42,3 +42,9 @@ func solveTPMEnrollChallenge(
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }
+
+func solveTPMAuthnDeviceChallenge(
+	_ *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}

@@ -37,6 +37,8 @@ import cfg from 'teleport/config';
 
 import { ApiError } from 'teleport/services/api/parseError';
 
+import { EventType } from 'teleport/lib/term/enums';
+
 import {
   Author,
   ExecuteRemoteCommandContent,
@@ -83,6 +85,12 @@ interface PartialMessagePayload {
   content: string;
   idx: number;
 }
+
+interface ExecEvent {
+  event: EventType.EXEC;
+  exitError?: string;
+}
+type SessionEvent = ExecEvent | { event: string };
 
 const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   let query = '';
@@ -161,6 +169,10 @@ export const remoteCommandToMessage = async (
   }
 };
 
+function isExecEvent(e: SessionEvent): e is ExecEvent {
+  return e.event == EventType.EXEC;
+}
+
 async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
@@ -221,16 +233,29 @@ async function convertServerMessage(
       sid: payload.session_id,
     });
 
-    // The offset here is set base on A/B test that was run between me, myself and I.
-    const resp = await api.fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
-      Accept: 'text/plain',
-      'Content-Type': 'text/plain; charset=utf-8',
-    });
+    const eventsResp = await api.fetch(sessionUrl + '/events');
+    const sessionExists = eventsResp.status === 200;
+    const eventsData = (await eventsResp.json()) as {
+      events: SessionEvent[];
+    };
+    const execEvent = eventsData.events.find(isExecEvent);
 
     let msg;
     let errorMsg;
-    if (resp.status === 200) {
-      msg = await resp.text();
+    if (sessionExists) {
+      // The offset here is set base on A/B test that was run between me, myself and I.
+      const stream = await api.fetch(
+        sessionUrl + '/stream?offset=0&bytes=4096',
+        {
+          Accept: 'text/plain',
+          'Content-Type': 'text/plain; charset=utf-8',
+        }
+      );
+      if (stream.status === 200) {
+        msg = await stream.text();
+      } else {
+        msg = execEvent?.exitError || ''; // empty output handled in <Output>
+      }
     } else {
       errorMsg = 'No session recording. The command execution failed.';
     }

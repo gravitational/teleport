@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // PluginData is a data associated with access request that we store in Teleport using UpdatePluginData API.
@@ -49,9 +51,6 @@ const ResolvedDenied = ResolutionTag("denied")
 // ResolvedExpired is added to alerts that are expired.
 const ResolvedExpired = ResolutionTag("expired")
 
-// ReqAnnotationRespondersKey is the key in access requests where on-call shedule names are stored.
-const ReqAnnotationRespondersKey = "teleport.dev/opsgenie-responder"
-
 // RequestData stores a slice of some request fields in a convenient format.
 type RequestData struct {
 	User               string
@@ -60,7 +59,7 @@ type RequestData struct {
 	RequestReason      string
 	ReviewsCount       int
 	Resolution         Resolution
-	RequestAnnotations map[string][]string
+	ResolveAnnotations types.Labels
 }
 
 // OpsgenieData stores the notification alert info.
