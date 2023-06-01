@@ -7140,7 +7140,7 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 	return ws, &sessResp.Session, nil
 }
 
-func waitForOutput(stream *TerminalStream, substr string) error {
+func waitForOutput(r io.Reader, substr string) error {
 	timeoutCh := time.After(10 * time.Second)
 
 	size := len(substr) * 2
@@ -7152,7 +7152,7 @@ func waitForOutput(stream *TerminalStream, substr string) error {
 		}
 
 		out := make([]byte, size)
-		n, err := stream.Read(out)
+		n, err := r.Read(out)
 
 		// check for the string before checking the error,
 		// as it's valid for n > 0 even when there is an error
