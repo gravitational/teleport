@@ -239,6 +239,22 @@ spec:
   allow_unverified_email: true
 ```
 
+### Optional: Specify a claim to use as the username
+
+By default, Teleport will use the user's email as their Teleport username.
+
+You can define a `username_claim` to specify the claim that should be used as the username instead.
+
+```yaml
+kind: oidc
+version: v2
+metadata:
+  name: connector
+spec:
+  # Use the `preferred_username` claim as the user's Teleport username.
+  username_claim: preferred_username
+```
+
 ## Testing
 
 For the Web UI, if the above configuration were real, you would see a button
