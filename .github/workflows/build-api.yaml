@@ -35,9 +35,9 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          cache: false
           # use the version declared in API's go.mod
           go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
 
       - name: Init workspace
         run: go work init . ./api/
