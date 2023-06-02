@@ -416,7 +416,7 @@ export function MessagesContextProvider(
 
     // refresh the websocket connection every 10 minutes to avoid
     // session timeouts
-    const id = window.setInterval(setupWebSocket, TEN_MINUTES);
+    const id = window.setInterval(setupWebSocket, TEN_MINUTES * 0.8);
 
     return () => {
       window.clearInterval(id);
