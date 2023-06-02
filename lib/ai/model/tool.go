@@ -65,5 +65,19 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 		return nil, err
 	}
 
+	if output.Command == "" {
+		return nil, &invalidOutputError{
+			coarse: "command execution: missing command",
+			detail: "command must be non-empty",
+		}
+	}
+
+	if len(output.Nodes) == 0 && len(output.Labels) == 0 {
+		return nil, &invalidOutputError{
+			coarse: "command execution: missing nodes or labels",
+			detail: "at least one node or label must be specified",
+		}
+	}
+
 	return &output, nil
 }
