@@ -135,6 +135,7 @@ func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) er
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
+	log.Infof("Username: %s, identity: %s", username, a.context.User.GetName())
 	if hasLocalUserRole(a.context) && username == a.context.User.GetName() {
 		return nil
 	}
@@ -4431,7 +4432,7 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	if session.GetSubKind() != types.KindSAMLIdPSession {
 		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
 	}
-	// Users can only fetch their own web sessions.
+	// Users can only fetch their own web sessions or the proxy can fetch all web sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
 		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -4481,6 +4482,7 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
 func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	// Check if this a proxy service.
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -4521,8 +4523,11 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 
 // CreateSAMLIdPSession creates a SAML IdP session.
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := a.currentUserAction(req.Username); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a proxy service.
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
