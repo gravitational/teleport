@@ -589,25 +589,35 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+// GetProfile gets the profile for the specified proxy address, or
+// the current profile if no proxy is specified.
+func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
 		proxyHost, err = ps.CurrentProfile()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		proxyHost, err = utils.Host(proxyAddr)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	profile, err := ps.GetProfile(proxyHost)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profile, nil
+}
+
+// LoadProfile populates Config with the values stored in the given
+// profiles directory. If profileDir is an empty string, the default profile
+// directory ~/.tsh is used.
+func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+	profile, err := c.GetProfile(ps, proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -964,7 +974,7 @@ type TeleportClient struct {
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
+	// Defaults to [dtauthn.NewCeremony().Run].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
 
 	// dtAutoEnroll allows tests to override the default device auto-enroll
@@ -3402,7 +3412,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.RunCeremony
+		runCeremony = dtauthn.NewCeremony().Run
 	}
 
 	// Login without a previous auto-enroll attempt.

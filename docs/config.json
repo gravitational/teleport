@@ -2775,6 +2775,11 @@
       "source": "/adopters/",
       "destination": "/",
       "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
     }
   ]
 }

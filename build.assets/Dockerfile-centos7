@@ -35,7 +35,7 @@ RUN wget https://github.com/git/git/archive/refs/tags/v2.39.1.tar.gz && \
 
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 ## LIBFIDO2 ###################################################################
 
