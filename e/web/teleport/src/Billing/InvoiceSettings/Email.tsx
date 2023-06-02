@@ -41,9 +41,9 @@ export const Email = ({ email, reload }: EmailProps) => {
   return (
     <Box
       bg={theme.colors.levels.surface}
-      borderRadius="12px"
+      borderRadius="8px"
       m="20px 0 0 0"
-      p="20px 0 20px 40px"
+      p="20px 24px 20px 40px"
     >
       <h2>Invoice Email Recipient</h2>
       <Text>

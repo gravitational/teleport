@@ -45,6 +45,9 @@ describe('cycle', () => {
       'href',
       'https://goteleport.com/teleport-pricing/'
     );
+    expect(
+      screen.getByRole('link', { name: /Contact Sales/i })
+    ).toBeInTheDocument();
   });
 
   test('renders usage', () => {

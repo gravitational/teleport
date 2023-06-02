@@ -5,8 +5,6 @@ import Dialog, {
   DialogTitle,
 } from 'design/Dialog';
 
-import * as Icons from 'design/Icon';
-
 import { ButtonPrimary, ButtonSecondary } from 'design';
 import React, { useState } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
@@ -48,11 +46,13 @@ export const PaymentDeleteDialog = ({
           Are you sure you want to delete this payment method?
         </DialogTitle>
       </DialogHeader>
-      <DialogContent width="400px">
-        <Icons.Info />
+      <DialogContent>
         <p>
-          You are about to delete {brand} {last4} from your account. Once
-          removed, it will be unavailable for use.
+          You are about to delete{' '}
+          <b>
+            {brand.charAt(0).toUpperCase() + brand.slice(1)} *{last4}
+          </b>{' '}
+          from your account. Once removed, it will be unavailable for use.
         </p>
       </DialogContent>
       {networkState.error != undefined && (

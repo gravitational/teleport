@@ -15,7 +15,7 @@ export const SummaryLoader = (): React.ReactElement => {
   return (
     <FeatureBox mr="10">
       <FeatureHeader alignItems="center">
-        <FeatureHeaderTitle mr="8">Billing</FeatureHeaderTitle>
+        <FeatureHeaderTitle mr="8">Billing Summary</FeatureHeaderTitle>
       </FeatureHeader>
 
       <StripeLoader

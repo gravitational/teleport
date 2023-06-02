@@ -40,11 +40,17 @@ describe('paymentDeleteDialog', () => {
     expect(
       screen.getByText(/Are you sure you want to delete this payment method?/i)
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /You are about to delete VISA 9999 from your account. Once removed, it will be unavailable for use./i
-      )
-    ).toBeInTheDocument();
+
+    screen.getByText((content, node) => {
+      const hasText = node =>
+        node.textContent ===
+        'You are about to delete VISA *9999 from your account. Once removed, it will be unavailable for use.';
+      const nodeHasText = hasText(node);
+      const childrenDontHaveText = Array.from(node.children).every(
+        child => !hasText(child)
+      );
+      return nodeHasText && childrenDontHaveText;
+    });
     expect(
       screen.getByRole('button', { name: 'Delete Card' })
     ).toBeInTheDocument();

@@ -6,6 +6,10 @@ import { displayUnixShortDate } from 'shared/services/loc/loc';
 
 import Link from 'design/Link';
 
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
+import { CtaEvent } from 'teleport/services/userEvent';
+
 import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
 
 // todo (michellescripts) pull usage max/included values from the subscription as part of https://github.com/gravitational/cloud/issues/3536
@@ -78,7 +82,7 @@ export const Cycle = ({
   return (
     <Box
       bg={theme.colors.levels.surface}
-      borderRadius="12px"
+      borderRadius="8px"
       m="20px 0 0 0"
       p="20px 0 20px 40px"
     >
@@ -111,7 +115,7 @@ export const Cycle = ({
           </Box>
         ))}
       </Flex>
-      <Text color={theme.colors.text.secondary} mt="12px">
+      <Text color={theme.colors.text.slightlyMuted} mt="12px">
         <i>
           Your team plan includes a limited amount of free usage. <br />
           If your team exceeds the limit for a given category, your team will be
@@ -125,6 +129,25 @@ export const Cycle = ({
           </Link>
         </i>
       </Text>
+      <hr
+        style={{
+          margin: '16px auto 16px -40px',
+          border: `1px solid ${theme.colors.spotBackground[0]}`,
+        }}
+      />
+      <Flex justifyContent="right" alignItems="center">
+        <Text mr={3} typography="paragraph">
+          Do you have custom needs?
+        </Text>
+        <ButtonLockedFeature
+          width="196px"
+          noIcon
+          event={CtaEvent.CTA_UNSPECIFIED}
+          mr={5}
+        >
+          Contact Sales
+        </ButtonLockedFeature>
+      </Flex>
     </Box>
   );
 };

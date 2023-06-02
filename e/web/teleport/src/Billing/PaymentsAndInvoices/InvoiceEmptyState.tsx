@@ -9,7 +9,7 @@ export const InvoiceEmptyState = (): React.ReactElement => {
   return (
     <Box
       bg={theme.colors.levels.surface}
-      borderRadius="12px"
+      borderRadius="8px"
       m="20px 0"
       p="20px 0 20px 40px"
       textAlign="center"

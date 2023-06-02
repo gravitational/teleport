@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { Box, ButtonSecondary, Flex, Text } from 'design';
 
@@ -6,6 +6,8 @@ import { useTheme } from 'styled-components';
 import * as Icons from 'design/Icon';
 
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
+
+import Label from 'design/Label';
 
 import { CardsListProps } from 'e-teleport/Billing/types';
 import { StripeCard } from 'e-teleport/services/cloud';
@@ -27,6 +29,26 @@ export const CardList = ({
   const [openDelete, setOpenDelete] = useState<boolean>(false);
   const [selectedCard, setSelectedCard] = useState<StripeCard>(null);
   const [networkState, setNetworkState] = useState<NetworkState>({});
+
+  /**
+   * Returns cards with the default card in the zero index
+   */
+  const sortedCards = useMemo(() => {
+    if (!defaultSourceID || !cards || cards.length == 0) {
+      return cards;
+    }
+
+    const index = cards.findIndex(card => card.id == defaultSourceID);
+    if (index === -1) {
+      return cards;
+    }
+
+    const defaultCard = cards[index];
+    cards.splice(index, 1);
+    cards.unshift(defaultCard);
+
+    return cards;
+  }, [defaultSourceID, cards]);
 
   // reload refreshes the PaymentsAndInvoices state without reloading stripe via StripeLoader.reload
   const reload = (): void => {
@@ -86,13 +108,17 @@ export const CardList = ({
         key={card.id}
         width="300px"
         bg={theme.colors.levels.surface}
-        borderRadius="12px"
+        borderRadius="4px"
         m="20px 0 0 0"
         p="20px 20px 20px 40px"
       >
         <Flex justifyContent="space-between">
           {getIcon(card.brand)}
-          {defaultCard && <Icons.Check fontSize="20px" color="green" />}
+          {defaultCard && (
+            <Label kind="success" data-testid="default-card">
+              default
+            </Label>
+          )}
         </Flex>
         <Text>{card.name ? card.name : <br />}</Text>
         <Text>**** **** **** {card.last4}</Text>
@@ -110,7 +136,7 @@ export const CardList = ({
           </ButtonSecondary>
           <ButtonSecondary
             disabled={
-              cards.length === 1 ||
+              sortedCards.length === 1 ||
               defaultCard ||
               networkState.status == 'loading'
             }
@@ -133,12 +159,12 @@ export const CardList = ({
         At most, three credit cards can be added.
       </Text>
       <Flex gap="8px">
-        {cards.map(c => getCardBox(c))}
-        {cards.length < 3 && (
+        {sortedCards.map(c => getCardBox(c))}
+        {sortedCards.length < 3 && (
           <Box
             key="add-payment"
             width="300px"
-            borderRadius="12px"
+            borderRadius="4px"
             m="20px 0 0 0"
             p="auto"
           >

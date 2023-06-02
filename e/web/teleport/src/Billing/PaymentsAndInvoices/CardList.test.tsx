@@ -146,6 +146,7 @@ describe('cardList', () => {
       props.defaultSourceID = defaultCard.id;
       renderWithElementsAndContext(<CardList {...props} />);
 
+      expect(screen.getByTestId('default-card')).toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: /Make Default/i })
       ).toBeDisabled();

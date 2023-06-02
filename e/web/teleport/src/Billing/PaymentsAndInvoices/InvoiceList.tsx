@@ -1,8 +1,9 @@
 import React from 'react';
-import { Box, ButtonBorder, Link } from 'design';
+import { Box, ButtonSecondary, Link } from 'design';
 import Table, { Cell } from 'design/DataTable';
 
 import { displayUnixShortDate } from 'shared/services/loc/loc';
+import Label, { Danger, Secondary, Warning } from 'design/Label';
 
 import { InvoiceListProps } from 'e-teleport/Billing/types';
 
@@ -12,10 +13,34 @@ export const InvoiceList = ({ invoices, productName }: InvoiceListProps) => {
     return (
       <Cell>
         <Link href={invoiceURL} target="__blank" color="text.primary">
-          <ButtonBorder>Download</ButtonBorder>
+          <ButtonSecondary>Download</ButtonSecondary>
         </Link>
       </Cell>
     );
+  };
+
+  const renderLabelCell = (text: string): React.ReactElement => {
+    const lower = text.toLowerCase();
+    let child;
+
+    switch (lower) {
+      case 'paid':
+        child = <Label kind="success">{lower}</Label>;
+        break;
+      case 'uncollectible':
+        child = <Danger>{lower}</Danger>;
+        break;
+      case 'open':
+        child = <Warning>{lower}</Warning>;
+        break;
+      case 'draft':
+      case 'void':
+      default:
+        child = <Secondary>{lower}</Secondary>;
+        break;
+    }
+
+    return <Cell style={{ width: '40px' }}>{child}</Cell>;
   };
 
   return (
@@ -46,6 +71,7 @@ export const InvoiceList = ({ invoices, productName }: InvoiceListProps) => {
             {
               key: 'usageMau',
               headerText: 'Active Users',
+              render: ({ usageMau }) => <Cell>{usageMau}</Cell>,
             },
             {
               key: 'amountDue',
@@ -55,6 +81,7 @@ export const InvoiceList = ({ invoices, productName }: InvoiceListProps) => {
             {
               key: 'status',
               headerText: 'Status',
+              render: ({ status }) => renderLabelCell(status),
             },
             {
               key: 'invoicePdf',
