@@ -29,50 +29,7 @@ Requests in the Proxy or Auth Service.
 
 ## Step 2/8. Install the Teleport Mattermost plugin
 
-<ScopedBlock scope={["enterprise", "oss"]}>
-
-We recommend installing Teleport plugins on the same host as the Teleport Proxy
-Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access.
-
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
-
-Install the Teleport Mattermost plugin on a host that can access both your
-Teleport Proxy Service and your Mattermost deployment.
-
-</ScopedBlock>
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-mattermost-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-mattermost
-  $ ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` installed. If you do not have Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/mattermost
-  $ make
-  ```
-Run `./install` from `teleport-mattermost` or place the executable in the appropriate `/usr/bin` or `/usr/local/bin` on the server installation.
-</TabItem>
-<TabItem label="Docker">
-  ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-mattermost:(=teleport.plugin.version=)
-  ```
-</TabItem>
-<TabItem label="Helm Chart">
-(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/install-access-plugin.mdx plugin="mattermost"!)
 
 ## Step 3/8. Create a user and role for the plugin
 

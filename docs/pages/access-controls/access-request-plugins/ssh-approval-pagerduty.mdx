@@ -373,45 +373,7 @@ Teleport cluster.
 
 ## Step 3/8. Install the Teleport PagerDuty plugin
 
-We currently only provide `linux-amd64` binaries. You can also compile these
-plugins from source. You can run the plugin from a remote host or your local
-development machine.
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-pagerduty-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-pagerduty
-  $ sudo ./install
-  Teleport PagerDuty Plugin binaries have been copied to /usr/local/bin
-  You can run teleport-pagerduty configure > /etc/teleport-pagerduty.toml to
-  bootstrap your config file.
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` installed. If you do not have
-  Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/pagerduty
-  $ make
-  ```
-
-Run `./install` from `teleport-pagerduty`.
-
-</TabItem>
-<TabItem label="Docker">
-  ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-pagerduty:(=teleport.plugin.version=)
-  ```
-</TabItem>
-<TabItem label="Helm Chart">
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/install-access-plugin.mdx plugin="pagerduty"!)
 
 ## Step 4/8. Export the access plugin identity
 

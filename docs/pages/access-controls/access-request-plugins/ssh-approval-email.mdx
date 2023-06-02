@@ -64,41 +64,7 @@ the plugin dials out to the Proxy Service or Auth Service.
 
 </Details>
 
-We currently only provide Linux amd64 binaries. You can also compile the plugin
-from source.
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L https://get.gravitational.com/teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-email
-  $ ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-
-  To install from source you need `git` and `go` installed. If you do not have
-  Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/email
-  $ make
-  ```
-
-  Move the `teleport-email` binary from `teleport-plugins/access/email/build`
-  into a directory in your `PATH`.
-
-</TabItem>
-</Tabs>
-
-Ensure that the plugin is installed correctly:
-
-```code
-$ teleport-email version
-```
+(!docs/pages/includes/plugins/install-access-plugin.mdx plugin="email"!)
 
 ## Step 3/7. Create a user and role for the plugin
 

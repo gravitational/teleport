@@ -1,0 +1,58 @@
+We currently only provide `linux-amd64` binaries. You can also compile these
+plugins from source. You can run the plugin from a remote host or your local
+development machine.
+
+<Notice scope={["enterprise"]} type="tip">
+We recommend installing Teleport plugins on the same host as the Teleport
+Proxy Service. This is an ideal location as plugins have a low memory footprint
+and will require access to both the public internet and the Teleport Auth Service.
+</Notice>
+
+<Tabs>
+<TabItem label="Download">
+  ```code
+  $ curl -L -O https://get.gravitational.com/teleport-access-{{ plugin }}-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ tar -xzf teleport-access-{{ plugin }}-v(=teleport.version=)-linux-amd64-bin.tar.gz
+  $ sudo ./teleport-access-{{ plugin }}/install
+  ```
+
+  Make sure the binary is installed:
+
+  ```code
+  $ teleport-{{ plugin }} version
+  teleport-{{ plugin }} v(=teleport.plugin.version=) git:teleport-{{ plugin }}-v(=teleport.plugin.version=)-fffffffff go(=teleport.golang=)
+  ```
+</TabItem>
+<TabItem label="From Source">
+  To install from source you need `git` and `go` >= (=teleport.golang=)
+  installed.
+
+  ```code
+  # Check out the teleport-plugins repository
+  $ git clone https://github.com/gravitational/teleport-plugins.git
+  $ cd teleport-plugins/access/{{ plugin }}
+  $ make
+  ```
+
+  Place the `teleport-{{ plugin }}` binary into an appropriate location
+  within the system's `PATH`, e.g., `/usr/local/bin`:
+
+  ```code
+  $ mv ./build/teleport-{{ plugin }} /usr/local/bin
+  ```
+
+  Make sure the binary is installed:
+
+  ```code
+  $ teleport-{{ plugin }} version
+  teleport-{{ plugin }} v(=teleport.plugin.version=) git:teleport-{{ plugin }}-v(=teleport.plugin.version=)-fffffffff go(=teleport.golang=)
+  ```
+
+</TabItem>
+<TabItem label="Helm Chart">
+  ```code
+  $ helm repo add teleport https://charts.releases.teleport.dev/
+  $ helm repo update
+  ```
+</TabItem>
+</Tabs>
