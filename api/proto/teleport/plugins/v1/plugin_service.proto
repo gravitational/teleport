@@ -43,6 +43,9 @@ message CreatePluginRequest {
   // In the scope of processing this request, these are exchanged for
   // short-lived renewable credentials, which are stored in the Plugin.
   types.PluginBootstrapCredentialsV1 bootstrap_credentials = 2;
+  // Static credentials are optional static credentials
+  // to supply to the plugin.
+  types.PluginStaticCredentialsV1 static_credentials = 3;
 }
 
 // GetPluginRequest is a request to return a plugin instance by name.

@@ -93,6 +93,8 @@ type User interface {
 	SetDatabaseUsers(databaseUsers []string)
 	// SetDatabaseNames sets a list of Database Names for user
 	SetDatabaseNames(databaseNames []string)
+	// SetDatabaseRoles sets a list of Database roles for user
+	SetDatabaseRoles(databaseRoles []string)
 	// SetKubeUsers sets a list of Kubernetes Users for user
 	SetKubeUsers(kubeUsers []string)
 	// SetKubeGroups sets a list of Kubernetes Groups for user
@@ -287,6 +289,11 @@ func (u *UserV2) SetDatabaseUsers(databaseUsers []string) {
 // SetDatabaseNames sets the DatabaseNames trait for the user
 func (u *UserV2) SetDatabaseNames(databaseNames []string) {
 	u.setTrait(constants.TraitDBNames, databaseNames)
+}
+
+// SetDatabaseRoles sets the DatabaseRoles trait for the user
+func (u *UserV2) SetDatabaseRoles(databaseRoles []string) {
+	u.setTrait(constants.TraitDBRoles, databaseRoles)
 }
 
 // SetKubeUsers sets the KubeUsers trait for the user
