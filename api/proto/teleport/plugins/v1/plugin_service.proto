@@ -113,14 +113,14 @@ message GetAvailablePluginTypesResponse {
   repeated PluginType plugin_types = 1;
 }
 
-// GetPluginStaticCredentialsRequest is the request type for GetPluginStaticCredentials
-message GetPluginStaticCredentialsRequest {
+// SearchPluginStaticCredentialsRequest is the request type for SearchPluginStaticCredentials
+message SearchPluginStaticCredentialsRequest {
   // Labels are matched against static credentials objects and returned.
   map<string, string> labels = 1;
 }
 
-// GetPluginStaticCredentialsResponse is the response type for GetPluginStaticCredentials
-message GetPluginStaticCredentialsResponse {
+// SearchPluginStaticCredentialsResponse is the response type for SearchPluginStaticCredentials
+message SearchPluginStaticCredentialsResponse {
   // Credentials are the list of credentials matching the requested labels.
   repeated types.PluginStaticCredentialsV1 credentials = 1;
 }
@@ -149,7 +149,7 @@ service PluginService {
   // that the auth server supports onboarding.
   rpc GetAvailablePluginTypes(GetAvailablePluginTypesRequest) returns (GetAvailablePluginTypesResponse);
 
-  // GetPluginStaticCredentials returns static credentials that are requested. Only accessible by RoleAdmin and,
+  // SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
   // in the case of Teleport Assist, RoleProxy.
-  rpc GetPluginStaticCredentials(GetPluginStaticCredentialsRequest) returns (GetPluginStaticCredentialsResponse);
+  rpc SearchPluginStaticCredentials(SearchPluginStaticCredentialsRequest) returns (SearchPluginStaticCredentialsResponse);
 }
