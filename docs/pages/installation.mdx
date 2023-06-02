@@ -93,10 +93,10 @@ Public](https://gallery.ecr.aws/gravitational).
 For each of the image names listed in this section, you can specify attributes
 of the image by appending a suffix to the repository name or tag.
 
-Images with the `*-distroless` suffix within the repository name include only
-the `teleport` binary and its runtime dependencies, with no shell or utility
-applications. An example is `public.ecr.aws/gravitational/teleport-distroless` for Teleport
-Community Edition.
+Images with the `-distroless` suffix within the repository name include only the
+`teleport` binary and its runtime dependencies, with no shell or utility
+applications. An example is `public.ecr.aws/gravitational/teleport-distroless`
+for Teleport Community Edition.
 
 Images with the `*-distroless-debug` suffix within the repository name include a
 Busybox shell and tool suite in addition to Teleport, and are intended for
@@ -107,50 +107,26 @@ You can specify the architecture of an image by appending a suffix to its tag.
 We support the following architecture suffixes: `amd64`, `arm`, and `arm64`. For
 example, if you want to pull the ARM64 image for
 `public.ecr.aws/gravitational/teleport`, you can use
-`public.ecr.aws/gravitational/teleport:(=teleport.version=)-arm64`. Architecture
-suffixes are not available for `*-distroless` or `*-distroless-debug` images.
+`public.ecr.aws/gravitational/teleport:(=teleport.version=)-arm64`. 
 
-#### Nightly image builds
+`*-distroless` and `*-distroless-debug` images support multiple architectures
+natively, and do not require (or support) image suffixes. You can specify an
+architecture using the `--platform` flag of `docker pull` to pull the `arm`,
+`arm64` or `amd64` version of an image.
 
-Nightly images point to the latest version of Teleport. They are stable, and we
-recommend their use to keep your Teleport installation up to date.
+#### Version tags
+
+Images point to a static version of Teleport. Use the image's tag to specify
+either:
+
+- The major, minor, and patch version (e.g., `(=teleport.version=)` for the
+  latest version of Teleport Community Edition).
+- The major version only, which implies the latest minor and patch numbers for
+  that major version. For example, `(=teleport.major_version=)` implies
+  `(=teleport.version=)`.
 
 <Tabs>
 <TabItem label="Open Source" scope={["cloud", "enterprise"]}>
-
-|Image name|Troubleshooting Tools?|Image base|
-|-|-|-|
-|`public.ecr.aws/gravitational/teleport-distroless:(=teleport.major_version=)`|No|[Distroless Debian 11](https://github.com/GoogleContainerTools/distroless)|
-|`public.ecr.aws/gravitational/teleport-distroless-debug:(=teleport.major_version=)`|Yes|[Distroless Debian 11](https://github.com/GoogleContainerTools/distroless)|
-
-</TabItem>
-<TabItem label="Enterprise" scope={["cloud", "enterprise"]}>
-
-| Image name | Teleport version | Includes troubleshooting tools | Image base |
-| - | - | - | - |
-| `public.ecr.aws/gravitational/teleport-ent-distroless:(=teleport.major_version=)` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
-| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=teleport.major_version=)` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
-
-We also provide the following image for nightly FIPS builds of Teleport
-Enterprise:
-
-| Image name | Includes troubleshooting tools | Image base |
-| - | - | - |
-| `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)-fips` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
-
-</TabItem>
-</Tabs>
-
-#### Static version builds
-
-These images point to a static version of Teleport. Use the image's tag to
-specify the major, minor, and patch version. For example, you can pull an image
-of Teleport Community Edition version `(=teleport.version=)` by using the
-following image name: `(=teleport.latest_oss_docker_image=)`.
-
-
-<Tabs>
-<TabItem scope={["oss"]} label="Open Source">
 
 |Image name|Troubleshooting Tools?|Image base|
 |-|-|-|
@@ -166,18 +142,18 @@ repository](https://gallery.ecr.aws/gravitational/teleport-ent).  Their use is
 considered deprecated, and they may be removed in future releases.
 
 </TabItem>
-<TabItem scope={["enterprise", "cloud"]} label="Commercial">
+<TabItem label="Enterprise" scope={["cloud", "enterprise"]}>
 
-| Image name | Includes troubleshooting tools | Image base |
-|-|-|-|
+| Image name | Teleport version | Includes troubleshooting tools | Image base |
+| - | - | - | - |
 | `(=teleport.latest_ent_docker_image=)` | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 | `(=teleport.latest_ent_debug_docker_image=)` | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
 
-For FIPS builds of Teleport Enterprise with a specific version, you can use the
-following container image:
+We also provide the following images for FIPS builds of Teleport Enterprise:
 
-|Image name|Troubleshooting Tools?|Image base|
-|-|-|-|
+| Image name | Includes troubleshooting tools | Image base |
+| - | - | - |
+| `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)-fips` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 | `(=teleport.latest_ent_docker_image=)-fips` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of
