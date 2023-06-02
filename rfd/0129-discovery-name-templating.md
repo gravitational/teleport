@@ -183,6 +183,36 @@ discovery_service:
 Likewise, use `resource_name_template` in matchers for `DiscoveryConfig`
 from RFD 125 using `tctl`.
 
+#### `teleport` and `tctl` template errors
+
+Print a user-friendly message that lists supported template variables
+when a user tries to use an unsupported template variable:
+
+config file:
+```yaml
+discovery_service:
+  enabled: true
+  aws:
+    - types: ["ec2", "rds"]
+      regions: ["us-west-1"]
+      resource_name_template: "{{.Thing}}-{{.Region}}-{{.AWS.AccountID}}"
+      tags:
+        "*": "*"
+```
+
+usage:
+```shell
+$ teleport start
+ERROR: failed to parse Teleport configuration: discovery service AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
+.Name
+.Region
+.AWS
+  .AccountID
+  ...
+```
+
+And a similar message specific to the matcher type: AWS/Azure/GCP.
+
 ### Proto Specification
 
 When RFD 125 is implemented, we will need to update the proto messages for
