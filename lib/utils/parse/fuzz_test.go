@@ -25,7 +25,7 @@ import (
 func FuzzNewExpression(f *testing.F) {
 	f.Fuzz(func(t *testing.T, variable string) {
 		require.NotPanics(t, func() {
-			NewExpression(variable)
+			NewTraitsTemplateExpression(variable)
 		})
 	})
 }

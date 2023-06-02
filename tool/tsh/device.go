@@ -68,7 +68,7 @@ type deviceEnrollCommand struct {
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
-	teleportClient, err := makeClient(cf, true /* useProfileLogin */)
+	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

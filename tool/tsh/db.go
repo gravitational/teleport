@@ -57,7 +57,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(listDatabasesAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -249,7 +249,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 
 // onDatabaseLogin implements "tsh db login" command.
 func onDatabaseLogin(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +346,7 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 
 // onDatabaseLogout implements "tsh db logout" command.
 func onDatabaseLogout(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -411,7 +411,7 @@ func databaseLogout(tc *client.TeleportClient, db tlsca.RouteToDatabase, virtual
 
 // onDatabaseEnv implements "tsh db env" command.
 func onDatabaseEnv(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -466,7 +466,7 @@ func serializeDatabaseEnvironment(env map[string]string, format string) (string,
 
 // onDatabaseConfig implements "tsh db config" command.
 func onDatabaseConfig(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -729,7 +729,7 @@ func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, 
 
 // onDatabaseConnect implements "tsh db connect" command.
 func onDatabaseConnect(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

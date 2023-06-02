@@ -23,7 +23,6 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -317,7 +316,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
 			}
-			tc, err := makeClient(cf, false)
+			tc, err := makeClient(cf)
 			require.NoError(t, err)
 			if tt.setupTC != nil {
 				tt.setupTC(tc)
@@ -372,10 +371,7 @@ func TestListDatabase(t *testing.T) {
 		"ls",
 		"--insecure",
 		"--debug",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
-		return nil
-	})
+	}, setCopyStdout(captureStdout))
 	require.NoError(t, err)
 	require.Contains(t, captureStdout.String(), "root-postgres")
 
@@ -387,10 +383,7 @@ func TestListDatabase(t *testing.T) {
 		"leaf1",
 		"--insecure",
 		"--debug",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
-		return nil
-	})
+	}, setCopyStdout(captureStdout))
 	require.NoError(t, err)
 	require.Contains(t, captureStdout.String(), "leaf-postgres")
 }

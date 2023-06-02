@@ -57,4 +57,4 @@ lint:
       - teleport/auditlog/v1/auditlog.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

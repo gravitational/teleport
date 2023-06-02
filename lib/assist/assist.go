@@ -21,9 +21,7 @@ package assist
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -422,13 +420,6 @@ func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.Clien
 	creds := openaiPlugin.Credentials.GetBearerToken()
 	if creds == nil {
 		return "", trace.BadParameter("malformed credentials")
-	}
-	if creds.TokenFile != "" {
-		tokenBytes, err := os.ReadFile(creds.TokenFile)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return strings.TrimSpace(string(tokenBytes)), nil
 	}
 
 	return creds.Token, nil
