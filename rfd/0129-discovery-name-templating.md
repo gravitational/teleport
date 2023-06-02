@@ -269,7 +269,7 @@ usage error:
 
 ```shell
 $ tctl create ~/discovery_config.yaml 
-ERROR: failed to parse Teleport configuration: discovery service AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
+ERROR: DiscoveryConfig "example" AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
 .Name
 .Region
 .AWS
