@@ -15,7 +15,9 @@ ARG GOGO_PROTO_TAG
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # protoc-gen-js and protoc-gen-ts
+# eg, "1.12.4"
 ARG NODE_GRPC_TOOLS_VERSION
+# eg, "5.0.1"
 ARG NODE_PROTOC_TS_VERSION
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
