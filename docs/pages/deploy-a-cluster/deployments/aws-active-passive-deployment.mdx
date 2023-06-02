@@ -26,7 +26,8 @@ is the control point to switch between the active and passive clusters during th
     state and audit logs are maintained in both regions.
   - Enable cross-region replication on the S3 bucket to ensure objects are replicated between both the active and 
     passive regions.
-- configure the Teleport cluster Route53 records to use the [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
+- configure the Teleport cluster Route53 records to use the [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive).
+
   with the active cluster end point as Primary Record and Passive cluster endpoint as the secondary record.
   - Using health checks to determine Teleport cluster availability, Route53 will automatically send the traffic to the 
     passive cluster during the event of a regional outage and it will automatically routes the traffic back to the active 
