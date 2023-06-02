@@ -30,6 +30,9 @@ import (
 
 // AWSClientRequest contains the required fields to set up an AWS service client.
 type AWSClientRequest struct {
+	// IntegrationName is the integration name that is going to issue an API Call.
+	IntegrationName string
+
 	// Token is the token used to issue the API Call.
 	Token string
 
@@ -45,6 +48,10 @@ type AWSClientRequest struct {
 
 // CheckAndSetDefaults checks if the required fields are present.
 func (req *AWSClientRequest) CheckAndSetDefaults() error {
+	if req.IntegrationName == "" {
+		return trace.BadParameter("integration name is required")
+	}
+
 	if req.Token == "" {
 		return trace.BadParameter("token is required")
 	}
@@ -62,6 +69,10 @@ func (req *AWSClientRequest) CheckAndSetDefaults() error {
 
 // newAWSConfig creates a new [aws.Config] using the [AWSClientRequest] fields.
 func newAWSConfig(ctx context.Context, req *AWSClientRequest) (*aws.Config, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(req.Region))
 	if err != nil {
 		return nil, trace.Wrap(err)

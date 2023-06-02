@@ -27,10 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-func stringPtr(s string) *string {
-	return &s
-}
-
 func TestDeployDBServiceRequest(t *testing.T) {
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
@@ -42,13 +38,14 @@ func TestDeployDBServiceRequest(t *testing.T) {
 			Region:              "r",
 			SubnetIDs:           []string{"1"},
 			TaskRoleARN:         "arn",
-			DiscoveryGroupName:  stringPtr("discovery-group"),
+			DiscoveryGroupName:  stringPointer("discovery-group"),
 			ProxyServerHostPort: "host:1234",
 			TeleportVersion:     "13.0.3",
 			AgentMatcherLabels: types.Labels{
 				"env": utils.Strings{"prod"},
 				"app": utils.Strings{"xyz"},
 			},
+			IntegrationName: "teleportdev",
 		}
 	}
 
@@ -129,6 +126,15 @@ func TestDeployDBServiceRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
+			name: "missing integration name",
+			req: func() DeployDBServiceRequest {
+				r := baseReqFn()
+				r.IntegrationName = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
 			name:     "fill defaults",
 			req:      baseReqFn,
 			errCheck: require.NoError,
@@ -137,15 +143,21 @@ func TestDeployDBServiceRequest(t *testing.T) {
 				Region:              "r",
 				SubnetIDs:           []string{"1"},
 				TaskRoleARN:         "arn",
-				DiscoveryGroupName:  stringPtr("discovery-group"),
+				DiscoveryGroupName:  stringPointer("discovery-group"),
 				ProxyServerHostPort: "host:1234",
 				TeleportVersion:     "13.0.3",
-				ClusterName:         stringPtr("mycluster-teleport"),
-				ServiceName:         stringPtr("mycluster-teleport-database-service"),
-				TaskName:            stringPtr("mycluster-teleport-database-service"),
+				ClusterName:         stringPointer("mycluster-teleport"),
+				ServiceName:         stringPointer("mycluster-teleport-database-service"),
+				TaskName:            stringPointer("mycluster-teleport-database-service"),
 				AgentMatcherLabels: types.Labels{
 					"env": utils.Strings{"prod"},
 					"app": utils.Strings{"xyz"},
+				},
+				IntegrationName: "teleportdev",
+				ResourceCreationTags: awsTags{
+					"teleport.dev/origin":      "aws-oidc-integration",
+					"teleport.dev/cluster":     "mycluster-teleport",
+					"teleport.dev/integration": "teleportdev",
 				},
 			},
 		},

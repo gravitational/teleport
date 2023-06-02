@@ -19,12 +19,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1685108767988019802"
+                - "1685715958875260073"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 3ea9d8db-be37-4c85-9a39-d7515371e036
+                - 6c62e68f-1ed2-4d13-a840-9c6f6a50411f
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -39,55 +39,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1930
+        content_length: 1942
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685108767988019802</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685108767988019802</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685715958875260073</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685715958875260073</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-05-26T14:46:09Z</Expiration>
+                  <Expiration>2023-06-02T15:25:59Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>a0bc763c-3411-4b63-805e-888457a2ec15</RequestId>
+                <RequestId>ec40619d-2cd7-4456-81b6-6f74efe3e9ac</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1930"
+                - "1942"
             Content-Type:
                 - text/xml
             Date:
-                - Fri, 26 May 2023 13:46:08 GMT
+                - Fri, 02 Jun 2023 14:25:59 GMT
             X-Amzn-Requestid:
-                - a0bc763c-3411-4b63-805e-888457a2ec15
+                - ec40619d-2cd7-4456-81b6-6f74efe3e9ac
         status: 200 OK
         code: 200
-        duration: 1.25519046s
+        duration: 1.09617816s
     - id: 1
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 1821
+        content_length: 1936
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLWRpc2NvdmVyeS1kYnNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgdGVsZXBvcnQuaW50ZXJuYWwvZGlzY292ZXJ5LWdyb3VwLW5hbWU6IG15LWRpc2NvdmVyeS1ncm91cApkaXNjb3Zlcnlfc2VydmljZToKICAgIGVuYWJsZWQ6ICJ5ZXMiCiAgICBkaXNjb3ZlcnlfZ3JvdXA6IG15LWRpc2NvdmVyeS1ncm91cAo="],"entryPoint":["teleport"],"image":"public.ecr.aws/gravitational/teleport-distroless:11.0.3","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-lenix-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"lenix-teleport-database-service/lenix-teleport-database-service"}},"name":"ecs-discovery-dbservice"}],"cpu":"256","executionRoleArn":"MarcoEC2Role","family":"lenix-teleport-database-service","memory":"512","networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"taskRoleArn":"MarcoEC2Role"}'
+        body: '{"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLWRpc2NvdmVyeS1kYnNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgJyonOiAnKicKZGlzY292ZXJ5X3NlcnZpY2U6CiAgICBlbmFibGVkOiAieWVzIgogICAgZGlzY292ZXJ5X2dyb3VwOiBteS1kaXNjb3ZlcnktZ3JvdXAK"],"entryPoint":["teleport"],"image":"public.ecr.aws/gravitational/teleport-distroless:11.0.3","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-lenix-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"lenix-teleport-database-service/lenix-teleport-database-service"}},"name":"ecs-discovery-dbservice"}],"cpu":"256","executionRoleArn":"MarcoEC2Role","family":"lenix-teleport-database-service","memory":"512","networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"tags":[{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/origin","value":"aws-oidc-integration"},{"key":"teleport.dev/cluster","value":"lenix-teleport"}],"taskRoleArn":"MarcoEC2Role"}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 54128813-83d1-4e43-8854-d74bcb79774e
+                - 26be9610-74e0-4cd1-8028-1b50f8f15fdf
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -95,7 +95,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230526T134609Z
+                - 20230602T142559Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.RegisterTaskDefinition
         url: https://ecs.us-east-1.amazonaws.com/
@@ -106,21 +106,21 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 2758
+        content_length: 2875
         uncompressed: false
-        body: '{"taskDefinition":{"compatibilities":["EC2","FARGATE"],"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLWRpc2NvdmVyeS1kYnNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgdGVsZXBvcnQuaW50ZXJuYWwvZGlzY292ZXJ5LWdyb3VwLW5hbWU6IG15LWRpc2NvdmVyeS1ncm91cApkaXNjb3Zlcnlfc2VydmljZToKICAgIGVuYWJsZWQ6ICJ5ZXMiCiAgICBkaXNjb3ZlcnlfZ3JvdXA6IG15LWRpc2NvdmVyeS1ncm91cAo="],"cpu":0,"entryPoint":["teleport"],"environment":[],"essential":true,"image":"public.ecr.aws/gravitational/teleport-distroless:11.0.3","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-lenix-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"lenix-teleport-database-service/lenix-teleport-database-service"}},"mountPoints":[],"name":"ecs-discovery-dbservice","portMappings":[],"volumesFrom":[]}],"cpu":"256","executionRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","family":"lenix-teleport-database-service","memory":"512","networkMode":"awsvpc","placementConstraints":[],"registeredAt":1.685108769865E9,"registeredBy":"arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685108767988019802","requiresAttributes":[{"name":"com.amazonaws.ecs.capability.logging-driver.awslogs"},{"name":"ecs.capability.execution-role-awslogs"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.19"},{"name":"com.amazonaws.ecs.capability.task-iam-role"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.18"},{"name":"ecs.capability.task-eni"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.29"}],"requiresCompatibilities":["FARGATE"],"revision":60,"status":"ACTIVE","taskDefinitionArn":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:60","taskRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","volumes":[]}}'
+        body: '{"tags":[{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/origin","value":"aws-oidc-integration"},{"key":"teleport.dev/cluster","value":"lenix-teleport"}],"taskDefinition":{"compatibilities":["EC2","FARGATE"],"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLWRpc2NvdmVyeS1kYnNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgJyonOiAnKicKZGlzY292ZXJ5X3NlcnZpY2U6CiAgICBlbmFibGVkOiAieWVzIgogICAgZGlzY292ZXJ5X2dyb3VwOiBteS1kaXNjb3ZlcnktZ3JvdXAK"],"cpu":0,"entryPoint":["teleport"],"environment":[],"essential":true,"image":"public.ecr.aws/gravitational/teleport-distroless:11.0.3","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-lenix-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"lenix-teleport-database-service/lenix-teleport-database-service"}},"mountPoints":[],"name":"ecs-discovery-dbservice","portMappings":[],"volumesFrom":[]}],"cpu":"256","executionRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","family":"lenix-teleport-database-service","memory":"512","networkMode":"awsvpc","placementConstraints":[],"registeredAt":1.685715960772E9,"registeredBy":"arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685715958875260073","requiresAttributes":[{"name":"com.amazonaws.ecs.capability.logging-driver.awslogs"},{"name":"ecs.capability.execution-role-awslogs"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.19"},{"name":"com.amazonaws.ecs.capability.task-iam-role"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.18"},{"name":"ecs.capability.task-eni"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.29"}],"requiresCompatibilities":["FARGATE"],"revision":101,"status":"ACTIVE","taskDefinitionArn":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:101","taskRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","volumes":[]}}'
         headers:
             Content-Length:
-                - "2758"
+                - "2875"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Fri, 26 May 2023 13:46:09 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - ac6dcbdf-7e48-4da4-896c-7fbb67e833e9
+                - 5ab96dbd-ad6a-406f-9571-1e626a07421b
         status: 200 OK
         code: 200
-        duration: 723.667252ms
+        duration: 907.312292ms
     - id: 2
       request:
         proto: ""
@@ -139,12 +139,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1685108769968794196"
+                - "1685715960880105286"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 1dff8ed3-3e9e-4be3-8bb6-a0cf8b347100
+                - 12ec5750-bf3b-4a87-8657-719019588b70
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -159,55 +159,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1930
+        content_length: 1942
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685108769968794196</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685108769968794196</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685715960880105286</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685715960880105286</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-05-26T14:46:10Z</Expiration>
+                  <Expiration>2023-06-02T15:26:00Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>993f5571-e870-48dc-82b1-74b68e799230</RequestId>
+                <RequestId>4c8af87d-bf30-417c-a6aa-7e1911b5a114</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1930"
+                - "1942"
             Content-Type:
                 - text/xml
             Date:
-                - Fri, 26 May 2023 13:46:09 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - 993f5571-e870-48dc-82b1-74b68e799230
+                - 4c8af87d-bf30-417c-a6aa-7e1911b5a114
         status: 200 OK
         code: 200
-        duration: 164.560711ms
+        duration: 135.585783ms
     - id: 3
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 31
+        content_length: 50
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"clusters":["lenix-teleport"]}'
+        body: '{"clusters":["lenix-teleport"],"include":["TAGS"]}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 37519647-d978-4aba-9dbb-1135dc8feba0
+                - 60e8fa43-32f7-4017-bc7f-165acebcd66a
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -215,7 +215,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230526T134610Z
+                - 20230602T142601Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.DescribeClusters
         url: https://ecs.us-east-1.amazonaws.com/
@@ -226,21 +226,21 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 367
+        content_length: 540
         uncompressed: false
-        body: '{"clusters":[{"activeServicesCount":1,"capacityProviders":["FARGATE"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","clusterName":"lenix-teleport","defaultCapacityProviderStrategy":[],"pendingTasksCount":1,"registeredContainerInstancesCount":0,"runningTasksCount":1,"settings":[],"statistics":[],"status":"ACTIVE","tags":[]}],"failures":[]}'
+        body: '{"clusters":[{"activeServicesCount":1,"capacityProviders":["FARGATE"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","clusterName":"lenix-teleport","defaultCapacityProviderStrategy":[],"pendingTasksCount":0,"registeredContainerInstancesCount":0,"runningTasksCount":1,"settings":[],"statistics":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/cluster","value":"lenix-teleport"},{"key":"teleport.dev/origin","value":"aws-oidc-integration"},{"key":"teleport.dev/integration","value":"teleportdev"}]}],"failures":[]}'
         headers:
             Content-Length:
-                - "367"
+                - "540"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Fri, 26 May 2023 13:46:10 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - 8b130e00-3aff-4371-b913-d014b2827e43
+                - cdcbe1fa-7285-4b25-9b04-f719b37832df
         status: 200 OK
         code: 200
-        duration: 178.621839ms
+        duration: 173.996057ms
     - id: 4
       request:
         proto: ""
@@ -259,12 +259,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1685108770314073894"
+                - "1685715961191803507"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - d1bb258f-d950-4135-b5a3-aa6637dd77c8
+                - 472a8bb3-73f2-4d18-af01-daf637bdc178
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -279,55 +279,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1930
+        content_length: 1942
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685108770314073894</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685108770314073894</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685715961191803507</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685715961191803507</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-05-26T14:46:10Z</Expiration>
+                  <Expiration>2023-06-02T15:26:01Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>e2671bca-ee2f-4115-85e2-9abaa65dd342</RequestId>
+                <RequestId>815b1552-ebd4-4d57-802d-d1f245abea81</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1930"
+                - "1942"
             Content-Type:
                 - text/xml
             Date:
-                - Fri, 26 May 2023 13:46:09 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - e2671bca-ee2f-4115-85e2-9abaa65dd342
+                - 815b1552-ebd4-4d57-802d-d1f245abea81
         status: 200 OK
         code: 200
-        duration: 143.927329ms
+        duration: 141.947286ms
     - id: 5
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 75
+        content_length: 94
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"cluster":"lenix-teleport","services":["lenix-teleport-database-service"]}'
+        body: '{"cluster":"lenix-teleport","include":["TAGS"],"services":["lenix-teleport-database-service"]}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 92bae930-8076-4708-9898-11bdc6a5097d
+                - 219291fd-6fd6-4a6b-bb52-e2a960fbd01f
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -335,7 +335,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230526T134610Z
+                - 20230602T142601Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.DescribeServices
         url: https://ecs.us-east-1.amazonaws.com/
@@ -346,21 +346,21 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 3711
+        content_length: 5943
         uncompressed: false
-        body: '{"failures":[],"services":[{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","createdAt":1.685108589302E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.685108734973E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/9477444654057369585","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":1,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/9477444654057369585 in progress.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:59","updatedAt":1.68510876316E9},{"createdAt":1.685108589302E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/7159462867149050063","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/7159462867149050063 completed.","runningCount":1,"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:58","updatedAt":1.68510876323E9}],"desiredCount":1,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[{"createdAt":1.685108763768E9,"id":"2b4aeacb-a116-4ee1-8151-180c0009d732","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 60c2b1dae17c45a18035dded09c1a837)."},{"createdAt":1.685108622095E9,"id":"322806b4-96cc-43eb-9c70-3311ec86f4c5","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685108622094E9,"id":"55e2b6d6-ad03-468a-b7f3-4d670a5acad0","message":"(service lenix-teleport-database-service) (deployment ecs-svc/7159462867149050063) deployment completed."},{"createdAt":1.685108592547E9,"id":"b07b9ab9-bf32-44ad-8dcb-ca37c9f84099","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 3e6784ceb25b44d896cfc2e9d9e38ddc)."}],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":1,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"NONE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"MoreWork","runningCount":1,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/lenix-teleport/lenix-teleport-database-service","serviceName":"lenix-teleport-database-service","serviceRegistries":[],"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:59","version":0}]}'
+        body: '{"failures":[],"services":[{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","createdAt":1.685706580242E9,"createdBy":"arn:aws:iam::278576220453:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_AWSAdministratorAccess_7d88d11844732196","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":true,"rollback":true},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.685715461599E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/7145724797648678343","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/7145724797648678343 completed.","runningCount":1,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:96","updatedAt":1.685715709698E9}],"desiredCount":1,"enableECSManagedTags":true,"enableExecuteCommand":false,"events":[{"createdAt":1.685715709705E9,"id":"d1087007-e41a-4776-a1fc-2481952e9727","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685715709704E9,"id":"f7cf4472-6a25-4903-a34e-8f2a3962bf2e","message":"(service lenix-teleport-database-service) (deployment ecs-svc/7145724797648678343) deployment completed."},{"createdAt":1.685715578887E9,"id":"fa8d6af4-4ab0-4db2-a789-1072467c7aee","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 1d7efb933e2c4e21bfa76f04a8e8a1c6)."},{"createdAt":1.685715489965E9,"id":"28205e03-223d-47cf-b324-365b1ca791b4","message":"(service lenix-teleport-database-service) has started 1 tasks: (task ee800bb8236c4c159d560ca9234aa5a7)."},{"createdAt":1.685715437248E9,"id":"9a89c354-4b48-4093-832e-f84369071be7","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685715437247E9,"id":"7bd74826-6ed1-40c3-83e8-f214323a469a","message":"(service lenix-teleport-database-service) (deployment ecs-svc/1319722201616607198) deployment completed."},{"createdAt":1.685715315601E9,"id":"a5770d31-cbdb-43f5-bc19-35f944456a14","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 5c0c8ee3d0c2405294e7c8a6b266cecb)."},{"createdAt":1.6857152404E9,"id":"86b3633c-a2b7-4486-8717-d54199d76953","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 1d7efb933e2c4e21bfa76f04a8e8a1c6)."},{"createdAt":1.685714205379E9,"id":"a932e255-64a9-404c-9ce2-27adfcf38bfb","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685714205378E9,"id":"5f21b2b8-d9f4-42d9-80b1-dbea8cb143da","message":"(service lenix-teleport-database-service) (deployment ecs-svc/3008152685683651969) deployment completed."},{"createdAt":1.685714067229E9,"id":"5b9408a0-f4dc-4179-b5b2-b722872fa0ad","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task eeba12bfb2184e9c92615aec7e1a1e32)."},{"createdAt":1.685713974213E9,"id":"9cabad9c-71dd-4b00-b6c5-140181f4b8ea","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 5c0c8ee3d0c2405294e7c8a6b266cecb)."},{"createdAt":1.685713081685E9,"id":"94683237-95f4-4aec-9a98-1b9ff6c6539c","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685713081684E9,"id":"b446378b-a1f6-4601-afa0-75c782b73e2d","message":"(service lenix-teleport-database-service) (deployment ecs-svc/1803508592983402375) deployment completed."},{"createdAt":1.685712956736E9,"id":"36f05dad-ae67-413f-b75a-f990d47f73f1","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 66a64498403c42df81660598ec510be5)."},{"createdAt":1.685712878288E9,"id":"40397705-735f-4e13-aba6-d2eab61ecdec","message":"(service lenix-teleport-database-service) has started 1 tasks: (task eeba12bfb2184e9c92615aec7e1a1e32)."},{"createdAt":1.68570673992E9,"id":"8fa3ce1a-385f-42f3-8e78-a9d63e8f3a85","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685706739919E9,"id":"de5abb9c-15ec-4419-91e6-92f912e3ee1b","message":"(service lenix-teleport-database-service) (deployment ecs-svc/0899761670720852485) deployment completed."},{"createdAt":1.685706589057E9,"id":"1ea1a5f4-2bcd-4c92-8fe0-95c16bb44e3a","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 66a64498403c42df81660598ec510be5)."}],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"NONE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"SteadyState","runningCount":1,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/lenix-teleport/lenix-teleport-database-service","serviceName":"lenix-teleport-database-service","serviceRegistries":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/cluster","value":"lenix-teleport"},{"key":"teleport.dev/origin","value":"aws-oidc-integration"},{"key":"teleport.dev/integration","value":"teleportdev"}],"taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:96","version":0}]}'
         headers:
             Content-Length:
-                - "3711"
+                - "5943"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Fri, 26 May 2023 13:46:10 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - 05df3f13-6905-4f2f-9427-98b06bc567f8
+                - 6273d39b-79c5-456e-97dd-001f705aede4
         status: 200 OK
         code: 200
-        duration: 177.373384ms
+        duration: 176.103981ms
     - id: 6
       request:
         proto: ""
@@ -379,12 +379,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1685108770637101456"
+                - "1685715961511996614"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 5ea78b00-c21c-44c4-9f5b-27919072f606
+                - 3e65c032-a48c-4c89-8da0-057eda06339d
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -399,55 +399,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1930
+        content_length: 1942
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685108770637101456</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685108770637101456</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1685715961511996614</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1685715961511996614</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-05-26T14:46:10Z</Expiration>
+                  <Expiration>2023-06-02T15:26:01Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>31810592-ab50-4850-89b9-c571329dfaa0</RequestId>
+                <RequestId>77e1f5f5-d6e7-4a9f-8fe8-7ff4936e2772</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1930"
+                - "1942"
             Content-Type:
                 - text/xml
             Date:
-                - Fri, 26 May 2023 13:46:10 GMT
+                - Fri, 02 Jun 2023 14:26:00 GMT
             X-Amzn-Requestid:
-                - 31810592-ab50-4850-89b9-c571329dfaa0
+                - 77e1f5f5-d6e7-4a9f-8fe8-7ff4936e2772
         status: 200 OK
         code: 200
-        duration: 150.076758ms
+        duration: 142.558062ms
     - id: 7
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 470
+        content_length: 471
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"cluster":"lenix-teleport","desiredCount":1,"forceNewDeployment":true,"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"service":"lenix-teleport-database-service","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:60"}'
+        body: '{"cluster":"lenix-teleport","desiredCount":1,"forceNewDeployment":true,"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"service":"lenix-teleport-database-service","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:101"}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - f36c48d7-2d4b-470c-b563-5e4559add3e9
+                - 51eb7d02-59d2-42c7-9eaa-05dbe04f4c02
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -455,7 +455,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230526T134610Z
+                - 20230602T142601Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.UpdateService
         url: https://ecs.us-east-1.amazonaws.com/
@@ -466,18 +466,18 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 4479
+        content_length: 6530
         uncompressed: false
-        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","createdAt":1.685108589302E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.685108771348E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/8013868157460405380","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/8013868157460405380 in progress.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:60","updatedAt":1.685108771348E9},{"createdAt":1.685108734973E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/9477444654057369585","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":1,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/9477444654057369585 in progress.","runningCount":0,"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:59","updatedAt":1.68510876316E9},{"createdAt":1.685108589302E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/7159462867149050063","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/7159462867149050063 completed.","runningCount":1,"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:58","updatedAt":1.68510876323E9}],"desiredCount":1,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[{"createdAt":1.685108763768E9,"id":"2b4aeacb-a116-4ee1-8151-180c0009d732","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 60c2b1dae17c45a18035dded09c1a837)."},{"createdAt":1.685108622095E9,"id":"322806b4-96cc-43eb-9c70-3311ec86f4c5","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685108622094E9,"id":"55e2b6d6-ad03-468a-b7f3-4d670a5acad0","message":"(service lenix-teleport-database-service) (deployment ecs-svc/7159462867149050063) deployment completed."},{"createdAt":1.685108592547E9,"id":"b07b9ab9-bf32-44ad-8dcb-ca37c9f84099","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 3e6784ceb25b44d896cfc2e9d9e38ddc)."}],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":1,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"NONE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"MoreWork","runningCount":1,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/lenix-teleport/lenix-teleport-database-service","serviceName":"lenix-teleport-database-service","serviceRegistries":[],"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:60","version":0}}'
+        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport","createdAt":1.685706580242E9,"createdBy":"arn:aws:iam::278576220453:role/aws-reserved/sso.amazonaws.com/us-west-2/AWSReservedSSO_AWSAdministratorAccess_7d88d11844732196","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":true,"rollback":true},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.685715962146E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/2677514500998503864","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/2677514500998503864 in progress.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:101","updatedAt":1.685715962146E9},{"createdAt":1.685715461599E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/7145724797648678343","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/7145724797648678343 completed.","runningCount":1,"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:96","updatedAt":1.685715709698E9}],"desiredCount":1,"enableECSManagedTags":true,"enableExecuteCommand":false,"events":[{"createdAt":1.685715709705E9,"id":"d1087007-e41a-4776-a1fc-2481952e9727","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685715709704E9,"id":"f7cf4472-6a25-4903-a34e-8f2a3962bf2e","message":"(service lenix-teleport-database-service) (deployment ecs-svc/7145724797648678343) deployment completed."},{"createdAt":1.685715578887E9,"id":"fa8d6af4-4ab0-4db2-a789-1072467c7aee","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 1d7efb933e2c4e21bfa76f04a8e8a1c6)."},{"createdAt":1.685715489965E9,"id":"28205e03-223d-47cf-b324-365b1ca791b4","message":"(service lenix-teleport-database-service) has started 1 tasks: (task ee800bb8236c4c159d560ca9234aa5a7)."},{"createdAt":1.685715437248E9,"id":"9a89c354-4b48-4093-832e-f84369071be7","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685715437247E9,"id":"7bd74826-6ed1-40c3-83e8-f214323a469a","message":"(service lenix-teleport-database-service) (deployment ecs-svc/1319722201616607198) deployment completed."},{"createdAt":1.685715315601E9,"id":"a5770d31-cbdb-43f5-bc19-35f944456a14","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 5c0c8ee3d0c2405294e7c8a6b266cecb)."},{"createdAt":1.6857152404E9,"id":"86b3633c-a2b7-4486-8717-d54199d76953","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 1d7efb933e2c4e21bfa76f04a8e8a1c6)."},{"createdAt":1.685714205379E9,"id":"a932e255-64a9-404c-9ce2-27adfcf38bfb","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685714205378E9,"id":"5f21b2b8-d9f4-42d9-80b1-dbea8cb143da","message":"(service lenix-teleport-database-service) (deployment ecs-svc/3008152685683651969) deployment completed."},{"createdAt":1.685714067229E9,"id":"5b9408a0-f4dc-4179-b5b2-b722872fa0ad","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task eeba12bfb2184e9c92615aec7e1a1e32)."},{"createdAt":1.685713974213E9,"id":"9cabad9c-71dd-4b00-b6c5-140181f4b8ea","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 5c0c8ee3d0c2405294e7c8a6b266cecb)."},{"createdAt":1.685713081685E9,"id":"94683237-95f4-4aec-9a98-1b9ff6c6539c","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685713081684E9,"id":"b446378b-a1f6-4601-afa0-75c782b73e2d","message":"(service lenix-teleport-database-service) (deployment ecs-svc/1803508592983402375) deployment completed."},{"createdAt":1.685712956736E9,"id":"36f05dad-ae67-413f-b75a-f990d47f73f1","message":"(service lenix-teleport-database-service) has stopped 1 running tasks: (task 66a64498403c42df81660598ec510be5)."},{"createdAt":1.685712878288E9,"id":"40397705-735f-4e13-aba6-d2eab61ecdec","message":"(service lenix-teleport-database-service) has started 1 tasks: (task eeba12bfb2184e9c92615aec7e1a1e32)."},{"createdAt":1.68570673992E9,"id":"8fa3ce1a-385f-42f3-8e78-a9d63e8f3a85","message":"(service lenix-teleport-database-service) has reached a steady state."},{"createdAt":1.685706739919E9,"id":"de5abb9c-15ec-4419-91e6-92f912e3ee1b","message":"(service lenix-teleport-database-service) (deployment ecs-svc/0899761670720852485) deployment completed."},{"createdAt":1.685706589057E9,"id":"1ea1a5f4-2bcd-4c92-8fe0-95c16bb44e3a","message":"(service lenix-teleport-database-service) has started 1 tasks: (task 66a64498403c42df81660598ec510be5)."}],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"NONE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"SteadyState","runningCount":1,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/lenix-teleport/lenix-teleport-database-service","serviceName":"lenix-teleport-database-service","serviceRegistries":[],"status":"ACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-database-service:101","version":0}}'
         headers:
             Content-Length:
-                - "4479"
+                - "6530"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Fri, 26 May 2023 13:46:11 GMT
+                - Fri, 02 Jun 2023 14:26:01 GMT
             X-Amzn-Requestid:
-                - 1aece0fa-46f3-4a7d-931c-281e45b776ad
+                - 084bcd55-e114-44fa-9c0d-c34ce9783e8d
         status: 200 OK
         code: 200
-        duration: 658.868939ms
+        duration: 585.919411ms

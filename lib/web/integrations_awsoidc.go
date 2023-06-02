@@ -106,9 +106,10 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 	}
 
 	return &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: awsoidcSpec.RoleARN,
-		Region:  region,
+		IntegrationName: integrationName,
+		Token:           token,
+		RoleARN:         awsoidcSpec.RoleARN,
+		Region:          region,
 	}, nil
 }
 
@@ -148,6 +149,7 @@ func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request,
 		TeleportVersion:     teleport.Version,
 		TeleportClusterName: h.auth.clusterName,
 		AgentMatcherLabels:  agentMatcherLabels,
+		IntegrationName:     awsClientReq.IntegrationName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

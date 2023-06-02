@@ -112,6 +112,13 @@ type DeployDBServiceRequest struct {
 
 	// AgentMatcherLabels are the labels to be used by the Database Service for matching on resources.
 	AgentMatcherLabels types.Labels
+
+	// IntegrationName is the integration name.
+	// Used for resource tagging when creating resources in AWS.
+	IntegrationName string
+
+	// ResourceCreationTags is used to add tags when creating resources in AWS.
+	ResourceCreationTags awsTags
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
@@ -162,6 +169,14 @@ func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
 
 	if len(r.AgentMatcherLabels) == 0 {
 		return trace.BadParameter("at least one agent matcher label is required")
+	}
+
+	if r.IntegrationName == "" {
+		return trace.BadParameter("integration name is required")
+	}
+
+	if r.ResourceCreationTags == nil {
+		r.ResourceCreationTags = DefaultResourceCreationTags(*r.ClusterName, r.IntegrationName)
 	}
 
 	return nil
@@ -323,6 +338,14 @@ func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) 
 // # Discovery and Database Service
 //
 // The Database Service will match on the suggested labels received in the request.
+// # Resource tagging
+//
+// Created resources have the following set of tags:
+// - teleport.dev/origin: aws-oidc-integration
+// - teleport.dev/cluster: <clusterName>
+// - teleport.dev/integration: <integrationName>
+//
+// If resources already exist, only resources with those tags will be updated.
 func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest) (*DeployDBServiceResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -339,7 +362,7 @@ func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployD
 	}
 	taskDefinitionARN := *taskDefinition.TaskDefinitionArn
 
-	cluster, err := upsertCluster(ctx, clt, *req.ClusterName)
+	cluster, err := upsertCluster(ctx, clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -445,6 +468,7 @@ func upsertTask(ctx context.Context, clt DeployDBServiceClient, req DeployDBServ
 				},
 			},
 		}},
+		Tags: req.ResourceCreationTags.ForECS(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -457,64 +481,86 @@ func upsertTask(ctx context.Context, clt DeployDBServiceClient, req DeployDBServ
 // It will re-create if its status is INACTIVE.
 // If the cluster status is not ACTIVE, an error is returned.
 // The cluster is returned.
-func upsertCluster(ctx context.Context, clt DeployDBServiceClient, clusterName string) (*ecsTypes.Cluster, error) {
-	var cluster *ecsTypes.Cluster
-
+func upsertCluster(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest) (*ecsTypes.Cluster, error) {
 	describeClustersResponse, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
-		Clusters: []string{clusterName},
+		Clusters: []string{*req.ClusterName},
+		Include: []ecsTypes.ClusterField{
+			ecsTypes.ClusterFieldTags,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	inactiveClusterExists := false
-	if len(describeClustersResponse.Clusters) > 0 {
-		cluster = &describeClustersResponse.Clusters[0]
-
-		// If the cluster was recently removed, it might still be listed but with "INACTIVE" status.
-		// Calling CreateCluster activates it.
-		// From AWS Docs:
-		// > INACTIVE The cluster has been deleted. Clusters with an INACTIVE status may remain discoverable in your account for a period of time.
-		if *cluster.Status == clusterStatusInactive {
-			inactiveClusterExists = true
-
-		} else if !slices.Contains(cluster.CapacityProviders, launcTypeFargateString) {
-			// Ensure the required capacity provider (Fargate) is available.
-			putClusterCPResp, err := clt.PutClusterCapacityProviders(ctx, &ecs.PutClusterCapacityProvidersInput{
-				Cluster:           &clusterName,
-				CapacityProviders: requiredCapacityProviders,
-				DefaultCapacityProviderStrategy: []ecsTypes.CapacityProviderStrategyItem{{
-					CapacityProvider: &launcTypeFargateString,
-				}},
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			cluster = putClusterCPResp.Cluster
-		}
-	}
-
-	// No cluster exists or the cluster is inactive.
-	if len(describeClustersResponse.Clusters) == 0 || inactiveClusterExists {
+	if clusterMustBeCreated(describeClustersResponse.Clusters) {
 		createClusterResp, err := clt.CreateCluster(ctx, &ecs.CreateClusterInput{
-			ClusterName:       &clusterName,
+			ClusterName:       req.ClusterName,
 			CapacityProviders: requiredCapacityProviders,
+			Tags:              req.ResourceCreationTags.ForECS(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		cluster = createClusterResp.Cluster
+		if err := clusterHasValidStatus(createClusterResp.Cluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return createClusterResp.Cluster, nil
 	}
 
+	// There's a cluster and it is ACTIVE.
+	cluster := &describeClustersResponse.Clusters[0]
+
+	ownershipTags := req.ResourceCreationTags
+	if !ownershipTags.MatchesECSTags(cluster.Tags) {
+		return nil, trace.Errorf("ECS Cluster %q already exists but is not managed by Teleport. "+
+			"Add the following tags to allow Teleport to manage this cluster: %s", *req.ClusterName, req.ResourceCreationTags)
+	}
+
+	if err := clusterHasValidStatus(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if slices.Contains(cluster.CapacityProviders, launcTypeFargateString) {
+		return cluster, nil
+	}
+
+	// Ensure the required capacity provider (Fargate) is available.
+	putClusterCPResp, err := clt.PutClusterCapacityProviders(ctx, &ecs.PutClusterCapacityProvidersInput{
+		Cluster:           req.ClusterName,
+		CapacityProviders: requiredCapacityProviders,
+		DefaultCapacityProviderStrategy: []ecsTypes.CapacityProviderStrategyItem{{
+			CapacityProvider: &launcTypeFargateString,
+		}},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return putClusterCPResp.Cluster, nil
+}
+
+// clusterMustBeCreated returns true if there's no cluster or the existing one has an Inactive (deleted) status.
+func clusterMustBeCreated(clusters []ecsTypes.Cluster) bool {
+	if len(clusters) == 0 {
+		return true
+	}
+
+	cluster := clusters[0]
+
+	return *cluster.Status == clusterStatusInactive
+}
+
+// clusterHasValidStatus returns whether the cluster has a valid status to provision resources
+func clusterHasValidStatus(cluster *ecsTypes.Cluster) error {
 	// Anything other than ACTIVE, should throw an error (usually retryable)
 	// Possible status: INACTIVE, PROVISIONING, DEPROVISIONING, FAILED
 	if cluster.Status != nil && *cluster.Status != clusterStatusActive {
-		return nil, trace.Errorf("cluster %q has an invalid status (%s), try again", clusterName, *cluster.Status)
+		return trace.Errorf("cluster %q has an invalid status (%s), try again", *cluster.ClusterName, *cluster.Status)
 	}
 
-	return cluster, nil
+	return nil
 }
 
 // upsertService creates or updates the service.
@@ -523,6 +569,9 @@ func upsertService(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 	describeServiceOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Services: []string{*req.ServiceName},
 		Cluster:  req.ClusterName,
+		Include: []ecsTypes.ServiceField{
+			ecsTypes.ServiceFieldTags,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -530,7 +579,6 @@ func upsertService(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 
 	// Service already exists.
 	if len(describeServiceOut.Services) > 0 {
-		// The service already exists.
 		service := &describeServiceOut.Services[0]
 
 		if service.Status == nil {
@@ -538,36 +586,42 @@ func upsertService(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 		}
 
 		if *service.Status == serviceStatusDraining {
-			return nil, trace.Errorf("ECS Service is shutting down, please retry in a couple of minutes")
+			return nil, trace.Errorf("ECS Service is draining, please retry in a couple of minutes")
 		}
 
-		// Updating the service to use the new image if:
-		// - launch type is FARGATE
-		// - status is ACTIVE
-		// Otherwise, the service is deleted and created again
-		if service.LaunchType == ecsTypes.LaunchTypeFargate && *service.Status == serviceStatusActive {
-			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
-				Service:        req.ServiceName,
-				DesiredCount:   &oneAgent,
-				TaskDefinition: &taskARN,
-				Cluster:        req.ClusterName,
-				NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-					AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-						AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-						Subnets:        req.SubnetIDs,
-					},
-				},
-				ForceNewDeployment: true,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
+		if *service.Status == serviceStatusActive {
+			ownershipTags := req.ResourceCreationTags
+			if !ownershipTags.MatchesECSTags(service.Tags) {
+				return nil, trace.Errorf("ECS Service %q already exists but is not managed by Teleport. "+
+					"Add the following tags to allow Teleport to manage this service: %s", *req.ServiceName, req.ResourceCreationTags)
 			}
 
-			return updateServiceResp.Service, nil
+			// If the LaunchType is the required one, than we can update the current Service.
+			// Otherwise we have to delete it.
+			if service.LaunchType == ecsTypes.LaunchTypeFargate {
+				updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
+					Service:        req.ServiceName,
+					DesiredCount:   &oneAgent,
+					TaskDefinition: &taskARN,
+					Cluster:        req.ClusterName,
+					NetworkConfiguration: &ecsTypes.NetworkConfiguration{
+						AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
+							AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
+							Subnets:        req.SubnetIDs,
+						},
+					},
+					ForceNewDeployment: true,
+					PropagateTags:      ecsTypes.PropagateTagsService,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				return updateServiceResp.Service, nil
+			}
 		}
 
-		// We can't update the LaunchType or the Status is INACTIVE, so the only solution is to delete and create the Service again.
-
+		// The service is deleted if the its status is INACTIVE (aka deleted) or if it's owned by Teleport and has the wrong LaunchType.
 		_, err := clt.DeleteService(ctx, &ecs.DeleteServiceInput{
 			Service: req.ServiceName,
 			Cluster: req.ClusterName,
@@ -590,6 +644,8 @@ func upsertService(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 				Subnets:        req.SubnetIDs,
 			},
 		},
+		Tags:          req.ResourceCreationTags.ForECS(),
+		PropagateTags: ecsTypes.PropagateTagsService,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
