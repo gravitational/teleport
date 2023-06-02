@@ -141,18 +141,26 @@ type ProxyConfig struct {
 // WebPublicAddr returns the address for the web endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) WebPublicAddr() (string, error) {
-	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort), true), nil
+	port := c.WebAddr.Port(defaults.HTTPListenPort)
+
+	// Use the port from the first public address if possible.
+	if len(c.PublicAddrs) > 0 {
+		publicAddr := c.PublicAddrs[0]
+		u := url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(publicAddr.Host(), strconv.Itoa(publicAddr.Port(defaults.HTTPListenPort))),
+		}
+		return u.String(), nil
+	}
+
+	return c.getDefaultAddr(port), nil
 }
 
-func (c ProxyConfig) getDefaultAddr(port int, usePublicAddrPort bool) string {
+func (c ProxyConfig) getDefaultAddr(port int) string {
 	host := "<proxyhost>"
 	// Try to guess the hostname from the HTTP public_addr.
 	if len(c.PublicAddrs) > 0 {
-		publicAddr := c.PublicAddrs[0]
-		host = publicAddr.Host()
-		if usePublicAddrPort {
-			port = publicAddr.Port(port)
-		}
+		host = c.PublicAddrs[0].Host()
 	}
 
 	u := url.URL{
@@ -172,7 +180,7 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
 	}
 
-	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort), false), nil
+	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
 }
 
 // PublicPeerAddr attempts to returns the public address the proxy advertises
