@@ -386,7 +386,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
 
-require github.com/google/go-querystring v1.1.0 // indirect
+require github.com/google/go-querystring v1.1.0
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
