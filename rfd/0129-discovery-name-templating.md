@@ -60,25 +60,25 @@ discovery_service:
   enabled: true
   aws:
     - types: ["rds"]
-      regions: ["us-west-1"]
+      regions: ["us-west-1", "us-west-2"]
       resource_name_template: "teleport-dev-{{.Name}}-{{.AWS.AccountID}}-{{.AWS.Region}}"
       tags:
         "*": "*"
 ```
 
 In this example, the discovery agent will discover AWS RDS databases in the
-us-west-1 AWS region.
+us-west-1 and us-west-2 AWS regions.
 
 Each database discovered by the matcher will have the prefix "teleport-dev-"
 followed by the discovered database's name, AWS account ID, and AWS region.
 
 For instance, if a database named `foo` is discovered in AWS account ID
-`0123456789012`, the rewritten name will be
+`0123456789012` in region `us-west-1`, the rewritten name will be
 `teleport-dev-foo-012345689012-us-west-1`.
 This would disambiguate the database name from other databases in other regions
 and other AWS accounts.
 
-Since the full template syntax is available, you could modify this to use
+Since the full template syntax is available, a user could modify this to use
 available template builtin functions to shorten the account ID portion:
 `resource_name_template: 'teleport-dev-{{printf "%s-%.4s-%s" .Name .AWS.AccountID .AWS.Region}}'`
 results in: `teleport-dev-foo-0123-us-west-1`
