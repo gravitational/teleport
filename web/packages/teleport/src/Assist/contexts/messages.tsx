@@ -20,11 +20,9 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
-import useWebSocket from 'react-use-websocket';
-
-import { useParams } from 'react-router';
 
 import Logger from 'shared/libs/logger';
 
@@ -351,12 +349,13 @@ export async function setConversationTitle(
   });
 }
 
+const TEN_MINUTES = 10 * 60 * 1000;
+
 const logger = Logger.create('assist');
 
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
-  const { conversationId } = useParams<{ conversationId: string }>();
   const { clusterId } = useStickyClusterId();
 
   const [error, setError] = useState<string>(null);
@@ -364,17 +363,60 @@ export function MessagesContextProvider(
   const [responding, setResponding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = cfg.getAssistConversationWebSocketUrl(
-    getHostName(),
-    clusterId,
-    getAccessToken(),
-    props.conversationId
-  );
+  const webSocketRef = useRef<WebSocket>(null);
 
-  const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
-    share: true, // when share is false the websocket tends to disconnect
-    retryOnError: true,
-  });
+  const setupWebSocket = useCallback(() => {
+    if (webSocketRef.current) {
+      webSocketRef.current.close();
+    }
+
+    const socketUrl = cfg.getAssistConversationWebSocketUrl(
+      getHostName(),
+      clusterId,
+      getAccessToken(),
+      props.conversationId
+    );
+
+    webSocketRef.current = new WebSocket(socketUrl);
+
+    webSocketRef.current.onmessage = async (event: MessageEvent) => {
+      const value = JSON.parse(event.data) as ServerMessage;
+
+      // When a streaming message ends, or a non-streaming message arrives
+      if (
+        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
+        value.type === 'COMMAND' ||
+        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
+        value.type === 'CHAT_MESSAGE_ERROR'
+      ) {
+        setResponding(false);
+      }
+
+      convertServerMessage(value, clusterId).then(res => {
+        setMessages(prev => {
+          const curr = [...prev];
+          res(curr);
+          return curr;
+        });
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    setupWebSocket();
+
+    // refresh the websocket connection every 10 minutes to avoid
+    // session timeouts
+    const id = window.setInterval(setupWebSocket, TEN_MINUTES);
+
+    return () => {
+      window.clearInterval(id);
+
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+      }
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setMessages([]);
@@ -412,30 +454,6 @@ export function MessagesContextProvider(
     })();
   }, [props.conversationId]);
 
-  useEffect(() => {
-    if (lastMessage !== null) {
-      const value = JSON.parse(lastMessage.data) as ServerMessage;
-
-      // When a streaming message ends, or a non-streaming message arrives
-      if (
-        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
-        value.type === 'COMMAND' ||
-        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
-        value.type === 'CHAT_MESSAGE_ERROR'
-      ) {
-        setResponding(false);
-      }
-
-      convertServerMessage(value, clusterId).then(res => {
-        setMessages(prev => {
-          const curr = [...prev];
-          res(curr);
-          return curr;
-        });
-      });
-    }
-  }, [lastMessage, setMessages, conversationId]);
-
   const send = useCallback(
     async (message: string) => {
       setResponding(true);
@@ -453,7 +471,8 @@ export function MessagesContextProvider(
       setMessages(newMessages);
 
       const data = JSON.stringify({ payload: message });
-      sendMessage(data);
+
+      webSocketRef.current.send(data);
     },
     [messages]
   );
