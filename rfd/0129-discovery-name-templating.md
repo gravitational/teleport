@@ -283,7 +283,70 @@ And a similar message specific to the matcher type: AWS/Azure/GCP.
 
 When RFD 125 is implemented, we will need to update the proto messages for
 `DiscoveryConfig` to add a string `resource_name_template` field to each of
-AWS/Azure/GCP matcher messages.
+AWS/Azure/GCP matcher messages:
+
+```proto
+// AWSMatcher matches AWS EC2 instances and AWS Databases
+message AWSMatcher {
+  // Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+	// or "memorydb".
+  repeated string Types = 1;
+  // Regions are AWS regions to query for databases.
+	repeated string Regions = 2;
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	string AssumeRoleARN = 3;
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	string ExternalID = 4;
+	// Tags are AWS tags to match.
+  wrappers.LabelValues Tags = 5;
+	// InstallParams sets the join method when installing on
+	// discovered EC2 nodes
+	MatcherInstallParams InstallParams = 6;
+	// SSM provides options to use when sending a document command to
+	// an EC2 node
+	AWSSSM SSM = 7;
+	// ResourceNameTemplate rewrites matching resources according to a template
+	// string.
+	ResourceNameTemplate string = 7;
+}
+
+// AzureMatcher matches Azure resources.
+// It defines which resource types, filters and some configuration params.
+message AzureMatcher {
+	// Subscriptions are Azure subscriptions to query for resources.
+	repeated string Subscriptions = 1;
+	// ResourceGroups are Azure resource groups to query for resources.
+	repeated string ResourceGroups = 2;
+	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
+	repeated string Types = 3;
+	// Regions are Azure locations to match for databases.
+	repeated string Regions = 4;
+	// ResourceTags are Azure tags on resources to match.
+  wrappers.LabelValues ResourceTags = 5;
+	// InstallParams sets the join method when installing on
+	// discovered Azure nodes.
+	MatcherInstallParams InstallParams = 6;
+	// ResourceNameTemplate rewrites matching resources according to a template
+	// string.
+	ResourceNameTemplate string = 7;
+}
+
+// GCPMatcher matches GCP resources.
+message GCPMatcher {
+	// Types are GKE resource types to match: "gke".
+	repeated string Types = 1;
+	// Locations are GKE locations to search resources for.
+	repeated string Locations = 2;
+	// Tags are GCP labels to match.
+	wrappers.LabelValues Tags = 3;
+	// ProjectIDs are the GCP project ID where the resources are deployed.
+	repeated string ProjectIDs = 4;
+	// ResourceNameTemplate rewrites matching resources according to a template
+	// string.
+	ResourceNameTemplate string = 5;
+}
+```
 
 ### Backward Compatibility
 
