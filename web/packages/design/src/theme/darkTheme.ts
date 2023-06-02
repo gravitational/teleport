@@ -159,7 +159,7 @@ const colors = {
     brightWhite: 'rgba(255, 255, 255, 0.89)',
     white: 'rgba(255, 255, 255, 0.78)',
     brightBlack: 'rgba(255, 255, 255, 0.61)',
-    black: 'rgba(255, 255, 255, 0.46)',
+    black: '#000',
     brightRed: '#FF948D',
     brightGreen: '#2EFFD5',
     brightYellow: '#FFD98C',
