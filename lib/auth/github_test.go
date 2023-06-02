@@ -543,17 +543,17 @@ func TestGithubURLFormat(t *testing.T) {
 		{
 			host:   "example.com",
 			path:   "foo/bar",
-			expect: "https://example.com/foo/bar",
+			expect: "https://api.example.com/foo/bar",
 		},
 		{
 			host:   "example.com",
 			path:   "/foo/bar?spam=eggs",
-			expect: "https://example.com/foo/bar?spam=eggs",
+			expect: "https://api.example.com/foo/bar?spam=eggs",
 		},
 		{
 			host:   "example.com",
 			path:   "/foo/bar",
-			expect: "https://example.com/foo/bar",
+			expect: "https://api.example.com/foo/bar",
 		},
 	}
 

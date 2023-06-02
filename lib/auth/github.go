@@ -980,7 +980,7 @@ func (c *githubAPIClient) get(page string) ([]byte, string, error) {
 
 // formatGithubURL is a helper for formatting github api request URLs.
 func formatGithubURL(host string, path string) string {
-	return fmt.Sprintf("https://%s/%s", host, strings.TrimPrefix(path, "/"))
+	return fmt.Sprintf("https://api.%s/%s", host, strings.TrimPrefix(path, "/"))
 }
 
 const (
