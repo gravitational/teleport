@@ -1003,9 +1003,9 @@ func TestValidateRole(t *testing.T) {
 // pkg: github.com/gravitational/teleport/lib/services
 // cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
 // BenchmarkValidateRole
-// BenchmarkValidateRole-16           14752             83120 ns/op
+// BenchmarkValidateRole-16           14630             80205 ns/op
 // PASS
-// ok      github.com/gravitational/teleport/lib/services  3.064s
+// ok      github.com/gravitational/teleport/lib/services  3.030s
 func BenchmarkValidateRole(b *testing.B) {
 	role, err := types.NewRole("test", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -1046,11 +1046,10 @@ func BenchmarkValidateRole(b *testing.B) {
 		},
 	})
 	require.NoError(b, err)
-	require.NoError(b, ValidateRole(role))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ValidateRole(role)
+		require.NoError(b, ValidateRole(role))
 	}
 }
 
