@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { darken, getContrastRatio } from './utils/colorManipulator';
 import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
@@ -142,7 +142,7 @@ const colors = {
 
   terminal: {
     foreground: '#000',
-    background: '#F1F2F4',
+    background: '#F1F2F4', // levels.sunken
     selectionBackground: 'rgba(0, 0, 0, 0.18)',
     cursor: '#000',
     cursorAccent: '#F1F2F4',
@@ -152,9 +152,9 @@ const colors = {
     blue: '#004B89',
     magenta: '#3D1BB3',
     cyan: '#015C6E',
-    brightWhite: 'rgba(0, 0, 0, 0.55)',
-    white: 'rgba(0, 0, 0, 0.68)',
-    brightBlack: 'rgba(0, 0, 0, 0.8)',
+    brightWhite: darken('#F1F2F4', 0.55),
+    white: darken('#F1F2F4', 0.68),
+    brightBlack: darken('#F1F2F4', 0.8),
     black: '#000',
     brightRed: '#BF372E',
     brightGreen: '#007562',
