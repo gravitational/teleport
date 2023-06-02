@@ -401,7 +401,7 @@ func TestRegistrationFlow_Finish_errors(t *testing.T) {
 				// verification requirements.
 				// Verified on Safari 16.5 (and likely other versions too).
 				cc.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementDiscouraged
-				cc.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyNotRequired()
+				cc.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyUnrequired()
 				cc.Response.AuthenticatorSelection.UserVerification = protocol.VerificationDiscouraged
 
 				resp, err := key.SignCredentialCreation(webOrigin, cc)
