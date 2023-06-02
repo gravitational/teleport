@@ -15,7 +15,7 @@ GRPCBOX ?= $(GRPCBOX_BASE_NAME):$(BUILDBOX_VERSION)
 endif
 
 # Allow overriding the docker implementation to use for ex. podman.
-DOCKER := docker
+DOCKER ?= docker
 
 # GRPCBOX_RUN has the necessary invocation to run a command inside the grpcbox.
 # Use this variable to run it from other Makefiles.

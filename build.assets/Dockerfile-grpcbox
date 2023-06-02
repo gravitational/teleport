@@ -10,6 +10,7 @@ RUN apt-get update && \
 
 # protoc-gen-gogofast
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
+# eg, "v1.3.2"
 ARG GOGO_PROTO_TAG
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
@@ -19,6 +20,7 @@ ARG NODE_PROTOC_TS_VERSION
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # protoc
+# eg, "3.20.2"
 ARG PROTOC_VER
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
@@ -29,6 +31,7 @@ RUN VERSION="$PROTOC_VER" && \
   rm -f "$PB_FILE"
 
 # buf
+# eg, "1.19.0"
 ARG BUF_VERSION
 RUN BIN='/usr/local/bin' && \
   VERSION="$BUF_VERSION" && \
