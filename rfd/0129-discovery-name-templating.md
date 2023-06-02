@@ -107,7 +107,7 @@ For each cloud metadata type, we can make available the corresponding
 `api/types` protobufs:
 
 - `api/types.AWS`
-- `api/types.GCP`
+- `api/types.GCPCloudSQL`
 - `api/types.Azure`
 
 Doing this would couple our cloud metadata protobufs to the supported template
