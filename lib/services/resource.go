@@ -554,24 +554,6 @@ func init() {
 		}
 		return token, nil
 	})
-	RegisterResourceMarshaler(types.KindDevice, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-		device, ok := resource.(*types.DeviceV1)
-		if !ok {
-			return nil, trace.BadParameter("expected Device, got %T", resource)
-		}
-		bytes, err := types.MarshalDevice(device)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return bytes, nil
-	})
-	RegisterResourceUnmarshaler(types.KindDevice, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		device, err := types.UnmarshalDevice(bytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return device, nil
-	})
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError

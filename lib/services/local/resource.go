@@ -102,8 +102,8 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 	case types.ProvisionToken:
 		item, err = itemFromProvisionToken(r)
 	case *types.DeviceV1:
-		// Return empty slice here as bootstrapping devices is not supported yet.
-		// see https://github.com/gravitational/teleport/issues/24667
+		// Return empty slice here as bootstrapping devices will be supported with
+		// enterprise resource bootstrapper.
 		return []backend.Item{}, nil
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)

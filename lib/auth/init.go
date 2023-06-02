@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -713,11 +712,6 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			// Some options are only available with enterprise subscription
 			if err := checkRoleFeatureSupport(r); err != nil {
 				return trace.Wrap(err)
-			}
-		case *types.DeviceV1:
-			// Device trust is only available with enterprise subscription
-			if modules.GetModules().BuildType() != modules.BuildEnterprise {
-				return trace.AccessDenied("device trust is only available in enterprise subscriptions")
 			}
 		default:
 			// No validation checks for this resource type

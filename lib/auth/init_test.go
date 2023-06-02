@@ -1369,35 +1369,3 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
 }
-
-func TestFlagDeviceBootstrapInOSS(t *testing.T) {
-	cfg := setupConfig(t)
-
-	deviceYAML := `kind: device
-metadata:
- name: 1ef60cb1-9a59-400f-8ec3-a53c40127d19
-spec:
-  asset_tag: ZXCVBNM1
-  collected_data:
-  - collect_time: "2023-04-20T09:03:53.337161Z"
-    os_type: macos
-    record_time: "2023-04-20T09:03:53.427809Z"
-    serial_number: ZXCVBNM1
-  create_time: "2023-04-20T09:03:06.237383Z"
-  credential:
-   id: 394c1273-d8e7-4844-bdb8-b1f398e4510b
-   public_key_der: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHEB4HEWv5WIHPgIkgED5hTcv2yB+FHCprhZEzTOLRls5KV0gNriq/z4nATmIZ4d451bJ3/BKGQaDTGSre0qHVA==
-  enroll_status: enrolled
-  os_type: macos
-  update_time: "2023-04-20T09:03:53.427809Z"
-version: v1`
-
-	device := resourceFromYAML(t, deviceYAML).(*types.DeviceV1)
-	cfg.BootstrapResources = append(
-		cfg.BootstrapResources,
-		device,
-	)
-
-	_, err := Init(cfg)
-	require.ErrorContains(t, err, "only available in enterprise subscriptions")
-}
