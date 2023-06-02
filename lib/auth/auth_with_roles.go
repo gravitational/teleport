@@ -4590,7 +4590,6 @@ func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 
 // ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
 func (a *ServerWithRoles) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
-	// Check if this a proxy service.
 	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
