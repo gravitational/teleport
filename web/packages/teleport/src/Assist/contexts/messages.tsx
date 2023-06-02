@@ -110,6 +110,15 @@ const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   return query;
 };
 
+const ROOT_LOGINS = ['root', 'ec2-user', 'ubuntu', 'admin', 'centos'];
+
+// findPreferredLogin tries to find a login that is not a root login.
+function findPreferredLogin(logins: string[]): string | undefined {
+  const login = logins.find(l => !ROOT_LOGINS.includes(l));
+
+  return login || logins[0];
+}
+
 export const remoteCommandToMessage = async (
   execCmd: ExecuteRemoteCommandContent,
   clusterId: string
@@ -144,12 +153,12 @@ export const remoteCommandToMessage = async (
     let avLogin = execCmd.selectedLogin;
     if (!avLogin) {
       // If the login has not been selected, use the first one.
-      avLogin = availableLogins ? availableLogins[0] : '';
+      avLogin = availableLogins ? findPreferredLogin(availableLogins) : '';
     } else {
       // If the login has been selected, check if it is available.
       // Updated query could have changed the available logins.
       if (!availableLogins.includes(avLogin)) {
-        avLogin = availableLogins ? availableLogins[0] : '';
+        avLogin = availableLogins ? findPreferredLogin(availableLogins) : '';
       }
     }
 
