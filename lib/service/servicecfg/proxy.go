@@ -148,7 +148,9 @@ func (c ProxyConfig) getDefaultAddr(port int) string {
 	host := "<proxyhost>"
 	// Try to guess the hostname from the HTTP public_addr.
 	if len(c.PublicAddrs) > 0 {
-		host = c.PublicAddrs[0].Host()
+		publicAddr := c.PublicAddrs[0]
+		host = publicAddr.Host()
+		port = publicAddr.Port(port)
 	}
 
 	u := url.URL{
