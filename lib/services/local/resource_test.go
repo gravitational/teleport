@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -247,5 +248,5 @@ func TestBootstrapLock(t *testing.T) {
 
 	l, err := tt.suite.Access.GetLock(ctx, "test")
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(nl, l))
+	require.Empty(t, cmp.Diff(nl, l, protocmp.Transform()))
 }
