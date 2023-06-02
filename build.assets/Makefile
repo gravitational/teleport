@@ -27,9 +27,6 @@ RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 0.7.0-teleport
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
-# pin golangci-lint version to avoid breaking changes
-GOLANGCI_VERSION ?= 1.53.0
-
 # Protogen related versions.
 BUF_VERSION ?= 1.19.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
@@ -134,7 +131,6 @@ buildbox:
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 			--build-arg BUF_VERSION=$(BUF_VERSION) \
-			--build-arg GOLANGCI_VERSION=$(GOLANGCI_VERSION) \
 			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
 			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \

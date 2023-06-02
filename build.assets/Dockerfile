@@ -269,10 +269,9 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-ARG GOLANGCI_VERSION # eg, "1.53.0"
-RUN TAG="v$GOLANGCI_VERSION" && \
+RUN TAG='v1.53.0' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
-    sh -s -- -b $(go env GOPATH)/bin $TAG
+    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
 # Install Buf.
 ARG BUF_VERSION # eg, "1.19.0"
