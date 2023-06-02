@@ -23,13 +23,11 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [KeysEnum.SHOW_ASSIST_POPUP];
 
 const storage = {
   clear() {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-
+    Object.keys(window.localStorage).forEach(key => {
       if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
         window.localStorage.removeItem(key);
       }
-    }
+    });
   },
 
   subscribe(fn) {
