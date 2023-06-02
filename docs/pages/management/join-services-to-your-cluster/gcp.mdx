@@ -30,7 +30,7 @@ Under the hood, services will prove that they are running in your GCP project
 by sending a signed ID token which matches an allow rule configured in your GCP
 joining token.
 
-Create the following `token.yaml` with a `gcp.allow` rule specifying your GCP
+Create the following `token.yaml` file with a `gcp.allow` rule specifying your GCP
 project ID(s), service account(s), and location(s) in which your GCP instances
 will run.
 
@@ -43,7 +43,7 @@ metadata:
   # running in your GCP project to use this token
   name: gcp-token
 spec:
-  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
+  # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
   roles: [Node]
 
   # set the join method allowed for this token
@@ -69,7 +69,7 @@ $ tctl create token.yaml
 
 ## Step 2/3. Configure your services
 
-The GCP join method can be used for Teleport processes running the SSH, Proxy,
+The GCP join method can be used for Teleport processes running the SSH (`Node`), Proxy,
 Kubernetes, Application, Database, or Windows Desktop Services. The Teleport
 process should be run directly on a GCP VM.
 
