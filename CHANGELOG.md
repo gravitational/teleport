@@ -1,5 +1,27 @@
 # Changelog
 
+## 12.4.6 (06/02/23)
+
+* Auth
+  * Fixed issue with headless auth not working when leaf cluster is selected. [#26877](https://github.com/gravitational/teleport/pull/26877)
+* CLI
+  * Added support for registering Windows desktops using `tctl`. [#27251](https://github.com/gravitational/teleport/pull/27251)
+  * Added autocompletion support for bash and zsh. [#26998](https://github.com/gravitational/teleport/pull/26998)
+* Desktop Access
+  * Increased LDAP dial timeout from 5 to 15 seconds. [#27046](https://github.com/gravitational/teleport/pull/27046)
+* Helm Charts
+  * Improved `clusterName` validation in `teleport-cluster` chart. [#26974](https://github.com/gravitational/teleport/pull/26974)
+* Okta
+  * Updated Okta import rules to support filtering user groups by description. [#27020](https://github.com/gravitational/teleport/pull/27020)
+* Performance & Scalability
+  * Improved `tsh login` latency by fetching cluster alerts once. [#27111](https://github.com/gravitational/teleport/pull/27111)
+* Server Access
+  * Fixed issue with port forwarding configuraiton being cached in `tsh` profile. [#27207](https://github.com/gravitational/teleport/pull/27207)
+* Tooling
+  * Updated OpenSSL to `1.1.1u`. [#27113](https://github.com/gravitational/teleport/pull/27113)
+* Web UI
+  * Fixed issue with users being immediately logged out of web UI after completing SSO via OIDC. [#27297](https://github.com/gravitational/teleport/pull/27297)
+
 ## 12.4.5 (05/25/23)
 
 * SSO
