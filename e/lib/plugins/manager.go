@@ -23,10 +23,11 @@ type HeartbeatCreator func(string) func(error)
 
 // ManagerConfig contains parameters and dependencies for Manager
 type ManagerConfig struct {
-	Authorizers *AuthorizerSet
-	Backend     services.Plugins
-	Events      types.Events
-	Factories   map[types.PluginType]instanceFactory
+	Authorizers             *AuthorizerSet
+	Plugins                 services.Plugins
+	PluginStaticCredentials services.PluginStaticCredentials
+	Events                  types.Events
+	Factories               map[types.PluginType]instanceFactory
 	// TeleportClient is the Teleport API client passed to plugins
 	TeleportClient teleport.Client
 	// RetryConfig defines the backoff settings for retrying the inner event loop
@@ -44,8 +45,11 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 	if cfg.Authorizers == nil {
 		return trace.BadParameter("authorizers must be set")
 	}
-	if cfg.Backend == nil {
-		return trace.BadParameter("backend must be set")
+	if cfg.Plugins == nil {
+		return trace.BadParameter("plugins must be set")
+	}
+	if cfg.PluginStaticCredentials == nil {
+		return trace.BadParameter("plugin static credentials must be set")
 	}
 	if cfg.Events == nil {
 		return trace.BadParameter("events must be set")
@@ -89,15 +93,16 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 // Manager's event loop runs as a single goroutine,
 // as such no synchronization to its fields is implemented.
 type Manager struct {
-	authorizers    *AuthorizerSet
-	backend        services.Plugins
-	events         types.Events
-	factories      map[types.PluginType]instanceFactory
-	instances      map[string]*instance
-	teleportClient teleport.Client
-	watcher        types.Watcher
-	retryConfig    retryutils.RetryV2Config
-	parentProcess  *service.TeleportProcess
+	authorizers             *AuthorizerSet
+	plugins                 services.Plugins
+	pluginStaticCredentials services.PluginStaticCredentials
+	events                  types.Events
+	factories               map[types.PluginType]instanceFactory
+	instances               map[string]*instance
+	teleportClient          teleport.Client
+	watcher                 types.Watcher
+	retryConfig             retryutils.RetryV2Config
+	parentProcess           *service.TeleportProcess
 
 	log *logrus.Entry
 }
@@ -111,14 +116,15 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	}
 
 	m := &Manager{
-		authorizers:    cfg.Authorizers,
-		backend:        cfg.Backend,
-		events:         cfg.Events,
-		factories:      cfg.Factories,
-		instances:      make(map[string]*instance),
-		teleportClient: cfg.TeleportClient,
-		retryConfig:    *cfg.RetryConfig,
-		parentProcess:  cfg.ParentProcess,
+		authorizers:             cfg.Authorizers,
+		plugins:                 cfg.Plugins,
+		pluginStaticCredentials: cfg.PluginStaticCredentials,
+		events:                  cfg.Events,
+		factories:               cfg.Factories,
+		instances:               make(map[string]*instance),
+		teleportClient:          cfg.TeleportClient,
+		retryConfig:             *cfg.RetryConfig,
+		parentProcess:           cfg.ParentProcess,
 
 		log: cfg.Log,
 	}
@@ -169,7 +175,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	resources, err := m.backend.GetPlugins(ctx, true)
+	resources, err := m.plugins.GetPlugins(ctx, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -179,7 +185,7 @@ func (m *Manager) runInner(ctx context.Context) error {
 			Type:     types.OpPut,
 			Resource: resource,
 		}
-		if err := m.dispatchEvent(event); err != nil {
+		if err := m.dispatchEvent(ctx, event); err != nil {
 			m.log.WithError(err).Errorf("failed to dispatch %v", event)
 		}
 	}
@@ -194,14 +200,14 @@ func (m *Manager) runInner(ctx context.Context) error {
 			return trace.Wrap(m.watcher.Error())
 		case event := <-m.watcher.Events():
 
-			if err := m.dispatchEvent(event); err != nil {
+			if err := m.dispatchEvent(ctx, event); err != nil {
 				m.log.WithError(err).Errorf("failed to dispatch %v", event)
 			}
 		}
 	}
 }
 
-func (m *Manager) dispatchEvent(e types.Event) error {
+func (m *Manager) dispatchEvent(ctx context.Context, e types.Event) error {
 	if e.Resource == nil {
 		return nil
 	}
@@ -231,7 +237,7 @@ func (m *Manager) dispatchEvent(e types.Event) error {
 			break
 		}
 		m.shutdownInstance(name)
-		if err := m.startInstance(plugin); err != nil {
+		if err := m.startInstance(ctx, plugin); err != nil {
 			return trace.Wrap(err, "starting %v", name)
 		}
 	}
@@ -252,7 +258,7 @@ func (m *Manager) shutdownInstance(name string) {
 
 // startInstance configures a plugin instance per the given spec,
 // and starts it as a separate goroutine
-func (m *Manager) startInstance(plugin *types.PluginV1) error {
+func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) error {
 	m.log.Infof("Starting plugin %s", plugin.GetName())
 
 	factory, ok := m.factories[plugin.GetType()]
@@ -272,20 +278,27 @@ func (m *Manager) startInstance(plugin *types.PluginV1) error {
 		}
 	}
 
-	store := newPluginStore(m.backend, plugin.GetName())
-	statusSink := newStatusSink(m.backend, plugin.GetName(), string(plugin.GetType()))
+	store := newPluginStore(m.plugins, plugin.GetName())
+	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
 	log := m.log.WithFields(logrus.Fields{
 		"plugin_name": plugin.GetName(),
 		"plugin_type": plugin.GetType(),
 	})
+
+	staticCreds, err := m.getStaticCredentials(ctx, plugin)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
 	deps := instanceDependencies{
-		authorizer:    authorizer,
-		client:        m.teleportClient,
-		store:         store,
-		statusSink:    statusSink,
-		parentProcess: m.parentProcess,
-		log:           log,
+		authorizer:        authorizer,
+		client:            m.teleportClient,
+		store:             store,
+		statusSink:        statusSink,
+		parentProcess:     m.parentProcess,
+		staticCredentials: staticCreds,
+		log:               log,
 	}
 
 	// Use Background() here for now, no connection to event loop's context.
@@ -324,6 +337,24 @@ func (m *Manager) instanceUpToDate(name string, spec *types.PluginSpecV1) bool {
 		return false
 	}
 	return instance.spec.Equal(spec)
+}
+
+// getStaticCredentials will return static credentials for a plugin if they are needed.
+func (m *Manager) getStaticCredentials(ctx context.Context, plugin types.Plugin) ([]types.PluginStaticCredentials, error) {
+	// The credentials field is a oneof, so it can have multiple values. The static credentials
+	// ref may not be present, so if it isn't present, we'll just assume that this object
+	// doesn't have any static credentials set. Otherwise, we'll get the static credentials.
+	staticCredsRef := plugin.GetCredentials().GetStaticCredentialsRef()
+	if staticCredsRef == nil {
+		return nil, trace.NotFound("no static credentials found")
+	}
+
+	staticCreds, err := m.pluginStaticCredentials.GetPluginStaticCredentialsByLabels(ctx, staticCredsRef.Labels)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return staticCreds, nil
 }
 
 // NeedsOAuth returns true if the plugin needs OAuth.

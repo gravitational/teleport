@@ -5,10 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 func TestGetPluginWithSecrets(t *testing.T) {
@@ -161,6 +166,161 @@ func TestSetPluginCredentials(t *testing.T) {
 				},
 			})
 			tc.ErrAssertion(t, err)
+		})
+	}
+}
+
+func TestSearchPluginStaticCredentials(t *testing.T) {
+	t.Parallel()
+
+	const pluginName = "okta"
+
+	suite := createSuite(t)
+
+	plugin := &types.PluginV1{
+		Metadata: types.Metadata{
+			Name: pluginName,
+		},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: "https://www.okta.com",
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{
+						"label1": "value1",
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+
+	err := suite.pluginService.CreatePlugin(ctx, plugin)
+	require.NoError(t, err)
+
+	cred := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "cred",
+				Labels: map[string]string{
+					"label1": "value1",
+				},
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "api-token",
+			},
+		},
+	}
+
+	require.NoError(t, suite.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, cred))
+
+	assistCred := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: assistCredentialName,
+				Labels: map[string]string{
+					"label1": "value2",
+				},
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "api-token",
+			},
+		},
+	}
+	require.NoError(t, suite.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, assistCred))
+
+	tt := []struct {
+		name         string
+		identity     authz.IdentityGetter
+		roles        []string
+		labels       map[string]string
+		expected     []*types.PluginStaticCredentialsV1
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:     "non admin or proxy",
+			identity: auth.TestUser("someuser").I,
+			roles:    []string{},
+			expected: nil,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+			},
+		},
+		{
+			name:     "admin gets arbitrary cred",
+			identity: auth.TestBuiltin(types.RoleAdmin).I,
+			roles:    []string{string(types.RoleAdmin)},
+			labels: map[string]string{
+				"label1": "value1",
+			},
+			expected: []*types.PluginStaticCredentialsV1{
+				cred,
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:     "admin gets assist cred",
+			identity: auth.TestBuiltin(types.RoleAdmin).I,
+			roles:    []string{string(types.RoleAdmin)},
+			labels: map[string]string{
+				"label1": "value2",
+			},
+			expected: []*types.PluginStaticCredentialsV1{
+				assistCred,
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name:     "proxy gets access denied asking for arbitrary cred",
+			identity: auth.TestBuiltin(types.RoleProxy).I,
+			roles:    []string{string(types.RoleProxy)},
+			labels: map[string]string{
+				"label1": "value1",
+			},
+			expected: nil,
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+			},
+		},
+		{
+			name:     "proxy gets assist cred asking for assist cred",
+			identity: auth.TestBuiltin(types.RoleProxy).I,
+			roles:    []string{string(types.RoleProxy)},
+			labels: map[string]string{
+				"label1": "value2",
+			},
+			expected: []*types.PluginStaticCredentialsV1{
+				assistCred,
+			},
+			errAssertion: require.NoError,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := authz.ContextWithUser(ctx, tc.identity)
+			suite.setRoles(tc.roles)
+
+			resp, err := suite.svc.SearchPluginStaticCredentials(ctx, &pluginspb.SearchPluginStaticCredentialsRequest{Labels: tc.labels})
+			tc.errAssertion(t, err)
+
+			if tc.expected == nil {
+				require.Nil(t, resp)
+			} else if tc.expected != nil {
+				require.NotNil(t, resp)
+				require.Empty(t, cmp.Diff(tc.expected, resp.Credentials),
+					cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+			}
 		})
 	}
 }

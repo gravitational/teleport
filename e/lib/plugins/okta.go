@@ -17,10 +17,18 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 		return nil, trace.BadParameter("field Spec.Okta must be present")
 	}
 
-	bearerToken := plugin.Credentials.GetBearerToken().Token
+	if len(deps.staticCredentials) == 0 {
+		return nil, trace.BadParameter("static credentials must be present")
+	}
+
+	// For now, we'll just choose the first static credential until we have a need for rotation or other complexity.
+	staticToken := deps.staticCredentials[0].GetAPIToken()
+	if staticToken == "" {
+		return nil, trace.BadParameter("api token is empty")
+	}
 
 	return func() error {
-		closeEvent := services.InitOktaPlugin(ctx, deps.parentProcess, oktaSpec.OrgUrl, bearerToken, plugin.GetName())
+		closeEvent := services.InitOktaPlugin(ctx, deps.parentProcess, oktaSpec.OrgUrl, staticToken, plugin.GetName())
 
 		// wait for the calling context to finish before doing anything else.
 		<-ctx.Done()

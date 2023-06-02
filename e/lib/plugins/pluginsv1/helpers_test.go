@@ -59,6 +59,10 @@ func (s *suite) setRules(rules []types.Rule) {
 	s.authorizer.checker.rules = rules
 }
 
+func (s *suite) setRoles(roles []string) {
+	s.authorizer.checker.roles = roles
+}
+
 func createSuite(t *testing.T) *suite {
 	mem, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
@@ -92,6 +96,14 @@ type fakeAuthorizer struct {
 }
 
 func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	identity, err := authz.UserFromContext(ctx)
+	if err == nil {
+		return &authz.Context{
+			Identity: identity,
+			Checker:  f.checker,
+		}, nil
+	}
+
 	return &authz.Context{
 		Checker: f.checker,
 	}, nil
@@ -100,6 +112,7 @@ func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) 
 type fakeChecker struct {
 	services.AccessChecker
 	rules []types.Rule
+	roles []string
 }
 
 func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace string, kind string, verb string, silent bool) error {
@@ -109,6 +122,17 @@ func (f *fakeChecker) CheckAccessToRule(context services.RuleContext, namespace 
 		}
 	}
 	return trace.AccessDenied("access to %s with verb %s is not allowed", kind, verb)
+}
+
+// HasRole checks if the checker includes the role
+func (f *fakeChecker) HasRole(target string) bool {
+	for _, role := range f.roles {
+		if role == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 func assertAccessDenied(t require.TestingT, err error, msg ...interface{}) {

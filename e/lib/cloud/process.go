@@ -166,13 +166,18 @@ func NewTeleport(cfg Config) (*Process, error) {
 	if cfg.AuthPlugin.HostedPlugins.Enabled {
 		// Start plugin manager
 		authorizers := plugins.NewAuthorizerSetFromConfig(cfg.AuthPlugin.HostedPlugins.OAuthProviders)
-		backendService := local.NewPluginsService(process.GetBackend())
+		pluginsService := local.NewPluginsService(process.GetBackend())
+		pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(process.GetBackend())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
-			Authorizers:    authorizers,
-			Backend:        backendService,
-			Events:         process.GetAuthServer().Services,
-			TeleportClient: process.GetAuthServer(),
-			ParentProcess:  process.TeleportProcess,
+			Authorizers:             authorizers,
+			Plugins:                 pluginsService,
+			PluginStaticCredentials: pluginStaticCredentialsService,
+			Events:                  process.GetAuthServer().Services,
+			TeleportClient:          process.GetAuthServer(),
+			ParentProcess:           process.TeleportProcess,
 
 			Log: logrus.WithFields(logrus.Fields{
 				trace.Component: teleport.ComponentPluginManager,
@@ -185,7 +190,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 		// Remove OpenAI plugin that was previously auto-provisioned in Cloud.
 		// TODO(justinas): remove after deploying in Cloud once.
 		// Ref: https://github.com/gravitational/teleport.e/issues/1477
-		if err := backendService.DeletePlugin(context.Background(), "openai-default"); err != nil && !trace.IsNotFound(err) {
+		if err := pluginsService.DeletePlugin(context.Background(), "openai-default"); err != nil && !trace.IsNotFound(err) {
 			logrus.Error(err)
 		}
 

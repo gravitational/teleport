@@ -11,6 +11,8 @@ import (
 
 // createSlackPlugin creates a basic Slack plugin for testing purposes
 func createSlackPlugin(t *testing.T, name string) types.Plugin {
+	t.Helper()
+
 	p := types.NewPluginV1(
 		types.Metadata{
 			Name: name,
@@ -37,4 +39,51 @@ func createSlackPlugin(t *testing.T, name string) types.Plugin {
 	)
 	require.NoError(t, p.CheckAndSetDefaults())
 	return p
+}
+
+// createOktaPlugin creates a basic Okta plugin for testing purposes
+func createOktaPlugin(t *testing.T, name string) (types.Plugin, types.PluginStaticCredentials) {
+	t.Helper()
+
+	labels := map[string]string{
+		"label1": "value1",
+	}
+
+	p := types.NewPluginV1(
+		types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				HostedPluginLabel: "true",
+			},
+		},
+		types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: "https://www.okta.com",
+				},
+			},
+		},
+		&types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: labels,
+				},
+			},
+		},
+	)
+	require.NoError(t, p.CheckAndSetDefaults())
+
+	creds, err := types.NewPluginStaticCredentials(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		}, types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "test-token",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	return p, creds
 }

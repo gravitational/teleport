@@ -13,8 +13,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+)
+
+const (
+	assistCredentialName = "openai-default"
 )
 
 // ServiceConfig holds configuration options for the plugins gRPC service.
@@ -308,6 +313,65 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 	// TODO(sshah): Include static plugins here.
 
 	return resp, nil
+}
+
+// SearchPluginStaticCredentials returns static credentials that are searched for. Only accessible by RoleAdmin and,
+// in the case of Teleport Assist, RoleProxy.
+func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *pluginspb.SearchPluginStaticCredentialsRequest) (*pluginspb.SearchPluginStaticCredentialsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case auth.HasBuiltinRole(*authCtx, string(types.RoleAdmin)):
+		// RoleAdmin is allowed to retrieve plugin static credentials.
+		credentials, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, req.Labels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		credentialsV1 := make([]*types.PluginStaticCredentialsV1, len(credentials))
+		for i, credential := range credentials {
+			credentialV1, ok := credential.(*types.PluginStaticCredentialsV1)
+			if !ok {
+				return nil, trace.BadParameter("expected *types.PluginStaticCredentialsV1, got %T", credential)
+			}
+
+			credentialsV1[i] = credentialV1
+		}
+
+		return &pluginspb.SearchPluginStaticCredentialsResponse{
+			Credentials: credentialsV1,
+		}, nil
+	case auth.HasBuiltinRole(*authCtx, string(types.RoleProxy)):
+		// RoleProxy is allowed to retrieve the Teleport assist static credential and nothing else. We'll ignore the
+		// request here.
+		credential, err := s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, assistCredentialName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// If the labels don't match the openai-default credential, we'll return access denied.
+		if !types.MatchLabels(credential, req.Labels) {
+			s.log.Warnf("Proxy supplied labels (%v) for static credentials other than the ones for Teleport Assist", req.Labels)
+			return nil, trace.AccessDenied("access denied")
+		}
+
+		credentialV1, ok := credential.(*types.PluginStaticCredentialsV1)
+		if !ok {
+			return nil, trace.BadParameter("expected *types.PluginStaticCredentialsV1, got %T", credential)
+		}
+
+		return &pluginspb.SearchPluginStaticCredentialsResponse{
+			Credentials: []*types.PluginStaticCredentialsV1{credentialV1},
+		}, nil
+	}
+
+	s.log.Warnf("Plugin static credential retrieval for labels %v denied for user %q", req.Labels, authCtx.Identity.GetIdentity().Username)
+
+	// This has some other role, so deny access.
+	return nil, trace.AccessDenied("access denied")
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {

@@ -15,11 +15,12 @@ import (
 
 // instanceDependencies is a container for dependencies of a plugin instance.
 type instanceDependencies struct {
-	authorizer    oauth.Authorizer
-	client        teleport.Client
-	store         storage.Store
-	statusSink    common.StatusSink
-	parentProcess *service.TeleportProcess
+	authorizer        oauth.Authorizer
+	client            teleport.Client
+	store             storage.Store
+	statusSink        common.StatusSink
+	parentProcess     *service.TeleportProcess
+	staticCredentials []types.PluginStaticCredentials
 
 	log *logrus.Entry
 }

@@ -20,6 +20,7 @@ import (
 )
 
 type fakeAuthorizer struct{}
+type staticRefLookup map[string]map[string]string
 
 func (*fakeAuthorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
 	panic("unimplemented")
@@ -103,9 +104,28 @@ func (w *fakeWatcher) Events() <-chan types.Event {
 	return w.ch
 }
 
-func TestPluginManagerStartStop(t *testing.T) {
-	const pluginName = "slack-default"
+func TestPluginManagerStartStopOAuth(t *testing.T) {
+	modifySpec := func(t *testing.T, plugin *types.PluginV1) {
+		slackSpec := plugin.Spec.GetSlackAccessPlugin()
+		require.NotNil(t, slackSpec)
+		slackSpec.FallbackChannel = "#teleport-rules"
+	}
+	plugin := createSlackPlugin(t, "slack-default").(*types.PluginV1)
+	testPluginStartStop(t, plugin, modifySpec)
+}
 
+func TestPluginManagerStartStopStaticCreds(t *testing.T) {
+	modifySpec := func(t *testing.T, plugin *types.PluginV1) {
+		oktaSpec := plugin.Spec.GetOkta()
+		require.NotNil(t, oktaSpec)
+		oktaSpec.OrgUrl = "https://www.new-okta.com"
+	}
+
+	plugin, creds := createOktaPlugin(t, "okta")
+	testPluginStartStop(t, plugin.(*types.PluginV1), modifySpec, creds)
+}
+
+func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t *testing.T, plugin *types.PluginV1), staticCreds ...types.PluginStaticCredentials) {
 	mem, err := memory.New(memory.Config{
 		Clock: clockwork.NewFakeClock(),
 	})
@@ -117,11 +137,18 @@ func TestPluginManagerStartStop(t *testing.T) {
 		Authorizer: &fakeAuthorizer{},
 		ClientID:   "123456",
 	})
-	backendService := local.NewPluginsService(mem)
+	pluginService := local.NewPluginsService(mem)
+	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
+	require.NoError(t, err)
 	events := &fakeEvents{}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Add in any provided static credentials
+	for _, staticCred := range staticCreds {
+		require.NoError(t, pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCred))
+	}
 
 	var instanceStarted, instanceStopped int64
 	makeInstanceDelegate := func(ctx context.Context) func() error {
@@ -139,12 +166,17 @@ func TestPluginManagerStartStop(t *testing.T) {
 		}, time.Second, time.Second/100)
 	}
 
+	staticRefs := staticRefLookup{}
 	cfg := ManagerConfig{
-		Authorizers: authorizers,
-		Backend:     backendService,
-		Events:      events,
+		Authorizers:             authorizers,
+		Plugins:                 pluginService,
+		PluginStaticCredentials: pluginStaticCredentialsService,
+		Events:                  events,
 		Factories: map[types.PluginType]instanceFactory{
-			types.PluginTypeSlack: func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+			plugin.GetType(): func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error) {
+				for _, cred := range deps.staticCredentials {
+					staticRefs[cred.GetName()] = cred.GetStaticLabels()
+				}
 				return makeInstanceDelegate(ctx), nil
 			},
 		},
@@ -159,8 +191,6 @@ func TestPluginManagerStartStop(t *testing.T) {
 
 	go manager.Run(ctx)
 
-	plugin := createSlackPlugin(t, pluginName).(*types.PluginV1)
-
 	// Wait for manager to subscribe to events
 	require.Eventually(t, func() bool {
 		return events.numWatchers() == 1
@@ -173,6 +203,13 @@ func TestPluginManagerStartStop(t *testing.T) {
 	})
 	assertStartStop(1, 0)
 
+	// Verify the static credentials
+	for _, cred := range staticCreds {
+		require.Equal(t, cred.GetStaticLabels(), staticRefs[cred.GetName()])
+	}
+	// Clear out the static refs
+	staticRefs = staticRefLookup{}
+
 	// 2) Modify metadata, but not spec: do not restart
 	plugin = plugin.Clone().(*types.PluginV1)
 	plugin.Metadata.Labels["foo"] = "bar"
@@ -184,15 +221,18 @@ func TestPluginManagerStartStop(t *testing.T) {
 
 	// 3) Modify spec: restart
 	plugin = plugin.Clone().(*types.PluginV1)
-	slackSpec := plugin.Spec.GetSlackAccessPlugin()
-	require.NotNil(t, slackSpec)
-	slackSpec.FallbackChannel = "#teleport-rules"
+	modifySpec(t, plugin)
 
 	events.send(types.Event{
 		Type:     types.OpPut,
 		Resource: plugin,
 	})
 	assertStartStop(2, 1)
+
+	// Verify the static credentials again
+	for _, cred := range staticCreds {
+		require.Equal(t, cred.GetStaticLabels(), staticRefs[cred.GetName()])
+	}
 
 	// 4) Close existing watcher: loop should stop all instances,
 	// and then re-subscribe
@@ -219,7 +259,7 @@ func TestPluginManagerStartStop(t *testing.T) {
 		Resource: &types.ResourceHeader{
 			Kind: types.KindPlugin,
 			Metadata: types.Metadata{
-				Name: "slack-default",
+				Name: plugin.GetName(),
 			},
 		},
 	})

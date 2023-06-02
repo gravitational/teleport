@@ -50,9 +50,11 @@ func TestOktaInstanceFactory(t *testing.T) {
 			},
 		},
 	}, &types.PluginCredentialsV1{
-		Credentials: &types.PluginCredentialsV1_BearerToken{
-			BearerToken: &types.PluginBearerTokenCredentials{
-				Token: "test",
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+				Labels: map[string]string{
+					"label1": "value1",
+				},
 			},
 		},
 	},
@@ -62,6 +64,20 @@ func TestOktaInstanceFactory(t *testing.T) {
 	startFunc, err := oktaInstanceFactory(ctx, plugin, instanceDependencies{
 		log:           logrus.NewEntry(logrus.New()),
 		parentProcess: process,
+		staticCredentials: []types.PluginStaticCredentials{
+			&types.PluginStaticCredentialsV1{
+				ResourceHeader: types.ResourceHeader{
+					Metadata: types.Metadata{
+						Name: "cred",
+					},
+				},
+				Spec: &types.PluginStaticCredentialsSpecV1{
+					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+						APIToken: "test",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
