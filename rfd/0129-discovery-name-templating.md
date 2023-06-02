@@ -54,7 +54,39 @@ Using Go templates is not uncommon, so this UX should not be surprising.
 A few examples of software that supports using Go templates: `helm`, `gh`
 (GitHub CLI), `docker`.
 
-### Example config:
+### Example Config:
+
+#### Dynamic Config
+
+Assuming there is a discovery service with `discovery_group: dev-resources-aws`
+configured:
+
+```yaml
+discovery_service:
+  enabled: "yes"
+  discovery_group: "dev-resources-aws"
+```
+
+Users can use `tctl create` for the following dynamic `DiscoveryConfig`
+resource:
+
+```yaml
+kind: DiscoveryConfig
+version: v1
+metadata:
+  name: "dev-resources-aws"
+spec:
+    discovery_group: "dev-resources-aws"
+    aws:
+     - types: ["rds"]
+       regions: ["us-west-1","us-west-2"]
+       resource_name_template: "teleport-dev-{{.Name}}-{{.AWS.AccountID}}-{{.AWS.Region}}"
+       tags:
+         "*": "*"
+```
+
+#### Static Config Equivalent
+
 ```yaml
 discovery_service:
   enabled: true
@@ -66,16 +98,18 @@ discovery_service:
         "*": "*"
 ```
 
-In this example, the discovery agent will discover AWS RDS databases in the
-us-west-1 and us-west-2 AWS regions.
+In both the dynamic config and the equivalent static config example, the
+discovery agent will discover AWS RDS databases in the us-west-1 and us-west-2
+AWS regions.
 
-Each database discovered by the matcher will have the prefix "teleport-dev-"
-followed by the discovered database's name, AWS account ID, and AWS region.
+Each database discovered by the `aws` matcher will have the prefix
+"teleport-dev-" followed by the discovered database's name, AWS account ID, and
+AWS region.
 
 For instance, if a database named `foo` is discovered in AWS account ID
 `0123456789012` in region `us-west-1`, the rewritten name will be
 `teleport-dev-foo-012345689012-us-west-1`.
-This would disambiguate the database name from other databases in other regions
+This disambiguates the database name from other databases in other regions
 and other AWS accounts.
 
 Since the full template syntax is available, a user could modify this to use
@@ -154,6 +188,7 @@ Users need to ensure the `resource_name_template` option is set to a template
 string for each discovery matcher to enable resource name rewriting.
 
 Example:
+
 ```yaml
 discovery_service:
   enabled: true
@@ -188,7 +223,8 @@ from RFD 125 using `tctl`.
 Print a user-friendly message that lists supported template variables
 when a user tries to use an unsupported template variable:
 
-config file:
+static config file:
+
 ```yaml
 discovery_service:
   enabled: true
@@ -200,9 +236,39 @@ discovery_service:
         "*": "*"
 ```
 
-usage:
+usage error:
+
 ```shell
 $ teleport start
+ERROR: failed to parse Teleport configuration: discovery service AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
+.Name
+.Region
+.AWS
+  .AccountID
+  ...
+```
+
+dynamic config resource:
+
+```yaml
+kind: DiscoveryConfig
+version: v1
+metadata:
+  name: "example"
+spec:
+    discovery_group: "resources-aws"
+    aws:
+     - types: ["rds"]
+       regions: ["us-west-1","us-west-2"]
+       resource_name_template: "{{.Thing}}-{{.Region}}-{{.AWS.AccountID}}"
+       tags:
+         "*": "*"
+```
+
+usage error:
+
+```shell
+$ tctl create ~/discovery_config.yaml 
 ERROR: failed to parse Teleport configuration: discovery service AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
 .Name
 .Region
