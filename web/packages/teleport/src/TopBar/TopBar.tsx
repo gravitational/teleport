@@ -74,6 +74,7 @@ export function TopBar() {
           {title}
         </Text>
       )}
+      <Text fontSize="18px" id="topbar-portal" ml={2}></Text>
       <ClusterSelector
         value={clusterId}
         width="384px"

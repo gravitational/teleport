@@ -52,6 +52,9 @@ message CreatePluginRequest {
 message GetPluginRequest {
   // Name is the name of the plugin instance.
   string name = 1;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 2;
 }
 
 // ListPluginsRequest is a paginated request to list all plugin instances.
@@ -62,6 +65,9 @@ message ListPluginsRequest {
   // StartKey is the value of NextKey received in the last ListPluginsResponse.
   // When making the initial request, this should be left empty.
   string start_key = 2;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 3;
 }
 
 // ListPluginsResponse is a paginated response to a ListPluginsRequest.

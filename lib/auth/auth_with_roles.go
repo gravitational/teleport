@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -6090,6 +6091,69 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantMessages(ctx, req)
+}
+
+// DeleteAssistantConversation deletes a conversation by ID.
+func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.IsAssistEnabled(ctx)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantMessage(ctx, msg)
+}
+
+// UpdateAssistantConversationInfo updates the conversation info.
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")
@@ -6124,8 +6188,8 @@ func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cm
 
 	if modules.GetModules().Features().Cloud {
 		// maintenance configuration in cloud is derived from values stored in
-		// an external cloud-specific databse.
-		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
 	}
 
 	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
