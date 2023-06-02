@@ -996,7 +996,6 @@ func TestValidateRole(t *testing.T) {
 }
 
 // BenchmarkValidateRole benchmarks the performance of ValidateRole.
-// The current bottleneck is validateRule and specifically predicate.GetFieldByTag.
 //
 // $ go test ./lib/services -bench BenchmarkValidateRole -v -run xxx
 // goos: darwin
@@ -1034,9 +1033,9 @@ func BenchmarkValidateRole(b *testing.B) {
 			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			Rules: []types.Rule{
 				{
-					Resources: []string{"role"},
-					Verbs:     []string{"read", "list"},
-					Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+					Resources: []string{types.KindRole},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+					Where:     `contains(user.spec.traits["groups"], "prod")`,
 				},
 				{
 					Resources: []string{types.KindSession},
@@ -1047,6 +1046,7 @@ func BenchmarkValidateRole(b *testing.B) {
 		},
 	})
 	require.NoError(b, err)
+	require.NoError(b, ValidateRole(role))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

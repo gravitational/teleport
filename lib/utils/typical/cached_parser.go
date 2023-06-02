@@ -17,6 +17,7 @@ package typical
 import (
 	"os"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -24,8 +25,9 @@ import (
 )
 
 const (
-	cacheSizeEnvVar  = "TELEPORT_EXPRESSION_CACHE_SIZE"
-	defaultCacheSize = 1000
+	cacheSizeEnvVar   = "TELEPORT_EXPRESSION_CACHE_SIZE"
+	defaultCacheSize  = 1000
+	logAfterEvictions = 100
 )
 
 // newExpressionCache returns a new LRU cache meant to hold parsed expressions.
@@ -48,7 +50,9 @@ func newExpressionCache[TExpr any]() (*lru.Cache[string, TExpr], error) {
 // CachedParser is a Parser that caches each parsed expression.
 type CachedParser[TEnv, TResult any] struct {
 	Parser[TEnv, TResult]
-	cache *lru.Cache[string, Expression[TEnv, TResult]]
+	cache        *lru.Cache[string, Expression[TEnv, TResult]]
+	evictedCount atomic.Uint32
+	logger       logger
 }
 
 // NewCachedParser creates a cached predicate expression parser with the given specification.
@@ -64,6 +68,7 @@ func NewCachedParser[TEnv, TResult any](spec ParserSpec, opts ...ParserOption) (
 	return &CachedParser[TEnv, TResult]{
 		Parser: *parser,
 		cache:  cache,
+		logger: logrus.StandardLogger(),
 	}, nil
 }
 
@@ -78,8 +83,13 @@ func (c *CachedParser[TEnv, TResult]) Parse(expression string) (Expression[TEnv,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if evicted := c.cache.Add(expression, parsedExpr); evicted {
-		logrus.Info("Evicting entry from expression cache")
+	if evicted := c.cache.Add(expression, parsedExpr); evicted && c.evictedCount.Add(1)%logAfterEvictions == 0 {
+		c.logger.Infof("%d entries have been evicted from the predicate expression cache, consider increasing TELEPORT_EXPRESSION_CACHE_SIZE",
+			logAfterEvictions)
 	}
 	return parsedExpr, nil
+}
+
+type logger interface {
+	Infof(fmt string, args ...any)
 }
