@@ -269,7 +269,7 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.52.2/install.sh" | \
+RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.53.0/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin"
 
 # Install Buf.
