@@ -135,7 +135,6 @@ func (a *ServerWithRoles) action(namespace, resource string, verbs ...string) er
 // even if they are not admins, e.g. update their own passwords,
 // or generate certificates, otherwise it will require admin privileges
 func (a *ServerWithRoles) currentUserAction(username string) error {
-	log.Infof("Username: %s, identity: %s", username, a.context.User.GetName())
 	if hasLocalUserRole(a.context) && username == a.context.User.GetName() {
 		return nil
 	}
