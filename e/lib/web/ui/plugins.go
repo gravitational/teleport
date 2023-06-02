@@ -50,6 +50,8 @@ func pluginDetails(p types.Plugin) string {
 	switch settings := v1.Spec.Settings.(type) {
 	case *types.PluginSpecV1_SlackAccessPlugin:
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the "%s" channel`, settings.SlackAccessPlugin.FallbackChannel)
+	case *types.PluginSpecV1_Jamf:
+		return "Devices will be synced from Jamf to Teleport device inventory"
 	default:
 		return ""
 	}

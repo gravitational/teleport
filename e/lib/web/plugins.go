@@ -154,47 +154,57 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 	return availableTypes, nil
 }
 
-// createPluginHandle accepts the initial request to create the plugin
-// It then:
-//   - Sets a cookie with the plugin information and "state" parameter
-//     for later use by pluginCallbackHandle
-//   - Redirects to the API provider to authorize
+// createPluginHandle expects html form request and
+//   - For OAuth plugins: It
+//   - Sets a cookie with the plugin information and "state" parameter. This parameter will be used later by pluginCallbackHandle.
+//   - Responds with meta redirect. Redirect. Uses "meta" redirect,
+//     since our "form-action" CSP prevents a redirect to an external domain on some browsers. See:
+//     https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action
+//     https://github.com/w3c/webappsec-csp/issues/8
+//   - For non-OAuth plugins: it creates plugin and responds with plugin status.
 func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+
 	pluginType := r.FormValue("type")
 
-	// Set cookie info
-	cookie := pluginOnboardingCookie{}
-	cookie.Name = r.FormValue("name")
 	switch pluginType {
 	case types.PluginTypeSlack:
+		// Set cookie info
+		cookie := pluginOnboardingCookie{}
+		cookie.Name = r.FormValue("name")
 		cookie.Slack = &pluginOnboardingParamsSlack{
 			FallbackChannel: r.FormValue("fallback_channel"),
 		}
+		cookie.EventID = r.FormValue("event_id")
+		if err := setPluginOnboardingCookie(&cookie, w); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		url, err := p.getPluginProviderAuthURL(r.Context(), ctx, r, pluginType, cookie.State)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		err = app.MetaRedirect(w, url)
+		if err != nil {
+			p.Log.WithError(err).Warn("Failed to issue a redirect.")
+			return nil, trace.Wrap(err)
+		}
+		return nil, nil
+	case types.PluginTypeJamf:
+		pluginReq := createJamfPluginRequest(r.Form)
+
+		// TODO(sshah):
+		//  1.	Create plugin static credential
+		// 	2.	Create plugin
+
+		resp, err := ui.NewPlugin(pluginReq.Plugin)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resp, nil
 	default:
 		return nil, trace.BadParameter("unknown plugin type")
 	}
-
-	cookie.EventID = r.FormValue("event_id")
-	if err := setPluginOnboardingCookie(&cookie, w); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Redirect. Uses "meta" redirect,
-	// since our "form-action" CSP prevents a redirect to an external domain on some browsers. See:
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action
-	// https://github.com/w3c/webappsec-csp/issues/8
-
-	url, err := p.getPluginProviderAuthURL(r.Context(), ctx, r, pluginType, cookie.State)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = app.MetaRedirect(w, url)
-	if err != nil {
-		p.Log.WithError(err).Warn("Failed to issue a redirect.")
-		return nil, trace.Wrap(err)
-	}
-	return nil, nil
 }
 
 func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -417,4 +427,28 @@ func (p *Plugin) getPluginCallbackURL(r *http.Request, typ string) string {
 		Path:   path.Join("/v1/enterprise/plugins", callbackPath),
 	}
 	return uri.String()
+}
+
+// createJamfPluginRequest creates Jamf plugin request
+func createJamfPluginRequest(req url.Values) *pluginspb.CreatePluginRequest {
+	return &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindMDM,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeJamf,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Jamf{
+					Jamf: &types.PluginJamfSettings{
+						JamfSpec: &types.JamfSpecV1{
+							ApiEndpoint: req.Get("apiEndpoint"),
+						},
+					},
+				},
+			},
+		},
+	}
 }

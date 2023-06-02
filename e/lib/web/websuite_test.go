@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -89,6 +91,15 @@ func newWebSuite(t *testing.T) *webSuite {
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
 		License: eauth.ValidLicense{},
+		HostedPlugins: servicecfg.HostedPluginsConfig{
+			Enabled: true,
+			OAuthProviders: servicecfg.PluginOAuthProviders{
+				Slack: &oauth2.ClientCredentials{
+					ID:     "test",
+					Secret: "test",
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 	err = pluginRegistry.Add(authPlugin)
@@ -214,7 +225,8 @@ func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) auth.Cl
 }
 
 type authWebPack struct {
-	clt *TestWebClient
+	clt       *TestWebClient
+	csrfToken string
 }
 
 // newAuthWebPack creates new user and returns authenticated http client for that user.
@@ -246,11 +258,18 @@ func (s *webSuite) newAuthWebPack(t *testing.T, user string) *authWebPack {
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	jar.SetCookies(s.webServerURL, rawSess.Cookies())
+	sessionCookieWithCSRF := append(rawSess.Cookies(), &http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
+
+	jar.SetCookies(s.webServerURL, sessionCookieWithCSRF)
+
 	clt = s.client(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
 
 	return &authWebPack{
-		clt: clt,
+		clt:       clt,
+		csrfToken: csrfToken,
 	}
 }
 

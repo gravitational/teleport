@@ -305,6 +305,8 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 		})
 	}
 
+	// TODO(sshah): Include static plugins here.
+
 	return resp, nil
 }
 

@@ -173,13 +173,19 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
 	// Plugins: RESTy endpoints (create/list/delete)
+	// createPluginHandle expects html form request and
+	//	-	For OAuth plugins: it responds with meta redirect. With meta redirect, browser takes user to
+	//		OAuth provider for OAuth registration. OAuth plugins are created after successful callback from
+	// 		OAuth provider with pluginCallbackHandle.
+	//  -	For non-OAuth plugins: it creates plugin and responds with plugin status.
 	h.POST("/enterprise/plugin", h.WithAuthCookieAndCSRF(p.createPluginHandle))
-	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
-	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
-
-	// Plugins: supporting endpoints ("meta", and OAuth callbacks)
-	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+	// pluginCallbackHandle handles OAuth callback and creates plugin.
 	h.GET("/enterprise/plugins/callback/:type", h.WithAuthCookieAndCSRF(p.pluginCallbackHandle))
+	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
+	// get enrolled plugins
+	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
+	// get supported plugins
+	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))
