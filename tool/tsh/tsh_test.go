@@ -38,6 +38,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/exp/slices"
@@ -56,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
@@ -114,6 +116,7 @@ func init() {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -1924,15 +1927,95 @@ func tryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
+func TestSSHHeadlessCLIFlags(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		modifyCLIConf func(c *CLIConf)
+		assertErr     require.ErrorAssertionFunc
+		assertConfig  func(t require.TestingT, c *client.Config)
+	}{
+		{
+			name: "OK --auth headless",
+			modifyCLIConf: func(c *CLIConf) {
+				c.AuthConnector = constants.HeadlessConnector
+				c.ExplicitUsername = true
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+			},
+		}, {
+			name: "OK --headless",
+			modifyCLIConf: func(c *CLIConf) {
+				c.Headless = true
+				c.ExplicitUsername = true
+			},
+			assertErr: require.NoError,
+			assertConfig: func(t require.TestingT, c *client.Config) {
+				require.Equal(t, constants.HeadlessConnector, c.AuthConnector)
+			},
+		}, {
+			name: "NOK --headless with mismatched auth connector",
+			modifyCLIConf: func(c *CLIConf) {
+				c.Headless = true
+				c.AuthConnector = constants.LocalConnector
+				c.ExplicitUsername = true
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		}, {
+			name: "NOK --auth headless without explicit user",
+			modifyCLIConf: func(c *CLIConf) {
+				c.AuthConnector = constants.HeadlessConnector
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		}, {
+			name: "NOK --headless without explicit user",
+			modifyCLIConf: func(c *CLIConf) {
+				c.Headless = true
+			},
+			assertErr: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "expected trace.BadParameter error but got %v", err)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// minimal configuration (with defaults)
+			conf := &CLIConf{
+				Proxy:    "proxy:3080",
+				UserHost: "localhost",
+				HomePath: t.TempDir(),
+			}
+
+			tc.modifyCLIConf(conf)
+
+			c, err := loadClientConfigFromCLIConf(conf, "proxy:3080")
+			tc.assertErr(t, err)
+			if tc.assertConfig != nil {
+				tc.assertConfig(t, c)
+			}
+		})
+	}
+}
+
 func TestSSHHeadless(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 
 	user, err := user.Current()
 	require.NoError(t, err)
 
 	// Headless ssh should pass session mfa requirements
-	sshLoginRole, err := types.NewRole("ssh-login", types.RoleSpecV6{
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
 		Options: types.RoleOptions{
 			RequireMFAType: types.RequireMFAType_SESSION,
 		},
@@ -1945,12 +2028,27 @@ func TestSSHHeadless(t *testing.T) {
 
 	alice, err := types.NewUser("alice@example.com")
 	require.NoError(t, err)
-	alice.SetRoles([]string{"ssh-login"})
+	alice.SetRoles([]string{"node-access"})
 
-	rootAuth, rootProxy := makeTestServers(t, withBootstrap(sshLoginRole, alice))
-
-	authAddr, err := rootAuth.AuthAddr()
+	requester, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{"node-access"},
+			},
+		},
+	})
 	require.NoError(t, err)
+
+	bob, err := types.NewUser("bob@example.com")
+	require.NoError(t, err)
+	bob.SetRoles([]string{"requester"})
+
+	sshHostName := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice, requester, bob), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostName
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
 
 	proxyAddr, err := rootProxy.ProxyWebAddr()
 	require.NoError(t, err)
@@ -1965,71 +2063,50 @@ func TestSSHHeadless(t *testing.T) {
 		},
 	}))
 
-	sshHostname := "test-ssh-server"
-	node := makeTestSSHNode(t, authAddr, withHostname(sshHostname), withSSHLabel("access", "true"))
-	sshHostID := node.Config.HostUUID
-
-	hasNodes := func(hostIDs ...string) func() bool {
-		return func() bool {
-			nodes, err := rootAuth.GetAuthServer().GetNodes(ctx, apidefaults.Namespace)
-			require.NoError(t, err)
-			foundCount := 0
-			for _, node := range nodes {
-				if slices.Contains(hostIDs, node.GetName()) {
-					foundCount++
-				}
-			}
-			return foundCount == len(hostIDs)
+	go func() {
+		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
 		}
+		// Cancel the context, so Run calls don't block
+		cancel()
+	}()
+
+	for _, tc := range []struct {
+		name      string
+		args      []string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "node access",
+			args:      []string{"--headless", "--user", "alice"},
+			assertErr: require.NoError,
+		}, {
+			name:      "resource request",
+			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt"},
+			assertErr: require.NoError,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := append([]string{
+				"ssh",
+				"-d",
+				"--insecure",
+				"--proxy", proxyAddr.String(),
+			}, tc.args...)
+			args = append(args,
+				fmt.Sprintf("%s@%s", user.Username, sshHostName),
+				"echo", "test",
+			)
+
+			err := Run(ctx, args, cliOption(func(cf *CLIConf) error {
+				cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+				return nil
+			}))
+			tc.assertErr(t, err)
+		})
 	}
-
-	// wait for auth to see nodes
-	require.Eventually(t, hasNodes(sshHostID), 10*time.Second, 100*time.Millisecond, "nodes never showed up")
-
-	// perform "tsh --headless ssh"
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// "tsh --auth headless ssh" should also perform headless ssh
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--auth", constants.HeadlessConnector,
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// headless ssh should fail if user is not set.
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, cliOption(func(cf *CLIConf) error {
-		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
 }
 
 func TestFormatConnectCommand(t *testing.T) {
@@ -2951,6 +3028,10 @@ func setOverrideStdout(stdout io.Writer) cliOption {
 		cf.overrideStdout = stdout
 		return nil
 	}
+}
+
+func setCopyStdout(stdout io.Writer) cliOption {
+	return setOverrideStdout(io.MultiWriter(os.Stdout, stdout))
 }
 
 func setHomePath(path string) cliOption {
