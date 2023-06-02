@@ -386,6 +386,49 @@ func (e unaryFuncExpr[TEnv, TArg, TResult]) Evaluate(env TEnv) (TResult, error) 
 	return res, trace.Wrap(err, "evaluating function (%s)", e.name)
 }
 
+type unaryFunctionWithEnv[TEnv, TArg, TResult any] struct {
+	impl func(TEnv, TArg) (TResult, error)
+}
+
+// UnaryFunctionWithEnv returns a definition for a function that can be called with one
+// argument. The argument may be a literal or a subexpression. The [impl] will
+// be called with the evaluation env as the first argument, followed by the
+// actual argument passed in the expression.
+func UnaryFunctionWithEnv[TEnv, TArg, TResult any](impl func(TEnv, TArg) (TResult, error)) Function {
+	return unaryFunctionWithEnv[TEnv, TArg, TResult]{impl}
+}
+
+func (f unaryFunctionWithEnv[TEnv, TArg, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) != 1 {
+		return nil, trace.BadParameter("function (%s) accepts 1 argument, given %d", name, len(args))
+	}
+	argExpr, err := coerce[TEnv, TArg](args[0])
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing argument to (%s)", name)
+	}
+	return unaryFuncWithEnvExpr[TEnv, TArg, TResult]{
+		name:    name,
+		impl:    f.impl,
+		argExpr: argExpr,
+	}, nil
+}
+
+type unaryFuncWithEnvExpr[TEnv, TArg, TResult any] struct {
+	name    string
+	impl    func(TEnv, TArg) (TResult, error)
+	argExpr Expression[TEnv, TArg]
+}
+
+func (e unaryFuncWithEnvExpr[TEnv, TArg, TResult]) Evaluate(env TEnv) (TResult, error) {
+	var nul TResult
+	arg, err := e.argExpr.Evaluate(env)
+	if err != nil {
+		return nul, trace.Wrap(err, "evaluating argument to function (%s)", e.name)
+	}
+	res, err := e.impl(env, arg)
+	return res, trace.Wrap(err, "evaluating function (%s)", e.name)
+}
+
 type binaryFunction[TEnv, TArg1, TArg2, TResult any] struct {
 	impl func(TArg1, TArg2) (TResult, error)
 }

@@ -1084,9 +1084,12 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 	return MatchLabelGetter(selector, mapLabelGetter(target))
 }
 
-// LabelGetter allows retrieving a particular label by name.
+// LabelGetter allows retrieving a particular label by name or retreiving all
+// labels at once. Prefer to use GetLabel when possible to avoid unnecessary
+// copies.
 type LabelGetter interface {
 	GetLabel(key string) (value string, ok bool)
+	GetAllLabels() map[string]string
 }
 
 type mapLabelGetter map[string]string
@@ -1094,6 +1097,10 @@ type mapLabelGetter map[string]string
 func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
 	v, ok := m[key]
 	return v, ok
+}
+
+func (m mapLabelGetter) GetAllLabels() map[string]string {
+	return map[string]string(m)
 }
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
@@ -2300,6 +2307,7 @@ type AccessCheckable interface {
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)
+	GetAllLabels() map[string]string
 }
 
 // rbacDebugLogger creates a debug logger for Teleport's RBAC component.
