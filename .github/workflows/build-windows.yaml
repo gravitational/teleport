@@ -33,8 +33,9 @@ jobs:
         run: echo "go-version=$(make --no-print-directory print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
 
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: ${{ steps.go-version.outputs.go-version }}
 
       - name: Build

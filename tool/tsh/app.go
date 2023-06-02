@@ -106,7 +106,7 @@ func onAppLogin(cf *CLIConf) error {
 	}
 
 	params := client.ReissueParams{
-		RouteToCluster: tc.SiteName,
+		RouteToCluster: profile.Cluster,
 		RouteToApp: proto.RouteToApp{
 			Name:              app.GetName(),
 			SessionID:         ws.GetName(),
@@ -121,10 +121,6 @@ func onAppLogin(cf *CLIConf) error {
 
 	err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, params)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -186,7 +182,12 @@ func onAppLogin(cf *CLIConf) error {
 		})
 
 	default:
-		curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
+		publicAddr := app.GetPublicAddr()
+		// for remote apps, override their public address with address pointing at the public proxy address.
+		if rootCluster != tc.SiteName {
+			publicAddr = fmt.Sprintf("%v.%v", app.GetName(), tc.WebProxyHost())
+		}
+		curlCmd, err := formatAppConfig(tc, profile, app.GetName(), publicAddr, appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -349,7 +350,7 @@ func onAppConfig(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Print(conf)
+	_, _ = fmt.Fprint(cf.Stdout(), conf)
 	return nil
 }
 

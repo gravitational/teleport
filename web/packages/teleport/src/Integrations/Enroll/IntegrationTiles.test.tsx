@@ -32,7 +32,7 @@ test('render', async () => {
   expect(screen.getByTestId('svg')).toBeInTheDocument();
   expect(screen.getByRole('link')).toBeInTheDocument();
 
-  const tile = screen.getByTestId('tile');
+  const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).toBeEnabled();
   expect(tile.getAttribute('href')).toBeTruthy();
 });
@@ -47,7 +47,7 @@ test('render disabled', async () => {
   expect(screen.getByText(/lacking permission/i)).toBeInTheDocument();
   expect(screen.queryByRole('link')).not.toBeInTheDocument();
 
-  const tile = screen.getByTestId('tile');
+  const tile = screen.getByTestId('tile-aws-oidc');
   expect(tile).not.toHaveAttribute('href');
 
   // The element has disabled attribute, but it's in the format `disabled=""`

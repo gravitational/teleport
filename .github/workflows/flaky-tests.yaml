@@ -21,7 +21,7 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
@@ -85,35 +85,35 @@ jobs:
       - name: Run libfido2 difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "lib/auth/webauthncli/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/webauthncli/**/*"
           target: test-go-libfido2
 
       - name: Run touch-id difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "lib/auth/touchid/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "lib/auth/touchid/**/*"
           target: test-go-touch-id
 
       - name: Run tsh difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "tool/tsh/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "tool/tsh/**/*"
           target: test-go-tsh
 
       - name: Run api difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "api/**/*" --relative "api"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "api/**/*" --relative "api"
           target: test-api
 
       - name: Run kube-agent-updater difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
           target: test-kube-agent-updater
 
       - name: Run teleport-usage difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
           target: test-teleport-usage
