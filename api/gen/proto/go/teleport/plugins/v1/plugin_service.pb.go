@@ -609,7 +609,11 @@ func (x *GetAvailablePluginTypesResponse) GetPluginTypes() []*PluginType {
 	return nil
 }
 
-// SearchPluginStaticCredentialsRequest is the request type for SearchPluginStaticCredentials
+// SearchPluginStaticCredentialsRequest is the request type for SearchPluginStaticCredentials. The
+// labels here are attached to a plugin and search credential object at creation time. Labels can
+// be provided to the plugin credentials object and then, during plugin creation, a reference to
+// those labels augmented along with a uniquely identifying ID will ensure a unique mapping between
+// credentials and plugins.
 type SearchPluginStaticCredentialsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
