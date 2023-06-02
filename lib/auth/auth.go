@@ -4765,11 +4765,16 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.Wrap(notFoundErr)
 		}
 
-		dbRoleMatchers := role.DatabaseRoleMatchers(
-			db,
-			t.Database.Username,
-			t.Database.GetDatabase(),
-		)
+		autoCreate, _, err := checker.CheckDatabaseRoles(db)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		dbRoleMatchers := role.GetDatabaseRoleMatchers(role.RoleMatchersConfig{
+			Database:       db,
+			DatabaseUser:   t.Database.Username,
+			DatabaseName:   t.Database.GetDatabase(),
+			AutoCreateUser: autoCreate,
+		})
 		noMFAAccessErr = checker.CheckAccess(
 			db,
 			services.AccessState{},

@@ -1810,6 +1810,14 @@ type Database struct {
 	AD DatabaseAD `yaml:"ad"`
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure `yaml:"azure"`
+	// AdminUser describes database privileged user for auto-provisioning.
+	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+}
+
+// DatabaseAdminUser describes database privileged user for auto-provisioning.
+type DatabaseAdminUser struct {
+	// Name is the database admin username (e.g. "postgres").
+	Name string `yaml:"name"`
 }
 
 // DatabaseAD contains database Active Directory configuration.

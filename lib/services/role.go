@@ -456,6 +456,11 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
+		// apply templates to database roles
+		inDbRoles := r.GetDatabaseRoles(condition)
+		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
+		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
+
 		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
 		if inLabels != nil {
@@ -608,7 +613,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 			switch name {
 			case constants.TraitLogins, constants.TraitWindowsLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
-				constants.TraitDBNames, constants.TraitDBUsers,
+				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
 			default:
@@ -1497,6 +1502,56 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 		}
 	}
 	return disconnect
+}
+
+// CheckDatabaseRoles returns whether a user should be auto-created in the
+// database and a list of database roles to assign.
+func (set RoleSet) CheckDatabaseRoles(database types.Database) (create bool, roles []string, err error) {
+	// First, collect roles from this roleset that have "create_db_user" option.
+	var autoCreateRoles RoleSet
+	for _, role := range set {
+		if role.GetCreateDatabaseUserOption() {
+			autoCreateRoles = append(autoCreateRoles, role)
+		}
+	}
+	// If there are no "auto-create user" roles, nothing to do.
+	if len(autoCreateRoles) == 0 {
+		return false, nil, nil
+	}
+	// Otherwise, iterate over auto-create roles matching the database user
+	// is connecting to and compile a list of roles database user should be
+	// assigned.
+	rolesMap := make(map[string]struct{})
+	var matched bool
+	for _, role := range autoCreateRoles {
+		match, _, err := MatchLabels(role.GetDatabaseLabels(types.Allow), database.GetAllLabels())
+		if err != nil {
+			return false, nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
+		}
+		for _, dbRole := range role.GetDatabaseRoles(types.Allow) {
+			rolesMap[dbRole] = struct{}{}
+		}
+		matched = true
+	}
+	for _, role := range autoCreateRoles {
+		match, _, err := MatchLabels(role.GetDatabaseLabels(types.Deny), database.GetAllLabels())
+		if err != nil {
+			return false, nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
+		}
+		for _, dbRole := range role.GetDatabaseRoles(types.Deny) {
+			delete(rolesMap, dbRole)
+		}
+	}
+	// The collected role list can be empty and that should be ok, we want to
+	// leave the behavior of what happens when a user is created with default
+	// "no roles" configuration up to the target database.
+	return matched, utils.StringsSliceFromSet(rolesMap), nil
 }
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
