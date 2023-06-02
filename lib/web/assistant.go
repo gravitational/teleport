@@ -378,15 +378,22 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			_ = ws.WriteJSON(&assistantMessage{
 				Type:        assist.MessageKindError,
 				Payload:     err.Error(),
-				CreatedTime: time.Now().Format(time.RFC3339),
+				CreatedTime: h.clock.Now().Format(time.RFC3339),
 			})
 			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
 			closureReason = websocket.CloseInternalServerErr
 			closureMsg = err.Error()
 		}
 		// Send the close message to the client and close the connection
-		ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(closureReason, closureMsg), time.Now().Add(time.Second))
-		ws.Close()
+		if err := ws.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(closureReason, closureMsg),
+			time.Now().Add(time.Second),
+		); err != nil {
+			h.log.Warnf("Failed to write close message: %v", err)
+		}
+		if err := ws.Close(); err != nil {
+			h.log.Warnf("Failed to close websocket: %v", err)
+		}
 	}()
 
 	// Update the read deadline upon receiving a pong message.
