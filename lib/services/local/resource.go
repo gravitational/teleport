@@ -362,13 +362,12 @@ func itemFromLock(l types.Lock) (*backend.Item, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item := &backend.Item{
+	return &backend.Item{
 		Key:     backend.Key(locksPrefix, l.GetName()),
 		Value:   value,
 		Expires: l.Expiry(),
 		ID:      l.GetResourceID(),
-	}
-	return item, nil
+	}, nil
 }
 
 // TODO: convert username/suffix ops to work on bytes by default; string/byte conversion
