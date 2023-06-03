@@ -297,6 +297,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -752,5 +753,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

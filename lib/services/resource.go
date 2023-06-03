@@ -554,6 +554,24 @@ func init() {
 		}
 		return token, nil
 	})
+	RegisterResourceMarshaler(types.KindLock, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		lock, ok := resource.(types.Lock)
+		if !ok {
+			return nil, trace.BadParameter("expected lock, got %T", resource)
+		}
+		bytes, err := MarshalLock(lock, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindLock, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		lock, err := UnmarshalLock(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return lock, nil
+	})
 }
 
 // MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
