@@ -339,6 +339,10 @@ func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 ) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
 
+	if req.SAMLSession == nil {
+		return nil, trace.BadParameter("required SAML session is not populated")
+	}
+
 	// Create services.WebSession for this session.
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
 		User:        req.Username,
