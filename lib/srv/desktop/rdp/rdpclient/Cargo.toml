@@ -26,7 +26,7 @@ utf16string = "0.2.0"
 png = "0.17.8"
 
 [build-dependencies]
-cbindgen = "0.24.3"
+cbindgen = "0.24.5"
 tempfile = "3.5.0"
 
 [features]
