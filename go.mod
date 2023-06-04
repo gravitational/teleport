@@ -106,7 +106,7 @@ require (
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
-	github.com/mattn/go-sqlite3 v1.14.16
+	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mdlayher/netlink v1.7.2
 	github.com/microsoft/go-mssqldb v0.0.0-00010101000000-000000000000 // replaced
 	github.com/miekg/pkcs11 v1.1.1
