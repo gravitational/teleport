@@ -62,7 +62,6 @@ and the capabilities of SansShell.
 
 The implementation will re-use the existing Teleport SSH and Assist infrastructure.
 
-
 ### Command execution flow
 ```mermaid
 sequenceDiagram
@@ -111,10 +110,8 @@ metadata:
   # Human-readable description
   description: Show top 10 CPU usage
 spec:
-  # Node labels where the command can run.  
-  labels: 
-    os: linux
-    env: dev
+  # Interpreter to use for command execution. If not specified, /bin/sh will be used.
+  # This will allow to execute short Python or JS scripts.
   interpreter: "/bin/bash"
   command: |
     ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
@@ -131,11 +128,15 @@ The user will be provided as a command argument. If the user doesn't exist on th
 the command execution will fail. If one set of nodes requires a different user, 
 command needs to be executed multiple times.
 
-
 ## Roles
 
-RoleS will be extended to allow defining access to commands. The following
-example shows how to allow to execute `cpu-usage` command on all nodes
+Roles will be extended to allow defining access to commands. The following
+example will allow to execute commands with `environment=dev-cmd` label on nodes
+with `environment=dev` label. It will also deny access to commands with
+`environment=prod` label.
+This approach will allow to define a set of commands that can be executed
+on a particular set of nodes (e.g. `dev-cmd` commands can be executed on `dev` nodes
+but not on `prod` nodes).
 
 ```yaml
 kind: role
@@ -146,7 +147,7 @@ spec:
   allow:
     # Labels selector for command execution.
     command_execution_labels:
-      environment: ["dev"]
+      environment: ["dev-cmd"]
     # Labels selector for commands resource access.
     command_labels:
      environment: ["dev"]
@@ -166,11 +167,27 @@ spec:
 
 ### Display output from multiple nodes
 
+Displaying the output from multiple nodes can be tricky as the output can be
+very long. To avoid this, Teleport Command will detect long output and will
+redirect it to a file. The user will be notified about this.
+
 ```shell
 $ tsh command exec cat-log
 node1: Detected long output. Redirecting to node1.log file
 node2: Detected long output. Redirecting to node2.log file
 ```
+
+Alternative approach is to always display the output if a command is executed
+on a single node and redirect it to a file if a command is executed on multiple nodes.
+
+### Per-session MFA
+
+By design per-session MFA requires "a tap" for every node where a command is executed.
+This is not ideal from the UX perspective as it will require a user to tap multiple times. 
+To avoid this, Teleport will ask for "a tap" only once before executing all commands.
+In the background, Teleport Proxy will generate certificates with mutliple principals
+for every node and will use them to authenticate to the nodes. If one certificate cannot
+carry all principals, multiple certificates will be generated.
 
 ### Security
 
@@ -179,8 +196,7 @@ Teleport Command will be protected by the same security mechanisms as Teleport S
 Notes: 
 * Commands should take no user input - this will reduce the risk of exploitation
   through user input and to make sure that each invocation is the same.
-* If per-session MFA is enabled, Command should ask for "the tap" only once before
-  executing all commands.
-* If a user is missing permissions to execute a command, an access request should be created.
+* If a user is missing permissions to execute a command, an access request should be created
+  before any command is executed.
 * (Optional) On supported nodes, commands should be executed inside a cgroup
   created by Teleport to better control permissions (enhanced session recording).
