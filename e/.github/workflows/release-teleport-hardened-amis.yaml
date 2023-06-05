@@ -46,7 +46,7 @@ on:
 
       dest-ami-regions:
         description: |
-          A comma-separated list of AWS regions to receive the AMIs
+          A comma-separated list of AWS regions to receive the AMIs.
         type: string
         default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
 
@@ -104,6 +104,8 @@ jobs:
 
       - name: Initialize packer
         working-directory: "${{ github.workspace }}/assets/aws"
+        env:
+          PACKER_GITHUB_API_TOKEN: ${{ github.token }}
         run: packer init single-ami.pkr.hcl
 
       - name: Build AMI

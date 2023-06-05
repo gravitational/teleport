@@ -1,16 +1,107 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
-name: Promote Hardened AMIs
+name: Promote Hardened Teleport AMIs
 on:
   workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: |
+          The name of the OSS teleport repo to checkout
+        required: false
+        type: string
+        default: "gravitational/teleport"
+    
+      oss-teleport-ref:
+        description: |
+            Git SHA, tag or branch of the revision of OSS teleport to build
+        required: true
+        type: string
+
+      source-tag:
+        description: |
+          The semver version of Teleport that we're building for. If not set 
+          will be inferred form the `oss-teleport-ref` by assuming that it's
+          a standard Teleport release tag in the form vX.Y.Z.
+        type: string
+        default: ""
+
+      promotion-role-arn:
+        description: |
+          ARN of the role that grants promotion rights
+        required: true
+        type: string
+        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
+
+      dest-ami-regions:
+        description: |
+          A comma-separated list of AWS regions to search for the AMIs.
+        type: string
+        default: eu-north-1,ap-south-1,eu-west-3,eu-west-2,eu-west-1,ap-northeast-3,ap-northeast-2,ap-northeast-1,sa-east-1,ca-central-1,ap-southeast-1,ap-southeast-2,eu-central-1,us-east-1,us-east-2,us-west-1,us-west-2
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
+run-name: 'Promote Hardened AMIs for Teleport ${{ inputs.release-source-tag }}'
+
 jobs:
-  dummy:
+  identity:
     runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
+  promote-images:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write  # required for aws-actions/configure-aws-credentials
+      contents: read
+
+    steps:
+      - name: Parse Teleport version tag
+        id: version
+        env:
+          VERSION: ${{ inputs.source-tag || inputs.oss-teleport-ref }}
+        run: |
+          echo teleport=${VERSION#v} >> $GITHUB_OUTPUT
+
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: oss # We don't need teleport.e even when building enterprise AMI 
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo GOLANG_VERSION=$(make --no-print-directory -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+      
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
+  
+      - name: Assume promotion AWS role
+        id: aws-login
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region:  us-west-2
+          role-to-assume: ${{ inputs.promotion-role-arn }}
+          role-session-name: "gha-ami-promote-${{ github.run_number }}"
+          role-duration-seconds: 3600        
+
+      - name: Promote images
+        working-directory: ./assets/aws
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.aws-login.outputs.aws-account-id }}
+          AWS_REGIONS: ${{ inputs.dest-ami-regions }}
+          TELEPORT_VERSION: ${{ steps.version.outputs.teleport }}
+        run: |
+          go run ./cmd/make-public \
+            --aws-account ${AWS_ACCOUNT_ID} \
+            --regions ${AWS_REGIONS} \
+            --teleport-version ${TELEPORT_VERSION}
