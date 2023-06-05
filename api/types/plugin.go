@@ -32,6 +32,8 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	// PluginTypeOpenAI is the OpenAI plugin
+	PluginTypeOpenAI = "openai"
 	// PluginTypeOkta is the Okta plugin
 	PluginTypeOkta = "okta"
 )
@@ -51,6 +53,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
 // PluginStatus is the plugin status
@@ -100,6 +103,18 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
 		if settings.Okta == nil {
@@ -112,12 +127,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
-		bearer := p.Credentials.GetBearerToken()
-		if bearer == nil {
-			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("okta plugin must be used with the static credentials ref type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -249,6 +264,8 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_Openai:
+		return PluginTypeOpenAI
 	case *PluginSpecV1_Okta:
 		return PluginTypeOkta
 	default:

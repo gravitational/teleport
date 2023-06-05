@@ -346,6 +346,15 @@ message DatabaseSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "mysql,omitempty"
   ];
+  // AdminUser is the database admin user for automatic user provisioning.
+  DatabaseAdminUser AdminUser = 11 [(gogoproto.jsontag) = "admin_user,omitempty"];
+}
+
+// DatabaseAdminUser contains information about privileged database user used
+// for automatic user provisioning.
+message DatabaseAdminUser {
+  // Name is the username of the privileged database user.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
 // DatabaseStatusV3 contains runtime information about the database.
@@ -2420,6 +2429,13 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_desktop_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateDatabaseUser enabled automatic database user creation.
+  BoolValue CreateDatabaseUser = 27 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_db_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2598,6 +2614,9 @@ message RoleConditions {
 
   // DesktopGroups is a list of groups for created desktop users to be added to
   repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
+
+  // DatabaseRoles is a list of databases roles for automatic user creation.
+  repeated string DatabaseRoles = 29 [(gogoproto.jsontag) = "db_roles,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -5069,6 +5088,8 @@ message PluginSpecV1 {
     PluginSlackAccessSettings slack_access_plugin = 1;
     // Settings for the Opsgenie access plugin
     PluginOpsgenieAccessSettings opsgenie = 2;
+    // Settings for OpenAI plugin
+    PluginOpenAISettings openai = 3;
     // Settings for the Okta plugin
     PluginOktaSettings okta = 4;
   }
@@ -5091,6 +5112,11 @@ message PluginOpsgenieAccessSettings {
   repeated string alert_tags = 3;
   // Default on-call schedules to check if none are provided in the access request annotations
   repeated string default_schedules = 4;
+}
+
+// Defines settings for the OpenAI plugin. Currently there are no settings.
+message PluginOpenAISettings {
+  option (gogoproto.equal) = true;
 }
 
 // Defines settings for the Okta plugin.
@@ -5140,6 +5166,7 @@ message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginStaticCredentialsRef static_credentials_ref = 4;
   }
 }
 
@@ -5156,13 +5183,14 @@ message PluginBearerTokenCredentials {
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
-  // TokenFile is a path to the local file containing a bearer token.
-  // This takes precedence over Token, and is currently only used by
-  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
-  // This avoids exposing the token itself to the cluster.
-  // The file must exist and be readable on whatever runs the plugin
-  // (in the OpenAI case, it is the Proxy).
-  string token_file = 2;
+  reserved 2; // token_file
+  reserved "token_file";
+}
+
+// PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
+message PluginStaticCredentialsRef {
+  // Labels is the set of labels to use to match against a set of static credentials.
+  map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // PluginList represents a list of plugin resources

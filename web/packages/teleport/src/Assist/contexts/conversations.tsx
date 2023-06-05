@@ -23,18 +23,19 @@ import React, {
   useState,
 } from 'react';
 
-import logger from 'shared/libs/logger';
+import Logger from 'shared/libs/logger';
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-interface Conversation {
+export interface Conversation {
   id: string;
   title: string;
 }
 
 interface MessageContextValue {
   create: () => Promise<string>;
+  remove: (id: string) => Promise<void>;
   conversations: Conversation[];
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
   error: string | null;
@@ -53,9 +54,12 @@ interface ListConversationsResponse {
   ];
 }
 
+const logger = Logger.create('assist');
+
 const ConversationsContext = createContext<MessageContextValue>({
   conversations: [],
   create: () => Promise.resolve(void 0),
+  remove: () => Promise.resolve(void 0),
   setConversations: () => void 0,
   error: null,
 });
@@ -103,6 +107,18 @@ export function ConversationsContextProvider(
     }
   }, []);
 
+  const remove = useCallback(async (id: string) => {
+    try {
+      setConversations(conversations =>
+        conversations.filter(conversation => conversation.id !== id)
+      );
+    } catch (err) {
+      setError('An error occurred whilst removing the conversation');
+
+      logger.error(err);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -117,13 +133,13 @@ export function ConversationsContextProvider(
 
   return (
     <ConversationsContext.Provider
-      value={{ conversations, create, setConversations, error }}
+      value={{ conversations, create, remove, setConversations, error }}
     >
       {props.children}
     </ConversationsContext.Provider>
   );
 }
 
-export function useConversations() {
+export function useConversations(): MessageContextValue {
   return useContext(ConversationsContext);
 }

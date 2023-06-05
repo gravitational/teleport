@@ -43,12 +43,18 @@ message CreatePluginRequest {
   // In the scope of processing this request, these are exchanged for
   // short-lived renewable credentials, which are stored in the Plugin.
   types.PluginBootstrapCredentialsV1 bootstrap_credentials = 2;
+  // Static credentials are optional static credentials
+  // to supply to the plugin.
+  types.PluginStaticCredentialsV1 static_credentials = 3;
 }
 
 // GetPluginRequest is a request to return a plugin instance by name.
 message GetPluginRequest {
   // Name is the name of the plugin instance.
   string name = 1;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 2;
 }
 
 // ListPluginsRequest is a paginated request to list all plugin instances.
@@ -59,6 +65,9 @@ message ListPluginsRequest {
   // StartKey is the value of NextKey received in the last ListPluginsResponse.
   // When making the initial request, this should be left empty.
   string start_key = 2;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 3;
 }
 
 // ListPluginsResponse is a paginated response to a ListPluginsRequest.

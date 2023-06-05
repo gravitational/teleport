@@ -44,7 +44,7 @@ RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 
     cd openssl && \
     [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
     ./config --release --libdir=/usr/local/lib && \
-    make && \
+    make -j"$(nproc)" && \
     make install_sw
 
 # Install libfido2.
@@ -296,8 +296,9 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/v1.52.2/install.sh" | \
-    sh -s -- -b "$(go env GOPATH)/bin"
+RUN TAG='v1.53.1' && \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
 # Install Buf.
 ARG BUF_VERSION # eg, "1.19.0"

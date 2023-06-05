@@ -858,12 +858,20 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteTo
 	if dbInfo.ServiceName == "" {
 		return nil, trace.BadParameter("missing database service name")
 	}
-	if dbInfo.Protocol == "" {
-		db, err := dbInfo.GetDatabase(cf, tc)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		dbInfo.Protocol = db.GetProtocol()
+	if dbInfo.Protocol != "" && dbInfo.Username != "" && dbInfo.Database != "" {
+		return &dbInfo, nil
+	}
+	db, err := dbInfo.GetDatabase(cf, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dbInfo.Protocol = db.GetProtocol()
+	// If database has admin user defined, we're most likely using automatic
+	// user provisioning so default to Teleport username unless database
+	// username was provided explicitly.
+	if dbInfo.Username == "" && db.GetAdminUser() != "" {
+		log.Debugf("Defaulting to Teleport username %q as database username.", tc.Username)
+		dbInfo.Username = tc.Username
 	}
 	if dbInfo.Username == "" {
 		switch dbInfo.Protocol {

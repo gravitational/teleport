@@ -57,7 +57,11 @@ export const BannerList = ({
   );
 
   return (
-    <Wrapper bannerCount={shownBanners.length + customBanners.length}>
+    <Wrapper
+      bannerCount={
+        shownBanners.length + customBanners.length + billingBanners.length
+      }
+    >
       {shownBanners.map(banner => (
         <Banner
           message={banner.message}

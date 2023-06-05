@@ -351,6 +351,10 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
@@ -486,6 +490,10 @@ const (
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
+
+	// DatabaseAdminLabel is used to identify database admin user for auto-
+	// discovered databases.
+	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
