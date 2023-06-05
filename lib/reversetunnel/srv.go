@@ -609,6 +609,9 @@ func (s *server) Close() error {
 }
 
 func (s *server) Replace(ctx context.Context) {
+	s.RLock()
+	defer s.RUnlock()
+
 	s.log.Debugf("Advising proxy replace to local site: %s", s.localSite.GetName())
 	go s.localSite.adviseReplace(ctx)
 
