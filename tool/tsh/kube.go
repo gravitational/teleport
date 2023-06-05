@@ -18,8 +18,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -594,6 +596,51 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	return c
 }
 
+func getKubeCredLockfilePath(homePath, proxy string) (string, error) {
+	profilePath := profile.FullProfilePath(homePath)
+	// tsh stores the profiles using the proxy host as the profile name.
+	profileName, err := utils.Host(proxy)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return keypaths.KubeCredLockfilePath(profilePath, profileName), nil
+}
+
+// errKubeCredLockfileFound is returned when kube credentials lockfile is found and user should resolve login problems manually.
+var errKubeCredLockfileFound = trace.AlreadyExists("Having problems with relogin, please use 'tsh login/tsh kube login' manually")
+
+func takeKubeCredLock(ctx context.Context, homePath, proxy string) (func(bool), error) {
+	kubeCredLockfilePath, err := getKubeCredLockfilePath(homePath, proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If kube credentials lockfile already exists, it means last time kube credentials was called
+	// we had an error while trying to issue certificate, return an error asking user to login manually.
+	if _, err := os.Stat(kubeCredLockfilePath); err == nil {
+		log.Debugf("Kube credentials lockfile was found at %q, aborting.", kubeCredLockfilePath)
+		return nil, trace.Wrap(errKubeCredLockfileFound)
+	}
+
+	if _, err := utils.EnsureLocalPath(kubeCredLockfilePath, "", ""); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Take a lock while we're trying to issue certificate and possibly relogin
+	unlock, err := utils.FSTryWriteLockTimeout(ctx, kubeCredLockfilePath, 5*time.Second)
+	if err != nil {
+		log.Debugf("could not take kube credentials lock: %v", err.Error())
+		return nil, trace.Wrap(errKubeCredLockfileFound)
+	}
+
+	return func(removeFile bool) {
+		if removeFile {
+			os.Remove(kubeCredLockfilePath)
+		}
+		unlock()
+	}, nil
+}
+
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	profile, err := cf.GetProfile()
 	if err != nil {
@@ -660,6 +707,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
+
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
@@ -667,6 +715,15 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	}
 
 	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
+
+	unlockKubeCred, err := takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	deleteKubeCredsLock := false
+	defer func() {
+		unlockKubeCred(deleteKubeCredsLock) // by default (in case of an error) we don't delete lockfile.
+	}()
 
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
@@ -685,6 +742,11 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	})
 	span.End()
 	if err != nil {
+		// If we've got network error we remove the lockfile, so we could restore from temporary connection
+		// problems without requiring user intervention.
+		if isNetworkError(err) {
+			deleteKubeCredsLock = true
+		}
 		return trace.Wrap(err)
 	}
 	// Make sure the cert is allowed to access the cluster.
@@ -700,7 +762,15 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// Remove the lockfile so subsequent tsh kube credentials calls don't exit early
+	deleteKubeCredsLock = true
+
 	return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
+}
+
+func isNetworkError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr) || trace.IsConnectionProblem(err)
 }
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(connUpgradeRequired bool) error {
