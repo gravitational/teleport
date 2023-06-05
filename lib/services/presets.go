@@ -212,6 +212,11 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindBilling, RW()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
 	}
 }
 
