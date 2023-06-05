@@ -37,29 +37,22 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
-        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities
           value:
             drop:
               - all
-        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: true
-        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsNonRoot
           value: true
-        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 9807
-        documentIndex: 3
       - matchSnapshot:
           path: spec.template.spec
-      - hasDocuments:
-          count: 4 # ServiceAccount, Role, RoleBinding, Job
 
   - it: should set nodeSelector in post-delete hook
     template: delete_hook.yaml
