@@ -5,32 +5,61 @@ templates:
 release:
   upgrade: true
 tests:
+  - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    assets:
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+          documentIndex: 0
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+          documentIndex: 1
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+          documentIndex: 2
+      - containsDocument:
+          kind: Job
+          apiVersion: batch/v1
+          documentIndex: 3
+
   - it: should set securityContext in post-delete hook
     template: delete_hook.yaml
-    # first 3 items are ServiceAccount, Role, RoleBinding, 3rd (zero-indexed) is the Job
     documentIndex: 3
+    # first 3 items are ServiceAccount, Role, RoleBinding, 3rd (zero-indexed) is the Job
     values:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
+        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities
           value:
             drop:
               - all
+        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
           value: true
+        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsNonRoot
           value: true
+        documentIndex: 3
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 9807
+        documentIndex: 3
       - matchSnapshot:
           path: spec.template.spec
+      - hasDocuments:
+          count: 4 # ServiceAccount, Role, RoleBinding, Job
 
   - it: should set nodeSelector in post-delete hook
     template: delete_hook.yaml
@@ -43,5 +72,122 @@ tests:
           path: spec.template.spec.nodeSelector
           value:
             gravitational.io/k8s-role: node
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should create ServiceAccount for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot:
+        path: spec.template.spec
+
+  - it: should create Role for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot: {}
+
+  - it: should create RoleBinding for post-delete hook by default
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot: {}
+
+  - it: should not create ServiceAccount for post-delete hook if serviceAccount.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot:
+        path: spec.template.spec
+
+  - it: should inherit ServiceAccount name from values if serviceAccount.create is false
+    template: delete_hook.yaml
+    # ServiceAccount is not created in this mode
+    # first 2 items are Role, RoleBinding, 2nd (zero-indexed) is the Job
+    documentIndex: 2
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: lint-serviceaccount
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should not create Role for post-delete hook if rbac.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+    asserts:
+      - not: true
+        containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should not create RoleBinding for post-delete hook if rbac.create is false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+    asserts:
+      - not: true
+        containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
+
+  - it: should not create ServiceAccount, Role or RoleBinding for post-delete hook if serviceAccount.create and rbac.create are false
+    template: delete_hook.yaml
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      rbac:
+        create: false
+      serviceAccount:
+        create: false
+        name: lint-serviceaccount
+    asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: rbac.authorization.k8s.io/v1
+      - not: true
+        containsDocument:
+          kind: Role
+          apiVersion: rbac.authorization.k8s.io/v1
+      - not: true
+        containsDocument:
+          kind: RoleBinding
+          apiVersion: rbac.authorization.k8s.io/v1
       - matchSnapshot:
           path: spec.template.spec
