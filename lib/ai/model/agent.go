@@ -64,8 +64,8 @@ type executionState struct {
 	tokensUsed        *TokensUsed
 }
 
-func (a *Agent) Think(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage) (any, error) {
-	log.Debug("entering agent think loop")
+func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage) (any, error) {
+	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
 	shouldExit := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }
@@ -80,7 +80,7 @@ func (a *Agent) Think(ctx context.Context, llm *openai.Client, chatHistory []ope
 	}
 
 	for {
-		log.Debugf("performing iteration %v of loop, %v seconds elapsed", iterations, int(time.Since(start).Seconds()))
+		log.Tracef("performing iteration %v of loop, %v seconds elapsed", iterations, int(time.Since(start).Seconds()))
 
 		// This is intentionally not context-based, as we want to finish the current step before exiting
 		// and the concern is not that we're stuck but that we're taking too long over multiple iterations.
@@ -94,7 +94,7 @@ func (a *Agent) Think(ctx context.Context, llm *openai.Client, chatHistory []ope
 		}
 
 		if output.finish != nil {
-			log.Debugf("agent finished with output: %v", output.finish.output)
+			log.Tracef("agent finished with output: %v", output.finish.output)
 			switch v := output.finish.output.(type) {
 			case *Message:
 				v.TokensUsed = tokensUsed
@@ -124,12 +124,12 @@ type stepOutput struct {
 }
 
 func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOutput, error) {
-	log.Debug("agent entering takeNextStep")
-	defer log.Debug("agent exiting takeNextStep")
+	log.Trace("agent entering takeNextStep")
+	defer log.Trace("agent exiting takeNextStep")
 
 	action, finish, err := a.plan(ctx, state)
 	if err, ok := trace.Unwrap(err).(*invalidOutputError); ok {
-		log.Debugf("agent encountered an invalid output error: %v, attempting to recover", err)
+		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
 		action := &AgentAction{
 			action: actionException,
 			input:  observationPrefix + "Invalid or incomplete response",
@@ -138,17 +138,17 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 
 		// The exception tool is currently a bit special, the observation is always equal to the input.
 		// We can expand on this in the future to make it handle errors better.
-		log.Debugf("agent decided on action %v and received observation %v", action.action, action.input)
+		log.Tracef("agent decided on action %v and received observation %v", action.action, action.input)
 		return stepOutput{action: action, observation: action.input}, nil
 	}
 	if err != nil {
-		log.Debugf("agent encountered an error: %v", err)
+		log.Tracef("agent encountered an error: %v", err)
 		return stepOutput{}, trace.Wrap(err)
 	}
 
 	// If finish is set, the agent is done and did not call upon any tool.
 	if finish != nil {
-		log.Debug("agent picked finish, returning")
+		log.Trace("agent picked finish, returning")
 		return stepOutput{finish: finish}, nil
 	}
 
@@ -161,7 +161,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 	}
 
 	if tool == nil {
-		log.Debugf("agent picked an unknown tool %v", action.action)
+		log.Tracef("agent picked an unknown tool %v", action.action)
 		action := &AgentAction{
 			action: actionException,
 			input:  observationPrefix + "Unknown tool",
@@ -189,11 +189,11 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 			Labels:  input.Labels,
 		}
 
-		log.Debugf("agent decided on command execution, let's translate to an AgentFinish")
+		log.Tracef("agent decided on command execution, let's translate to an AgentFinish")
 		return stepOutput{finish: &AgentFinish{output: completion}}, nil
 	}
 
-	return stepOutput{}, trace.NotImplemented("")
+	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *AgentFinish, error) {
@@ -291,7 +291,7 @@ type planOutput struct {
 }
 
 func parseConversationOutput(text string) (*AgentAction, *AgentFinish, error) {
-	log.Debugf("received planning output: \"%v\"", text)
+	log.Tracef("received planning output: \"%v\"", text)
 	response, err := parseJSONFromModel[planOutput](text)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
