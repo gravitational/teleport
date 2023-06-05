@@ -474,11 +474,8 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				}
 			case reconnectRequest:
 				a.log.Debugf("Received reconnect advisory request from proxy.")
-				if r.WantReply {
-					err := a.client.Reply(r, true, nil)
-					if err != nil {
-						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
-					}
+				if err := a.client.Reply(r, true, nil); err != nil {
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 				}
 
 				// Fire off stop but continue to handle global requests until the
@@ -486,23 +483,22 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				go a.Stop()
 			case replaceRequest:
 				a.log.Debugf("Received replace advisory request from proxy.")
-				if r.WantReply {
-					err := a.client.Reply(r, true, nil)
-					if err != nil {
-						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
-					}
+				if err := a.client.Reply(r, true, nil); err != nil {
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 				}
-				// This signal implies that all active tunnels will be disconnected, because
-				// all tracked proxies are going to be replaced with new proxies soon.
-				// In response, we drop all leases on connecting to new proxies, but we keep
-				// old proxies claimed (until reconnectRequest is received).
-				// This allows the agent to serve new requests throughout a rolling proxy deploy.
+				// This signal signifies that the proxy intends to shut down
+				// soon, and that a new proxy is ready to take its place. In
+				// response we drop the lease on the proxy, allowing the
+				// agentpool to connect to a new proxy, but we keep the
+				// connection intact and we don't unclaim the proxy in the
+				// tracker, so that we keep advertising it in our heartbeat (as
+				// it's still functional for the purpose of serving
+				// connections).
 				a.lease.Release()
 
 			default:
 				// This handles keep-alive messages and matches the behavior of OpenSSH.
-				err := a.client.Reply(r, false, nil)
-				if err != nil {
+				if err := a.client.Reply(r, false, nil); err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
