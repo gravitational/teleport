@@ -256,11 +256,12 @@ async function convertServerMessage(
     const eventsData = (await eventsResp.json()) as {
       events: SessionEvent[];
     };
-    const execEvent = eventsData.events.find(isExecEvent);
 
     let msg;
     let errorMsg;
     if (sessionExists) {
+      // eventsData.events can be empty if the command execution failed.
+      const execEvent = eventsData.events.find(isExecEvent);
       // The offset here is set base on A/B test that was run between me, myself and I.
       const stream = await api.fetch(
         sessionUrl + '/stream?offset=0&bytes=4096',
