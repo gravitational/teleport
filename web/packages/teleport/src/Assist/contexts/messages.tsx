@@ -112,11 +112,18 @@ const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
 
 const ROOT_LOGINS = ['root', 'ec2-user', 'ubuntu', 'admin', 'centos'];
 
-// findPreferredLogin tries to find a login that is not a root login.
-function findPreferredLogin(logins: string[]): string | undefined {
-  const login = logins.find(l => !ROOT_LOGINS.includes(l));
+export function sortLoginsWithRootLoginsLast(logins: string[]): string[] {
+  return logins.sort((a, b) => {
+    if (ROOT_LOGINS.includes(a) && !ROOT_LOGINS.includes(b)) {
+      return 1;
+    }
 
-  return login || logins[0];
+    if (!ROOT_LOGINS.includes(a) && ROOT_LOGINS.includes(b)) {
+      return -1;
+    }
+
+    return a.localeCompare(b);
+  });
 }
 
 export const remoteCommandToMessage = async (
@@ -153,12 +160,16 @@ export const remoteCommandToMessage = async (
     let avLogin = execCmd.selectedLogin;
     if (!avLogin) {
       // If the login has not been selected, use the first one.
-      avLogin = availableLogins ? findPreferredLogin(availableLogins) : '';
+      avLogin = availableLogins
+        ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+        : '';
     } else {
       // If the login has been selected, check if it is available.
       // Updated query could have changed the available logins.
       if (!availableLogins.includes(avLogin)) {
-        avLogin = availableLogins ? findPreferredLogin(availableLogins) : '';
+        avLogin = availableLogins
+          ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+          : '';
       }
     }
 
