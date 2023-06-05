@@ -21,10 +21,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,10 +73,20 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 	}
 
+	forwardProxy := mustStartForwardProxy(t)
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := mustStartMockALPNServer(t, test.serverProtos)
-			require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure))
+			t.Run("direct", func(t *testing.T) {
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure))
+			})
+
+			t.Run("with ProxyURL", func(t *testing.T) {
+				countBeforeTest := forwardProxy.numProxiedConnections.Load()
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure, forwardProxy.dialOption()))
+				require.Equal(t, countBeforeTest+1, forwardProxy.numProxiedConnections.Load())
+			})
 		})
 	}
 }
@@ -160,22 +173,48 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 			pool.AddCert(server.Certificate())
 
 			tlsConfig := &tls.Config{RootCAs: pool}
-			preDialer := newDirectDialer(0, 5*time.Second)
-			dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig, test.withPing)
-			conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
-			if test.wantError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			defer conn.Close()
+			directDialer := newDirectDialer(0, 5*time.Second)
 
-			data := make([]byte, 100)
-			n, err := conn.Read(data)
-			require.NoError(t, err)
-			require.Equal(t, string(data[:n]), "hello")
+			t.Run("direct", func(t *testing.T) {
+				dialer := newALPNConnUpgradeDialer(directDialer, tlsConfig, test.withPing)
+				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
+				if test.wantError {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				defer conn.Close()
+
+				mustReadConnData(t, conn, "hello")
+			})
+
+			t.Run("with ProxyURL", func(t *testing.T) {
+				forwardProxy := mustStartForwardProxy(t)
+				countBeforeTest := forwardProxy.numProxiedConnections.Load()
+
+				proxyURLDialer := newProxyURLDialer(forwardProxy.url, directDialer)
+				dialer := newALPNConnUpgradeDialer(proxyURLDialer, tlsConfig, test.withPing)
+				conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
+				if test.wantError {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				defer conn.Close()
+
+				mustReadConnData(t, conn, "hello")
+				require.Equal(t, countBeforeTest+1, forwardProxy.numProxiedConnections.Load())
+			})
 		})
 	}
+}
+
+func mustReadConnData(t *testing.T, conn net.Conn, wantText string) {
+	data := make([]byte, len(wantText)*2)
+	n, err := conn.Read(data)
+	require.NoError(t, err)
+	require.Equal(t, len(wantText), n)
+	require.Equal(t, string(data[:n]), wantText)
 }
 
 type mockALPNServer struct {
@@ -272,4 +311,77 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 			require.NoError(t, err)
 		}
 	})
+}
+
+// forwardProxy is a simple implementation of a HTTPS_PROXY.
+type forwardProxy struct {
+	net.Listener
+	url                   *url.URL
+	numProxiedConnections atomic.Uint32
+}
+
+func (p *forwardProxy) dialOption() DialOption {
+	return func(cfg *dialConfig) {
+		cfg.proxyURLFunc = func(_ string) *url.URL {
+			return p.url
+		}
+	}
+}
+
+func (p *forwardProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodConnect {
+		rw.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	// Prepare serverConn.
+	serverConn, err := net.Dial("tcp", req.Host)
+	if err != nil {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	defer serverConn.Close()
+
+	// Let client know it's ready.
+	rw.WriteHeader(http.StatusOK)
+
+	// Prepare clientConn.
+	hijacker, _ := rw.(http.Hijacker)
+	clientConn, _, _ := hijacker.Hijack()
+	defer clientConn.Close()
+
+	// Start proxy conn.
+	p.numProxiedConnections.Add(1)
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	proxyConn := func(dst, src io.ReadWriteCloser) {
+		defer dst.Close()
+		defer src.Close()
+		io.Copy(dst, src)
+		wg.Done()
+	}
+	go proxyConn(serverConn, clientConn)
+	go proxyConn(clientConn, serverConn)
+	wg.Wait()
+}
+
+func mustStartForwardProxy(t *testing.T) *forwardProxy {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		listener.Close()
+	})
+
+	url, err := url.Parse("http://" + listener.Addr().String())
+	require.NoError(t, err)
+
+	forwardProxy := &forwardProxy{
+		Listener: listener,
+		url:      url,
+	}
+	go http.Serve(listener, forwardProxy)
+	return forwardProxy
 }

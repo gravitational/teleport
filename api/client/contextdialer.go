@@ -48,6 +48,16 @@ type dialConfig struct {
 	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	proxyHeaderGetter PROXYHeaderGetter
+	// proxyURLFunc is a function used to get ProxyURL. Defaults to
+	// utils.GetProxyURL if not specified.
+	proxyURLFunc func(dialAddr string) *url.URL
+}
+
+func (c *dialConfig) getProxyURL(dialAddr string) *url.URL {
+	if c.proxyURLFunc != nil {
+		return c.proxyURLFunc(dialAddr)
+	}
+	return utils.GetProxyURL(dialAddr)
 }
 
 // WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
@@ -179,7 +189,7 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		}
 
 		// Wrap with proxy URL dialer if proxy URL is detected.
-		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
+		if proxyURL := cfg.getProxyURL(addr); proxyURL != nil {
 			dialer = newProxyURLDialer(proxyURL, dialer, opts...)
 		}
 
