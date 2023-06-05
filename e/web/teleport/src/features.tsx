@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import * as Icons from 'design/Icon';
 import { Chart, Profile } from 'design/Icon';
 import * as OSS from 'teleport/features';
@@ -30,55 +30,25 @@ import type {
   TeleportFeatureRoute,
 } from 'teleport/types';
 
-const AuthConnectors = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "e-auth-connectors" */ 'e-teleport/AuthConnectors'
-    )
+const AuthConnectors = lazy(() => import('e-teleport/AuthConnectors'));
+const AccountE = lazy(() => import('e-teleport/Account'));
+const Integrations = lazy(() => import('e-teleport/Integrations'));
+const IntegrationEnroll = lazy(
+  () => import('e-teleport/Integrations/IntegrationEnroll')
 );
-const AccountE = React.lazy(
-  () => import(/* webpackChunkName: "e-account" */ 'e-teleport/Account')
-);
-const Integrations = React.lazy(
-  () =>
-    import(/* webpackChunkName: "e-integrations" */ 'e-teleport/Integrations')
-);
-const IntegrationEnroll = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "e-integration-enroll" */ 'e-teleport/Integrations/IntegrationEnroll'
-    )
-);
-const SupportE = React.lazy(
-  () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
-);
-const NewLock = React.lazy(
-  () => import(/* webpackChunkName: "new-lock" */ 'e-teleport/NewLockV2')
+const SupportE = lazy(() => import('e-teleport/Support'));
+const NewLock = lazy(() => import('e-teleport/NewLockV2'));
+
+const DeviceTrust = lazy(() => import('e-teleport/DeviceTrust'));
+
+const BillingSummaryE = lazy(() => import('e-teleport/Billing/Summary'));
+
+const PaymentsInvoicesE = lazy(
+  () => import('e-teleport/Billing/PaymentsAndInvoices')
 );
 
-const DeviceTrust = React.lazy(
-  () => import(/* webpackChunkName: "e-devices" */ 'e-teleport/DeviceTrust')
-);
-
-const BillingSummaryE = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "e-billing-summary" */ 'e-teleport/Billing/Summary'
-    )
-);
-
-const PaymentsInvoicesE = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "e-payments-invoices" */ 'e-teleport/Billing/PaymentsAndInvoices'
-    )
-);
-
-const InvoiceSettingsE = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "e-invoice-settings" */ 'e-teleport/Billing/InvoiceSettings'
-    )
+const InvoiceSettingsE = lazy(
+  () => import('e-teleport/Billing/InvoiceSettings')
 );
 
 // ****************************

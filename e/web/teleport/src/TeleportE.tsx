@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { Route, Switch } from 'teleport/components/Router';
 import Teleport, {
   Props,
@@ -22,13 +22,9 @@ const TeleportE: React.FC<Props> = ({ history, ctx }) => {
   );
 };
 
-const Login = React.lazy(
-  () => import(/* webpackChunkName: "e-welcome" */ './Login')
-);
+const Login = lazy(() => import('./Login'));
 
-const Recovery = React.lazy(
-  () => import(/* webpackChunkName: "e-recovery" */ './Recovery')
-);
+const Recovery = lazy(() => import('./Recovery'));
 
 function publicERoutes() {
   return [
@@ -48,9 +44,7 @@ function publicERoutes() {
   ];
 }
 
-const Main = React.lazy(
-  () => import(/* webpackChunkName: "e-main" */ './Main')
-);
+const Main = lazy(() => import('./Main'));
 
 function privateERoutes() {
   return (
