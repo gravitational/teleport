@@ -135,12 +135,10 @@ func getPluginOnboardingCookie(r *http.Request) (*pluginOnboardingCookie, error)
 }
 
 func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
+	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	pluginsClt := clt.PluginsClient()
 
 	resp, err := pluginsClt.GetAvailablePluginTypes(r.Context(), &pluginspb.GetAvailablePluginTypesRequest{})
 	if err != nil {
@@ -162,8 +160,7 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 //     https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/form-action
 //     https://github.com/w3c/webappsec-csp/issues/8
 //   - For non-OAuth plugins: it creates plugin and responds with plugin status.
-func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
-
+func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
 	pluginType := r.FormValue("type")
 
 	switch pluginType {
@@ -179,7 +176,7 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 			return nil, trace.Wrap(err)
 		}
 
-		url, err := p.getPluginProviderAuthURL(r.Context(), ctx, r, pluginType, cookie.State)
+		url, err := p.getPluginProviderAuthURL(r.Context(), sessCtx, r, pluginType, cookie.State)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -202,6 +199,17 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 			return nil, trace.Wrap(err)
 		}
 		return resp, nil
+	case types.PluginTypeOkta:
+		plugin, err := p.createOktaPlugin(r.Context(), sessCtx, r.Form)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := ui.NewPlugin(plugin)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resp, nil
 	default:
 		return nil, trace.BadParameter("unknown plugin type")
 	}
@@ -209,12 +217,10 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 
 func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	const pageSize = apidefaults.DefaultChunkSize
-	clt, err := ctx.GetClient()
+	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	pluginsClt := clt.PluginsClient()
 
 	// TODO(justinas): actually paginate
 	results, err := pluginsClt.ListPlugins(r.Context(), &pluginspb.ListPluginsRequest{PageSize: pageSize})
@@ -236,17 +242,15 @@ func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params
 }
 
 func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
-	clt, err := ctx.GetClient()
-	if err != nil {
-		return nil, err
-	}
-
 	pluginName := params.ByName("name")
 	if pluginName == "" {
 		return nil, trace.BadParameter("name must be specified")
 	}
 
-	pluginsClt := clt.PluginsClient()
+	pluginsClt, err := getPluginClientFromSessionContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	_, err = pluginsClt.DeletePlugin(r.Context(), &pluginspb.DeletePluginRequest{Name: pluginName})
 
@@ -327,13 +331,12 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.BadParameter("unknown plugin type")
 	}
 
-	clt, err := ctx.GetClient()
+	pluginsClt, err := getPluginClientFromSessionContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	pluginsClt := clt.PluginsClient()
 	_, err = pluginsClt.CreatePlugin(r.Context(), req)
+
 	if err != nil {
 		p.Log.WithError(err).Error("Failed to CreatePlugin() after web flow")
 		return nil, trace.Wrap(err)
@@ -384,12 +387,10 @@ func (p *Plugin) getPluginProviderAuthURL(ctx context.Context, sctx *web.Session
 }
 
 func (p *Plugin) getPluginTypeMeta(ctx context.Context, sctx *web.SessionContext, typ string) (*pluginspb.PluginType, error) {
-	clt, err := sctx.GetClient()
+	pluginsClt, err := getPluginClientFromSessionContext(sctx)
 	if err != nil {
 		return nil, err
 	}
-
-	pluginsClt := clt.PluginsClient()
 	resp, err := pluginsClt.GetAvailablePluginTypes(ctx, &pluginspb.GetAvailablePluginTypesRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -451,4 +452,65 @@ func createJamfPluginRequest(req url.Values) *pluginspb.CreatePluginRequest {
 			},
 		},
 	}
+}
+
+// createOktaPlugin creates the Okta plugin from the given form data.
+func (p *Plugin) createOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, form url.Values) (types.Plugin, error) {
+	orgURL := form.Get("orgURL")
+	req := &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindMDM,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeOkta,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Okta{
+					Okta: &types.PluginOktaSettings{
+						OrgUrl: orgURL,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"okta/org-url": orgURL,
+					},
+					Name: types.PluginTypeOkta,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: form.Get("apiToken"),
+				},
+			},
+		},
+	}
+
+	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = pluginsClt.CreatePlugin(ctx, req)
+	if err != nil {
+		p.Log.WithError(err).Error("Failed to CreatePlugin()")
+		return nil, trace.Wrap(err)
+	}
+
+	return req.Plugin, nil
+}
+
+// getPluginClientFromSessionContext will return the plugin client from a given session context.
+func getPluginClientFromSessionContext(sessCtx *web.SessionContext) (pluginspb.PluginServiceClient, error) {
+	clt, err := sessCtx.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return clt.PluginsClient(), nil
 }

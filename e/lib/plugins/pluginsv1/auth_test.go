@@ -12,8 +12,11 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/plugins"
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestGetPluginWithSecrets(t *testing.T) {
@@ -323,4 +326,36 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAvailablePluginTypes(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	suite := createSuite(t)
+	suite.setRules([]types.Rule{
+		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
+	})
+
+	// create a noop authorizer that should show up when getting plugin types.
+	slackAuthorizer := &mockAuthorizer{
+		exchange: func(authCode string, redirectURI string) (*storage.Credentials, error) {
+			return nil, trace.NotImplemented("not implemented")
+		},
+	}
+
+	suite.pluginAuthorizers.Add(types.PluginTypeSlack, &plugins.Authorizer{Authorizer: slackAuthorizer, ClientID: "123456"})
+
+	resp, err := suite.svc.GetAvailablePluginTypes(ctx, &pluginspb.GetAvailablePluginTypesRequest{})
+	require.NoError(t, err)
+
+	require.ElementsMatch(t, []*pluginspb.PluginType{
+		{
+			Type:          types.PluginTypeSlack,
+			OauthClientId: "123456",
+		},
+		{
+			Type: types.PluginTypeOkta,
+		},
+	}, resp.PluginTypes)
 }

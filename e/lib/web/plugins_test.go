@@ -55,11 +55,21 @@ func TestCreatePluginHandle(t *testing.T) {
 			},
 			expectedResp: "Devices will be synced from Jamf to Teleport device inventory",
 		},
+		{
+			name:     "Okta plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":       {"okta"},
+				"orgURL":     {"https://www.okta.com"},
+				"apiToken":   {"some-api-token"},
+				"csrf_token": {webPack.csrfToken},
+			},
+			expectedResp: "Okta applications and groups will be synced to Teleport",
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			resp, err := webPack.clt.PostForm(s.ctx, tc.endpoint, tc.request)
 			require.NoError(t, err)
 			if tc.isOAuth {

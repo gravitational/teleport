@@ -52,6 +52,8 @@ func pluginDetails(p types.Plugin) string {
 		return fmt.Sprintf(`Messages will be sent to assigned reviewers and the "%s" channel`, settings.SlackAccessPlugin.FallbackChannel)
 	case *types.PluginSpecV1_Jamf:
 		return "Devices will be synced from Jamf to Teleport device inventory"
+	case *types.PluginSpecV1_Okta:
+		return "Okta applications and groups will be synced to Teleport"
 	default:
 		return ""
 	}

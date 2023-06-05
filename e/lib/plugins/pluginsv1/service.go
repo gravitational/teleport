@@ -310,7 +310,9 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 		})
 	}
 
-	// TODO(sshah): Include static plugins here.
+	resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
+		Type: string(types.PluginTypeOkta),
+	})
 
 	return resp, nil
 }
