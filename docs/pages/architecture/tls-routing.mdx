@@ -163,8 +163,8 @@ or `acme`.
 
 Teleport clients automatically detect whether the Teleport Proxy Service is
 behind a layer 7 load balancer or a reverse proxy. In such cases, the client
-initiates a connection upgrade similar to "WebSocket" and then sends the TLS
-routing request through the upgraded connection.
+initiates a connection upgrade (the same principle used by `WebSocket`) and then
+sends the TLS routing request through the upgraded connection.
 
 ![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
 
@@ -209,10 +209,9 @@ For both HTTP and TCP apps, `tsh proxy app` can launch a local proxy that
 handles the connection upgrades and sets appropriate ALPN value for TLS
 routing.
 
-tsh` CLI commands for accessing Cloud APIs, e.g., `tsh aws`, transparently
+`tsh` CLI commands for accessing Cloud APIs, e.g., `tsh aws`, transparently
 start a local proxy that performs connection upgrades for TLS routing. To start
-local proxies for native applications, you can use commands such as "tsh proxy
-aws" and similar ones.
+local proxies for native applications, you can use `tsh proxy aws`.
 
 ## Next steps
 
