@@ -263,7 +263,7 @@ async function convertServerMessage(
       const eventsData = (await eventsResp.json()) as {
         events: SessionEvent[];
       };
-      const execEvent = eventsData.events.find(isExecEvent);
+      const execEvent = eventsData.events?.find(isExecEvent);
       // The offset here is set base on A/B test that was run between me, myself and I.
       const stream = await api.fetch(
         sessionUrl + '/stream?offset=0&bytes=4096',
