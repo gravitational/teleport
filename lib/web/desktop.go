@@ -264,7 +264,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(stream, tdpMFACodec{}))
+	}, promptMFAChallenge(&stream.WSStream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
