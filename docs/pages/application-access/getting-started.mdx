@@ -85,7 +85,7 @@ Install Teleport on the host where you will run the Teleport Application Service
 (!docs/pages/includes/install-linux.mdx!)
 
 Create the Teleport Application Service configuration at `/etc/teleport.yaml`. Replace <Var name="teleport.example.com" /> with
-your Teleport Proxy address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
+your Teleport Proxy Service address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
 
 ```code
 $ sudo teleport configure \
@@ -127,11 +127,12 @@ $ helm install example-grafana grafana/grafana \
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-Install the Teleport Kube Agent into your Kubernetes Cluster
+Install the Teleport Kubernetes Service into your Kubernetes Cluster
 with the Teleport Application Service configuration.
 Replace <Var name="teleport.example.com" /> with
-your Teleport Proxy address (`teleport.example.com`) or your
-Teleport Enterprise Cloud tenant (e.g. `mytenant.teleport.sh`).
+your Teleport Proxy Service address (`teleport.example.com`) or your
+Teleport Enterprise Cloud tenant (e.g. `mytenant.teleport.sh`):
+
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
@@ -147,7 +148,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 ```
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-Install the Teleport Kube Agent into your Kubernetes Cluster
+Install the Teleport Kubernetes Service into your Kubernetes Cluster
 with the Teleport Application Service configuration.
 Replace <Var name="teleport.example.com" /> with
 your Teleport Enterprise Cloud tenant address (`mytenant.teleport.sh`)
@@ -185,11 +186,11 @@ The command will output a signup link. Use it to choose a password and set up a 
 
 There are a couple of ways to access the proxied application.
 
-Log in to the Teleport Web Interface at your Proxy Address. All available applications are displayed on the Applications tab.
+Log in to the Teleport Web UI at your Proxy Service address. All available applications are displayed on the Applications tab.
 Click Launch on the Grafana application tile to access it.
 
 Alternatively call the application directly with its name as the sub-domain, e.g. `https://grafana.teleport.example.com`. 
-or `https://grafana.mytenant.teleport.sh` for a Cloud tenant. You will need to log in
+or `https://grafana.mytenant.teleport.sh` for a Teleport Cloud tenant. You will need to log in
 if you weren't already authenticated.
 
 ## Next steps
