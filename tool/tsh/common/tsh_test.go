@@ -2273,51 +2273,6 @@ func TestSSHHeadless(t *testing.T) {
 			tc.assertErr(t, err)
 		})
 	}
-
-	// perform "tsh --headless ssh"
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, CliOption(func(cf *CLIConf) error {
-		cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// "tsh --auth headless ssh" should also perform headless ssh
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--auth", constants.HeadlessConnector,
-		"--proxy", proxyAddr.String(),
-		"--user", "alice",
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, CliOption(func(cf *CLIConf) error {
-		cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	// headless ssh should fail if user is not set.
-	err = Run(ctx, []string{
-		"ssh",
-		"--insecure",
-		"--headless",
-		"--proxy", proxyAddr.String(),
-		fmt.Sprintf("%s@%s", user.Username, sshHostname),
-		"echo", "test",
-	}, CliOption(func(cf *CLIConf) error {
-		cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
-		return nil
-	}))
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable"))
 }
 
 func TestFormatConnectCommand(t *testing.T) {
