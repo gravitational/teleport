@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -184,10 +182,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				},
 					tc.args...,
 				),
-				func(cf *CLIConf) error {
-					cf.overrideStdout = io.MultiWriter(os.Stdout, captureStdout)
-					return nil
-				},
+				setCopyStdout(captureStdout),
 			)
 			require.NoError(t, err)
 			require.Contains(t, captureStdout.String(), tc.wantTable())

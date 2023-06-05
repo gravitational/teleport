@@ -49,14 +49,12 @@
 
 // WriteToBuffer is a dummy function that writes a sequence event rather than
 // to a buffer.
-int
+void
 WriteToBuffer(char* source, size_t len)
 {
 	// NOTE: Modified to emit an event to the Go lib rather than mutate a
 	// global buffer.
 	writeSequence(source, len);
-
-	return len;
 }
 
 // DataAvailable waits for either a new input event, a quit event, or for a
@@ -78,17 +76,16 @@ DataAvailable(HANDLE hInput, HANDLE hQuitEvent)
 	return FALSE;
 }
 
-int
+void
 ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 {
 	DWORD dwInput = 0;
 	unsigned char octets[20];
 	INPUT_RECORD inputRecordArray[16];
-	int inputRecordArraySize = sizeof(inputRecordArray) / sizeof(INPUT_RECORD);
+	size_t inputRecordArraySize = sizeof(inputRecordArray) / sizeof(INPUT_RECORD);
 	static WCHAR utf16_surrogatepair[2] = {0,};
-	int n = 0;
+	size_t n = 0;
 
-	int outlen = 0;
 	while (DataAvailable(hInput, hQuitEvent)) {
 		ReadConsoleInputW(hInput, inputRecordArray, inputRecordArraySize, &dwInput);
 
@@ -130,7 +127,7 @@ ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 							NULL,
 							NULL);
 
-						outlen += WriteToBuffer((char *)octets, n);
+						WriteToBuffer((char *)octets, n);
 						utf16_surrogatepair[0] = utf16_surrogatepair[1] = L'\0';
 
 						break;
@@ -147,15 +144,13 @@ ReadConsoleForTermEmul(HANDLE hInput, HANDLE hQuitEvent)
 							NULL,
 							NULL);
 
-						outlen += WriteToBuffer((char *)octets, n);
+						WriteToBuffer((char *)octets, n);
 					}
 				}
 				break;
 			}
 		}
 	}
-
-	return outlen;
 }
 
 // ReadInputContinuous reads all console input events until the program exits,

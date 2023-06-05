@@ -259,6 +259,10 @@ const LoadingContainer = styled.div`
   margin: 30px 0 20px;
 `;
 
+const Output = styled.pre`
+  overflow-x: auto;
+`;
+
 function NodeOutput(props: NodeOutputProps) {
   return (
     <NodeContainer>
@@ -275,7 +279,7 @@ function NodeOutput(props: NodeOutputProps) {
           'Empty output.'
         ) : (
           <NodeContent>
-            <pre>{props.state.stdout}</pre>
+            <Output>{props.state.stdout}</Output>
           </NodeContent>
         ))}
     </NodeContainer>
