@@ -3678,12 +3678,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return trace.Wrap(err)
 			}
 			go func() {
-				_, err := process.WaitForEvent(process.ExitContext(), ProxyReplace)
-				if err != nil {
-					log.WithError(err).Warn("Unable to process proxy replace advisory event.")
+				ctx := process.GracefulExitContext()
+				if _, err := process.WaitForEvent(ctx, ProxyReplace); err != nil {
+					if ctx.Err() != nil {
+						log.WithError(err).Warn("Unable to process proxy replace advisory event.")
+					}
 					return
 				}
-				tsrv.Replace(process.ExitContext())
+				tsrv.Replace(ctx)
 			}()
 
 			// notify parties that we've started reverse tunnel server
