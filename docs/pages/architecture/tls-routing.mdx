@@ -163,8 +163,8 @@ or `acme`.
 
 Teleport clients automatically detect whether the Teleport Proxy Service is
 behind a layer 7 load balancer or a reverse proxy. In such cases, the client
-initiates a connection upgrade using a `WebSocket` and then sends the TLS
-routing request through the upgraded connection.
+initiates a connection upgrade (the same principle used by `WebSocket`) and then
+sends the TLS routing request through the upgraded connection.
 
 ![Connection upgrade](../../img/architecture/tls-routing-connection-upgrade.svg)
 
