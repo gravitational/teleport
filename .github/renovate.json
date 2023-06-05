@@ -63,14 +63,14 @@
   ],
   "ignoreDeps": ["dockerfile"],
   "ignorePaths": [
+    ".drone.yml",
     ".github/actions",
     ".github/services",
     ".github/workflows",
-    "web",
-    ".drone.yml",
-    "docker",
     "assets/loadtest",
+    "docker",
     "examples",
-    "package.json"
+    "package.json",
+    "web"
   ]
 }
