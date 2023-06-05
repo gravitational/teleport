@@ -47,14 +47,14 @@ export function AwsRegionSelector({
       </Text>
       <Flex alignItems="center" gap={3} mt={2} mb={3}>
         <Box width="320px" mb={4}>
-          <LabelInput htmlFor={'select'}>Aws Region</LabelInput>
+          <LabelInput htmlFor={'select'}>AWS Region</LabelInput>
           <Select
             inputId="select"
             isSearchable
             value={selectedRegion}
             onChange={handleRegionSelect}
             options={options}
-            placeholder="Select a Region"
+            placeholder="Select a region"
             autoFocus
             isDisabled={disableSelector}
           />
