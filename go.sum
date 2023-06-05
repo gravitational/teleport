@@ -1666,8 +1666,8 @@ go.etcd.io/etcd/tests/v3 v3.5.0-alpha.0/go.mod h1:HnrHxjyCuZ8YDt8PYVyQQ5d1ZQfzJV
 go.etcd.io/etcd/tests/v3 v3.5.0/go.mod h1:f+mtZ1bE1YPvgKdOJV2BKy4JQW0nAFnQehgOE7+WyJE=
 go.etcd.io/etcd/v3 v3.5.0-alpha.0/go.mod h1:JZ79d3LV6NUfPjUxXrpiFAYcjhT+06qqw+i28snx8To=
 go.etcd.io/etcd/v3 v3.5.0/go.mod h1:FldM0/VzcxYWLvWx1sdA7ghKw7C3L2DvUTzGrcEtsC4=
-go.mongodb.org/mongo-driver v1.10.6 h1:d/XGSUi/++VkvvU7+QpFqJZzuccp+rUSYMJ5Q3rjx8I=
-go.mongodb.org/mongo-driver v1.10.6/go.mod h1:z4XpeoU6w+9Vht+jAFyLgVrD+jGSQQe0+CBWFHNiHt8=
+go.mongodb.org/mongo-driver v1.11.6 h1:XM7G6PjiGAO5betLF13BIa5TlLUUE3uJ/2Ox3Lz1K+o=
+go.mongodb.org/mongo-driver v1.11.6/go.mod h1:G9TgswdsWjX4tmDA5zfs2+6AEPpYJwqblyjsfuh8oXY=
 go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352 h1:CCriYyAfq1Br1aIYettdHZTy8mBTIPo7We18TuO/bak=
 go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
 go.opencensus.io v0.15.0/go.mod h1:UffZAU+4sDEINUGP/B7UfBBkq4fqLu9zXAX7ke6CHW0=
