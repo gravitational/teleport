@@ -58,6 +58,9 @@ type Role interface {
 	// SetOptions sets role options
 	SetOptions(opt RoleOptions)
 
+	// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+	GetCreateDatabaseUserOption() bool
+
 	// GetLogins gets *nix system logins for allow or deny condition.
 	GetLogins(RoleConditionType) []string
 	// SetLogins sets *nix system logins for allow or deny condition.
@@ -136,6 +139,11 @@ type Role interface {
 	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
 	SetDatabaseUsers(RoleConditionType, []string)
 
+	// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+	GetDatabaseRoles(RoleConditionType) []string
+	// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+	SetDatabaseRoles(RoleConditionType, []string)
+
 	// GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 	GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions
 	// SetImpersonateConditions sets conditions this role is allowed or denied to impersonate.
@@ -205,6 +213,11 @@ type Role interface {
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
 
+	// GetDesktopGroups gets the list of groups this role is put in when desktop users are provisioned
+	GetDesktopGroups(RoleConditionType) []string
+	// SetDesktopGroups sets the list of groups this role is put in when desktop users are provisioned
+	SetDesktopGroups(RoleConditionType, []string)
+
 	// GetHostSudoers gets the list of sudoers entries for the role
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
@@ -215,8 +228,13 @@ type Role interface {
 
 	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
 	GetDatabaseServiceLabels(RoleConditionType) Labels
-	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
 	SetDatabaseServiceLabels(RoleConditionType, Labels)
+
+	// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+	GetGroupLabels(RoleConditionType) Labels
+	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+	SetGroupLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V6 role.
@@ -313,6 +331,14 @@ func (r *RoleV6) GetOptions() RoleOptions {
 // SetOptions sets role options.
 func (r *RoleV6) SetOptions(options RoleOptions) {
 	r.Spec.Options = options
+}
+
+// GetCreateDatabaseUserOption returns value of "create_db_user" option.
+func (r *RoleV6) GetCreateDatabaseUserOption() bool {
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		return false
+	}
+	return r.Spec.Options.CreateDatabaseUser.Value
 }
 
 // GetLogins gets system logins for allow or deny condition.
@@ -587,6 +613,23 @@ func (r *RoleV6) SetDatabaseUsers(rct RoleConditionType, values []string) {
 	}
 }
 
+// GetDatabaseRoles gets a list of database roles for auto-provisioned users.
+func (r *RoleV6) GetDatabaseRoles(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseRoles
+	}
+	return r.Spec.Deny.DatabaseRoles
+}
+
+// SetDatabaseRoles sets a list of database roles for auto-provisioned users.
+func (r *RoleV6) SetDatabaseRoles(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseRoles = values
+	} else {
+		r.Spec.Deny.DatabaseRoles = values
+	}
+}
+
 // GetImpersonateConditions returns conditions this role is allowed or denied to impersonate.
 func (r *RoleV6) GetImpersonateConditions(rct RoleConditionType) ImpersonateConditions {
 	cond := r.Spec.Deny.Impersonate
@@ -714,7 +757,7 @@ func (r *RoleV6) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
-// GetGroups gets all groups for provisioned user
+// GetHostGroups gets all groups for provisioned user
 func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.HostGroups
@@ -729,6 +772,24 @@ func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
 		r.Spec.Deny.HostGroups = ncopy
+	}
+}
+
+// GetDesktopGroups gets all groups for provisioned user
+func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DesktopGroups
+	}
+	return r.Spec.Deny.DesktopGroups
+}
+
+// SetDesktopGroups sets all groups for provisioned user
+func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.DesktopGroups = ncopy
+	} else {
+		r.Spec.Deny.DesktopGroups = ncopy
 	}
 }
 
@@ -770,6 +831,23 @@ func (r *RoleV6) setStaticFields() {
 	}
 }
 
+// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) GetGroupLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.GroupLabels
+	}
+	return r.Spec.Deny.GroupLabels
+}
+
+// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.GroupLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.GroupLabels = labels.Clone()
+	}
+}
+
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
 func (r *RoleV6) CheckAndSetDefaults() error {
 	r.setStaticFields()
@@ -808,6 +886,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
 	}
+	if r.Spec.Options.CreateDesktopUser == nil {
+		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.CreateDatabaseUser == nil {
+		r.Spec.Options.CreateDatabaseUser = NewBoolOption(false)
+	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
@@ -843,24 +927,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
 
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				{
-					Kind:      KindKubePod,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-				},
-			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
-
 		// Allow unrestricted access to all pods.
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
+		if len(r.Spec.Allow.KubernetesResources) == 0 && len(r.Spec.Allow.KubernetesLabels) > 0 {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
 					Kind:      KindKubePod,
@@ -868,11 +939,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Name:      Wildcard,
 				},
 			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
 		}
+
+		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
 			return trace.Wrap(err)
@@ -930,6 +1002,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.BadParameter("wildcard matcher is not allowed in allow.gcp_service_accounts")
 		}
 	}
+	for _, role := range r.Spec.Allow.DatabaseRoles {
+		if role == Wildcard {
+			return trace.BadParameter("wildcard is not allowed in allow.database_roles")
+		}
+	}
 	checkWildcardSelector := func(labels Labels) error {
 		for key, val := range labels {
 			if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
@@ -944,6 +1021,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels,
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
+		r.Spec.Allow.GroupLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -975,6 +1053,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 
@@ -1459,4 +1538,22 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
 	return k.Namespace + "/" + k.Name
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessRequestConditions) IsEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessReviewConditions) IsEmpty() bool {
+	return len(a.ClaimsToRoles) == 0 &&
+		len(a.PreviewAsRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.Where) == 0
 }

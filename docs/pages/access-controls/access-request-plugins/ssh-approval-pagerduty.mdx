@@ -16,6 +16,8 @@ the on-call team for a service affected by an incident.
 This guide will explain how to set up Teleport's Access Request plugin for
 PagerDuty.
 
+(!docs/pages/includes/plugins/diagram.mdx api="PagerDuty" action="Listen for Access Requests\nModify Access Requests" messages="Send notifications\nGet incident status" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -471,7 +473,6 @@ flag when you run the plugin binary later in this guide.
 
 </Details>
 
-
 Edit the configuration file in `/etc/teleport-pagerduty.toml` as explained
 below:
 
@@ -582,7 +583,6 @@ Access Request:
 
 ![PagerDuty dashboard showing an Access
 Request](../../../img/enterprise/plugins/pagerduty/new-access-req-incident.png)
-
 
 ### Resolve the request
 

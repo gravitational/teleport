@@ -19,8 +19,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
+	"os"
 	"os/user"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -34,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type suite struct {
@@ -51,7 +56,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "rootnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -73,12 +78,13 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "localhost",
+			ClusterName: "root",
 		},
 	}
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -139,7 +145,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "localnode",
+			NodeName: "leafnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -168,6 +174,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -344,4 +351,59 @@ func mustCreateAuthClientFormUserProfile(t *testing.T, tshHomePath, addr string)
 	require.NoError(t, err)
 	_, err = c.Ping(ctx)
 	require.NoError(t, err)
+}
+
+// mustCloneTempDir is a test helper that clones a given directory recursively.
+// Useful for parallelizing tests that rely on a ~/.tsh dir, since FSKeystore
+// races with multiple tsh clients working in the same profile dir.
+func mustCloneTempDir(t *testing.T, srcDir string) string {
+	t.Helper()
+	dstDir := t.TempDir()
+	err := filepath.WalkDir(srcDir, func(srcPath string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if srcPath == srcDir {
+			// special case: root of the walk. skip copying.
+			return nil
+		}
+
+		// Construct the corresponding path in the destination directory.
+		relPath, err := filepath.Rel(srcDir, srcPath)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dstPath := filepath.Join(dstDir, relPath)
+
+		info, err := d.Info()
+		require.NoError(t, err)
+
+		if d.IsDir() {
+			// If the current item is a directory, create it in the destination directory.
+			if err := os.Mkdir(dstPath, info.Mode().Perm()); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			// If the current item is a file, copy it to the destination directory.
+			srcFile, err := os.Open(srcPath)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer srcFile.Close()
+
+			dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			defer dstFile.Close()
+
+			if _, err := io.Copy(dstFile, srcFile); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return dstDir
 }

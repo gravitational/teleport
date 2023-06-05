@@ -43,10 +43,6 @@ export function createPtyHostClient(
         request.setCwd(ptyOptions.cwd);
       }
 
-      if (ptyOptions.initCommand) {
-        request.setInitCommand(ptyOptions.initCommand);
-      }
-
       return new Promise<string>((resolve, reject) => {
         client.createPtyProcess(request, (error, response) => {
           if (error) {
@@ -72,7 +68,7 @@ export function createPtyHostClient(
       const metadata = new Metadata();
       metadata.set('ptyId', ptyId);
       const stream = client.exchangeEvents(metadata);
-      return new PtyEventsStreamHandler(stream);
+      return new PtyEventsStreamHandler(stream, ptyId);
     },
   };
 }

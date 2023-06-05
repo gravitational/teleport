@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS RDS Proxy
-description: How to configure Teleport Database Access with AWS RDS Proxy.
+description: How to configure Teleport database access with AWS RDS Proxy.
 ---
 
 This guide will help you to set up Teleport to access your AWS RDS proxies.
@@ -14,7 +14,7 @@ This guide will help you to set up Teleport to access your AWS RDS proxies.
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
-**PostgreSQL** or **MariaDB and MySQL**.
+**PostgreSQL**, **MariaDB/MySQL** or **Microsoft SQL Server**.
 </Admonition>
 
 ## Prerequisites
@@ -30,6 +30,8 @@ Teleport currently supports RDS Proxy instances with engine family
 ## Step 1/5. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -106,7 +108,8 @@ example:
                 "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
             ]
         },
-        {
+        {   
+            "Effect": "Allow",
             "Action": "kms:Decrypt",
             "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
             "Condition": {
@@ -177,8 +180,8 @@ $ tsh db connect --db-user=alice --db-name=dev rds-proxy
 ```
 
 <Admonition type="note" title="Note">
-The appropriate database command-line client (`psql`, `mysql`, `mariadb`) should be
-available in `PATH` in order to connect.
+The appropriate database command-line client (`psql`, `mysql`, `mariadb`,
+`mssql-cli`) should be available in `PATH` in order to connect.
 </Admonition>
 
 To log out of the database and remove credentials:

@@ -23,13 +23,14 @@ import { MainContainer } from 'teleport/Main/MainContainer';
 
 import { Banner } from './Banner';
 
-import type { ReactNode } from 'react';
 import type { Severity } from './Banner';
+import type { ReactNode } from 'react';
 
 export const BannerList = ({
   banners = [],
   children,
   customBanners = [],
+  billingBanners = [],
   onBannerDismiss = () => {},
 }: Props) => {
   const [bannerData, setBannerData] = useState<{ [id: string]: BannerType }>(
@@ -56,7 +57,11 @@ export const BannerList = ({
   );
 
   return (
-    <Wrapper bannerCount={shownBanners.length + customBanners.length}>
+    <Wrapper
+      bannerCount={
+        shownBanners.length + customBanners.length + billingBanners.length
+      }
+    >
       {shownBanners.map(banner => (
         <Banner
           message={banner.message}
@@ -68,6 +73,7 @@ export const BannerList = ({
         />
       ))}
       {customBanners}
+      {billingBanners}
       {children}
     </Wrapper>
   );
@@ -89,6 +95,7 @@ type Props = {
   children?: ReactNode;
   customBanners?: ReactNode[];
   onBannerDismiss?: (string) => void;
+  billingBanners?: ReactNode[];
 };
 
 export type BannerType = {

@@ -111,7 +111,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	awsFetchers, err := dbfetchers.MakeAWSFetchers(s.cfg.CloudClients, s.cfg.AWSMatchers)
+	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,27 +263,40 @@ func (c *cloudCredentialsChecker) check(ctx context.Context, database types.Data
 }
 
 func (c *cloudCredentialsChecker) checkAWS(ctx context.Context, database types.Database) {
-	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
-		client, err := c.cloudClients.GetAWSSTSClient("")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return aws.GetIdentityWithClient(ctx, client)
-	})
+	meta := database.GetAWS()
+	identity, err := c.getAWSIdentity(ctx, &meta)
 	if err != nil {
-		c.warn(err, database, "Failed to get AWS caller identity when checking a database created by the discovery service.")
+		c.warn(err, database, "Failed to get AWS identity when checking a database created by the discovery service.")
 		return
 	}
 
-	meta := database.GetAWS()
 	if meta.AccountID != "" && meta.AccountID != identity.GetAccountID() {
-		c.warn(nil, database, fmt.Sprintf("The database agent's caller identity and discovered database %q have different AWS account IDs (%s vs %s).",
+		c.warn(nil, database, fmt.Sprintf("The database agent's identity and discovered database %q have different AWS account IDs (%s vs %s).",
 			database.GetName(),
 			identity.GetAccountID(),
 			meta.AccountID,
 		))
 		return
 	}
+}
+
+// getAWSIdentity returns the identity used to access the given database,
+// that is either the agent's identity or the database's configured assume-role.
+func (c *cloudCredentialsChecker) getAWSIdentity(ctx context.Context, meta *types.AWS) (aws.Identity, error) {
+	if meta.AssumeRoleARN != "" {
+		// If the database has an assume role ARN, use that instead of
+		// agent identity. This avoids an unnecessary sts call too.
+		return aws.IdentityFromArn(meta.AssumeRoleARN)
+	}
+
+	identity, err := utils.FnCacheGet(ctx, c.cache, types.CloudAWS, func(ctx context.Context) (aws.Identity, error) {
+		client, err := c.cloudClients.GetAWSSTSClient(ctx, "")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return aws.GetIdentityWithClient(ctx, client)
+	})
+	return identity, trace.Wrap(err)
 }
 
 func (c *cloudCredentialsChecker) checkAzure(ctx context.Context, database types.Database) {

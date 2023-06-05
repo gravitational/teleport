@@ -47,7 +47,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		return s
 	}
 
-	var eventType = getFieldEmpty(EventType)
+	eventType := getFieldEmpty(EventType)
 	var e events.AuditEvent
 
 	switch eventType {
@@ -215,6 +215,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
+	case DatabaseSessionOpenSearchRequestEvent:
+		e = &events.OpenSearchRequest{}
 	case DatabaseSessionDynamoDBRequestEvent:
 		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
@@ -223,8 +225,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
-	case DeviceEvent:
+	case DeviceEvent: // Kept for backwards compatibility.
 		e = &events.DeviceEvent{}
+	case DeviceCreateEvent, DeviceDeleteEvent, DeviceUpdateEvent,
+		DeviceEnrollEvent, DeviceAuthenticateEvent,
+		DeviceEnrollTokenCreateEvent:
+		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -291,6 +297,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SAMLIdPServiceProviderDelete{}
 	case SAMLIdPServiceProviderDeleteAllEvent:
 		e = &events.SAMLIdPServiceProviderDeleteAll{}
+	case OktaGroupsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaApplicationsUpdateEvent:
+		e = &events.OktaResourcesUpdate{}
+	case OktaSyncFailureEvent:
+		e = &events.OktaSyncFailure{}
+	case OktaAssignmentProcessEvent:
+		e = &events.OktaAssignmentResult{}
+	case OktaAssignmentCleanupEvent:
+		e = &events.OktaAssignmentResult{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
@@ -305,7 +321,7 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.CassandraExecute{}
 
 	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
+		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
 		unknown := &events.Unknown{}
 		if err := utils.FastUnmarshal(data, unknown); err != nil {
 			return nil, trace.Wrap(err)
@@ -336,6 +352,18 @@ func GetSessionID(event events.AuditEvent) string {
 	}
 
 	return sessionID
+}
+
+// GetTeleportUser pulls the teleport user from the events that have a
+// UserMetadata. For other events an empty string is returned.
+func GetTeleportUser(event events.AuditEvent) string {
+	type userGetter interface {
+		GetUser() string
+	}
+	if g, ok := event.(userGetter); ok {
+		return g.GetUser()
+	}
+	return ""
 }
 
 // ToEventFields converts from the typed interface-style event representation

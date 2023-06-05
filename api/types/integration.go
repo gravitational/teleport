@@ -34,10 +34,15 @@ const (
 type Integration interface {
 	ResourceWithLabels
 
+	// CanChangeStateTo checks if the current Integration can be updated for the provided integration.
+	CanChangeStateTo(Integration) error
+
 	// GetAWSOIDCIntegrationSpec returns the `aws-oidc` spec fields.
 	GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1
 	// SetAWSOIDCIntegrationSpec sets the `aws-oidc` spec fields.
 	SetAWSOIDCIntegrationSpec(*AWSOIDCIntegrationSpecV1)
+	// SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
+	SetAWSOIDCRoleARN(string)
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -92,6 +97,19 @@ func (ig *IntegrationV1) CheckAndSetDefaults() error {
 	return trace.Wrap(ig.Spec.CheckAndSetDefaults())
 }
 
+// CanChangeStateTo checks if the current Integration can be updated for the provided integration.
+func (ig *IntegrationV1) CanChangeStateTo(newState Integration) error {
+	if ig.SubKind != newState.GetSubKind() {
+		return trace.BadParameter("cannot update %q fields for a %q integration", newState.GetSubKind(), ig.SubKind)
+	}
+
+	if err := newState.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // CheckAndSetDefaults validates and sets default values for a integration.
 func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 	if s.SubKindSpec == nil {
@@ -136,6 +154,19 @@ func (ig *IntegrationV1) SetAWSOIDCIntegrationSpec(awsOIDCSpec *AWSOIDCIntegrati
 	}
 }
 
+// SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
+func (ig *IntegrationV1) SetAWSOIDCRoleARN(roleARN string) {
+	currentSubSpec := ig.Spec.GetAWSOIDC()
+	if currentSubSpec == nil {
+		currentSubSpec = &AWSOIDCIntegrationSpecV1{}
+	}
+
+	currentSubSpec.RoleARN = roleARN
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
+		AWSOIDC: currentSubSpec,
+	}
+}
+
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -161,7 +192,7 @@ func (igs Integrations) Swap(i, j int) { igs[i], igs[j] = igs[j], igs[i] }
 // It is required because the Spec.SubKindSpec proto field is a oneof.
 // This translates into two issues when generating golang code:
 // - the Spec.SubKindSpec field in Go is an interface
-// - there's no way to provide json tags for oneof fields, so instead of snake_case, we get CamelCase for the Spec.SubKindSpec field
+// - it creates an extra field to store the oneof values
 //
 // Spec.SubKindSpec is an interface because it can have one of multiple values,
 // even though there's only one type for now: aws_oidc.
@@ -170,16 +201,22 @@ func (igs Integrations) Swap(i, j int) { igs[i], igs[j] = igs[j], igs[i] }
 // and then use its SubKind to provide a concrete type for the Spec.SubKindSpec field.
 // Unmarshalling the remaining fields uses the standard json.Unmarshal over the Spec field.
 //
-// Spec.SubKindSpec is expecting the `SubKindSpec` json tag, however we are using snake_case everywhere.
-// So, we create a local type that has the expected json tag (`sub_kind_spec`) and use it to unmarshal and then copy
-// to the proper type.
+// Spec.SubKindSpec is an extra field which only adds clutter
+// This method pulls those fields into a higher level.
+// So, instead of:
+//
+// spec.subkind_spec.aws_oidc.role_arn: xyz
+//
+// It will be:
+//
+// spec.aws_oidc.role_arn: xyz
 func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	var integration IntegrationV1
 
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			RawSubKindSpec json.RawMessage `json:"subkind_spec"`
+			AWSOIDC json.RawMessage `json:"aws_oidc"`
 		} `json:"spec"`
 	}{}
 
@@ -190,19 +227,21 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 
 	integration.ResourceHeader = d.ResourceHeader
 
-	var subkindSpec isIntegrationSpecV1_SubKindSpec
 	switch integration.SubKind {
 	case IntegrationSubKindAWSOIDC:
-		subkindSpec = &IntegrationSpecV1_AWSOIDC{}
+		subkindSpec := &IntegrationSpecV1_AWSOIDC{
+			AWSOIDC: &AWSOIDCIntegrationSpecV1{},
+		}
+
+		if err := json.Unmarshal(d.Spec.AWSOIDC, subkindSpec.AWSOIDC); err != nil {
+			return trace.Wrap(err)
+		}
+
+		integration.Spec.SubKindSpec = subkindSpec
+
 	default:
 		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
-
-	if err := json.Unmarshal(d.Spec.RawSubKindSpec, subkindSpec); err != nil {
-		return trace.Wrap(err)
-	}
-
-	integration.Spec.SubKindSpec = subkindSpec
 
 	if err := integration.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -220,12 +259,22 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			SubKindSpec isIntegrationSpecV1_SubKindSpec `json:"subkind_spec"`
+			AWSOIDC AWSOIDCIntegrationSpecV1 `json:"aws_oidc"`
 		} `json:"spec"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
-	d.Spec.SubKindSpec = ig.Spec.SubKindSpec
+
+	switch ig.SubKind {
+	case IntegrationSubKindAWSOIDC:
+		if ig.GetAWSOIDCIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+		}
+
+		d.Spec.AWSOIDC = *ig.GetAWSOIDCIntegrationSpec()
+	default:
+		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
+	}
 
 	out, err := json.Marshal(d)
 	return out, trace.Wrap(err)

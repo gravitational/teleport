@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // CertAuthority is a host or user certificate authority that can check and if
@@ -108,7 +108,7 @@ func (ca *CertAuthorityV2) SetSubKind(s string) {
 
 // Clone returns a copy of the cert authority object.
 func (ca *CertAuthorityV2) Clone() CertAuthority {
-	return proto.Clone(ca).(*CertAuthorityV2)
+	return utils.CloneProtoMsg(ca)
 }
 
 // GetRotation returns rotation state.
@@ -717,5 +717,4 @@ func (f *CertAuthorityFilter) FromMap(m map[string]string) {
 	for key, val := range m {
 		(*f)[CertAuthType(key)] = val
 	}
-
 }

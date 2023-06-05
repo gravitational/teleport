@@ -48,6 +48,7 @@ func newRDSDBProxyFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 			trace.Component: "watch:rdsproxy",
 			"labels":        config.Labels,
 			"region":        config.Region,
+			"role":          config.AssumeRole,
 		}),
 	}, nil
 }
@@ -60,6 +61,7 @@ func (f *rdsDBProxyFetcher) Get(ctx context.Context) (types.ResourcesWithLabels,
 		return nil, trace.Wrap(err)
 	}
 
+	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 

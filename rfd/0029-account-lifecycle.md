@@ -1,6 +1,6 @@
 ---
 authors: Sasha Klizhentas (sasha@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 29 - Account Life-cycle: Recovery and Cancellation

@@ -649,6 +649,11 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // rangeKey is the name of the 'range key' the schema requires.
 // currently is always set to "FullPath" (used to be something else, that's
 // why it's a parameter for migration purposes)
+//
+// Note: If we change DynamoDB table schemas, we must also update the
+// documentation in case users want to set up DynamoDB tables manually. Edit the
+// following docs partial:
+// docs/pages/includes/dynamodb-iam-policy.mdx
 func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
 	pThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),

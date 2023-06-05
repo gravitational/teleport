@@ -18,7 +18,7 @@ import styled from 'styled-components';
 
 const SideNav = styled.nav`
   background: ${props => props.theme.colors.levels.surface};
-  border-right: 1px solid ${props => props.theme.colors.levels.sunkenSecondary};
+  border-right: 1px solid ${props => props.theme.colors.levels.sunken};
   min-width: 240px;
   width: 240px;
   overflow: auto;

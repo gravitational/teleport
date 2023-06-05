@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -39,6 +40,7 @@ type kubeCreds interface {
 	getTargetAddr() string
 	getKubeRestConfig() *rest.Config
 	getKubeClient() *kubernetes.Clientset
+	getTransport() http.RoundTripper
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
 }
@@ -63,10 +65,21 @@ type staticKubeCreds struct {
 	kubeClient *kubernetes.Clientset
 	// clientRestCfg is the Kubernetes Rest config for the cluster.
 	clientRestCfg *rest.Config
+	transport     httpTransport
+}
+
+type httpTransport struct {
+	// h2Transport is the HTTP/2 transport used for requests that can be sent
+	// via HTTP/2.
+	transport http.RoundTripper
 }
 
 func (s *staticKubeCreds) getTLSConfig() *tls.Config {
-	return s.tlsConfig
+	return s.tlsConfig.Clone()
+}
+
+func (s *staticKubeCreds) getTransport() http.RoundTripper {
+	return s.transport.transport
 }
 
 func (s *staticKubeCreds) getTransportConfig() *transport.Config {
@@ -139,39 +152,78 @@ type dynamicCredsClient func(ctx context.Context, cluster types.KubeCluster) (cf
 // function and renews them whenever they are about to expire.
 type dynamicKubeCreds struct {
 	ctx         context.Context
-	renewTicker *time.Ticker
+	renewTicker clockwork.Ticker
 	staticCreds *staticKubeCreds
 	log         logrus.FieldLogger
 	closeC      chan struct{}
 	client      dynamicCredsClient
 	checker     servicecfg.ImpersonationPermissionsChecker
+	clock       clockwork.Clock
 	sync.RWMutex
+	wg sync.WaitGroup
+}
+
+// dynamicCredsConfig contains configuration for dynamicKubeCreds.
+type dynamicCredsConfig struct {
+	kubeCluster          types.KubeCluster
+	log                  logrus.FieldLogger
+	client               dynamicCredsClient
+	checker              servicecfg.ImpersonationPermissionsChecker
+	clock                clockwork.Clock
+	initialRenewInterval time.Duration
+}
+
+func (d *dynamicCredsConfig) checkAndSetDefaults() error {
+	if d.kubeCluster == nil {
+		return trace.BadParameter("missing kubeCluster")
+	}
+	if d.log == nil {
+		return trace.BadParameter("missing log")
+	}
+	if d.client == nil {
+		return trace.BadParameter("missing client")
+	}
+	if d.checker == nil {
+		return trace.BadParameter("missing checker")
+	}
+	if d.clock == nil {
+		d.clock = clockwork.NewRealClock()
+	}
+	if d.initialRenewInterval == 0 {
+		d.initialRenewInterval = time.Hour
+	}
+	return nil
 }
 
 // newDynamicKubeCreds creates a new dynamicKubeCreds refresher and starts the
 // credentials refresher mechanism to renew them once they are about to expire.
-func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
-	dyn := &dynamicKubeCreds{
-		ctx:         ctx,
-		log:         log,
-		closeC:      make(chan struct{}),
-		client:      client,
-		renewTicker: time.NewTicker(time.Hour),
-		checker:     checker,
-	}
-
-	if err := dyn.renewClientset(kubeCluster); err != nil {
+func newDynamicKubeCreds(ctx context.Context, cfg dynamicCredsConfig) (*dynamicKubeCreds, error) {
+	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	dyn := &dynamicKubeCreds{
+		ctx:         ctx,
+		log:         cfg.log,
+		closeC:      make(chan struct{}),
+		client:      cfg.client,
+		renewTicker: cfg.clock.NewTicker(cfg.initialRenewInterval),
+		checker:     cfg.checker,
+		clock:       cfg.clock,
+	}
 
+	if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dyn.wg.Add(1)
 	go func() {
+		defer dyn.wg.Done()
 		for {
 			select {
 			case <-dyn.closeC:
 				return
-			case <-dyn.renewTicker.C:
-				if err := dyn.renewClientset(kubeCluster); err != nil {
-					log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+			case <-dyn.renewTicker.Chan():
+				if err := dyn.renewClientset(cfg.kubeCluster); err != nil {
+					logrus.WithError(err).Warnf("Unable to renew cluster %q credentials.", cfg.kubeCluster.GetName())
 				}
 			}
 		}
@@ -218,7 +270,15 @@ func (d *dynamicKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTrippe
 
 func (d *dynamicKubeCreds) close() error {
 	close(d.closeC)
+	d.wg.Wait()
+	d.renewTicker.Stop()
 	return nil
+}
+
+func (d *dynamicKubeCreds) getTransport() http.RoundTripper {
+	d.RLock()
+	defer d.RUnlock()
+	return d.staticCreds.getTransport()
 }
 
 // renewClientset generates the credentials required for accessing the cluster using the client function.
@@ -238,7 +298,8 @@ func (d *dynamicKubeCreds) renewClientset(cluster types.KubeCluster) error {
 	d.staticCreds = creds
 	// prepares the next renew cycle
 	if !exp.IsZero() {
-		d.renewTicker.Reset(time.Until(exp) / 2)
+		reset := exp.Sub(d.clock.Now()) / 2
+		d.renewTicker.Reset(reset)
 	}
 	return nil
 }

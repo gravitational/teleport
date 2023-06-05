@@ -20,6 +20,7 @@ package profile_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -39,7 +40,6 @@ func TestProfileBasics(t *testing.T) {
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
 		Username:              "testuser",
-		ForwardedPorts:        []string{"8000:example.com:8000"},
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",
@@ -101,4 +101,17 @@ func TestAppPath(t *testing.T) {
 
 	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
 	require.Equal(t, expected, p.AppCertPath("banana"))
+}
+
+func TestProfilePath(t *testing.T) {
+	switch runtime.GOOS {
+	case "darwin", "linux":
+	default:
+		t.Skip("this test only runs on Unix")
+	}
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	require.Equal(t, "/foo/bar", profile.FullProfilePath("/foo/bar"))
+	require.Equal(t, filepath.Join(dir, ".tsh"), profile.FullProfilePath(""))
 }

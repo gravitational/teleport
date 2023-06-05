@@ -19,7 +19,7 @@ package teleport.devicetrust.v1;
 import "google/protobuf/timestamp.proto";
 import "teleport/devicetrust/v1/os_type.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
 // DeviceCollectedData contains information gathered from the device during
 // various ceremonies.
@@ -38,8 +38,13 @@ message DeviceCollectedData {
   // Required.
   OSType os_type = 3;
 
-  // Device serial number.
-  // Required for macOS devices.
+  // Device serial number used to match the device with the inventory.
+  // This field is one of the three following
+  // values in this precedence:
+  // - reported_asset_tag
+  // - system_serial_number
+  // - base_board_serial_number
+  // Required.
   string serial_number = 4;
 
   // Non-descriptive model identifier.
@@ -64,4 +69,16 @@ message DeviceCollectedData {
   // Unmodified output of `/usr/bin/profiles status -type enrollment`.
   // Used to verify the presence of an enrollment profile.
   string macos_enrollment_profiles = 10;
+
+  // The asset tag of the device as reported by the BIOS DMI Type 3. Tools
+  // used by customers to manage their fleet may set this value.
+  string reported_asset_tag = 11;
+
+  // The serial number of the "system" as reported by the BIOS DMI Type 1.
+  // This field can be empty if no value has been configured.
+  string system_serial_number = 12;
+
+  // The serial number of the "base board" as reported by BIOS DMI Type 2.
+  // This field can be empty if no value has been configured.
+  string base_board_serial_number = 13;
 }

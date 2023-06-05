@@ -1,9 +1,11 @@
 ---
 authors: Alexander Klizhentas (sasha@goteleport.com), Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented (v10.0.0)
 ---
 
 # RFD 59 - Search Based Access Requests
+
+Note: this feature is often referred to as _resource-based_ access requests.
 
 ## What
 

@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -400,6 +401,10 @@ func (s *localSite) dialAndForward(params DialParams) (_ net.Conn, retErr error)
 		TargetServer:    params.TargetServer,
 		Clock:           s.clock,
 	}
+	// Ensure the hostname is set correctly if we have details of the target
+	if params.TargetServer != nil {
+		serverConfig.TargetHostname = params.TargetServer.GetHostname()
+	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -454,7 +459,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
@@ -468,7 +473,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 
 	// This node can only be reached over a tunnel, don't attempt to dial
 	// directly.
-	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
+	if params.To == nil || params.To.String() == "" || params.To.String() == reversetunnelclient.LocalNode {
 		return true, nil
 	}
 

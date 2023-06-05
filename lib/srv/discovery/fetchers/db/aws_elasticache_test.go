@@ -48,12 +48,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 		aws.StringValue(elasticacheUnsupported.ARN): elasticacheUnsupportedTags,
 	}
 
-	tests := []struct {
-		name          string
-		inputClients  cloud.AWSClients
-		inputLabels   map[string]string
-		wantDatabases types.Databases
-	}{
+	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -62,7 +57,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{elasticacheDatabaseProd, elasticacheDatabaseQA},
 		},
 		{
@@ -73,7 +68,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputLabels:   envProdLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", envProdLabels),
 			wantDatabases: types.Databases{elasticacheDatabaseProd},
 		},
 		{
@@ -84,7 +79,7 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{elasticacheDatabaseProd},
 		},
 		{
@@ -95,20 +90,11 @@ func TestElastiCacheFetcher(t *testing.T) {
 					TagsByARN:         elasticacheTagsByARN,
 				},
 			},
-			inputLabels:   wildcardLabels,
+			inputMatchers: makeAWSMatchersForType(services.AWSMatcherElastiCache, "us-east-1", wildcardLabels),
 			wantDatabases: types.Databases{elasticacheDatabaseProd},
 		},
 	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			fetchers := mustMakeAWSFetchersForMatcher(t, test.inputClients, services.AWSMatcherElastiCache, "us-east-2", toTypeLabels(test.inputLabels))
-			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
-		})
-	}
+	testAWSFetchers(t, tests...)
 }
 
 func makeElastiCacheCluster(t *testing.T, name, region, env string, opts ...func(*elasticache.ReplicationGroup)) (*elasticache.ReplicationGroup, types.Database, []*elasticache.Tag) {

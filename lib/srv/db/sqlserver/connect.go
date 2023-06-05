@@ -126,7 +126,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		// method.
 		connector, err = c.getAzureConnector(ctx, sessionCtx, dsnConfig)
 	case sessionCtx.Database.GetType() == types.DatabaseTypeRDSProxy:
-		connector, err = c.getAccessTokenConnector(sessionCtx, dsnConfig)
+		connector, err = c.getAccessTokenConnector(ctx, sessionCtx, dsnConfig)
 	default:
 		connector, err = c.getKerberosConnector(ctx, sessionCtx, dsnConfig)
 	}
@@ -186,8 +186,8 @@ func (c *connector) getAzureConnector(ctx context.Context, sessionCtx *common.Se
 
 // getAccessTokenConnector generates a connector that uses a token to
 // authenticate.
-func (c *connector) getAccessTokenConnector(sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
+func (c *connector) getAccessTokenConnector(ctx context.Context, sessionCtx *common.Session, dsnConfig msdsn.Config) (*mssql.Connector, error) {
 	return mssql.NewSecurityTokenConnector(dsnConfig, func(ctx context.Context) (string, error) {
-		return c.DBAuth.GetRDSAuthToken(sessionCtx)
+		return c.DBAuth.GetRDSAuthToken(ctx, sessionCtx)
 	})
 }

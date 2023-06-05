@@ -18,7 +18,7 @@ package teleport.devicetrust.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
 // Device profile information acquired from an external source.
 // If present, it's used to further validate collected data.

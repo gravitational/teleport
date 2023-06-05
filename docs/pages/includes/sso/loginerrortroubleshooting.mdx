@@ -44,7 +44,6 @@ traits correctly. For a user to see a Node in Teleport, the result of populating
  template variable in a role's `allow.logins` must match at least one of a user's
  `traits.logins`.
 
-
 In this example a user will have usernames `ubuntu`, `debian` and usernames from the SSO trait `logins` for Nodes that have a `env: dev` label.  If the SSO trait username is `bob` then the usernames would include `ubuntu`, `debian`, and `bob`.
 
 ```yaml

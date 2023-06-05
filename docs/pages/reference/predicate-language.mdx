@@ -35,7 +35,6 @@ The language also supports the following functions:
 | `equals(<field>, <field2>)`    | checks if the value from `<field2>` is equal to the value from `<field>`              |
 | `equals(<field>, "<value>")`   | checks if `<value>` is equal to the value from `<field>`                              |
 
-
 ## Resource filtering
 
 Both the [`tsh`](cli.mdx#tsh) and [`tctl`](cli.mdx#tctl) CLI tools allow you to filter nodes, 
@@ -67,6 +66,5 @@ The language also supports the following functions:
 | `exists(labels["env"])`               | resources with a label key `env`; label value unchecked    |
 | `!exists(labels["env"])`              | resources without a label key `env`; label value unchecked |
 | `search("foo", "bar", "some phrase")` | fuzzy match against common resource fields                 |
-
 
 See some [examples](cli.mdx#filter-examples) of the different ways you can filter resources.

@@ -24,8 +24,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/srv"
 )
 
 // Conn is a desktop protocol connection.
@@ -60,12 +58,22 @@ func NewConn(rwc io.ReadWriteCloser) *Conn {
 		bufr: bufio.NewReader(rwc),
 	}
 
-	if tc, ok := rwc.(srv.TrackingConn); ok {
+	if tc, ok := rwc.(srvTrackingConn); ok {
 		c.localAddr = tc.LocalAddr()
 		c.remoteAddr = tc.RemoteAddr()
 	}
 
 	return c
+}
+
+// srvTrackingConn should be kept in sync with
+// lib/srv.TrackingConn. It is duplicated here
+// to avoid placing a dependency on the lib/srv
+// package, which is incompatible with Windows.
+type srvTrackingConn interface {
+	LocalAddr() net.Addr
+	RemoteAddr() net.Addr
+	Close() error
 }
 
 // Close closes the connection if the underlying reader can be closed.

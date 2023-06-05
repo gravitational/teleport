@@ -1,5 +1,3 @@
-//go:build darwin
-
 // Copyright 2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +14,11 @@
 
 package native
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/gravitational/teleport/lib/devicetrust"
+)
 
 const (
 	// https://www.osstatus.com/search/results?framework=Security&search=-25300
@@ -44,4 +46,13 @@ func (e *statusError) Error() string {
 	default:
 		return fmt.Sprintf("status %d", e.status)
 	}
+}
+
+func (e *statusError) Is(target error) bool {
+	if target == devicetrust.ErrDeviceKeyNotFound && e.status == errSecItemNotFound {
+		return true
+	}
+
+	other, ok := target.(*statusError)
+	return ok && other.status == e.status
 }

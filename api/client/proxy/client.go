@@ -60,10 +60,8 @@ func (f SSHDialerFunc) Dial(ctx context.Context, network string, addr string, co
 // ClientConfig contains configuration needed for a Client
 // to be able to connect to the cluster.
 type ClientConfig struct {
-	// ProxyWebAddress is the address of the Proxy Web server.
-	ProxyWebAddress string
-	// ProxySSHAddress is the address of the Proxy SSH server.
-	ProxySSHAddress string
+	// ProxyAddress is the address of the Proxy server.
+	ProxyAddress string
 	// TLSRoutingEnabled indicates if the cluster is using TLS Routing.
 	TLSRoutingEnabled bool
 	// TLSConfig contains the tls.Config required for mTLS connections.
@@ -82,6 +80,11 @@ type ClientConfig struct {
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
 	DialOpts []grpc.DialOption
+	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
+	// required for making TLS routing requests.
+	ALPNConnUpgradeRequired bool
+	// InsecureSkipVerify is an option to skip HTTPS cert check
+	InsecureSkipVerify bool
 
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
@@ -93,11 +96,8 @@ type ClientConfig struct {
 // CheckAndSetDefaults ensures required options are present and
 // sets the default value of any that are omitted.
 func (c *ClientConfig) CheckAndSetDefaults() error {
-	if c.ProxyWebAddress == "" {
-		return trace.BadParameter("missing required parameter ProxyWebAddress")
-	}
-	if c.ProxySSHAddress == "" {
-		return trace.BadParameter("missing required parameter ProxySSHAddress")
+	if c.ProxyAddress == "" {
+		return trace.BadParameter("missing required parameter ProxyAddress")
 	}
 	if c.SSHDialer == nil {
 		return trace.BadParameter("missing required parameter SSHDialer")
@@ -108,7 +108,6 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}
-
 	if c.TLSConfig != nil {
 		c.clientCreds = func() client.Credentials {
 			return client.LoadTLS(c.TLSConfig.Clone())
@@ -296,8 +295,9 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 	c := &clusterName{}
 	conn, err := grpc.DialContext(
 		dialCtx,
-		cfg.ProxySSHAddress,
-		append(cfg.DialOpts,
+		cfg.ProxyAddress,
+		append([]grpc.DialOption{
+			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
@@ -311,7 +311,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 					metadata.StreamClientInterceptor,
 				)...,
 			),
-		)...,
+		}, cfg.DialOpts...)...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -334,6 +334,14 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		transport:   transport,
 		clusterName: c,
 	}, nil
+}
+
+func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context.Context, string) (net.Conn, error) {
+	return client.GRPCContextDialer(client.NewDialer(ctx, defaults.DefaultIdleTimeout, cfg.DialTimeout,
+		client.WithInsecureSkipVerify(cfg.InsecureSkipVerify),
+		client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+		client.WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+	))
 }
 
 // teleportAuthority is the extension set by the server
@@ -376,7 +384,7 @@ func newSSHClient(ctx context.Context, cfg *ClientConfig) (*Client, error) {
 		Timeout:           cfg.SSHConfig.Timeout,
 	}
 
-	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxySSHAddress, clientCfg)
+	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxyAddress, clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -441,10 +449,11 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 	case c.cfg.TLSRoutingEnabled:
 		return client.Config{
 			Context:                    ctx,
-			Addrs:                      []string{c.cfg.ProxyWebAddress},
+			Addrs:                      []string{c.cfg.ProxyAddress},
 			Credentials:                []client.Credentials{c.cfg.clientCreds()},
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 		}
 	case c.sshClient != nil:
 		return client.Config{
@@ -460,7 +469,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 				default:
 				}
 
-				conn, err := dialSSH(dialCtx, c.sshClient, c.cfg.ProxySSHAddress, "@"+cluster, nil)
+				conn, err := dialSSH(dialCtx, c.sshClient, c.cfg.ProxyAddress, "@"+cluster, nil)
 				return conn, trace.Wrap(err)
 			}),
 		}
@@ -499,7 +508,7 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 
 	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
-		return nil, ClusterDetails{}, trace.Wrap(err)
+		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
@@ -520,7 +529,7 @@ func (c *Client) dialHostSSH(ctx context.Context, target, cluster string, keyrin
 		keyring = nil
 	}
 
-	conn, err := dialSSH(ctx, c.sshClient, c.cfg.ProxySSHAddress, target+"@"+cluster, keyring)
+	conn, err := dialSSH(ctx, c.sshClient, c.cfg.ProxyAddress, target+"@"+cluster, keyring)
 	return conn, ClusterDetails{FIPS: details.FIPSEnabled}, trace.Wrap(err)
 }
 

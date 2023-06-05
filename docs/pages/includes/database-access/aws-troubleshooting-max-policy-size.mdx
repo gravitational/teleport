@@ -15,7 +15,7 @@ or 100 RDS databases.
 One way to work around this is to manually manage the IAM policy used for database
 connections, and use a wildcard `"*"` for `"Resource"` to reduce the policy size:
 
-<Details title="use a wildcard policy" opened={false}>
+<Details title="use a wildcard policy">
 
 Attach a policy with the following permissions to the IAM user or role:
 
@@ -56,7 +56,7 @@ policy.
 
 </Details>
 
-Another option is to deploy [Database Access in a Highly Available (HA)
+Another option is to deploy [the Database Service in a highly available (HA)
 configuration](../../database-access/guides/ha.mdx) where databases can be
 sharded to separate Database Services with different IAM roles.
 

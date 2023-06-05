@@ -48,9 +48,10 @@ export type NavButtonProps = {
 const StyledNavButton = styled.button(props => {
   return {
     color: props.active
-      ? props.theme.colors.light
-      : props.theme.colors.text.secondary,
+      ? props.theme.colors.text.main
+      : props.theme.colors.text.slightlyMuted,
     cursor: 'pointer',
+    fontFamily: 'inherit',
     display: 'inline-flex',
     fontSize: '14px',
     position: 'relative',
@@ -65,7 +66,7 @@ const StyledNavButton = styled.button(props => {
     borderRadius: '4px',
 
     '&:hover, &:focus': {
-      background: props.theme.colors.levels.surfaceSecondary,
+      background: props.theme.colors.spotBackground[0],
     },
     ...space(props),
     ...width(props),

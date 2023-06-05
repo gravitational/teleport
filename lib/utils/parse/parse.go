@@ -14,55 +14,66 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// TODO(awly): combine Expression and Matcher. It should be possible to write:
-// `{{regexp.match(email.local(external.trait_name))}}`
+// TODO(nklaassen): evaluate the risks and utility of allowing traits to be used
+// as regular expressions. The only thing blocking this today is that all trait
+// values are lists and the regex must be a single value. It could be possible
+// to write:
+// `{{regexp.match(email.local(head(external.trait_name)))}}`
 package parse
 
 import (
-	"fmt"
-	"reflect"
+	"net/mail"
 	"regexp"
 	"strings"
 	"unicode"
 
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
+
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
-// Expression is a string expression template
-// that can interpolate to some variables.
-type Expression struct {
+const (
+	// EmailLocalFnName is a name for email.local function
+	EmailLocalFnName = "email.local"
+	// RegexpMatchFnName is a name for regexp.match function.
+	RegexpMatchFnName = "regexp.match"
+	// RegexpNotMatchFnName is a name for regexp.not_match function.
+	RegexpNotMatchFnName = "regexp.not_match"
+	// RegexpReplaceFnName is a name for regexp.replace function.
+	RegexpReplaceFnName = "regexp.replace"
+)
+
+var (
+	traitsTemplateParser = mustNewTraitsTemplateParser()
+
+	matcherParser = mustNewMatcherParser()
+
+	reVariable = regexp.MustCompile(
+		// prefix is anything that is not { or }
+		`^(?P<prefix>[^}{]*)` +
+			// variable is anything in brackets {{}} that is not { or }
+			`{{(?P<expression>\s*[^}{]*\s*)}}` +
+			// prefix is anything that is not { or }
+			`(?P<suffix>[^}{]*)$`,
+	)
+)
+
+// TraitsTemplateExpression can interpolate user trait values into a string
+// template to produce some values.
+type TraitsTemplateExpression struct {
 	// prefix is a prefix of the expression
 	prefix string
 	// suffix is a suffix of the expression
 	suffix string
 	// expr is the expression AST
-	expr Expr
+	expr traitsTemplateExpression
 }
 
-// MatchExpression is a match expression.
-type MatchExpression struct {
-	// prefix is a prefix of the expression
-	prefix string
-	// suffix is a suffix of the expression
-	suffix string
-	// matcher is the matcher in the expression
-	matcher Expr
-}
-
-var reVariable = regexp.MustCompile(
-	// prefix is anything that is not { or }
-	`^(?P<prefix>[^}{]*)` +
-		// variable is anything in brackets {{}} that is not { or }
-		`{{(?P<expression>\s*[^}{]*\s*)}}` +
-		// prefix is anything that is not { or }
-		`(?P<suffix>[^}{]*)$`,
-)
-
-// NewExpression parses expressions like {{external.foo}} or {{internal.bar}},
+// NewTraitsTemplateExpression parses expressions like {{external.foo}} or {{internal.bar}},
 // or a literal value like "prod". Call Interpolate on the returned Expression
-// to get the final value based on traits or other dynamic values.
-func NewExpression(value string) (*Expression, error) {
+// to get the final value based on user traits.
+func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
 	match := reVariable.FindStringSubmatch(value)
 	if len(match) == 0 {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
@@ -71,21 +82,20 @@ func NewExpression(value string) (*Expression, error) {
 				value,
 			)
 		}
-		expr := &VarExpr{namespace: LiteralNamespace, name: value}
-		return &Expression{expr: expr}, nil
+		expr := typical.LiteralExpr[traitsTemplateEnv, []string]{
+			Value: []string{value},
+		}
+		return &TraitsTemplateExpression{expr: expr}, nil
 	}
 
 	prefix, value, suffix := match[1], match[2], match[3]
-	expr, err := parse(value)
+
+	expr, err := parseTraitsTemplateExpression(value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if expr.Kind() != reflect.String {
-		return nil, trace.BadParameter("%q does not evaluate to a string", value)
-	}
-
-	return &Expression{
+	return &TraitsTemplateExpression{
 		prefix: strings.TrimLeftFunc(prefix, unicode.IsSpace),
 		suffix: strings.TrimRightFunc(suffix, unicode.IsSpace),
 		expr:   expr,
@@ -96,38 +106,129 @@ func NewExpression(value string) (*Expression, error) {
 // The returned error is trace.NotFound in case the expression contains a variable
 // and this variable is not found on any trait, nil in case of success,
 // and BadParameter otherwise.
-func (e *Expression) Interpolate(varValidation func(namespace, name string) error, traits map[string][]string) ([]string, error) {
-	ctx := EvaluateContext{
-		VarValue: func(v VarExpr) ([]string, error) {
-			if err := varValidation(v.namespace, v.name); err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			values, ok := traits[v.name]
-			if !ok {
-				return nil, trace.NotFound("variable not found: %s", v)
-			}
-			return values, nil
-		},
-	}
-
-	result, err := e.expr.Evaluate(ctx)
+func (e *TraitsTemplateExpression) Interpolate(varValidation func(namespace, name string) error, traits map[string][]string) ([]string, error) {
+	result, err := e.expr.Evaluate(traitsTemplateEnv{
+		traits:         traits,
+		traitValidator: varValidation,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	l, ok := result.([]string)
-	if !ok {
-		panic(fmt.Sprintf("unexpected string expression evaluation result type %T (this is a bug)", result))
-	}
-
 	var out []string
-	for _, val := range l {
+	for _, val := range result {
 		if len(val) > 0 {
 			out = append(out, e.prefix+val+e.suffix)
 		}
 	}
 	return out, nil
+}
+
+type traitsTemplateEnv struct {
+	traits         map[string][]string
+	traitValidator func(namespace, name string) error
+}
+
+type traitsTemplateExpression typical.Expression[traitsTemplateEnv, []string]
+
+func parseTraitsTemplateExpression(exprString string) (traitsTemplateExpression, error) {
+	expr, err := traitsTemplateParser.Parse(exprString)
+	return expr, trace.Wrap(err)
+}
+
+func mustNewTraitsTemplateParser() *typical.CachedParser[traitsTemplateEnv, []string] {
+	parser, err := newTraitsTemplateParser()
+	if err != nil {
+		panic(trace.Wrap(err, "failed to create template parser (this is a bug)"))
+	}
+	return parser
+}
+
+func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []string], error) {
+	traitsVariable := func(name string) typical.Variable {
+		return typical.DynamicMapFunction(func(e traitsTemplateEnv, key string) ([]string, error) {
+			if e.traitValidator != nil {
+				if err := e.traitValidator(name, key); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			values, ok := e.traits[key]
+			if !ok {
+				return nil, trace.NotFound("trait not found: %s.%s", name, key)
+			}
+			return values, nil
+		})
+	}
+
+	parser, err := typical.NewCachedParser[traitsTemplateEnv, []string](typical.ParserSpec{
+		Variables: map[string]typical.Variable{
+			"external": traitsVariable("external"),
+			"internal": traitsVariable("internal"),
+		},
+		Functions: map[string]typical.Function{
+			EmailLocalFnName:    typical.UnaryFunction[traitsTemplateEnv](EmailLocal),
+			RegexpReplaceFnName: typical.TernaryFunction[traitsTemplateEnv](RegexpReplace),
+		},
+	}, typical.WithInvalidNamespaceHack())
+	return parser, trace.Wrap(err)
+}
+
+// EmailLocal returns a new list which is a result of getting the local part of
+// each email from the input list.
+func EmailLocal(inputs []string) ([]string, error) {
+	return stringListMap(inputs, func(email string) (string, error) {
+		if email == "" {
+			return "", trace.BadParameter(
+				"found empty %q argument",
+				EmailLocalFnName,
+			)
+		}
+		addr, err := mail.ParseAddress(email)
+		if err != nil {
+			return "", trace.BadParameter(
+				"failed to parse %q argument %q: %s",
+				EmailLocalFnName,
+				email,
+				err,
+			)
+		}
+		parts := strings.SplitN(addr.Address, "@", 2)
+		if len(parts) != 2 {
+			return "", trace.BadParameter(
+				"could not find local part in %q argument %q, %q",
+				EmailLocalFnName,
+				email,
+				addr.Address,
+			)
+		}
+		return parts[0], nil
+	})
+}
+
+// RegexpReplace returns a new list which is the result of replacing each instance
+// of [match] with [replacement] for each item in the input list.
+func RegexpReplace(inputs []string, match string, replacement string) ([]string, error) {
+	re, err := newRegexp(match, false)
+	if err != nil {
+		return nil, trace.Wrap(err, "invalid regexp %q", match)
+	}
+	return stringListMap(inputs, func(in string) (string, error) {
+		// filter out inputs which do not match the regexp at all
+		if !re.MatchString(in) {
+			return "", nil
+		}
+		return re.ReplaceAllString(in, replacement), nil
+	})
+}
+
+// MatchExpression is a match expression.
+type MatchExpression struct {
+	// prefix is a prefix of the expression
+	prefix string
+	// suffix is a suffix of the expression
+	suffix string
+	// matcher is the matcher in the expression
+	matcher Matcher
 }
 
 // Matcher matches strings against some internal criteria (e.g. a regexp)
@@ -184,21 +285,19 @@ func NewMatcher(value string) (*MatchExpression, error) {
 			)
 		}
 
-		matcher, err := buildRegexpMatchExprFromLit(value)
+		re, err := newRegexp(value, true)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "parsing match expression")
 		}
-		return &MatchExpression{matcher: matcher}, nil
+		return &MatchExpression{
+			matcher: matcher{re},
+		}, nil
 	}
 
 	prefix, value, suffix := match[1], match[2], match[3]
-	matcher, err := parse(value)
+	matcher, err := parseMatcherExpression(value)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if matcher.Kind() != reflect.Bool {
-		return nil, trace.BadParameter("%q does not evaluate to a boolean", value)
 	}
 
 	return &MatchExpression{
@@ -215,63 +314,101 @@ func (e *MatchExpression) Match(in string) bool {
 	in = strings.TrimPrefix(in, e.prefix)
 	in = strings.TrimSuffix(in, e.suffix)
 
-	ctx := EvaluateContext{
-		MatcherInput: in,
-	}
-
-	// Ignore err as there's no variable interpolation for now,
-	// and thus `Evaluate` cannot error for matchers.
-	result, _ := e.matcher.Evaluate(ctx)
-	b, ok := result.(bool)
-	if !ok {
-		panic(fmt.Sprintf("unexpected match expression evaluation result type %T (this is a bug)", result))
-	}
-	return b
+	return e.matcher.Match(in)
 }
 
-const (
-	// LiteralNamespace is a namespace for Expressions that always return
-	// static literal values.
-	LiteralNamespace = "literal"
-	// EmailLocalFnName is a name for email.local function
-	EmailLocalFnName = "email.local"
-	// RegexpMatchFnName is a name for regexp.match function.
-	RegexpMatchFnName = "regexp.match"
-	// RegexpNotMatchFnName is a name for regexp.not_match function.
-	RegexpNotMatchFnName = "regexp.not_match"
-	// RegexpReplaceFnName is a name for regexp.replace function.
-	RegexpReplaceFnName = "regexp.replace"
-)
+// match expressions currently have no environment (you can't access any traits
+// or other variables).
+type matcherEnv struct{}
 
-// parse uses predicate in order to parse the expression.
-func parse(exprStr string) (Expr, error) {
-	parser, err := predicate.NewParser(predicate.Def{
-		GetIdentifier: buildVarExpr,
-		GetProperty:   buildVarExprFromProperty,
-		Functions: map[string]interface{}{
-			EmailLocalFnName:     buildEmailLocalExpr,
-			RegexpReplaceFnName:  buildRegexpReplaceExpr,
-			RegexpMatchFnName:    buildRegexpMatchExpr,
-			RegexpNotMatchFnName: buildRegexpNotMatchExpr,
+func parseMatcherExpression(raw string) (Matcher, error) {
+	matchExpr, err := matcherParser.Parse(raw)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing match expression")
+	}
+	matcher, err := matchExpr.Evaluate(matcherEnv{})
+	return matcher, trace.Wrap(err, "evaluating match expression")
+}
+
+func mustNewMatcherParser() *typical.CachedParser[matcherEnv, Matcher] {
+	parser, err := newMatcherParser()
+	if err != nil {
+		panic(trace.Wrap(err, "failed to create match parser (this is a bug)"))
+	}
+	return parser
+}
+
+func newMatcherParser() (*typical.CachedParser[matcherEnv, Matcher], error) {
+	parser, err := typical.NewCachedParser[matcherEnv, Matcher](typical.ParserSpec{
+		Functions: map[string]typical.Function{
+			RegexpMatchFnName:    typical.UnaryFunction[matcherEnv](regexpMatch),
+			RegexpNotMatchFnName: typical.UnaryFunction[matcherEnv](regexpNotMatch),
 		},
 	})
+	return parser, trace.Wrap(err)
+}
+
+func regexpMatch(match string) (Matcher, error) {
+	re, err := newRegexp(match, false)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing argument to regexp.match")
 	}
+	return matcher{re}, nil
+}
 
-	result, err := parser.Parse(exprStr)
+func regexpNotMatch(match string) (Matcher, error) {
+	re, err := newRegexp(match, false)
 	if err != nil {
-		return nil, trace.BadParameter("failed to parse: %q, error: %s", exprStr, err)
+		return nil, trace.Wrap(err, "parsing argument to regexp.not_match")
+	}
+	return notMatcher{re}, nil
+}
+
+type matcher struct {
+	re *regexp.Regexp
+}
+
+func (m matcher) Match(in string) bool {
+	return m.re.MatchString(in)
+}
+
+type notMatcher struct {
+	re *regexp.Regexp
+}
+
+func (n notMatcher) Match(in string) bool {
+	return !n.re.MatchString(in)
+}
+
+func stringListMap(inputs []string, f func(string) (string, error)) ([]string, error) {
+	out := make([]string, len(inputs))
+	for i, input := range inputs {
+		var err error
+		out[i], err = f(input)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return out, nil
+}
+
+func newRegexp(raw string, escape bool) (*regexp.Regexp, error) {
+	if escape {
+		if !strings.HasPrefix(raw, "^") || !strings.HasSuffix(raw, "$") {
+			// replace glob-style wildcards with regexp wildcards
+			// for plain strings, and quote all characters that could
+			// be interpreted in regular expression
+			raw = "^" + utils.GlobToRegexp(raw) + "$"
+		}
 	}
 
-	expr, ok := result.(Expr)
-	if !ok {
-		return nil, trace.BadParameter("failed to parse: %q, unexpected parser result type %T", exprStr, result)
+	re, err := regexp.Compile(raw)
+	if err != nil {
+		return nil, trace.BadParameter(
+			"failed to parse regexp %q: %v",
+			raw,
+			err,
+		)
 	}
-
-	if err := validateExpr(expr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return expr, nil
+	return re, nil
 }

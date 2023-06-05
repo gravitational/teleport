@@ -111,8 +111,8 @@ export function NewMfaDevice(props: Props) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text color="text.secondary">Step 2 of 2</Text>
-              <Text typography="h4" color="light" bold>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
+              <Text typography="h4" color="text.main" bold>
                 Set Two-Factor Device
               </Text>
             </Box>
@@ -120,7 +120,7 @@ export function NewMfaDevice(props: Props) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="light" caps mb={1}>
+          <Text typography="subtitle1" color="text.main" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>
@@ -156,7 +156,7 @@ export function NewMfaDevice(props: Props) {
                   fontSize={1}
                   textAlign="center"
                   mt={2}
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                 >
                   Scan the QR Code with any authenticator app and enter the
                   generated code. We recommend{' '}
@@ -170,7 +170,11 @@ export function NewMfaDevice(props: Props) {
             {mfaType?.value === 'webauthn' && (
               <>
                 <Image src={imgSrc} width="220px" height="154px" />
-                <Text fontSize={1} color="text.secondary" textAlign="center">
+                <Text
+                  fontSize={1}
+                  color="text.slightlyMuted"
+                  textAlign="center"
+                >
                   We support a wide range of hardware devices including
                   YubiKeys, Touch ID, watches, and more.
                 </Text>

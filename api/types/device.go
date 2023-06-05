@@ -36,6 +36,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	// - Kind = device
 	// - Metadata.Name = UUID
 	// - Spec.EnrollStatus = unspecified
+	// - Spec.Credential.AttestationType = unspecified
 	if d.Kind == "" {
 		d.Kind = KindDevice
 	} else if d.Kind != KindDevice { // sanity check
@@ -45,7 +46,10 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 		d.Metadata.Name = uuid.NewString()
 	}
 	if d.Spec.EnrollStatus == "" {
-		d.Spec.EnrollStatus = ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
+		d.Spec.EnrollStatus = ResourceDeviceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
+	}
+	if d.Spec.Credential != nil && d.Spec.Credential.DeviceAttestationType == "" {
+		d.Spec.Credential.DeviceAttestationType = ResourceDeviceAttestationTypeToString(devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED)
 	}
 
 	// Validate Header/Metadata.
@@ -65,8 +69,18 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if _, err := ResourceOSTypeFromString(d.Spec.OsType); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := ResourceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
+	if _, err := ResourceDeviceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
 		return trace.Wrap(err)
+	}
+	if d.Spec.Credential != nil {
+		if _, err := ResourceDeviceAttestationTypeFromString(d.Spec.Credential.DeviceAttestationType); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if d.Spec.Source != nil {
+		if _, err := ResourceDeviceOriginFromString(d.Spec.Source.Origin); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -99,16 +113,25 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	enrollStatus, err := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
+	enrollStatus, err := ResourceDeviceEnrollStatusFromString(res.Spec.EnrollStatus)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var cred *devicepb.DeviceCredential
 	if res.Spec.Credential != nil {
+		attestationType, err := ResourceDeviceAttestationTypeFromString(
+			res.Spec.Credential.DeviceAttestationType,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		cred = &devicepb.DeviceCredential{
-			Id:           res.Spec.Credential.Id,
-			PublicKeyDer: res.Spec.Credential.PublicKeyDer,
+			Id:                    res.Spec.Credential.Id,
+			PublicKeyDer:          res.Spec.Credential.PublicKeyDer,
+			DeviceAttestationType: attestationType,
+			TpmEkcertSerial:       res.Spec.Credential.TpmEkcertSerial,
+			TpmAkPublic:           res.Spec.Credential.TpmAkPublic,
 		}
 	}
 
@@ -120,10 +143,43 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		}
 
 		collectedData[i] = &devicepb.DeviceCollectedData{
-			CollectTime:  toTimePB(d.CollectTime),
-			RecordTime:   toTimePB(d.RecordTime),
-			OsType:       dataOSType,
-			SerialNumber: d.SerialNumber,
+			CollectTime:             toTimePB(d.CollectTime),
+			RecordTime:              toTimePB(d.RecordTime),
+			OsType:                  dataOSType,
+			SerialNumber:            d.SerialNumber,
+			ModelIdentifier:         d.ModelIdentifier,
+			OsVersion:               d.OsVersion,
+			OsBuild:                 d.OsBuild,
+			OsUsername:              d.OsUsername,
+			JamfBinaryVersion:       d.JamfBinaryVersion,
+			MacosEnrollmentProfiles: d.MacosEnrollmentProfiles,
+			ReportedAssetTag:        d.ReportedAssetTag,
+			SystemSerialNumber:      d.SystemSerialNumber,
+			BaseBoardSerialNumber:   d.BaseBoardSerialNumber,
+		}
+	}
+
+	var source *devicepb.DeviceSource
+	if s := res.Spec.Source; s != nil {
+		origin, err := ResourceDeviceOriginFromString(s.Origin)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		source = &devicepb.DeviceSource{
+			Name:   s.Name,
+			Origin: origin,
+		}
+	}
+
+	var profile *devicepb.DeviceProfile
+	if p := res.Spec.Profile; p != nil {
+		profile = &devicepb.DeviceProfile{
+			UpdateTime:        toTimePB(p.UpdateTime),
+			ModelIdentifier:   p.ModelIdentifier,
+			OsVersion:         p.OsVersion,
+			OsBuild:           p.OsBuild,
+			OsUsernames:       p.OsUsernames,
+			JamfBinaryVersion: p.JamfBinaryVersion,
 		}
 	}
 
@@ -137,6 +193,8 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		EnrollStatus:  enrollStatus,
 		Credential:    cred,
 		CollectedData: collectedData,
+		Source:        source,
+		Profile:       profile,
 	}, nil
 }
 
@@ -160,16 +218,50 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 		cred = &DeviceCredential{
 			Id:           dev.Credential.Id,
 			PublicKeyDer: dev.Credential.PublicKeyDer,
+			DeviceAttestationType: ResourceDeviceAttestationTypeToString(
+				dev.Credential.DeviceAttestationType,
+			),
+			TpmEkcertSerial: dev.Credential.TpmEkcertSerial,
+			TpmAkPublic:     dev.Credential.TpmAkPublic,
 		}
 	}
 
 	collectedData := make([]*DeviceCollectedData, len(dev.CollectedData))
 	for i, d := range dev.CollectedData {
 		collectedData[i] = &DeviceCollectedData{
-			CollectTime:  toTimePtr(d.CollectTime),
-			RecordTime:   toTimePtr(d.RecordTime),
-			OsType:       ResourceOSTypeToString(d.OsType),
-			SerialNumber: d.SerialNumber,
+			CollectTime:             toTimePtr(d.CollectTime),
+			RecordTime:              toTimePtr(d.RecordTime),
+			OsType:                  ResourceOSTypeToString(d.OsType),
+			SerialNumber:            d.SerialNumber,
+			ModelIdentifier:         d.ModelIdentifier,
+			OsVersion:               d.OsVersion,
+			OsBuild:                 d.OsBuild,
+			OsUsername:              d.OsUsername,
+			JamfBinaryVersion:       d.JamfBinaryVersion,
+			MacosEnrollmentProfiles: d.MacosEnrollmentProfiles,
+			ReportedAssetTag:        d.ReportedAssetTag,
+			SystemSerialNumber:      d.SystemSerialNumber,
+			BaseBoardSerialNumber:   d.BaseBoardSerialNumber,
+		}
+	}
+
+	var source *DeviceSource
+	if s := dev.Source; s != nil {
+		source = &DeviceSource{
+			Name:   s.Name,
+			Origin: ResourceDeviceOriginToString(s.Origin),
+		}
+	}
+
+	var profile *DeviceProfile
+	if p := dev.Profile; p != nil {
+		profile = &DeviceProfile{
+			UpdateTime:        toTimePtr(p.UpdateTime),
+			ModelIdentifier:   p.ModelIdentifier,
+			OsVersion:         p.OsVersion,
+			OsBuild:           p.OsBuild,
+			OsUsernames:       p.OsUsernames,
+			JamfBinaryVersion: p.JamfBinaryVersion,
 		}
 	}
 
@@ -186,9 +278,11 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			AssetTag:      dev.AssetTag,
 			CreateTime:    toTimePtr(dev.CreateTime),
 			UpdateTime:    toTimePtr(dev.UpdateTime),
-			EnrollStatus:  ResourceEnrollStatusToString(dev.EnrollStatus),
+			EnrollStatus:  ResourceDeviceEnrollStatusToString(dev.EnrollStatus),
 			Credential:    cred,
 			CollectedData: collectedData,
+			Source:        source,
+			Profile:       profile,
 		},
 	}
 	_ = res.CheckAndSetDefaults() // assign default fields
@@ -199,6 +293,8 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 // for use in resource fields.
 func ResourceOSTypeToString(osType devicepb.OSType) string {
 	switch osType {
+	case devicepb.OSType_OS_TYPE_UNSPECIFIED:
+		return "unspecified"
 	case devicepb.OSType_OS_TYPE_LINUX:
 		return "linux"
 	case devicepb.OSType_OS_TYPE_MACOS:
@@ -214,6 +310,8 @@ func ResourceOSTypeToString(osType devicepb.OSType) string {
 // for resource fields to OSType.
 func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	switch osType {
+	case "", "unspecified":
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED, nil
 	case "linux":
 		return devicepb.OSType_OS_TYPE_LINUX, nil
 	case "macos":
@@ -225,9 +323,9 @@ func ResourceOSTypeFromString(osType string) (devicepb.OSType, error) {
 	}
 }
 
-// ResourceEnrollStatusToString converts DeviceEnrollStatus to a string
+// ResourceDeviceEnrollStatusToString converts DeviceEnrollStatus to a string
 // representation suitable for use in resource fields.
-func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) string {
+func ResourceDeviceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) string {
 	switch enrollStatus {
 	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
 		return "enrolled"
@@ -240,9 +338,9 @@ func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) stri
 	}
 }
 
-// ResourceEnrollStatusFromString converts a string representation of
+// ResourceDeviceEnrollStatusFromString converts a string representation of
 // DeviceEnrollStatus suitable for resource fields to DeviceEnrollStatus.
-func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
+func ResourceDeviceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
 	switch enrollStatus {
 	case "enrolled":
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, nil
@@ -250,7 +348,74 @@ func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollS
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, nil
 	case "unspecified":
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
+	// In the terraform provider, enroll_status is an optional field and can be empty.
+	case "":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
 	default:
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, trace.BadParameter("unknown enroll status %q", enrollStatus)
+	}
+}
+
+func ResourceDeviceAttestationTypeToString(
+	attestationType devicepb.DeviceAttestationType,
+) string {
+	switch attestationType {
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
+		return "unspecified"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
+		return "tpm_ekpub"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:
+		return "tpm_ekcert"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED:
+		return "tpm_ekcert_trusted"
+	default:
+		return attestationType.String()
+	}
+}
+
+func ResourceDeviceAttestationTypeFromString(
+	attestationType string,
+) (devicepb.DeviceAttestationType, error) {
+	switch attestationType {
+	case "unspecified", "":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, nil
+	case "tpm_ekpub":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB, nil
+	case "tpm_ekcert":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT, nil
+	case "tpm_ekcert_trusted":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED, nil
+	default:
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, trace.BadParameter("unknown attestation type %q", attestationType)
+	}
+}
+
+func ResourceDeviceOriginToString(o devicepb.DeviceOrigin) string {
+	switch o {
+	case devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED:
+		return "unspecified"
+	case devicepb.DeviceOrigin_DEVICE_ORIGIN_API:
+		return "api"
+	case devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF:
+		return "jamf"
+	case devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE:
+		return "intune"
+	default:
+		return o.String()
+	}
+}
+
+func ResourceDeviceOriginFromString(s string) (devicepb.DeviceOrigin, error) {
+	switch s {
+	case "", "unspecified":
+		return devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED, nil
+	case "api":
+		return devicepb.DeviceOrigin_DEVICE_ORIGIN_API, nil
+	case "jamf":
+		return devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF, nil
+	case "intune":
+		return devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, nil
+	default:
+		return devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED, trace.BadParameter("unknown device origin %q", s)
 	}
 }

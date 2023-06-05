@@ -1,4 +1,8 @@
 # Teleport Usage Gathering Script
+<a href="https://gallery.ecr.aws/gravitational/teleport-usage">
+<img src="https://img.shields.io/github/v/release/gravitational/teleport?sort=semver&label=Container Image&color=621FFF" />
+</a>
+
 
 This script retrieves the number of unique users accessing each of the five
 Teleport supported protocols over a 30 day period.

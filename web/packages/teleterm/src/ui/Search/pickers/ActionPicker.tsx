@@ -14,14 +14,23 @@
  * limitations under the License.
  */
 
-import React, { ReactElement, useCallback } from 'react';
+import React, { ReactElement, useCallback, useMemo } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Label as DesignLabel, Text } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonPrimary,
+  Flex,
+  Label as DesignLabel,
+  Text,
+} from 'design';
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
+  ClusterSearchFilter,
   ResourceMatch,
   SearchResult,
   ResourceSearchResult,
@@ -30,46 +39,64 @@ import {
   SearchResultServer,
   SearchResultCluster,
   SearchResultResourceType,
+  SearchFilter,
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import { isRetryable } from 'teleterm/ui/utils/retryWithRelogin';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
+import { CrossClusterResourceSearchResult } from '../useSearch';
 
-import { useSearchAttempts } from './useSearchAttempts';
+import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
-import { ResultList, EmptyListCopy } from './ResultList';
+import { ResultList, NonInteractiveItem, IconAndContent } from './ResultList';
+import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
-  const { clustersService } = ctx;
+  const { clustersService, modalsService } = ctx;
   ctx.clustersService.useState();
 
   const {
     changeActivePicker,
+    pauseUserInteraction,
     close,
     inputValue,
     resetInput,
-    closeAndResetInput,
     filters,
     removeFilter,
+    addWindowEventListener,
   } = useSearchContext();
-  const attempts = useSearchAttempts();
+  const {
+    filterActionsAttempt,
+    resourceActionsAttempt,
+    resourceSearchAttempt,
+  } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
+  // The order of attempts is important. Filter actions should be displayed before resource actions.
+  const actionAttempts = useMemo(
+    () => [filterActionsAttempt, resourceActionsAttempt],
+    [filterActionsAttempt, resourceActionsAttempt]
+  );
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
-      if (totalCountOfClusters === 1) {
-        return;
-      }
-
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
 
       return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
     },
-    [clustersService, totalCountOfClusters]
+    [clustersService]
+  );
+
+  const getOptionalClusterName = useCallback(
+    (resourceUri: uri.ClusterOrResourceUri) =>
+      totalCountOfClusters === 1 ? undefined : getClusterName(resourceUri),
+    [getClusterName, totalCountOfClusters]
   );
 
   const onPick = useCallback(
@@ -82,64 +109,36 @@ export function ActionPicker(props: { input: ReactElement }) {
         // Overall, the context should probably encapsulate more logic so that the components don't
         // have to worry about low-level stuff such as input state. Input state already lives in the
         // search context so it should be managed from there, if possible.
-        if (action.preventAutoClose === true) {
-          resetInput();
-        } else {
-          closeAndResetInput();
+        resetInput();
+        if (!action.preventAutoClose) {
+          close();
         }
       }
       if (action.type === 'parametrized-action') {
         changeActivePicker(getParameterPicker(action));
       }
     },
-    [changeActivePicker, closeAndResetInput, resetInput]
+    [changeActivePicker, close, resetInput]
   );
-
-  // If the input is empty, we don't want to say "No matching results found" if the user is yet to
-  // type anything. This can happen e.g. after selecting two filters.
-  const NoResultsComponent =
-    inputValue.length > 0 ? (
-      <EmptyListCopy>
-        <Text>No matching results found.</Text>
-      </EmptyListCopy>
-    ) : null;
 
   const filterButtons = filters.map(s => {
     if (s.filter === 'resource-type') {
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
+        <FilterButton
           key="resource-type"
+          text={s.resourceType}
           onClick={() => removeFilter(s)}
-        >
-          {s.resourceType}
-        </ButtonPrimary>
+        />
       );
     }
     if (s.filter === 'cluster') {
       const clusterName = getClusterName(s.clusterUri);
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
-          title={clusterName}
-          css={`
-            max-width: 130px;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            overflow: hidden;
-            display: block;
-          `}
+        <FilterButton
           key="cluster"
+          text={clusterName}
           onClick={() => removeFilter(s)}
-        >
-          {clusterName}
-        </ButtonPrimary>
+        />
       );
     }
   });
@@ -151,16 +150,52 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
+  const actionPickerStatus = useMemo(
+    () =>
+      getActionPickerStatus({
+        inputValue,
+        filters,
+        filterActionsAttempt,
+        actionAttempts,
+        resourceSearchAttempt,
+        allClusters: clustersService.getClusters(),
+      }),
+    [
+      inputValue,
+      filters,
+      filterActionsAttempt,
+      actionAttempts,
+      resourceSearchAttempt,
+      clustersService,
+    ]
+  );
+  const showErrorsInModal = useCallback(
+    errors =>
+      pauseUserInteraction(
+        () =>
+          new Promise(resolve => {
+            modalsService.openRegularDialog({
+              kind: 'resource-search-errors',
+              errors,
+              getClusterName,
+              onCancel: () => resolve(undefined),
+            });
+          })
+      ),
+    [pauseUserInteraction, modalsService, getClusterName]
+  );
+
   return (
-    <>
-      <Flex flex={1} onKeyDown={handleKeyDown}>
+    <PickerContainer>
+      <InputWrapper onKeyDown={handleKeyDown}>
         {filterButtons}
         {props.input}
-      </Flex>
+      </InputWrapper>
       <ResultList<SearchAction>
-        attempts={attempts}
+        attempts={actionAttempts}
         onPick={onPick}
         onBack={close}
+        addWindowEventListener={addWindowEventListener}
         render={item => {
           const Component = ComponentMap[item.searchResult.kind];
           return {
@@ -171,15 +206,255 @@ export function ActionPicker(props: { input: ReactElement }) {
             Component: (
               <Component
                 searchResult={item.searchResult}
-                getClusterName={getClusterName}
+                getOptionalClusterName={getOptionalClusterName}
               />
             ),
           };
         }}
-        NoResultsComponent={NoResultsComponent}
+        ExtraTopComponent={
+          <ExtraTopComponents
+            status={actionPickerStatus}
+            getClusterName={getClusterName}
+            showErrorsInModal={showErrorsInModal}
+          />
+        }
       />
-    </>
+    </PickerContainer>
   );
+}
+
+export const InputWrapper = styled(Flex).attrs({ px: 2 })`
+  row-gap: ${props => props.theme.space[2]}px;
+  column-gap: ${props => props.theme.space[2]}px;
+  align-items: center;
+  flex-wrap: wrap;
+  // account for border
+  padding-block: calc(${props => props.theme.space[2]}px - 1px);
+  // input height without border
+  min-height: 38px;
+
+  & > input {
+    height: unset;
+    padding-inline: 0;
+    flex: 1;
+  }
+`;
+
+const ExtraTopComponents = (props: {
+  status: ActionPickerStatus;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  showErrorsInModal: (errors: ResourceSearchError[]) => void;
+}) => {
+  const { status, getClusterName, showErrorsInModal } = props;
+
+  switch (status.inputState) {
+    case 'no-input': {
+      switch (status.searchMode.kind) {
+        case 'no-search': {
+          return <TypeToSearchItem hasNoRemainingFilterActions={false} />;
+        }
+        case 'preview': {
+          const {
+            nonRetryableResourceSearchErrors,
+            hasNoRemainingFilterActions,
+          } = status.searchMode;
+
+          return (
+            <>
+              <TypeToSearchItem
+                hasNoRemainingFilterActions={hasNoRemainingFilterActions}
+              />
+              {nonRetryableResourceSearchErrors.length > 0 && (
+                <ResourceSearchErrorsItem
+                  errors={nonRetryableResourceSearchErrors}
+                  getClusterName={getClusterName}
+                  showErrorsInModal={() => {
+                    showErrorsInModal(nonRetryableResourceSearchErrors);
+                  }}
+                />
+              )}
+            </>
+          );
+        }
+        default: {
+          return assertUnreachable(status.searchMode);
+        }
+      }
+    }
+    case 'some-input': {
+      return (
+        <>
+          {status.nonRetryableResourceSearchErrors.length > 0 && (
+            <ResourceSearchErrorsItem
+              errors={status.nonRetryableResourceSearchErrors}
+              getClusterName={getClusterName}
+              showErrorsInModal={() => {
+                showErrorsInModal(status.nonRetryableResourceSearchErrors);
+              }}
+            />
+          )}
+          {status.hasNoResults && (
+            <NoResultsItem
+              clustersWithExpiredCerts={status.clustersWithExpiredCerts}
+              getClusterName={getClusterName}
+            />
+          )}
+        </>
+      );
+    }
+    default: {
+      assertUnreachable(status);
+    }
+  }
+};
+
+/**
+ * ActionPickerStatus helps with displaying ExtraTopComponents. It has two goals:
+ *
+ *   * Encapsulate business logic so that anything that ExtraTopComponents renders can just read
+ *     ActionPickerStatus fields.
+ *   * Represent only valid UI states. For example, inputState 'no-input' doesn't have hasNoResults
+ *     field as this field would make no sense in a situation where no search requests were made.
+ *
+ * As you may notice, ActionPickerStatus doesn't say whether the search request is in progress or
+ * not, simply because displaying the progress bar is handled by another component. The questions
+ * answered by ActionPickerStatus are valid to ask no matter what the state of the request is.
+ */
+type ActionPickerStatus =
+  | {
+      // no-input: The input is empty.
+      inputState: 'no-input';
+      searchMode:
+        | {
+            // no-search: The search bar is pristine, that is the input and the filters are empty.
+            kind: 'no-search';
+          }
+        | {
+            // preview: At least one filter is selected. The search bar is fetching or shows
+            // a preview of results matching the filters.
+            kind: 'preview';
+            hasNoRemainingFilterActions: boolean;
+            nonRetryableResourceSearchErrors: ResourceSearchError[];
+          };
+    }
+  | {
+      // some-input: The input is not empty. The search bar is fetching or shows results matching
+      // the query and filters.
+      inputState: 'some-input';
+      hasNoResults: boolean;
+      nonRetryableResourceSearchErrors: ResourceSearchError[];
+      clustersWithExpiredCerts: Set<uri.ClusterUri>;
+    };
+
+export function getActionPickerStatus({
+  inputValue,
+  filters,
+  filterActionsAttempt,
+  allClusters,
+  actionAttempts,
+  resourceSearchAttempt,
+}: {
+  inputValue: string;
+  filters: SearchFilter[];
+  filterActionsAttempt: Attempt<SearchAction[]>;
+  allClusters: tsh.Cluster[];
+  actionAttempts: Attempt<SearchAction[]>[];
+  resourceSearchAttempt: Attempt<CrossClusterResourceSearchResult>;
+}): ActionPickerStatus {
+  if (!inputValue) {
+    const didNotSelectAnyFilters = filters.length === 0;
+
+    // If the input is empty, we fetch the preview only after the user selected some filters.
+    // So at this point we know that no search request was sent.
+    if (didNotSelectAnyFilters) {
+      return {
+        inputState: 'no-input',
+        searchMode: { kind: 'no-search' },
+      };
+    }
+
+    // The number of available filters the user can select changes dynamically based on how many
+    // clusters are in the state. That's why instead of inspecting the filters array from
+    // SearchContext, we inspect the actual filter actions attempt to see if any further filter
+    // suggestions will be shown to the user.
+    //
+    // We also know that this attempt is always successful as filters are calculated in a sync way.
+    // They're converted into an attempt only to conform to the interface of ResultList.
+    const hasNoRemainingFilterActions =
+      filterActionsAttempt.status === 'success' &&
+      filterActionsAttempt.data.length === 0;
+
+    const nonRetryableResourceSearchErrors =
+      resourceSearchAttempt.status === 'success'
+        ? resourceSearchAttempt.data.errors.filter(
+            err => !isRetryable(err.cause)
+          )
+        : [];
+
+    return {
+      inputState: 'no-input',
+      searchMode: {
+        kind: 'preview',
+        hasNoRemainingFilterActions,
+        nonRetryableResourceSearchErrors,
+      },
+    };
+  }
+
+  const nonRetryableResourceSearchErrors = [];
+  let clustersWithExpiredCerts = new Set(
+    allClusters.filter(c => !c.connected).map(c => c.uri)
+  );
+  const haveActionAttemptsFinished = actionAttempts.every(attempt =>
+    hasFinished(attempt)
+  );
+
+  if (!haveActionAttemptsFinished) {
+    return {
+      inputState: 'some-input',
+      hasNoResults: false,
+      nonRetryableResourceSearchErrors,
+      clustersWithExpiredCerts,
+    };
+  }
+
+  const hasNoResults = actionAttempts.every(
+    attempt => attempt.data.length === 0
+  );
+
+  // We could assume that resourceSearchAttempt has finished since action attempts depend on it and
+  // we know that they all finished at this point. But we check status explicitly anyway.
+  if (resourceSearchAttempt.status === 'success') {
+    resourceSearchAttempt.data.errors.forEach(err => {
+      if (isRetryable(err.cause)) {
+        clustersWithExpiredCerts.add(err.clusterUri);
+      } else {
+        nonRetryableResourceSearchErrors.push(err);
+      }
+    });
+  }
+
+  // Make sure we don't list extra clusters with expired certs if a cluster filter is selected.
+  const clusterFilter = filters.find(
+    filter => filter.filter === 'cluster'
+  ) as ClusterSearchFilter;
+  if (clusterFilter) {
+    const hasClusterCertExpired = clustersWithExpiredCerts.has(
+      clusterFilter.clusterUri
+    );
+    clustersWithExpiredCerts = new Set();
+
+    if (hasClusterCertExpired) {
+      clustersWithExpiredCerts.add(clusterFilter.clusterUri);
+    }
+  }
+
+  return {
+    inputState: 'some-input',
+    hasNoResults,
+    clustersWithExpiredCerts,
+    nonRetryableResourceSearchErrors,
+  };
 }
 
 export const ComponentMap: Record<
@@ -195,33 +470,12 @@ export const ComponentMap: Record<
 
 type SearchResultItem<T> = {
   searchResult: T;
-  getClusterName: (uri: uri.ResourceUri) => string;
+  getOptionalClusterName: (uri: uri.ResourceUri) => string;
 };
-
-function Item(
-  props: React.PropsWithChildren<{
-    Icon: React.ComponentType<{
-      color: string;
-      fontSize: string;
-      lineHeight: string;
-    }>;
-    iconColor: string;
-  }>
-) {
-  return (
-    <Flex alignItems="flex-start" gap={2}>
-      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
-      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
-      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
-        {props.children}
-      </Flex>
-    </Flex>
-  );
-}
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
-    <Item Icon={icons.Lan} iconColor="#ff6257">
+    <IconAndContent Icon={icons.Lan} iconColor="text.slightlyMuted">
       <Text typography="body1">
         Search only in{' '}
         <strong>
@@ -231,15 +485,31 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
           />
         </strong>
       </Text>
-    </Item>
+    </IconAndContent>
   );
 }
+
+const resourceIcons: Record<
+  SearchResultResourceType['resource'],
+  React.ComponentType<{
+    color: string;
+    fontSize: string;
+    lineHeight: string;
+  }>
+> = {
+  kubes: icons.Kubernetes,
+  servers: icons.Server,
+  databases: icons.Database,
+};
 
 function ResourceTypeFilterItem(
   props: SearchResultItem<SearchResultResourceType>
 ) {
   return (
-    <Item Icon={icons.LanAlt} iconColor="#f3af3d">
+    <IconAndContent
+      Icon={resourceIcons[props.searchResult.resource]}
+      iconColor="text.slightlyMuted"
+    >
       <Text typography="body1">
         Search only for{' '}
         <strong>
@@ -249,7 +519,7 @@ function ResourceTypeFilterItem(
           />
         </strong>
       </Text>
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -261,7 +531,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <Item Icon={icons.Server} iconColor="#9685ff">
+    <IconAndContent Icon={icons.Server} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -276,7 +546,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(server.uri)}
+            {props.getOptionalClusterName(server.uri)}
           </Text>
         </Box>
       </Flex>
@@ -301,7 +571,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
           )}
         </ResourceFields>
       </Labels>
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -335,7 +605,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <Item Icon={icons.Database} iconColor="#00bfa5">
+    <IconAndContent Icon={icons.Database} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -343,14 +613,14 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         gap={1}
       >
         <Text typography="body1">
-          Set up a db connection for{' '}
+          Set up a db connection to{' '}
           <strong>
             <HighlightField field="name" searchResult={searchResult} />
           </strong>
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(db.uri)}
+            {props.getOptionalClusterName(db.uri)}
           </Text>
         </Box>
       </Flex>
@@ -366,7 +636,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
       ) : (
         <Labels searchResult={searchResult}>{$resourceFields}</Labels>
       )}
-    </Item>
+    </IconAndContent>
   );
 }
 
@@ -374,7 +644,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <Item Icon={icons.Kubernetes} iconColor="#009eff">
+    <IconAndContent Icon={icons.Kubernetes} iconColor="brand">
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -389,13 +659,114 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(searchResult.resource.uri)}
+            {props.getOptionalClusterName(searchResult.resource.uri)}
           </Text>
         </Box>
       </Flex>
 
       <Labels searchResult={searchResult} />
-    </Item>
+    </IconAndContent>
+  );
+}
+
+export function NoResultsItem(props: {
+  clustersWithExpiredCerts: Set<uri.ClusterUri>;
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+}) {
+  const clustersWithExpiredCerts = Array.from(
+    props.clustersWithExpiredCerts,
+    clusterUri => props.getClusterName(clusterUri)
+  );
+  clustersWithExpiredCerts.sort();
+  let expiredCertsCopy = '';
+
+  if (clustersWithExpiredCerts.length === 1) {
+    expiredCertsCopy = `The cluster ${clustersWithExpiredCerts[0]} was excluded from the search because you are not logged in to it.`;
+  }
+
+  if (clustersWithExpiredCerts.length > 1) {
+    // prettier-ignore
+    expiredCertsCopy = `The following clusters were excluded from the search because you are not logged in to them: ${clustersWithExpiredCerts.join(', ')}.`;
+  }
+
+  return (
+    <NonInteractiveItem>
+      <IconAndContent Icon={icons.Info} iconColor="text.slightlyMuted">
+        <Text typography="body1">No matching results found.</Text>
+        {expiredCertsCopy && <Text typography="body2">{expiredCertsCopy}</Text>}
+      </IconAndContent>
+    </NonInteractiveItem>
+  );
+}
+
+export function TypeToSearchItem({
+  hasNoRemainingFilterActions,
+}: {
+  hasNoRemainingFilterActions: boolean;
+}) {
+  return (
+    <NonInteractiveItem>
+      <Text typography="body2">
+        Enter space-separated search terms.
+        {hasNoRemainingFilterActions ||
+          ' Select a filter to narrow down the search.'}
+      </Text>
+    </NonInteractiveItem>
+  );
+}
+
+export function ResourceSearchErrorsItem(props: {
+  errors: ResourceSearchError[];
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  showErrorsInModal: () => void;
+}) {
+  const { errors, getClusterName } = props;
+
+  let shortDescription: string;
+
+  if (errors.length === 1) {
+    const firstErrorMessage = errors[0].messageWithClusterName(getClusterName);
+    shortDescription = `${firstErrorMessage}.`;
+  } else {
+    const allErrorMessages = errors
+      .map(err =>
+        err.messageWithClusterName(getClusterName, { capitalize: false })
+      )
+      .join(', ');
+    shortDescription = `Ran into ${errors.length} errors: ${allErrorMessages}.`;
+  }
+
+  return (
+    <NonInteractiveItem>
+      <IconAndContent Icon={icons.Warning} iconColor="warning.main">
+        <Text typography="body1">
+          Some of the search results are incomplete.
+        </Text>
+
+        <Flex gap={2} justifyContent="space-between" alignItems="baseline">
+          <span
+            css={`
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              overflow: hidden;
+            `}
+          >
+            <Text typography="body2">{shortDescription}</Text>
+          </span>
+
+          <ButtonBorder
+            type="button"
+            size="small"
+            css={`
+              flex-shrink: 0;
+            `}
+            onClick={props.showErrorsInModal}
+          >
+            Show details
+          </ButtonBorder>
+        </Flex>
+      </IconAndContent>
+    </NonInteractiveItem>
   );
 }
 
@@ -447,7 +818,7 @@ const LabelsFlex = styled(Flex).attrs({ gap: 1 })`
 `;
 
 const ResourceFields = styled(Flex).attrs({ gap: 1 })`
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   font-size: ${props => props.theme.fontSizes[0]}px;
 `;
 
@@ -497,5 +868,27 @@ function HighlightField(props: {
       text={props.searchResult.resource[props.field]}
       keywords={keywords}
     />
+  );
+}
+
+function FilterButton(props: { text: string; onClick(): void }) {
+  return (
+    <ButtonPrimary
+      px={2}
+      size="small"
+      title={props.text}
+      onClick={props.onClick}
+    >
+      <span
+        css={`
+          max-width: calc(${props => props.theme.space[9]}px * 2);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          overflow: hidden;
+        `}
+      >
+        {props.text}
+      </span>
+    </ButtonPrimary>
   );
 }

@@ -192,7 +192,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn := pingconn.New(baseConn)
+		conn := pingconn.NewTLS(baseConn)
 		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,

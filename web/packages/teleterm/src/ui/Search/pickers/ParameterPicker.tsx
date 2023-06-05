@@ -21,12 +21,15 @@ import {
   mapAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
+import { Text } from 'design';
+import * as icons from 'design/Icon';
 
 import { useSearchContext } from '../SearchContext';
 import { ParametrizedAction } from '../actions';
 
-import { ResultList } from './ResultList';
+import { IconAndContent, NonInteractiveItem, ResultList } from './ResultList';
 import { actionPicker } from './pickers';
+import { PickerContainer } from './PickerContainer';
 
 interface ParameterPickerProps {
   action: ParametrizedAction;
@@ -34,16 +37,28 @@ interface ParameterPickerProps {
 }
 
 export function ParameterPicker(props: ParameterPickerProps) {
-  const { inputValue, closeAndResetInput, changeActivePicker, resetInput } =
-    useSearchContext();
-  const [suggestionsAttempt, fetch] = useAsync(
+  const {
+    inputValue,
+    close,
+    changeActivePicker,
+    resetInput,
+    addWindowEventListener,
+  } = useSearchContext();
+  const [suggestionsAttempt, getSuggestions] = useAsync(
     props.action.parameter.getSuggestions
   );
   const inputSuggestionAttempt = makeSuccessAttempt(inputValue && [inputValue]);
+  const $suggestionsError =
+    suggestionsAttempt.status === 'error' ? (
+      <SuggestionsError statusText={suggestionsAttempt.statusText} />
+    ) : null;
 
   useEffect(() => {
-    fetch();
-  }, [props.action]);
+    getSuggestions();
+    // We want to get suggestions only once on mount.
+    // useAsync already handles cleanup and calling the hook twice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const attempt = mapAttempt(suggestionsAttempt, suggestions =>
     suggestions.filter(
@@ -56,13 +71,13 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const onPick = useCallback(
     (item: string) => {
       props.action.perform(item);
-      if (props.action.preventAutoClose === true) {
-        resetInput();
-      } else {
-        closeAndResetInput();
+
+      resetInput();
+      if (!props.action.preventAutoClose) {
+        close();
       }
     },
-    [closeAndResetInput, resetInput, props.action]
+    [close, resetInput, props.action]
   );
 
   const onBack = useCallback(() => {
@@ -70,12 +85,14 @@ export function ParameterPicker(props: ParameterPickerProps) {
   }, [changeActivePicker]);
 
   return (
-    <>
+    <PickerContainer>
       {props.input}
       <ResultList<string>
         attempts={[inputSuggestionAttempt, attempt]}
+        ExtraTopComponent={$suggestionsError}
         onPick={onPick}
         onBack={onBack}
+        addWindowEventListener={addWindowEventListener}
         render={item => ({
           key: item,
           Component: (
@@ -83,6 +100,17 @@ export function ParameterPicker(props: ParameterPickerProps) {
           ),
         })}
       />
-    </>
+    </PickerContainer>
   );
 }
+
+export const SuggestionsError = ({ statusText }: { statusText: string }) => (
+  <NonInteractiveItem>
+    <IconAndContent Icon={icons.Warning} iconColor="warning.main">
+      <Text typography="body1">
+        Could not fetch suggestions. Type in the desired value to continue.
+      </Text>
+      <Text typography="body2">{statusText}</Text>
+    </IconAndContent>
+  </NonInteractiveItem>
+);

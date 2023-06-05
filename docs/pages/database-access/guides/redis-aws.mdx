@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS ElastiCache and AWS MemoryDB for Redis
-description: How to configure Teleport Database Access with AWS ElastiCache and AWS MemoryDB for Redis.
+description: How to configure Teleport database access with AWS ElastiCache and AWS MemoryDB for Redis.
 ---
 
 This guide will help you to:
@@ -26,16 +26,17 @@ This guide will help you to:
 - `redis-cli` version `6.2` or newer installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
-
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create a Teleport user
+## Step 1/7. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/6. Create a Database Service configuration
+## Step 2/7. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -96,13 +97,14 @@ The command will generate a Database Service configuration with ElastiCache or
 MemoryDB database auto-discovery enabled on the `us-west-1` region and place it
 at the `/etc/teleport.yaml` location.
 
-## Step 3/6. Create an IAM policy for Teleport
+## Step 3/7. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
 - Discover and register ElastiCache and MemoryDB for Redis clusters.
 - Modify ElastiCache and MemoryDB user passwords for Teleport-managed users.
 - Save user passwords in AWS Secrets Manager for Teleport-managed users.
+- Connect to an ElastiCache Redis cluster using IAM auth for ElastiCache IAM users.
 
 Before you can generate IAM permissions, you must provide the Teleport Database
 Service access to AWS credentials.
@@ -111,14 +113,71 @@ Service access to AWS credentials.
 
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 4/6. Start the Database Service
+## Step 4/7. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 The Database Service will discover and register all ElastiCache and MemoryDB
 for Redis clusters according to the configuration.
 
-## Step 5/6. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
+## Step 5/7. Create an ElastiCache IAM user (optional)
+
+If your ElastiCache for Redis cluster supports IAM authentication, the
+Teleport Database Service can connect to your ElastiCache cluster using a
+short-lived AWS IAM authentication token.
+AWS IAM authentication is available for ElastiCache for Redis version 7.0 or
+above. [Redis ACL](https://redis.io/docs/manual/security/acl/) must be enabled
+as well.
+To enable Redis ACL, please see [Authenticating users with Role-Based Access
+Control for
+ElastiCache](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html).
+
+Some additional limitations apply when using IAM authentication - for more
+information, see:
+[ElastiCache Auth IAM Limits](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/auth-iam.html#auth-iam-limits).
+
+There are a few requirements for configuring an ElastiCache IAM-enabled user:
+- the user must have identical username and user id properties.
+- the user must have authentication mode set to "IAM".
+- the user must be attached to an ElastiCache user group.
+
+Create an ElastiCache IAM-enabled user.
+The following example creates an ElastiCache user with the access string
+`on ~* +@all` that represents an active user with access to all available keys
+and commands:
+```code
+$ aws elasticache create-user \
+  --user-name iam-user-01 \
+  --user-id iam-user-01 \
+  --authentication-mode Type=iam \
+  --engine redis \
+  --access-string "on ~* +@all"
+```
+
+<Admonition type="note" title="Access Strings">
+You may prefer a less permissive access string for your ElastiCache users.
+For more information about ElastiCache access strings, please see:
+[ElastiCache Cluster RBAC Access String](https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html#Access-string).
+</Admonition>
+
+Create an ElastiCache user group and attach it to your ElastiCache replication
+group:
+```code
+$ aws elasticache create-user-group \
+  --user-group-id iam-user-group-01 \
+  --engine redis \
+  --user-ids default iam-user-01
+$ aws elasticache modify-replication-group \
+  --replication-group-id replication-group-01 \
+  --user-group-ids-to-add iam-user-group-01
+```
+
+Once the ElastiCache user has been created, verify that the user is configured
+to satisfy the requirements for IAM authentication:
+
+![ElastiCache IAM-enabled User](../../../img/database-access/guides/redis/redis-aws-iam-user@2x.png)
+
+## Step 6/7. Create a Teleport-managed ElastiCache or MemoryDB user (optional)
 
 To provide better security, it is recommended to use [Redis
 ACL](https://redis.io/docs/manual/security/acl/) for authentication with Redis
@@ -142,7 +201,7 @@ The Database Service will automatically discover this user if it is associated
 with a registered database. Keep in mind that it may take the Database Service
 some time (up to 20 minutes) to discover this user once the tag is added.
 
-## Step 6/6. Connect
+## Step 7/7. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
@@ -196,9 +255,9 @@ Now, depending on the authentication configurations, you may need to send an
     with the Redis server. No `AUTH` command is required after successful
     connection.
 
-    If you are connecting as a non-Teleport-managed user, the connection
-    normally starts as the `default` user. Now you can authenticate the
-    database user with its password:
+    If you are connecting as a user that is not managed by Teleport and is not
+    IAM-enabled, the connection normally starts as the `default` user.
+    Now you can authenticate the database user with its password:
 
     ```
     AUTH my-database-user <USER_PASSWORD>

@@ -25,7 +25,7 @@ import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
 // DeviceTrustService provides methods to manage, enroll and authenticate
 // trusted devices.
@@ -111,6 +111,18 @@ service DeviceTrustService {
   // An enrolled device is allowed, via AuthenticateDevice, to acquire
   // certificates containing device extensions, thus gaining access to
   // device-aware actions.
+  //
+  // macOS enrollment flow:
+  // -> EnrollDeviceInit (client)
+  // <- MacOSEnrollChallenge (server)
+  // -> MacOSEnrollChallengeResponse
+  // <- EnrollDeviceSuccess
+  //
+  // TPM enrollment flow:
+  // -> EnrollDeviceInit (client)
+  // <- TPMEnrollChallenge (server)
+  // -> TPMEnrollChallengeResponse
+  // <- EnrollDeviceSuccess
   rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
 
   // AuthenticateDevice performs the device authentication ceremony.
@@ -284,18 +296,11 @@ message CreateDeviceEnrollTokenRequest {
 }
 
 // Request for EnrollDevice.
-//
-// macOS enrollment flow:
-// -> EnrollDeviceInit (client)
-// <- MacOSEnrollChallenge (server)
-// -> MacOSEnrollChallengeResponse
-// <- EnrollDeviceSuccess
-//
-// Only macOS enrollments are supported at the moment.
 message EnrollDeviceRequest {
   oneof payload {
     EnrollDeviceInit init = 1;
     MacOSEnrollChallengeResponse macos_challenge_response = 2;
+    TPMEnrollChallengeResponse tpm_challenge_response = 3;
   }
 }
 
@@ -304,6 +309,7 @@ message EnrollDeviceResponse {
   oneof payload {
     EnrollDeviceSuccess success = 1;
     MacOSEnrollChallenge macos_challenge = 2;
+    TPMEnrollChallenge tpm_challenge = 3;
   }
 }
 
@@ -323,6 +329,9 @@ message EnrollDeviceInit {
 
   // Payload for macOS-specific data.
   MacOSEnrollPayload macos = 4;
+
+  // Payload for TPM-specific data. Used for Windows/Linux.
+  TPMEnrollPayload tpm = 5;
 }
 
 // EnrollDeviceSuccess marks a successful device enrollment ceremony.
@@ -349,6 +358,116 @@ message MacOSEnrollChallengeResponse {
   bytes signature = 2;
 }
 
+// The payload containing TPM specific information required on device
+// enrollment.
+message TPMEnrollPayload {
+  oneof ek {
+    // The device's endorsement certificate in X509, ASN.1 DER form. This
+    // certificate contains the public key of the endorsement key. This is
+    // preferred to ek_key.
+    bytes ek_cert = 1;
+    // The device's public endorsement key in PKIX, ASN.1 DER form. This is
+    // used when a TPM does not contain any endorsement certificates.
+    bytes ek_key = 2;
+  }
+  // The attestation key and the parameters necessary to remotely verify it as
+  // related to the endorsement key.
+  TPMAttestationParameters attestation_parameters = 3;
+}
+
+// The attestation key and the parameters necessary to remotely verify it as
+// related to the endorsement key.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
+// This message excludes the `UseTCSDActivationFormat` field from the link above
+// as it is TMP 1.x specific and always false.
+message TPMAttestationParameters {
+  // The encoded TPMT_PUBLIC structure containing the attestation public key
+  // and signing parameters.
+  bytes public = 1;
+  // The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+  // structure.
+  bytes create_data = 2;
+  // An assertion as to the details of the key, encoded as a TPMS_ATTEST
+  // structure.
+  bytes create_attestation = 3;
+  // A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+  bytes create_signature = 4;
+}
+
+// The challenge sent to the client by the server during enrollment.
+// The challenge involves two parts:
+// - Solving an encrypted credential with `ActivateCredential`.
+// - Producing a platform attestation using the provided nonce.
+message TPMEnrollChallenge {
+  // The encrypted credential for the client to prove possession of the EK and
+  // AK.
+  TPMEncryptedCredential encrypted_credential = 1;
+  // The nonce to use when producing the quotes over the PCRs with the TPM
+  // during the platform attestation.
+  bytes attestation_nonce = 2;
+}
+
+// These values are used by the TPM2.0 `ActivateCredential` command to produce
+// the solution which proves possession of the EK and AK.
+//
+// For a more in-depth description see:
+// - https://pkg.go.dev/github.com/google/go-attestation/attest#EncryptedCredential
+// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
+// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
+// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
+message TPMEncryptedCredential {
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
+}
+
+// The enrollment challenge response containing the solution returned by
+// calling the TPM2.0 `ActivateCredential` command on the client with the
+// parameters provided in `TPMEnrollChallenge`.
+message TPMEnrollChallengeResponse {
+  // The client's solution to `TPMEncryptedCredential` included in
+  // `TPMEnrollChallenge` using ActivateCredential.
+  bytes solution = 1;
+  // The result of the client's platform attestation with the nonce provided
+  // in `TPMEnrollChallenge`.
+  TPMPlatformParameters platform_parameters = 2;
+}
+
+// Encapsulates the value of a PCR at a point at time.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#PCR
+message TPMPCR {
+  // the PCR index in the PCR bank
+  int32 index = 1;
+  // the digest currently held in the PCR
+  bytes digest = 2;
+  // the hash algorithm used to produce the digest in this PCR bank. This value
+  // is the underlying value of the Go crypto.Hash type.
+  uint64 digest_alg = 3;
+}
+
+// Encapsulates the result of a quote operation against the TPM over a PCR
+// using an attestation key.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#Quote
+message TPMQuote {
+  bytes quote = 1;
+  bytes signature = 2;
+}
+
+// The quotes, PCRs and event log from a TPM that attest to the booted state
+// of the machine.
+// See https://pkg.go.dev/github.com/google/go-attestation/attest#PlatformParameters
+// Excludes TPMVersion and Public since these are already known values.
+message TPMPlatformParameters {
+  repeated TPMQuote quotes = 1;
+  repeated TPMPCR pcrs = 2;
+  bytes event_log = 3;
+}
+
 // Request for AuthenticateDevice.
 //
 // Authentication ceremony flow:
@@ -360,6 +479,7 @@ message AuthenticateDeviceRequest {
   oneof payload {
     AuthenticateDeviceInit init = 1;
     AuthenticateDeviceChallengeResponse challenge_response = 2;
+    TPMAuthenticateDeviceChallengeResponse tpm_challenge_response = 3;
   }
 }
 
@@ -368,6 +488,7 @@ message AuthenticateDeviceResponse {
   oneof payload {
     AuthenticateDeviceChallenge challenge = 1;
     UserCertificates user_certificates = 2;
+    TPMAuthenticateDeviceChallenge tpm_challenge = 3;
   }
 }
 
@@ -390,6 +511,22 @@ message AuthenticateDeviceInit {
   // Matched against the device registration information and any previously
   // collected data.
   DeviceCollectedData device_data = 3;
+}
+
+// TPMAuthenticateDeviceChallenge carries the authentication challenge
+// specific to TPMs.
+message TPMAuthenticateDeviceChallenge {
+  // Randomly-generated nonce to be used during platform attestation by the
+  // TPM.
+  bytes attestation_nonce = 1;
+}
+
+// TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
+// response specific to TPMs.
+message TPMAuthenticateDeviceChallengeResponse {
+  // The result of the client's platform attestation with the nonce provided
+  // in `TPMAuthenticateDeviceChallenge`.
+  TPMPlatformParameters platform_parameters = 1;
 }
 
 // AuthenticateDeviceChallenge carries the authentication challenge.
@@ -416,7 +553,9 @@ message AuthenticateDeviceChallengeResponse {
 // <- SyncInventoryResult
 // (end loop)
 // -> SyncInventoryEnd
-// <- SyncInventoryResult (missing devices)
+// (loop until server closes the stream, zero or more times)
+// <- SyncInventoryResult (deleted/missing devices)
+// (end)
 message SyncInventoryRequest {
   oneof payload {
     SyncInventoryStart start = 1;
@@ -437,10 +576,8 @@ message SyncInventoryResponse {
 // SyncInventoryStart starts the inventory sync.
 message SyncInventoryStart {
   // Source of the inventory sync.
-  // Acquired from the mTLS certificate for MDM services, must be explicitly
-  // supplied otherwise.
-  // This source is used for all devices. The `source` field in individual
-  // devices is ignored by this RPC.
+  // Used for all devices. The `source` field in individual devices is ignored
+  // by this RPC.
   DeviceSource source = 1;
 
   // Mode of syncing.
@@ -449,8 +586,8 @@ message SyncInventoryStart {
 
   // Action for devices missing from the external inventory, but present in
   // Teleport.
-  // Only executed if mode is FULL and mdm_sync_successful is set to true in the
-  // SyncInventoryEnd message.
+  // Only executed if mode is FULL and external_sync_successful is set to true
+  // in the SyncInventoryEnd message.
   SyncInventoryDeviceAction on_missing_action = 3;
 }
 

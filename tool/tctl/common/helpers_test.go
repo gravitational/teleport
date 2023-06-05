@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -249,6 +249,13 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// in reality, the auth server should start *much* sooner than this.  we use a very large
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
+
+	// Wait for proxy to start up if it's enabled. Otherwise we may get racy
+	// behavior between startup and shutdown.
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
 
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
