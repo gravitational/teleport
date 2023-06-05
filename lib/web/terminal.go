@@ -119,6 +119,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			sessionData:        cfg.SessionData,
 			keepAliveInterval:  cfg.KeepAliveInterval,
 			proxyHostPort:      cfg.ProxyHostPort,
+			proxyPublicAddr:    cfg.ProxyPublicAddr,
 			interactiveCommand: cfg.InteractiveCommand,
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
@@ -149,7 +150,9 @@ type TerminalHandlerConfig struct {
 	KeepAliveInterval time.Duration
 	// proxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
-	// interactiveCommand is a command to execute.
+	// ProxyPublicAddr is the public web proxy address.
+	ProxyPublicAddr string
+	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
 	Router *proxy.Router
@@ -214,6 +217,8 @@ type sshBaseHandler struct {
 	authProvider AuthProvider
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
+	// proxyPublicAddr is the public web proxy address.
+	proxyPublicAddr string
 	// keepAliveInterval is the interval for sending ping frames to a web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
@@ -754,6 +759,8 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
+	clt.ProxyPublicAddr = t.proxyPublicAddr
+
 	return clt, nil
 }
 
@@ -785,6 +792,8 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, t
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
+
+	nc.ProxyPublicAddr = t.proxyPublicAddr
 
 	return nc, nil
 }

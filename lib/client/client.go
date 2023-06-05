@@ -93,6 +93,11 @@ type NodeClient struct {
 
 	mu      sync.Mutex
 	closers []io.Closer
+
+	// ProxyPublicAddr is the web proxy public addr, as opposed to the local proxy
+	// addr set in TC.WebProxyAddr. This is needed to report the correct address
+	// to SSH_TELEPORT_WEBPROXY_ADDR used by some features like "teleport status".
+	ProxyPublicAddr string
 }
 
 // AddCloser adds an [io.Closer] that will be closed when the
@@ -1654,8 +1659,11 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
+
+	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
+	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
+	env[teleport.SSHSessionWebproxyAddr] = c.ProxyPublicAddr
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {
