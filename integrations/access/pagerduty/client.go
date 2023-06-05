@@ -27,9 +27,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
@@ -88,9 +88,9 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string) 
 	})
 	// APIEndpoint parameter is set only in tests
 	if conf.APIEndpoint != "" {
-		client.SetHostURL(conf.APIEndpoint)
+		client.SetBaseURL(conf.APIEndpoint)
 	} else {
-		client.SetHostURL("https://api.pagerduty.com")
+		client.SetBaseURL("https://api.pagerduty.com")
 	}
 	client.SetHeader("Accept", "application/vnd.pagerduty+json;version=2")
 	client.SetHeader("Content-Type", "application/json")
