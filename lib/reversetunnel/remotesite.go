@@ -285,34 +285,37 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	return rconn, nil
 }
 
+// adviseReconnect sends reconnects to agents in the background blocking until
+// the requests complete or the context is done.
 func (s *remoteSite) adviseReconnect(ctx context.Context) {
-	s.advise(ctx, func(wg *sync.WaitGroup, conn *remoteConn) {
+	s.forEachConn(ctx, func(conn *remoteConn) {
 		s.logger.Debugf("Sending reconnect: %s", conn.nodeID)
 		if err := conn.adviseReconnect(); err != nil {
 			s.logger.WithError(err).Warn("Failed to send reconnection advisory")
 		}
-		wg.Done()
 	})
 }
 
+// adviseReplace sends replace advisories to agents in the background blocking until
+// the requests complete or the context is done.
 func (s *remoteSite) adviseReplace(ctx context.Context) {
-	s.advise(ctx, func(wg *sync.WaitGroup, conn *remoteConn) {
+	s.forEachConn(ctx, func(conn *remoteConn) {
 		s.logger.Debugf("Sending proxy replace advisory: %s", conn.nodeID)
 		if err := conn.adviseReplace(); err != nil {
 			s.logger.WithError(err).Warn("Failed to send proxy replace advisory")
 		}
-		wg.Done()
 	})
 }
 
-func (s *remoteSite) advise(ctx context.Context, f adviseFunc) {
-	wg := &sync.WaitGroup{}
-
+func (s *remoteSite) forEachConn(ctx context.Context, f func(*remoteConn)) {
+	var wg sync.WaitGroup
 	s.RLock()
 	for _, conn := range s.connections {
-		s.logger.Debugf("Sending reconnect: %s", conn.nodeID)
 		wg.Add(1)
-		go f(wg, conn)
+		go func(conn *remoteConn) {
+			defer wg.Done()
+			f(conn)
+		}(conn)
 	}
 	s.RUnlock()
 
