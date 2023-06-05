@@ -40,7 +40,6 @@ func TestProfileBasics(t *testing.T) {
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
 		Username:              "testuser",
-		ForwardedPorts:        []string{"8000:example.com:8000"},
 		DynamicForwardedPorts: []string{"localhost:8080"},
 		Dir:                   dir,
 		SiteName:              "example.com",

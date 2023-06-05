@@ -15,13 +15,9 @@
 package services
 
 import (
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru/v2"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,53 +32,18 @@ type labelExpressionEnv struct {
 	userTraits          map[string][]string
 }
 
+var labelExpressionParser = mustNewLabelExpressionParser()
+
 func parseLabelExpression(expr string) (labelExpression, error) {
-	if parsedExpr, ok := labelExpressionCache.Get(expr); ok {
-		return parsedExpr, nil
-	}
 	parsedExpr, err := labelExpressionParser.Parse(expr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing label expression")
-	}
-	if evicted := labelExpressionCache.Add(expr, parsedExpr); evicted {
-		log.Info("Evicting entry from label expression cache")
 	}
 	return parsedExpr, nil
 
 }
 
-var (
-	labelExpressionCache  = mustNewLabelExpressionCache()
-	labelExpressionParser = mustNewLabelExpressionParser()
-)
-
-const (
-	cacheSizeEnvVar  = "TELEPORT_EXPRESSION_CACHE_SIZE"
-	defaultCacheSize = 1000
-)
-
-func mustNewLabelExpressionCache() *lru.Cache[string, labelExpression] {
-	cache, err := newLabelExpressionCache()
-	if err != nil {
-		panic(trace.Wrap(err, "initializing label expression cache"))
-	}
-	return cache
-}
-
-func newLabelExpressionCache() (*lru.Cache[string, labelExpression], error) {
-	cacheSize := defaultCacheSize
-	if env := os.Getenv(cacheSizeEnvVar); env != "" {
-		if envCacheSize, err := strconv.ParseUint(env, 10, 31); err != nil {
-			log.WithError(err).Warn("Parsing " + cacheSizeEnvVar)
-		} else {
-			cacheSize = int(envCacheSize)
-		}
-	}
-	cache, err := lru.New[string, labelExpression](cacheSize)
-	return cache, trace.Wrap(err)
-}
-
-func mustNewLabelExpressionParser() *typical.Parser[labelExpressionEnv, bool] {
+func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bool] {
 	parser, err := newLabelExpressionParser()
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create label expression parser (this is a bug)"))
@@ -90,8 +51,8 @@ func mustNewLabelExpressionParser() *typical.Parser[labelExpressionEnv, bool] {
 	return parser
 }
 
-func newLabelExpressionParser() (*typical.Parser[labelExpressionEnv, bool], error) {
-	parser, err := typical.NewParser[labelExpressionEnv, bool](typical.ParserSpec{
+func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
+	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec{
 		Variables: map[string]typical.Variable{
 			"user.spec.traits": typical.DynamicVariable(
 				func(env labelExpressionEnv) (map[string][]string, error) {

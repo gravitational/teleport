@@ -4421,7 +4421,11 @@ message LockTarget {
 
   // Node specifies the UUID of a Teleport node.
   // A matching node is also prevented from heartbeating to the auth server.
-  string Node = 4 [(gogoproto.jsontag) = "node,omitempty"];
+  // DEPRECATED: use ServerID instead.
+  string Node = 4 [
+    deprecated = true,
+    (gogoproto.jsontag) = "node,omitempty"
+  ];
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
@@ -4435,6 +4439,9 @@ message LockTarget {
   // Device is the device ID of a trusted device.
   // Requires Teleport Enterprise.
   string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
+
+  // ServerID is the host id of the Teleport instance.
+  string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -5229,6 +5236,7 @@ message PluginCredentialsV1 {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
     PluginIdSecretCredential id_secret = 3;
+    PluginStaticCredentialsRef static_credentials_ref = 4;
   }
 }
 
@@ -5247,6 +5255,12 @@ message PluginBearerTokenCredentials {
 
   reserved 2; // token_file
   reserved "token_file";
+}
+
+// PluginStaticCredentialsRef is a reference to plugin static credentials by labels.
+message PluginStaticCredentialsRef {
+  // Labels is the set of labels to use to match against a set of static credentials.
+  map<string, string> Labels = 1 [(gogoproto.jsontag) = "labels,omitempty"];
 }
 
 // PluginList represents a list of plugin resources
