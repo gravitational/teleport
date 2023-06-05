@@ -143,6 +143,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// Assist is a service that implements the Teleport Assist functionality.
+	Assist services.Assistant
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 

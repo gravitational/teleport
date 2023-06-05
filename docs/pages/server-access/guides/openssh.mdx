@@ -21,7 +21,7 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 
 - OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
   with the command:
-  
+
   ```code
   $ ssh -V
   ```
@@ -57,7 +57,7 @@ spec:
 `spec.addr` and `spec.hostname` are mandatory. Assign `spec.addr` to the address and port of your node
 and `spec.hostname` to the name of the node as you would like users to see it in Teleport.
 
-The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it. 
+The `metadata.labels` field labels the SSH Service instance so you can apply RBAC rules to it.
 
 The `metadata.name` field isn't mandatory, but setting it here will save you some work later.
 
@@ -177,7 +177,7 @@ $ tctl get node/openssh-node
 #### Create the host certificate
 
 When creating host certificates, it is important to specify all the domain names
-and addresses that refer to your node. If you try to connect to a node with a 
+and addresses that refer to your node. If you try to connect to a node with a
 name or address that was not specified when creating it's host certificate,
 Teleport will reject the SSH connection.
 
@@ -227,12 +227,12 @@ myhost-cert.pub:
         Key ID: ""
         Serial: 0
         Valid: after 2022-04-22T11:14:16
-        Principals: 
+        Principals:
                 1.2.3.4
                 openssh-node
                 a100fdd0-52db-4eca-a7ab-c3afa7a1564a
         Critical Options: (none)
-        Extensions: 
+        Extensions:
                 x-teleport-authority UNKNOWN OPTION (len 33)
                 x-teleport-role UNKNOWN OPTION (len 8)
 ```
@@ -374,12 +374,12 @@ authenticate the host via the certificate we generated earlier.
 
 ### Proxy Jump
 
-In the generated OpenSSH client configuration, the `ProxyCommand` for each leaf 
+In the generated OpenSSH client configuration, the `ProxyCommand` for each leaf
 cluster connects through the root cluster's Proxy Service. In scenarios where
 leaf cluster Proxy Services are reachable by SSH client, you might prefer to
 connect directly through the leaf proxies for lower latency.
 
-To enable direct connections to a Proxy Service in a leaf cluster, open the 
+To enable direct connections to a Proxy Service in a leaf cluster, open the
 SSH configuration file you generated earlier and update the `ProxyCommand`
 of the leaf cluster's configuration block to use the leaf Proxy Service as
 a jumphost, using the `-J` flag.
@@ -414,9 +414,9 @@ proxy_templates:
   proxy: "$2:443"
 ```
 
-`tsh proxy ssh -J {{proxy}}` will attempt to match the host server address `%h:%p` with the 
+`tsh proxy ssh -J {{proxy}}` will attempt to match the host server address `%h:%p` with the
 configured templates. If there is a match, then the jump proxy address `{{proxy}}` will
-be replaced using the template's `proxy` field and the host server address `%h:%p` will be 
+be replaced using the template's `proxy` field and the host server address `%h:%p` will be
 replaced using the template's `host` field if set.
 
 | Field      | Description |
@@ -562,6 +562,27 @@ $ ssh -F ssh_config_teleport ${USER?}@node2.leafcluster.${CLUSTER}
 
 ## Revoke an SSH certificate
 
-To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
-infrastructure, we would suggest you proceed with caution as this will invalidate the OpenSSH
-and Host CAs, meaning that the new CAs will need to be exported to every OpenSSH-based machine again using `tctl auth export` as above.
+Teleport's approach to using short-lived certificates for all infrastructure
+access means that it can generate large numbers of certificates every day. For
+this reason, Teleport does not support traditional certificate revocation.
+
+There are two options available for revoking access: CA rotations, and Teleport locks.
+
+### CA Rotations
+
+To generate a new certificate authority and invalidate user certificates issued
+by the current CA, run `tctl auth rotate --type-user`. This process will require
+that the newly generated CA certificate is uploaded to your entire fleet of
+OpenSSH servers. This can be a disruptive change, especially in environments
+that lack automation, so proceed with caution.
+
+### Locks
+
+Teleport locks allow you to permanently or temporarily revoke access to a number
+of different "targets". Supported lock targets include: specific users, roles,
+servers, desktops, or MFA devices. When a lock is created any existing sessions
+where the lock applies will be terminated, and new sessions will be rejected while
+the lock remains in force.
+
+For more information, read our
+[Session and Identity Locking Guide](../../access-controls/guides/locking.mdx).
