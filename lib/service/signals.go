@@ -50,20 +50,26 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 	}
 }
 
+// replaceSignal is the realtime signal (Linux-only) to make a reverse tunnel
+// server tell the connected agents that it has been replaced and will go away
+// soon. Unsupported, and might silently disappear once we have a better control
+// channel for this sort of thing.
+const replaceSignal = syscall.Signal(40)
+
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 	sigC := make(chan os.Signal, 1024)
 	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
-		syscall.SIGQUIT,  // graceful shutdown
-		syscall.SIGTERM,  // fast shutdown
-		syscall.SIGINT,   // fast shutdown
-		syscall.SIGUSR1,  // log process diagnostic info
-		syscall.SIGUSR2,  // initiate process restart procedure
-		syscall.SIGHUP,   // graceful restart procedure
-		syscall.SIGCHLD,  // collect child status
-		syscall.SIGWINCH, // pre-shutdown for proxy
+		syscall.SIGQUIT, // graceful shutdown
+		syscall.SIGTERM, // fast shutdown
+		syscall.SIGINT,  // fast shutdown
+		syscall.SIGUSR1, // log process diagnostic info
+		syscall.SIGUSR2, // initiate process restart procedure
+		syscall.SIGHUP,  // graceful restart procedure
+		syscall.SIGCHLD, // collect child status
+		replaceSignal,   // proxy replace advisory
 	)
 	defer signal.Stop(sigC)
 
@@ -118,7 +124,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 				return nil
 			case syscall.SIGCHLD:
 				process.collectStatuses()
-			case syscall.SIGWINCH:
+			case replaceSignal:
 				process.BroadcastEvent(Event{Name: ProxyReplace})
 			default:
 				process.log.Infof("Ignoring %q.", signal)
