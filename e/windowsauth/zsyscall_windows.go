@@ -49,7 +49,6 @@ var (
 	procNetLocalGroupAdd               = modNetapi32.NewProc("NetLocalGroupAdd")
 	procNetLocalGroupAddMembers        = modNetapi32.NewProc("NetLocalGroupAddMembers")
 	procNetLocalGroupDel               = modNetapi32.NewProc("NetLocalGroupDel")
-	procNetUserAdd                     = modNetapi32.NewProc("NetUserAdd")
 	procNetUserDel                     = modNetapi32.NewProc("NetUserDel")
 	procNetUserSetInfo                 = modNetapi32.NewProc("NetUserSetInfo")
 	procLsaConnectUntrusted            = modSecur32.NewProc("LsaConnectUntrusted")
@@ -93,14 +92,6 @@ func NetLocalGroupAddMembers(servername *uint16, group *uint16, level uint32, me
 
 func NetLocalGroupDel(servername *uint16, group *uint16) (err error) {
 	r1, _, e1 := syscall.Syscall(procNetLocalGroupDel.Addr(), 2, uintptr(unsafe.Pointer(servername)), uintptr(unsafe.Pointer(group)), 0)
-	if r1 != 0 {
-		err = errnoErr(e1)
-	}
-	return
-}
-
-func NetUserAdd(servername *uint16, level uint32, buf *userInfo, errIndex *uint32) (err error) {
-	r1, _, e1 := syscall.Syscall6(procNetUserAdd.Addr(), 4, uintptr(unsafe.Pointer(servername)), uintptr(level), uintptr(unsafe.Pointer(buf)), uintptr(unsafe.Pointer(errIndex)), 0, 0)
 	if r1 != 0 {
 		err = errnoErr(e1)
 	}

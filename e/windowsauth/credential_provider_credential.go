@@ -300,7 +300,7 @@ func reportResult(this unsafe.Pointer, status uint32, substatus uint32, ppszOpti
 			}
 			*ppszOptionalStatusText = s
 		case noSmartCardKeyUsage:
-			s, err := coTaskMemString("Certificate can't be used for SmartCard login")
+			s, err := coTaskMemString("Certificate can't be used for smart card login")
 			if err != nil {
 				return E_FAIL
 			}
