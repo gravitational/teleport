@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -83,7 +84,7 @@ export function ShareFeedbackFormFields({
         onChange={e => updateFormField('feedback', e.target.value)}
         placeholder="Type your suggestions here"
       />
-      <Toggle
+      <ToggleWithCustomStyling
         disabled={disabled}
         isToggled={formValues.newsletterEnabled}
         onToggle={() => {
@@ -93,8 +94,8 @@ export function ShareFeedbackFormFields({
         <Text ml={2} color="text.main">
           Sign me up for the newsletter
         </Text>
-      </Toggle>
-      <Toggle
+      </ToggleWithCustomStyling>
+      <ToggleWithCustomStyling
         disabled={disabled}
         isToggled={formValues.salesContactEnabled}
         onToggle={() => {
@@ -113,7 +114,15 @@ export function ShareFeedbackFormFields({
         >
           I would like a demo of Teleport&nbsp;Enterprise features
         </Text>
-      </Toggle>
+      </ToggleWithCustomStyling>
     </>
   );
 }
+
+// Custom styling for the toggle to make it readable on a light background.
+// TODO(gzdunek): remove when design team finish work on this form control.
+const ToggleWithCustomStyling = styled(Toggle)`
+  > div:first-of-type {
+    border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  }
+`;
