@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "reviewers": ["codingllama", "jentfoo", "rosstimothy", "zmb3"],
+  "packageRules": [
+    {
+      "matchManagers": ["gomod"],
+      "postUpdateOptions": ["gomodTidy"],
+      "enabled": true,
+      "matchFiles": ["go.mod"],
+      "groupName": "Teleport - Go"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "postUpdateOptions": ["gomodTidy"],
+      "enabled": true,
+      "matchFiles": ["api/go.mod"],
+      "groupName": "Teleport API"
+    },
+    {
+      "matchManagers": ["cargo"],
+      "enabled": true,
+      "matchFiles": ["Cargo.toml"],
+      "groupName": "Teleport - Rust"
+    }
+  ],
+  "ignorePaths": [
+    ".github/actions",
+    ".github/workflows",
+    "web",
+    ".drone.yml"
+  ]
+}
