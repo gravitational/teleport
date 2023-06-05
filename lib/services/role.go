@@ -2332,10 +2332,10 @@ type databaseUserMatcher struct {
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
 // database users match the specified condition.
 func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
-	if db.SupportAWSIAMRolesAsUsers() {
+	if db.SupportAWSIAMRoleARNAsUsers() {
 		return &databaseUserMatcher{
 			user:             user,
-			alternativeNames: makeUsernamesForAWSRole(db, user),
+			alternativeNames: makeUsernamesForAWSRoleARN(db, user),
 		}
 	}
 
@@ -2394,9 +2394,9 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 	return []string{roleARN}
 }
 
-// makeASRoleNames builds ARN alternatives for database users who are full or
+// makeUsernamesForAWSRoleARN builds ARN alternatives for database users who are full or
 // partial ARN.
-func makeUsernamesForAWSRole(db types.Database, user string) []string {
+func makeUsernamesForAWSRoleARN(db types.Database, user string) []string {
 	if !awsutils.IsRoleARN(user) {
 		return nil
 	}

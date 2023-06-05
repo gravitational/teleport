@@ -121,9 +121,9 @@ type Database interface {
 	// RequireAWSIAMRolesAsUsers returns true for database types that require
 	// AWS IAM roles as database users.
 	RequireAWSIAMRolesAsUsers() bool
-	// SupportAWSIAMRolesAsUsers returns true for database types that support
+	// SupportAWSIAMRoleARNAsUsers returns true for database types that support
 	// AWS IAM roles as database users.
-	SupportAWSIAMRolesAsUsers() bool
+	SupportAWSIAMRoleARNAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
@@ -907,9 +907,9 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	}
 }
 
-// SupportAWSIAMRolesAsUsers returns true for database types that support AWS
+// SupportAWSIAMRoleARNAsUsers returns true for database types that support AWS
 // IAM roles as database users.
-func (d *DatabaseV3) SupportAWSIAMRolesAsUsers() bool {
+func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
 	if d.GetType() == DatabaseTypeMongoAtlas {
 		return true
 	}

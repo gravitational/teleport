@@ -3627,7 +3627,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.True(t, dbSupportAWSRoles.SupportAWSIAMRolesAsUsers())
+	require.True(t, dbSupportAWSRoles.SupportAWSIAMRoleARNAsUsers())
 
 	type access struct {
 		server types.Database
