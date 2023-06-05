@@ -120,6 +120,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		sessionData:        cfg.SessionData,
 		keepAliveInterval:  cfg.KeepAliveInterval,
 		proxyHostPort:      cfg.ProxyHostPort,
+		proxyPublicAddr:    cfg.ProxyPublicAddr,
 		interactiveCommand: cfg.InteractiveCommand,
 		term:               cfg.Term,
 		router:             cfg.Router,
@@ -147,7 +148,9 @@ type TerminalHandlerConfig struct {
 	KeepAliveInterval time.Duration
 	// proxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
-	// interactiveCommand is a command to execute.
+	// ProxyPublicAddr is the public web proxy address.
+	ProxyPublicAddr string
+	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
 	Router *proxy.Router
@@ -233,6 +236,9 @@ type TerminalHandler struct {
 
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
+
+	// proxyPublicAddr is the public web proxy address.
+	proxyPublicAddr string
 
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
@@ -784,6 +790,8 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
+	clt.ProxyPublicAddr = t.proxyPublicAddr
+
 	return clt, nil
 }
 
@@ -815,6 +823,8 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocke
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
+
+	nc.ProxyPublicAddr = t.proxyPublicAddr
 
 	return nc, nil
 }
