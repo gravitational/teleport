@@ -15,7 +15,6 @@
 package types
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,24 +83,6 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// UnmarshalDevice unmarshals a DeviceV1 resource and runs CheckAndSetDefaults.
-func UnmarshalDevice(raw []byte) (*DeviceV1, error) {
-	dev := &DeviceV1{}
-	if err := json.Unmarshal(raw, dev); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return dev, trace.Wrap(dev.CheckAndSetDefaults())
-}
-
-// MarshalDevice marshals a DeviceV1 resource.
-func MarshalDevice(dev *DeviceV1) ([]byte, error) {
-	devBytes, err := json.Marshal(dev)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return devBytes, nil
 }
 
 // DeviceFromResource converts a resource DeviceV1 to an API devicepb.Device.
