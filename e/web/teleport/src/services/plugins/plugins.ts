@@ -10,7 +10,11 @@ export const pluginsService = {
   },
 
   fetchPlugins(): Promise<Plugin[]> {
-    return api.get(cfg.getPluginUrl(null)).then(makePlugins);
+    return api.get(cfg.getPluginUrl()).then(makePlugins);
+  },
+
+  createPlugin(formData: FormData): Promise<Plugin> {
+    return api.postFormData(cfg.getPluginUrl(), formData).then(makePlugin);
   },
 
   async deletePlugin(name: string): Promise<void> {

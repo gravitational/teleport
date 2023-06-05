@@ -7,10 +7,10 @@ import cfg from 'e-teleport/config';
 
 import { HostedPlugin } from './plugins';
 
-import { PluginEnrollResponseSuccess } from './PluginEnroll';
+import { OAuthPluginRegistered } from './PluginEnroll';
 
 export function PluginEnrollSuccess(props: State) {
-  const { successData, plugin } = props;
+  const { oauthSuccessData, plugin } = props;
 
   return (
     <Flex flexDirection="column" alignItems="center" mt="6">
@@ -20,7 +20,7 @@ export function PluginEnrollSuccess(props: State) {
       </Text>
       <Box maxWidth="500px" textAlign="center">
         {plugin.hosted && plugin.NextSteps && (
-          <plugin.NextSteps successData={successData} />
+          <plugin.NextSteps successData={oauthSuccessData} />
         )}
       </Box>
 
@@ -38,5 +38,5 @@ export function PluginEnrollSuccess(props: State) {
 
 type State = {
   plugin: HostedPlugin;
-  successData: PluginEnrollResponseSuccess;
+  oauthSuccessData?: OAuthPluginRegistered;
 };

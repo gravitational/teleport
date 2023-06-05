@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Box, Text } from 'design';
+import { Text } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
@@ -34,6 +34,9 @@ export type EnrollSuccessResponse = {
   };
 };
 
+// PluginTypes represents the type of the plugin
+// and should be the same value as defined in the backend:
+// https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
 export type PluginTypes =
   | 'slack'
   | 'pagerduty'
@@ -51,6 +54,10 @@ export type PluginBase = {
   name: string;
   icon: string;
   url: string;
+
+  // isOAuth describes a plugin that are authenticated
+  // via OAuth.
+  isOAuth?: boolean;
 };
 
 export type SelfHostedPlugin = PluginBase & {
@@ -71,30 +78,29 @@ export type HostedPlugin = PluginBase & {
 export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   {
     type: 'slack',
+    isOAuth: true,
     name: 'Slack',
     icon: slackIcon,
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/slack',
     hosted: true,
     fullName: 'Slack Access Notifications',
     Description: () => (
-      <Box>
-        <Text>
-          <p>
-            Your Slack integration will match Slack and Teleport emails for
-            Teleport reviewers and alert them whenever a teammate makes an
-            access request. To do that, the integration will need you* to
-            approve the following permissions:
-          </p>
-          <p>
-            *Please note that if you do not have permissions to add new apps to
-            your Slack workspace, you will need to request approval in the next
-            step. Once that approval is given, Slackbot will notify you within
-            your workspace, and you will be able to connect Slack and Teleport
-            by coming back to this view and clicking the “Connect Slack” button
-            again.
-          </p>
-        </Text>
-      </Box>
+      <Text>
+        <p>
+          Your Slack integration will match Slack and Teleport emails for
+          Teleport reviewers and alert them whenever a teammate makes an access
+          request. To do that, the integration will need you* to approve the
+          following permissions:
+        </p>
+        <p>
+          *Please note that if you do not have permissions to add new apps to
+          your Slack workspace, you will need to request approval in the next
+          step. Once that approval is given, Slackbot will notify you within
+          your workspace, and you will be able to connect Slack and Teleport by
+          coming back to this view and clicking the “Connect Slack” button
+          again.
+        </p>
+      </Text>
     ),
     permissions: [
       {
@@ -121,6 +127,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
       return (
         <InputIconContainer style={{ position: 'relative' }}>
           <StyledFieldInput
+            width="260px"
             label="Default channel"
             name="fallback_channel"
             rule={requiredField('Default channel must be specified')}

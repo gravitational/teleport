@@ -5,6 +5,7 @@ import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
+import { Plugin } from 'teleport/services/integrations';
 
 import {
   pluginMap,
@@ -15,17 +16,25 @@ import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
 
-export type PluginEnrollResponseSuccess = {
+export type OAuthPluginRegistered = {
   name: string;
   eventId: string;
   slack?: { fallback_channel: string };
 };
 
-export type PluginEnrollResponse = {
+type OAuthPluginResponse = {
+  kind: 'oauth';
   error?: string | null;
   errorDescription: string | null;
-  success?: PluginEnrollResponseSuccess;
+  success?: OAuthPluginRegistered;
 };
+
+type StaticPluginResponse = {
+  kind: 'static';
+  plugin?: Plugin;
+};
+
+export type PluginEnrollResponse = StaticPluginResponse | OAuthPluginResponse;
 
 export function PluginEnroll() {
   const { type: selectedPluginType } = useParams<{ type: PluginTypes }>();
@@ -65,6 +74,7 @@ export function PluginEnroll() {
       }
 
       return {
+        kind: 'oauth',
         error,
         errorDescription,
         success,
@@ -75,8 +85,19 @@ export function PluginEnroll() {
     setEnrollResponse(null);
   }
 
+  function setStaticPluginResponse(registeredPlugin: Plugin) {
+    setEnrollResponse({ kind: 'static', plugin: registeredPlugin });
+    userEventService.captureIntegrationEnrollEvent({
+      event: IntegrationEnrollEvent.Complete,
+      eventData: {
+        id: eventId,
+        kind: pluginTypeToIntegrationEnrollKind(selectedPluginType),
+      },
+    });
+  }
+
   useEffect(() => {
-    if (enrollResponse?.success && eventId) {
+    if (enrollResponse?.kind === 'oauth' && enrollResponse.success && eventId) {
       userEventService.captureIntegrationEnrollEvent({
         event: IntegrationEnrollEvent.Complete,
         eventData: {
@@ -114,19 +135,27 @@ export function PluginEnroll() {
     );
   }
 
-  if (enrollResponse?.success) {
+  if (enrollResponse?.kind === 'static') {
+    return <PluginEnrollSuccess plugin={plugin} />;
+  }
+
+  if (enrollResponse?.kind === 'oauth' && enrollResponse.success) {
     return (
       <PluginEnrollSuccess
         plugin={plugin}
-        successData={enrollResponse.success}
+        oauthSuccessData={enrollResponse.success}
       />
     );
   }
 
   return (
     <>
-      <SubmittablePluginForm plugin={plugin} eventId={eventId} />
-      {enrollResponse?.error && (
+      <SubmittablePluginForm
+        plugin={plugin}
+        eventId={eventId}
+        setStaticPluginResponse={setStaticPluginResponse}
+      />
+      {enrollResponse?.kind === 'oauth' && enrollResponse.error && (
         <PluginEnrollFailedDialog
           plugin={plugin}
           errorDescription={enrollResponse.errorDescription}
