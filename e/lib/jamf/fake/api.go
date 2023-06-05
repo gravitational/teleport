@@ -89,6 +89,11 @@ type rootHandler struct {
 }
 
 func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if !strings.HasPrefix(req.URL.Path, a.prefix) {
+		http.NotFound(w, req)
+		return
+	}
+
 	// Strip prefix from the path, we route from `/v1` onwards.
 	path := strings.TrimPrefix(req.URL.Path, a.prefix)
 

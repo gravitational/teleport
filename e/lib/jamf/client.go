@@ -1,7 +1,9 @@
 package jamf
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -41,12 +43,20 @@ type ClientOpts struct {
 	// APIURL is the URL for the Jamf API, usually including the "/api" path.
 	// Example: "https://yourtenant.jamfcloud.com/api".
 	APIURL string
+	// Username for the Jamf API.
+	Username string
+	// Password for the Jamf API.
+	Password string
 
-	Username, Password string
+	// AllowPlainHTTP allows the client to use "http" instead of "https".
+	// Do not use in production, credentials and tokens are exchanged in plain
+	// text when this is set.
+	AllowPlainHTTP bool
 }
 
 // NewClient creates a new Jamf API client.
-func NewClient(opts ClientOpts) (*Client, error) {
+// `ctx` is used to verify credentials against the Jamf API.
+func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 	switch {
 	case opts.HTTPClient == nil:
 		return nil, trace.BadParameter("param HTTPClient required")
@@ -70,6 +80,11 @@ func NewClient(opts ClientOpts) (*Client, error) {
 		Host:   u.Host,
 		Path:   strings.TrimSuffix(u.Path, "/"),
 	}
+	// "http" is allowed for testing, it's not meant for production use.
+	// See [ClientOpts.AllowPlainHTTP].
+	if opts.AllowPlainHTTP && u.Scheme == "http" {
+		baseURL.Scheme = u.Scheme
+	}
 
 	logger := opts.Logger
 	if logger == nil {
@@ -81,21 +96,43 @@ func NewClient(opts ClientOpts) (*Client, error) {
 		clock = clockwork.NewRealClock()
 	}
 
-	return &Client{
+	c := &Client{
 		clock:      clock,
 		logger:     logger,
 		httpClient: opts.HTTPClient,
 		baseURL:    baseURL.String(),
 		username:   opts.Username,
 		password:   opts.Password,
-	}, nil
+	}
+	if err := c.verifyCredentials(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return c, nil
 }
 
-// UsePlainHTTP makes the client use "http" instead of "https".
-// Don't do this in production, credentials and tokens will be exchanged in
-// plaintext when using "http".
-func (c *Client) UsePlainHTTP() {
-	c.baseURL = strings.Replace(c.baseURL, "https://", "http://", 1)
+func (c *Client) verifyCredentials(ctx context.Context) error {
+	_, err := c.GetComputersInventory(ctx, &GetComputersInventoryRequest{
+		Page:     0,
+		PageSize: 1,
+	})
+	if err == nil {
+		return nil // Success
+	}
+
+	// Return ignored on purpose, makes no difference in the logic below.
+	apiError := &APIError{}
+	_ = errors.As(err, &apiError)
+
+	switch {
+	case apiError.StatusCode == 401:
+		return trace.BadParameter("invalid Jamf API credentials")
+	case apiError.StatusCode == 404 && !strings.HasSuffix(c.baseURL, "/api"):
+		c.baseURL += "/api"
+		c.logger.Debugf("Jamf API: Attempting to connect to API URL %q", c.baseURL)
+		return c.verifyCredentials(ctx)
+	default:
+		return trace.Wrap(err, "connecting to Jamf API")
+	}
 }
 
 func (c *Client) endpoint(path string) string {
@@ -119,7 +156,7 @@ func (c *Client) doJSONRequest(req *http.Request, jsonResp any) error {
 		return trace.Wrap(err)
 	}
 	if err := resp.Body.Close(); err != nil {
-		c.logger.WithError(err).Warn("Failed to close http.Response body")
+		c.logger.WithError(err).Warn("Jamf API: Failed to close http.Response body")
 	}
 
 	if resp.StatusCode != 200 {

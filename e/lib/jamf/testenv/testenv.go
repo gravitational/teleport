@@ -24,7 +24,7 @@ var DefaultUsers = []*jamffake.User{
 // E is an integrated test environment for Jamf.
 type E struct {
 	// APIEndpoint for the fake Jamf API.
-	// Example: "https://localhost:12345/api".
+	// Example: "http://localhost:12345/api".
 	APIEndpoint string
 	API         *jamffake.API
 	Client      *jamf.Client
@@ -136,17 +136,17 @@ func (e *E) MustNewClient() *jamf.Client {
 // NewClient creates a new [jamf.Client] ready to connect to the API, using
 // credentials from [DefaultUsers].
 func (e *E) NewClient() (*jamf.Client, error) {
-	client, err := jamf.NewClient(jamf.ClientOpts{
-		Clock:      e.Clock,
-		Logger:     e.Logger,
-		HTTPClient: e.HTTPClient,
-		APIURL:     e.APIEndpoint,
-		Username:   DefaultUsers[1].Username,
-		Password:   DefaultUsers[1].Password,
+	client, err := jamf.NewClient(context.Background(), jamf.ClientOpts{
+		Clock:          e.Clock,
+		Logger:         e.Logger,
+		HTTPClient:     e.HTTPClient,
+		APIURL:         e.APIEndpoint,
+		Username:       DefaultUsers[1].Username,
+		Password:       DefaultUsers[1].Password,
+		AllowPlainHTTP: true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	client.UsePlainHTTP() // Downgrade scheme for testing.
 	return client, nil
 }

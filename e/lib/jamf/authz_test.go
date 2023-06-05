@@ -3,6 +3,7 @@ package jamf_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,20 +97,60 @@ func TestClient_authn(t *testing.T) {
 		mustGetComputersInventory(t, client)
 	})
 
-	t.Run("repeated authn failures cause ErrMaxAuthnAttemptsReached", func(t *testing.T) {
-		client, err := jamf.NewClient(jamf.ClientOpts{
-			Clock:      clock,
-			Logger:     env.Logger,
-			HTTPClient: env.HTTPClient,
-			APIURL:     env.APIEndpoint,
-			Username:   "invalid",
-			Password:   "not a password",
+	t.Run(`try base URL with "/api" suffix`, func(t *testing.T) {
+		client, err := jamf.NewClient(ctx, jamf.ClientOpts{
+			Clock:          clock,
+			Logger:         env.Logger,
+			HTTPClient:     env.HTTPClient,
+			APIURL:         strings.TrimSuffix(env.APIEndpoint, "/api"),
+			Username:       testenv.DefaultUsers[0].Username,
+			Password:       testenv.DefaultUsers[0].Password,
+			AllowPlainHTTP: true,
 		})
+		if err != nil {
+			t.Fatalf("NewClient returned err=%v, want nil", err)
+		}
+		mustGetComputersInventory(t, client) // Just to be sure
+	})
+
+	t.Run("invalid credentials fail creation", func(t *testing.T) {
+		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
+			Clock:          clock,
+			Logger:         env.Logger,
+			HTTPClient:     env.HTTPClient,
+			APIURL:         env.APIEndpoint,
+			Username:       "invalid",
+			Password:       "not a password",
+			AllowPlainHTTP: true,
+		}); err == nil {
+			t.Error("NewClient returned err=nil, wanted invalid credentials error")
+		}
+	})
+
+	t.Run("repeated authn failures cause ErrMaxAuthnAttemptsReached", func(t *testing.T) {
+		client, err := env.NewClient()
 		if err != nil {
 			t.Fatalf("NewClient failed: %v", err)
 		}
-		client.UsePlainHTTP()
+		mustGetComputersInventory(t, client) // client works to begin with
 
+		// Change underlying users.
+		defer func() { env.API.SetUsers(testenv.DefaultUsers) }()
+		env.API.SetUsers([]*jamffake.User{
+			{
+				Username: testenv.DefaultUsers[0].Username,
+				Password: "changed password",
+			},
+			{
+				Username: testenv.DefaultUsers[1].Username,
+				Password: "another changed password",
+			},
+		})
+		// Expire current token.
+		// All subsequence authn attempts should fail.
+		clock.Advance(jamffake.TokenExpiryPeriod * 2)
+
+		// Further authn attempts should all fail.
 		req := &jamf.GetComputersInventoryRequest{}
 		const maxAttempts = 20 // We should reach an error before this.
 		for i := 0; i < maxAttempts; i++ {
