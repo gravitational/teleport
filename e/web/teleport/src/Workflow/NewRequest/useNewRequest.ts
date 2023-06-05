@@ -257,7 +257,7 @@ export function useNewRequest(ctx: Ctx) {
     switch (selectedResource) {
       case 'node':
         (agents as Node[]).forEach(
-          node => (addedResources[selectedResource][node.id] = node.addr)
+          node => (addedResources[selectedResource][node.id] = node.hostname)
         );
         break;
       case 'app':

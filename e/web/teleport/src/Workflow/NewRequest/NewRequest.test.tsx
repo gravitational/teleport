@@ -2,7 +2,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { render, screen, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
-import { within } from '@testing-library/react';
+import { within, waitFor } from '@testing-library/react';
 
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
@@ -101,6 +101,58 @@ describe('new request behavior', () => {
     );
   });
 
+  test('select all uses node hostnames in checkout', async () => {
+    jest
+      .spyOn(ctx.nodeService, 'fetchNodes')
+      .mockResolvedValueOnce({
+        agents: nodes,
+        startKey: '',
+        totalCount: nodes.length,
+      })
+      .mockResolvedValueOnce({
+        agents: nodes,
+        startKey: '',
+        totalCount: nodes.length,
+      });
+
+    jest
+      .spyOn(ctx.workflowService, 'fetchResourceRequestRoles')
+      .mockResolvedValueOnce(['access']);
+
+    render(Component);
+
+    const inputEl = within(screen.getByTestId('resource-selector')).getByRole(
+      'textbox'
+    );
+    fireEvent.change(inputEl, { target: { value: 'node' } });
+    fireEvent.focus(inputEl);
+    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
+
+    await screen.findByText(/node1-addr/i);
+
+    fireEvent.click(screen.getByText('+ Add all'));
+    let hostnames = await screen.findAllByText('node1');
+    let addrs = await screen.findAllByText('node1-addr');
+    // as we aren't checking for existence but checking to make sure only ONE exists now, then 2 exist later
+    // (hostnames.length).toBe(1) suggests toHaveLength so either way, we are disabling this line (and subsequent)
+    /* eslint-disable  jest-dom/prefer-in-document */
+    expect(hostnames).toHaveLength(1);
+    expect(addrs).toHaveLength(1);
+    await waitFor(() => {
+      screen.getByText('Proceed to Request').click();
+    });
+
+    expect(screen.getByText('2 Resources Selected')).toBeInTheDocument();
+    hostnames = await screen.findAllByText('node1');
+    addrs = await screen.findAllByText('node1-addr');
+
+    // we should see the hostname "node1" twice in the doc now, once in the resource list and once in the checkout table
+    // and addr only once (not added to checkout table)
+    expect(hostnames).toHaveLength(2);
+    expect(addrs).toHaveLength(1);
+
+    /* eslint-enable  jest-dom/prefer-in-document */
+  });
   test('select all buttons work properly', async () => {
     // The first fetch will only make a request for the first page (10 items).
     // The second fetch will come from the request to fetch all apps across all pages
