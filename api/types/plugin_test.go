@@ -123,7 +123,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "missing Okta settings")
 			},
@@ -135,7 +134,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "org_url must be set")
 			},
@@ -149,9 +147,8 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: &PluginCredentialsV1{},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
@@ -165,22 +162,42 @@ func TestPluginOktaValidation(t *testing.T) {
 				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
-			name: "valid credentials (token)",
+			name: "invalid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						Token: "xxx-abc",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "valid credentials (static credentials)",
+			settings: &PluginSpecV1_Okta{
+				Okta: &PluginOktaSettings{
+					OrgUrl: "https://test.okta.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
 					},
 				},
 			},

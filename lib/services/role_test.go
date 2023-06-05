@@ -755,11 +755,13 @@ func TestRoleParse(t *testing.T) {
 }
 
 func TestValidateRole(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name         string
-		spec         types.RoleSpecV6
-		err          error
-		matchMessage string
+		name           string
+		spec           types.RoleSpecV6
+		expectError    error
+		expectWarnings []string
 	}{
 		{
 			name: "valid syntax",
@@ -776,8 +778,10 @@ func TestValidateRole(t *testing.T) {
 					Logins: []string{"{{foo"},
 				},
 			},
-			err:          trace.BadParameter(""),
-			matchMessage: "invalid login found",
+			expectWarnings: []string{
+				"parsing allow.logins expression",
+				`"{{foo" is using template brackets '{{' or '}}', however expression does not parse`,
+			},
 		},
 		{
 			name: "unsupported function in actions",
@@ -793,8 +797,11 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			err:          trace.BadParameter(""),
-			matchMessage: "unsupported function: containz",
+			expectWarnings: []string{
+				"parsing allow rule",
+				"could not parse 'where' rule",
+				"unsupported function: containz",
+			},
 		},
 		{
 			name: "unsupported function in where",
@@ -811,8 +818,11 @@ func TestValidateRole(t *testing.T) {
 					},
 				},
 			},
-			err:          trace.BadParameter(""),
-			matchMessage: "unsupported function: zzz",
+			expectWarnings: []string{
+				"parsing allow rule",
+				"could not parse action",
+				"unsupported function: zzz",
+			},
 		},
 		{
 			name: "wildcard not allowed in database_roles",
@@ -821,28 +831,225 @@ func TestValidateRole(t *testing.T) {
 					DatabaseRoles: []string{types.Wildcard},
 				},
 			},
-			err:          trace.BadParameter(""),
-			matchMessage: "wildcard is not allowed in allow.database_roles",
+			expectError: trace.BadParameter("wildcard is not allowed in allow.database_roles"),
+		},
+		{
+			name: "unsupported function in labels",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins: []string{"test"},
+					NodeLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					AppLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					KubernetesLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					DatabaseLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					WindowsDesktopLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					ClusterLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+				},
+				Deny: types.RoleConditions{
+					Logins: []string{"test"},
+					NodeLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					AppLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					KubernetesLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					DatabaseLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					WindowsDesktopLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+					ClusterLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
+				},
+			},
+			expectWarnings: []string{
+				"parsing allow.node_labels expression",
+				"parsing allow.app_labels expression",
+				"parsing allow.kubernetes_labels expression",
+				"parsing allow.db_labels expression",
+				"parsing allow.windows_desktop_labels expression",
+				"parsing allow.cluster_labels expression",
+				"parsing deny.node_labels expression",
+				"parsing deny.app_labels expression",
+				"parsing deny.kubernetes_labels expression",
+				"parsing deny.db_labels expression",
+				"parsing deny.windows_desktop_labels expression",
+				"parsing deny.cluster_labels expression",
+				"unsupported function: email.localz",
+			},
+		},
+		{
+			name: "unsupported function in slice fields",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins:               []string{"{{email.localz(external.email)}}"},
+					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
+					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
+					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
+					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
+					KubeGroups:           []string{"{{email.localz(external.email)}}"},
+					KubeUsers:            []string{"{{email.localz(external.email)}}"},
+					DatabaseNames:        []string{"{{email.localz(external.email)}}"},
+					DatabaseUsers:        []string{"{{email.localz(external.email)}}"},
+					HostGroups:           []string{"{{email.localz(external.email)}}"},
+					HostSudoers:          []string{"{{email.localz(external.email)}}"},
+					DesktopGroups:        []string{"{{email.localz(external.email)}}"},
+					Impersonate: &types.ImpersonateConditions{
+						Users: []string{"{{email.localz(external.email)}}"},
+						Roles: []string{"{{email.localz(external.email)}}"},
+					},
+				},
+				Deny: types.RoleConditions{
+					Logins:               []string{"{{email.localz(external.email)}}"},
+					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
+					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
+					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
+					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
+					KubeGroups:           []string{"{{email.localz(external.email)}}"},
+					KubeUsers:            []string{"{{email.localz(external.email)}}"},
+					DatabaseNames:        []string{"{{email.localz(external.email)}}"},
+					DatabaseUsers:        []string{"{{email.localz(external.email)}}"},
+					HostGroups:           []string{"{{email.localz(external.email)}}"},
+					HostSudoers:          []string{"{{email.localz(external.email)}}"},
+					DesktopGroups:        []string{"{{email.localz(external.email)}}"},
+					Impersonate: &types.ImpersonateConditions{
+						Users: []string{"{{email.localz(external.email)}}"},
+						Roles: []string{"{{email.localz(external.email)}}"},
+					},
+				},
+			},
+			expectWarnings: []string{
+				"parsing allow.logins expression",
+				"parsing allow.windows_desktop_logins expression",
+				"parsing allow.aws_role_arns expression",
+				"parsing allow.azure_identities expression",
+				"parsing allow.gcp_service_accounts expression",
+				"parsing allow.kubernetes_groups expression",
+				"parsing allow.kubernetes_users expression",
+				"parsing allow.db_names expression",
+				"parsing allow.db_users expression",
+				"parsing allow.host_groups expression",
+				"parsing allow.host_sudeoers expression",
+				"parsing allow.desktop_groups expression",
+				"parsing allow.impersonate.users expression",
+				"parsing allow.impersonate.roles expression",
+				"parsing deny.logins expression",
+				"parsing deny.windows_desktop_logins expression",
+				"parsing deny.aws_role_arns expression",
+				"parsing deny.azure_identities expression",
+				"parsing deny.gcp_service_accounts expression",
+				"parsing deny.kubernetes_groups expression",
+				"parsing deny.kubernetes_users expression",
+				"parsing deny.db_names expression",
+				"parsing deny.db_users expression",
+				"parsing deny.host_groups expression",
+				"parsing deny.host_sudeoers expression",
+				"parsing deny.desktop_groups expression",
+				"parsing deny.impersonate.users expression",
+				"parsing deny.impersonate.roles expression",
+				"unsupported function: email.localz",
+			},
 		},
 	}
 
 	for _, tc := range tests {
-		err := ValidateRole(&types.RoleV6{
-			Metadata: types.Metadata{
-				Name:      "name1",
-				Namespace: apidefaults.Namespace,
-			},
-			Version: types.V3,
-			Spec:    tc.spec,
-		})
-		if tc.err != nil {
-			require.Error(t, err, tc.name)
-			if tc.matchMessage != "" {
-				require.Contains(t, err.Error(), tc.matchMessage)
+		t.Run(tc.name, func(t *testing.T) {
+			var warning error
+			err := ValidateRole(&types.RoleV6{
+				Metadata: types.Metadata{
+					Name:      "name1",
+					Namespace: apidefaults.Namespace,
+				},
+				Version: types.V3,
+				Spec:    tc.spec,
+			}, withWarningReporter(func(err error) {
+				warning = err
+			}))
+			if tc.expectError != nil {
+				require.ErrorIs(t, err, tc.expectError)
+				return
 			}
-		} else {
-			require.NoError(t, err, tc.name)
-		}
+			require.NoError(t, err, trace.DebugReport(err))
+
+			for _, msg := range tc.expectWarnings {
+				require.ErrorContains(t, warning, msg)
+			}
+		})
+	}
+}
+
+// BenchmarkValidateRole benchmarks the performance of ValidateRole.
+//
+// $ go test ./lib/services -bench BenchmarkValidateRole -v -run xxx
+// goos: darwin
+// goarch: amd64
+// pkg: github.com/gravitational/teleport/lib/services
+// cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
+// BenchmarkValidateRole
+// BenchmarkValidateRole-16           14630             80205 ns/op
+// PASS
+// ok      github.com/gravitational/teleport/lib/services  3.030s
+func BenchmarkValidateRole(b *testing.B) {
+	role, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:               []string{"{{email.local(external.email)}}"},
+			WindowsDesktopLogins: []string{"{{email.local(external.email)}}"},
+			AWSRoleARNs:          []string{"{{email.local(external.email)}}"},
+			AzureIdentities:      []string{"{{email.local(external.email)}}"},
+			GCPServiceAccounts:   []string{"{{email.local(external.email)}}"},
+			KubeGroups:           []string{"{{email.local(external.email)}}"},
+			KubeUsers:            []string{"{{email.local(external.email)}}"},
+			DatabaseNames:        []string{"{{email.local(external.email)}}"},
+			DatabaseUsers:        []string{"{{email.local(external.email)}}"},
+			HostGroups:           []string{"{{email.local(external.email)}}"},
+			HostSudoers:          []string{"{{email.local(external.email)}}"},
+			DesktopGroups:        []string{"{{email.local(external.email)}}"},
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{"{{email.local(external.email)}}"},
+				Roles: []string{"{{email.local(external.email)}}"},
+			},
+			NodeLabels:           types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			AppLabels:            types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			KubernetesLabels:     types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			DatabaseLabels:       types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			WindowsDesktopLabels: types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindRole},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+					Where:     `contains(user.spec.traits["groups"], "prod")`,
+				},
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+					Where:     "contains(session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		require.NoError(b, ValidateRole(role))
 	}
 }
 

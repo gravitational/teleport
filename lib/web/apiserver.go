@@ -353,14 +353,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	h.auth = sessionCache
+	sshPortValue := strconv.Itoa(defaults.SSHProxyListenPort)
+	if cfg.ProxySSHAddr.String() != "" {
+		_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
+		if err != nil {
+			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
+				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
 
-	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
-	if err != nil {
-		h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
-			cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+		} else {
+			sshPortValue = sshPort
+		}
 	}
-	h.sshPort = sshPort
+
+	h.sshPort = sshPortValue
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
@@ -783,6 +788,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	// Deletes the given conversation.
+	h.DELETE("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.deleteAssistantConversation))
 
 	// Returns all conversations for the given user.
 	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
@@ -1389,9 +1397,18 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
+	clusterFeatures := h.ClusterFeatures
+	// ping server to get cluster features since h.ClusterFeatures may be stale
+	pingResponse, err := h.GetProxyClient().Ping(r.Context())
+	if err != nil {
+		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
+	} else {
+		clusterFeatures = *pingResponse.ServerFeatures
+	}
+
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	if h.ClusterFeatures.GetCloud() {
+	if clusterFeatures.GetCloud() {
 		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 		if err != nil {
 			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
@@ -1412,12 +1429,12 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
-		IsCloud:              h.ClusterFeatures.GetCloud(),
+		IsCloud:              clusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(h.ClusterFeatures),
-		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
+		IsDashboard:          isDashboard(clusterFeatures),
+		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

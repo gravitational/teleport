@@ -75,6 +75,10 @@ interface RawPayload {
   payload: string;
 }
 
+interface SessionData {
+  session: { server_id: string };
+}
+
 class assistClient extends EventEmitterWebAuthnSender {
   private readonly ws: WebSocket;
   readonly proto: Protobuf = new Protobuf();
@@ -89,11 +93,32 @@ class assistClient extends EventEmitterWebAuthnSender {
     this.ws = new WebSocket(url);
     this.ws.binaryType = 'arraybuffer';
 
+    this.ws.onclose = () => {
+      setState(state => {
+        return state.map(n => ({
+          ...n,
+          stdout: n.stdout || '',
+          status: RunActionStatus.Finished,
+        }));
+      });
+    };
+
     this.ws.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
       const msg = this.proto.decode(uintArray);
 
       switch (msg.type) {
+        case MessageTypeEnum.SESSION_DATA:
+          const sessionData = JSON.parse(msg.payload) as SessionData;
+          setState(state => {
+            state.push({
+              nodeId: sessionData.session.server_id,
+              status: RunActionStatus.Connecting,
+            });
+            return state;
+          });
+          break;
+
         case MessageTypeEnum.RAW:
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
@@ -234,6 +259,10 @@ const LoadingContainer = styled.div`
   margin: 30px 0 20px;
 `;
 
+const Output = styled.pre`
+  overflow-x: auto;
+`;
+
 function NodeOutput(props: NodeOutputProps) {
   return (
     <NodeContainer>
@@ -245,11 +274,14 @@ function NodeOutput(props: NodeOutputProps) {
         </LoadingContainer>
       )}
 
-      {props.state.stdout && (
-        <NodeContent>
-          <pre>{props.state.stdout}</pre>
-        </NodeContent>
-      )}
+      {props.state.stdout !== undefined &&
+        (props.state.stdout === '' ? (
+          'Empty output.'
+        ) : (
+          <NodeContent>
+            <Output>{props.state.stdout}</Output>
+          </NodeContent>
+        ))}
     </NodeContainer>
   );
 }

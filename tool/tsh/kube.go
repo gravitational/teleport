@@ -18,8 +18,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"sort"
@@ -121,7 +123,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	}
 
 	cf.SiteName = c.siteName
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -437,17 +439,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 }
 
 func (c *kubeExecCommand) run(cf *CLIConf) error {
-	var p ExecOptions
-	var err error
+	closeFn, newKubeConfigLocation, err := maybeStartKubeLocalProxy(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn()
 
+	f := c.kubeCmdFactory(newKubeConfigLocation)
+	var p ExecOptions
 	p.IOStreams = genericclioptions.IOStreams{
 		In:     os.Stdin,
 		Out:    os.Stdout,
 		ErrOut: os.Stderr,
 	}
-	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
-	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
-	f := cmdutil.NewFactory(matchVersionKubeConfigFlags)
 	p.ResourceName = c.target
 	p.ContainerName = c.container
 	p.Quiet = c.quiet
@@ -481,6 +485,17 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	return trace.Wrap(p.Run(cf.Context))
 }
 
+func (c *kubeExecCommand) kubeCmdFactory(overwriteKubeConfigLocation string) cmdutil.Factory {
+	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+
+	if overwriteKubeConfigLocation != "" {
+		kubeConfigFlags.KubeConfig = &overwriteKubeConfigLocation
+	}
+
+	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
+	return cmdutil.NewFactory(matchVersionKubeConfigFlags)
+}
+
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
 	format   string
@@ -500,7 +515,7 @@ func (c *kubeSessionsCommand) run(cf *CLIConf) error {
 	if c.siteName != "" {
 		cf.SiteName = c.siteName
 	}
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -581,19 +596,76 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	return c
 }
 
+func getKubeCredLockfilePath(homePath, proxy string) (string, error) {
+	profilePath := profile.FullProfilePath(homePath)
+	// tsh stores the profiles using the proxy host as the profile name.
+	profileName, err := utils.Host(proxy)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return keypaths.KubeCredLockfilePath(profilePath, profileName), nil
+}
+
+// errKubeCredLockfileFound is returned when kube credentials lockfile is found and user should resolve login problems manually.
+var errKubeCredLockfileFound = trace.AlreadyExists("Having problems with relogin, please use 'tsh login/tsh kube login' manually")
+
+func takeKubeCredLock(ctx context.Context, homePath, proxy string) (func(bool), error) {
+	kubeCredLockfilePath, err := getKubeCredLockfilePath(homePath, proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If kube credentials lockfile already exists, it means last time kube credentials was called
+	// we had an error while trying to issue certificate, return an error asking user to login manually.
+	if _, err := os.Stat(kubeCredLockfilePath); err == nil {
+		log.Debugf("Kube credentials lockfile was found at %q, aborting.", kubeCredLockfilePath)
+		return nil, trace.Wrap(errKubeCredLockfileFound)
+	}
+
+	if _, err := utils.EnsureLocalPath(kubeCredLockfilePath, "", ""); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Take a lock while we're trying to issue certificate and possibly relogin
+	unlock, err := utils.FSTryWriteLockTimeout(ctx, kubeCredLockfilePath, 5*time.Second)
+	if err != nil {
+		log.Debugf("could not take kube credentials lock: %v", err.Error())
+		return nil, trace.Wrap(errKubeCredLockfileFound)
+	}
+
+	return func(removeFile bool) {
+		if removeFile {
+			os.Remove(kubeCredLockfilePath)
+		}
+		unlock()
+	}, nil
+}
+
 func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
+	profile, err := cf.GetProfile()
+	if err != nil {
+		// Cannot find the profile, continue to c.issueCert for a login.
+		return trace.Wrap(c.issueCert(cf))
+	}
+
+	if err := c.checkLocalProxyRequirement(profile.TLSRoutingConnUpgradeRequired); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// client.LoadKeysToKubeFromStore function is used to speed up the credentials
 	// loading process since Teleport Store transverses the entire store to find the keys.
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 3 different files from the disk:
-	// - $TSH_HOME/$profile.yaml
+	// it removes all transversals, it still has to read 2 different files from the disk:
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 	// - $TSH_HOME/keys/$PROXY/$USER
+	//
+	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
+	// cf.GetProfile call above.
 	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
+		profile,
 		cf.HomePath,
-		cf.Proxy,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
@@ -604,8 +676,15 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	tc, err := makeClient(cf, true)
+	return trace.Wrap(c.issueCert(cf))
+}
+
+func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
+	tc, err := makeClient(cf)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -628,6 +707,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
+
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
 		// Otherwise, cert for this k8s cluster is missing or expired. Request
@@ -636,8 +716,23 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 
 	log.Debugf("Requesting TLS cert for Kubernetes cluster %q", c.kubeCluster)
 
+	unlockKubeCred, err := takeKubeCredLock(cf.Context, cf.HomePath, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	deleteKubeCredsLock := false
+	defer func() {
+		unlockKubeCred(deleteKubeCredsLock) // by default (in case of an error) we don't delete lockfile.
+	}()
+
 	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(ctx, tc, func() error {
+		// The requirement may change after a new login so check again just in
+		// case.
+		if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
+			return trace.Wrap(err)
+		}
+
 		var err error
 		k, err = tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 			RouteToCluster:    c.teleportCluster,
@@ -647,6 +742,11 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	})
 	span.End()
 	if err != nil {
+		// If we've got network error we remove the lockfile, so we could restore from temporary connection
+		// problems without requiring user intervention.
+		if isNetworkError(err) {
+			deleteKubeCredsLock = true
+		}
 		return trace.Wrap(err)
 	}
 	// Make sure the cert is allowed to access the cluster.
@@ -662,7 +762,22 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	// Remove the lockfile so subsequent tsh kube credentials calls don't exit early
+	deleteKubeCredsLock = true
+
 	return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
+}
+
+func isNetworkError(err error) bool {
+	var opErr *net.OpError
+	return errors.As(err, &opErr) || trace.IsConnectionProblem(err)
+}
+
+func (c *kubeCredentialsCommand) checkLocalProxyRequirement(connUpgradeRequired bool) error {
+	if connUpgradeRequired {
+		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
+	}
+	return nil
 }
 
 // checkIfCertsAreAllowedToAccessCluster evaluates if the new cert created by the user
@@ -832,7 +947,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 		return trace.Wrap(c.runAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1033,7 +1148,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	cf.kubeNamespace = c.namespace
 	cf.ListAll = c.all
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1062,12 +1177,44 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err := updateKubeConfig(cf, tc, profileKubeconfigPath, c.overrideContextName); err != nil {
 		return trace.Wrap(err)
 	}
-	if c.kubeCluster != "" {
-		fmt.Printf("Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
-	} else {
-		fmt.Printf("Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
-	}
+
+	c.printUserMessage(cf, tc)
 	return nil
+}
+
+func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
+	if c.localProxyRequired(tc) {
+		c.printLocalProxyUserMessage(cf)
+		return
+	}
+
+	if c.kubeCluster != "" {
+		fmt.Fprintf(cf.Stdout(), "Logged into Kubernetes cluster %q. Try 'kubectl version' to test the connection.\n", c.kubeCluster)
+	} else {
+		fmt.Fprintf(cf.Stdout(), "Created kubeconfig with every Kubernetes cluster available. Select a context and try 'kubectl version' to test the connection.\n")
+	}
+}
+
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf) {
+	switch {
+	case c.kubeCluster != "":
+		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q. Start the local proxy:
+  tsh proxy kube -p 8443
+
+Use the kubeconfig provided by the local proxy, and try 'kubectl version' to test the connection.
+`, c.kubeCluster)
+
+	default:
+		fmt.Fprintf(cf.Stdout(), `Logged into all Kubernetes clusters available. Start the local proxy:
+  tsh proxy kube -p 8443
+
+Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
+`)
+	}
+}
+
+func (c *kubeLoginCommand) localProxyRequired(tc *client.TeleportClient) bool {
+	return tc.TLSRoutingConnUpgradeRequired
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {
