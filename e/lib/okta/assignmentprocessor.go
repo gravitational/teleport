@@ -47,7 +47,7 @@ const (
 
 	// processAssignmentTimeout is the amount of time before canceling the context of a process assignment call
 	// in the loop.
-	processAssignmentTimeout time.Duration = 1 * time.Minute
+	processAssignmentTimeout time.Duration = 5 * time.Minute
 
 	// maxNumWorkers is the maximum number of works that can concurrently use the
 	// Okta client.
@@ -169,7 +169,7 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
 	// which is 100 per second:
 	// https://developer.okta.com/docs/reference/rl-global-other-endpoints/
 	//
-	// Each Okta API call we do as part of processing a target consists of roughly 2 calls.
+	// Each Okta API interaction we do as part of processing a target consists of roughly 2 API calls.
 	// By limiting our max workers to 5 and our rate limiting to 5 per second, this means that
 	// generally we expect to issue 10 Okta API calls per second (or less) when running through
 	// these assignments worst case. The assignment client will cache Okta state per run, so API
@@ -183,8 +183,6 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
 				if !ok {
 					return
 				}
-				ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
-				defer cancel()
 				errs <- a.processAssignment(ctx, assignment, true /* reconcile */)
 			}
 		}()
@@ -206,6 +204,9 @@ func (a *assignmentProcessor) processAssignments(ctx context.Context) error {
 // for caching in bulk runs. If reconcile is set, the function will attempt to find differences from the Okta
 // state and reconcile them. Otherwise, they will not be processed.
 func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment types.OktaAssignment, reconcile bool) error {
+	ctx, cancel := context.WithTimeout(ctx, processAssignmentTimeout)
+	defer cancel()
+
 	// Skip a finalized assignment, as it's already been cleaned up.
 	if assignment.IsFinalized() {
 		return nil
@@ -310,6 +311,11 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, assignment typ
 
 	a.log.Infof("Provisioning assignment %s for user %s", assignment.GetName(), assignment.GetUser())
 
+	// If we can't find the user in Okta, skip trying to process any of the targets.
+	if _, err := assignmentClient.userID(ctx, assignment.GetUser()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var errs []error
 	for _, target := range assignment.GetTargets() {
 		ok, err := a.authorizeTarget(ctx, target)
@@ -357,6 +363,11 @@ func (a *assignmentProcessor) cleanupTargets(ctx context.Context, assignment typ
 	assignmentClient := a.getAssignmentClient()
 
 	a.log.Infof("Cleaning up assignment %s for user %s", assignment.GetName(), assignment.GetUser())
+
+	// If we can't find the user in Okta, skip trying to process any of the targets.
+	if _, err := assignmentClient.userID(ctx, assignment.GetUser()); err != nil {
+		return trace.Wrap(err)
+	}
 
 	for _, target := range assignment.GetTargets() {
 		ok, err := a.authorizeTarget(ctx, target)

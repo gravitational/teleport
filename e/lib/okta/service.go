@@ -289,6 +289,14 @@ func New(ctx context.Context, config Config) (*Service, error) {
 			okta.WithCache(false), // We don't want a cache as we need up to date info.
 			okta.WithOrgUrl(config.OktaAPIEndpoint),
 			okta.WithToken(config.OktaAPIToken),
+
+			// By default, the rate limit backoff is 30 seconds and the number of retries is 2.
+			// This can cause assignment processing timeouts because we don't expect API calls to
+			// take 1 minute.
+			// This will retry more frequently (10 times) and after a shorter amount of time (10
+			// seconds) to hopefully succeed more quickly.
+			okta.WithRateLimitMaxBackOff(10),
+			okta.WithRateLimitMaxRetries(10),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

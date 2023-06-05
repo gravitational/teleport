@@ -240,12 +240,23 @@ const (
 	// Okta error constants are not housed within the SDK, so we'll need to refer to the
 	// documentation directly and define our own..
 	// https://developer.okta.com/docs/reference/error-codes/
+	oktaErrCodeAPIValidationException    = "E0000001"
 	oktaErrCodeAuthenticationException   = "E0000004"
 	oktaErrCodeInvalidSessionException   = "E0000005"
 	oktaErrCodeAccessDeniedException     = "E0000006"
 	oktaErrCodeResourceNotFoundException = "E0000007"
 	oktaErrCodeNotFoundException         = "E0000008"
 )
+
+// oktaAPIValidationError is a validation error.
+type oktaAPIValidationError struct {
+	errorID string
+	summary string
+}
+
+func (o oktaAPIValidationError) Error() string {
+	return fmt.Sprintf("%s: %s", o.errorID, o.summary)
+}
 
 // oktaErrToTrace takes Okta errors and converts them into appropriate trace equivalents.
 func oktaErrToTrace(err error) error {
@@ -261,6 +272,8 @@ func oktaErrToTrace(err error) error {
 		return trace.WithField(trace.AccessDenied(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
 	case oktaErrCodeResourceNotFoundException, oktaErrCodeNotFoundException:
 		return trace.WithField(trace.NotFound(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)
+	case oktaErrCodeAPIValidationException:
+		return oktaAPIValidationError{errorID: oktaErr.ErrorId, summary: oktaErr.ErrorSummary}
 	default:
 		// If we don't have a more specific error to provide, just wrap the error and return it.
 		return trace.WithField(trace.BadParameter(oktaErr.ErrorSummary), oktaErrorID, oktaErr.ErrorId)

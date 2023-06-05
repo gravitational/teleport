@@ -100,6 +100,8 @@ func (t *testAccessPoint) setServiceCounts(m map[types.SystemRole]uint64) {
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
 func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
+	t.Helper()
+
 	ctx := context.Background()
 
 	backend, err := memory.New(memory.Config{
@@ -165,6 +167,8 @@ func (t *testProxyGetter) GetProxyIDs() []string {
 
 // newTestService creates a new test Okta service.
 func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaClient, *eventstest.ChannelEmitter) {
+	t.Helper()
+
 	ctx := context.Background()
 
 	emitter := eventstest.NewChannelEmitter(1)
@@ -228,6 +232,9 @@ type testOktaClient struct {
 	appsToUsersMu sync.Mutex
 	// appsToUsers is a mapping of application IDs to users that have been assigned to them.
 	appsToUsers map[string]map[string]bool
+
+	unassignGroupErr map[string]error
+	unassignAppErr   map[string]error
 }
 
 func newTestClient() *testOktaClient {
@@ -235,6 +242,8 @@ func newTestClient() *testOktaClient {
 		usernamesToUserIDs: map[string]string{},
 		groupsToUsers:      map[string]map[string]bool{},
 		appsToUsers:        map[string]map[string]bool{},
+		unassignGroupErr:   map[string]error{},
+		unassignAppErr:     map[string]error{},
 		oktaOrgURL:         testOrgURL,
 	}
 }
@@ -345,6 +354,10 @@ func (t *testOktaClient) unassignUserFromGroup(ctx context.Context, username, gr
 	t.groupsToUsersMu.Lock()
 	defer t.groupsToUsersMu.Unlock()
 
+	if err, ok := t.unassignGroupErr[groupId]; ok {
+		return err
+	}
+
 	if _, ok := t.groupsToUsers[groupId]; !ok {
 		return trace.NotFound("cleanup: unable to find group %s", groupId)
 	}
@@ -381,6 +394,10 @@ func (t *testOktaClient) assignUserToApplication(ctx context.Context, username, 
 func (t *testOktaClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
 	t.appsToUsersMu.Lock()
 	defer t.appsToUsersMu.Unlock()
+
+	if err, ok := t.unassignAppErr[applicationId]; ok {
+		return err
+	}
 
 	if _, ok := t.appsToUsers[applicationId]; !ok {
 		return trace.NotFound("cleanup: unable to find application %s", applicationId)

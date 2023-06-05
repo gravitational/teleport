@@ -121,4 +121,29 @@ func TestAssignmentClient(t *testing.T) {
 	require.Empty(t, cmp.Diff(map[string]map[string]bool{
 		testGroup: {},
 	}, oktaClient.groupsToUsers))
+
+	// Reassign user to app and group
+	require.NoError(t, assignmentClient.registerUserToApp(ctx, testUser, testApp))
+	ok, err = assignmentClient.userAssignedToApp(ctx, testUser, testApp)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	require.NoError(t, assignmentClient.registerUserToGroup(ctx, testUser, testGroup))
+	ok, err = assignmentClient.userAssignedToGroup(ctx, testUser, testGroup)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	// Error unassigning app and group
+	oktaClient.unassignAppErr[testApp] = trace.BadParameter("bad parameter")
+	oktaClient.unassignGroupErr[testGroup] = trace.BadParameter("bad parameter")
+
+	require.Error(t, assignmentClient.unregisterUserFromApp(ctx, testUser, testApp))
+	require.Error(t, assignmentClient.unregisterUserFromGroup(ctx, testUser, testGroup))
+
+	// API validation yields no error
+	oktaClient.unassignAppErr[testApp] = oktaAPIValidationError{}
+	oktaClient.unassignGroupErr[testGroup] = oktaAPIValidationError{}
+
+	require.NoError(t, assignmentClient.unregisterUserFromApp(ctx, testUser, testApp))
+	require.NoError(t, assignmentClient.unregisterUserFromGroup(ctx, testUser, testGroup))
 }

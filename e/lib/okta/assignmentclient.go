@@ -19,15 +19,10 @@ package okta
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
-)
-
-const (
-	assignmentClientOktaTimeout = 10 * time.Second
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -67,9 +62,6 @@ func newAssignmentClient(log *logrus.Entry, oktaClient oktaClient, rateLimiter *
 
 // userAssignedToGroup will return true if the user is assigned to the group.
 func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, groupID string) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	userID, err := a.userID(ctx, username)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -109,9 +101,6 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, gr
 
 // registerUserToGroup will register the user to the group.
 func (a *assignmentClient) registerUserToGroup(ctx context.Context, username, groupID string) error {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	ok, err := a.userAssignedToGroup(ctx, username, groupID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -143,9 +132,6 @@ func (a *assignmentClient) registerUserToGroup(ctx context.Context, username, gr
 
 // unregisterUserFromGroup will unregister the user from the group.
 func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username, groupID string) error {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	ok, err := a.userAssignedToGroup(ctx, username, groupID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -167,10 +153,16 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 	}
 
 	if err := a.oktaClient.unassignUserFromGroup(ctx, userID, groupID); err != nil {
-		return trace.Wrap(err)
-	}
+		if _, ok := err.(oktaAPIValidationError); !ok {
+			return trace.Wrap(err)
+		}
 
-	a.log.Debugf("User %s has been unassigned to group %s", userID, groupID)
+		// This is referring to Okta group rules:
+		// https://help.okta.com/en-us/Content/Topics/users-groups-profiles/usgp-about-group-rules.htm
+		a.log.Warnf("Unable to remove user %s from group %s due to API validation exception. This membership is likely managed by Okta group rules. Proceeding as if this were successful.", userID, groupID)
+	} else {
+		a.log.Debugf("User %s has been unassigned to group %s", userID, groupID)
+	}
 
 	a.groupsMu.Lock()
 	delete(a.groups[groupID], userID)
@@ -181,9 +173,6 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 
 // userAssignedToApp will return true if the user is assigned to the app.
 func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appID string) (bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	userID, err := a.userID(ctx, username)
 	if err != nil {
 		return false, trace.Wrap(err)
@@ -223,9 +212,6 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 
 // registerUserToApp will register the user to the app.
 func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appID string) error {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	ok, err := a.userAssignedToApp(ctx, username, appID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -261,9 +247,6 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appI
 
 // unregisterUserFromGroup will unregister the user from the app.
 func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, appID string) error {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	ok, err := a.userAssignedToApp(ctx, username, appID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -285,10 +268,13 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 	}
 
 	if err := a.oktaClient.unassignUserFromApplication(ctx, userID, appID); err != nil {
-		return trace.Wrap(err)
+		if _, ok := err.(oktaAPIValidationError); !ok {
+			return trace.Wrap(err)
+		}
+		a.log.Warnf("Unable to remove user %s from application %s due to API validation exception. Proceeding as if this were successful.", userID, appID)
+	} else {
+		a.log.Debugf("User %s has been unassigned from app %s", userID, appID)
 	}
-
-	a.log.Debugf("User %s has been unassigned from app %s", userID, appID)
 
 	a.appsMu.Lock()
 	delete(a.apps[appID], userID)
@@ -299,9 +285,6 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 
 // userID will return the userID for the username.
 func (a *assignmentClient) userID(ctx context.Context, username string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, assignmentClientOktaTimeout)
-	defer cancel()
-
 	a.usersMu.Lock()
 	if a.users == nil {
 		var err error
