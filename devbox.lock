@@ -6,6 +6,9 @@
       "resolved": "github:NixOS/nixpkgs/d3248619647234b5dc74a6921bcdf6dd8323eb22#addlicense",
       "version": "1.0.0"
     },
+    "bash": {
+      "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#bash"
+    },
     "bash@5.2-p15": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#bash",
@@ -13,6 +16,11 @@
     },
     "bash_5": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#bash_5"
+    },
+    "clang@11.1.0": {
+      "last_modified": "2023-05-01T16:53:22Z",
+      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#clang",
+      "version": "11.1.0"
     },
     "gcc@12.2.0": {
       "last_modified": "2023-05-01T16:53:22Z",
@@ -23,6 +31,9 @@
       "last_modified": "2023-02-28T22:11:13Z",
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
       "version": "0.9.1"
+    },
+    "git": {
+      "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
     },
     "git@2.40.1": {
       "last_modified": "2023-05-01T16:53:22Z",

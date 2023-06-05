@@ -1,10 +1,11 @@
 {
   "packages": [
-    "bash@5.2-p15",
+    "bash",
+    "git",
     "github:nixos/nixpkgs/757a0d107c238d031652a8c09d1f6bf1b6f523a3#go",
     "nodejs@16.18.1",
     "git@2.40.1",
-    "gcc@12.2.0",
+    "clang@11.1.0",
     "libiconvReal@1.16",
     "libfido2@1.13.0",
     "gci@0.9.1",
@@ -14,7 +15,6 @@
     "python@3.11.2",
     "yarn@1.22.19",
     "protobuf3_20@3.20.3",
-    "protoc-gen-go@1.28.1",
     "patchelf@0.15.0",
     "path:build.assets/flake#helm",
     "path:build.assets/flake#golangci-lint",
