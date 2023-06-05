@@ -2248,6 +2248,13 @@ type databaseUserMatcher struct {
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
 // database users match the specified condition.
 func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
+	if db.SupportAWSIAMRolesAsUsers() {
+		return &databaseUserMatcher{
+			user:             user,
+			alternativeNames: makeUsernamesForAWSRole(db, user),
+		}
+	}
+
 	if db.RequireAWSIAMRolesAsUsers() {
 		return &databaseUserMatcher{
 			user:             user,
@@ -2301,6 +2308,31 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 		return nil
 	}
 	return []string{roleARN}
+}
+
+// makeASRoleNames builds ARN alternatives for database users who are full or
+// partial ARN.
+func makeUsernamesForAWSRole(db types.Database, user string) []string {
+	if !awsutils.IsRoleARN(user) {
+		return nil
+	}
+
+	metadata := db.GetAWS()
+	if metadata.Region != "" && metadata.AccountID != "" && awsutils.IsPartialRoleARN(user) {
+		roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+		if err != nil {
+			return nil
+		}
+
+		return []string{roleARN}
+	}
+
+	roleARN, err := awsutils.ParseRoleARN(user)
+	if err != nil {
+		return nil
+	}
+
+	return []string{roleARN.Resource}
 }
 
 // DatabaseNameMatcher matches a role against database name.

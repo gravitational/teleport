@@ -121,6 +121,9 @@ type Database interface {
 	// RequireAWSIAMRolesAsUsers returns true for database types that require
 	// AWS IAM roles as database users.
 	RequireAWSIAMRolesAsUsers() bool
+	// SupportAWSIAMRolesAsUsers returns true for database types that support
+	// AWS IAM roles as database users.
+	SupportAWSIAMRolesAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
@@ -511,6 +514,10 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
+	if d.GetMongoAtlas().Name != "" {
+		return DatabaseTypeMongoAtlas
+	}
+
 	if awsType, ok := d.getAWSType(); ok {
 		return awsType
 	}
@@ -520,9 +527,6 @@ func (d *DatabaseV3) GetType() string {
 	}
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
-	}
-	if d.GetMongoAtlas().Name != "" {
-		return DatabaseTypeMongoAtlas
 	}
 
 	return DatabaseTypeSelfHosted
@@ -887,12 +891,6 @@ func (d *DatabaseV3) GetMongoAtlas() MongoAtlas {
 // and that database supports discovery, be sure to update RequireAWSIAMRolesAsUsersMatchers
 // in lib/services as well.
 func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
-	// NOTE: Although MongoDB Atlas databases support regular users and IAM role
-	// users, having this return true enables roles to match partial ARNs.
-	if d.GetType() == DatabaseTypeMongoAtlas {
-		return true
-	}
-
 	awsType, ok := d.getAWSType()
 	if !ok {
 		return false
@@ -907,6 +905,16 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	default:
 		return false
 	}
+}
+
+// SupportAWSIAMRolesAsUsers returns true for database types that support AWS
+// IAM roles as database users.
+func (d *DatabaseV3) SupportAWSIAMRolesAsUsers() bool {
+	if d.GetType() == DatabaseTypeMongoAtlas {
+		return true
+	}
+
+	return false
 }
 
 const (
