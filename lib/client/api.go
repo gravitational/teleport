@@ -312,6 +312,10 @@ type Config struct {
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
+	// extraEnvs contains additional environment variables that will be added
+	// to SSH session.
+	extraEnvs map[string]string
+
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
 	InteractiveCommand bool
@@ -970,7 +974,7 @@ type TeleportClient struct {
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
+	// Defaults to [dtauthn.NewCeremony().Run].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
 
 	// dtAutoEnroll allows tests to override the default device auto-enroll
@@ -2666,6 +2670,10 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
 	}
+
+	for key, val := range tc.extraEnvs {
+		env[key] = val
+	}
 	return env
 }
 
@@ -3404,7 +3412,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.RunCeremony
+		runCeremony = dtauthn.NewCeremony().Run
 	}
 
 	// Login without a previous auto-enroll attempt.
