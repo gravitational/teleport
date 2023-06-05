@@ -1,6 +1,6 @@
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 FROM centos:7 AS libbpf
 

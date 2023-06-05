@@ -4049,6 +4049,52 @@ func (a *ServerWithRoles) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetServerInfos returns a stream of ServerInfos.
+func (a *ServerWithRoles) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.ServerInfo](trace.Wrap(err))
+	}
+
+	return a.authServer.GetServerInfos(ctx)
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (a *ServerWithRoles) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info, err := a.authServer.GetServerInfo(ctx, name)
+	return info, trace.Wrap(err)
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (a *ServerWithRoles) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertServerInfo(ctx, si))
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (a *ServerWithRoles) DeleteServerInfo(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteServerInfo(ctx, name))
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
+}
+
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4494,9 +4540,9 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	if session.GetSubKind() != types.KindSAMLIdPSession {
 		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
 	}
-	// Users can only fetch their own SAML IdP sessions.
+	// Users can only fetch their own web sessions or the proxy can fetch all web sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindSAMLIdPSession, types.VerbRead); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4584,8 +4630,11 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 
 // CreateSAMLIdPSession creates a SAML IdP session.
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a proxy service.
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
@@ -6125,6 +6174,15 @@ func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.
 	}
 
 	return a.authServer.GetAssistantMessages(ctx, req)
+}
+
+// DeleteAssistantConversation deletes a conversation by ID.
+func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.

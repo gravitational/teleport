@@ -20,11 +20,9 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
-import useWebSocket from 'react-use-websocket';
-
-import { useParams } from 'react-router';
 
 import Logger from 'shared/libs/logger';
 
@@ -112,6 +110,22 @@ const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   return query;
 };
 
+const ROOT_LOGINS = ['root', 'ec2-user', 'ubuntu', 'admin', 'centos'];
+
+export function sortLoginsWithRootLoginsLast(logins: string[]): string[] {
+  return logins.sort((a, b) => {
+    if (ROOT_LOGINS.includes(a) && !ROOT_LOGINS.includes(b)) {
+      return 1;
+    }
+
+    if (!ROOT_LOGINS.includes(a) && ROOT_LOGINS.includes(b)) {
+      return -1;
+    }
+
+    return a.localeCompare(b);
+  });
+}
+
 export const remoteCommandToMessage = async (
   execCmd: ExecuteRemoteCommandContent,
   clusterId: string
@@ -146,12 +160,16 @@ export const remoteCommandToMessage = async (
     let avLogin = execCmd.selectedLogin;
     if (!avLogin) {
       // If the login has not been selected, use the first one.
-      avLogin = availableLogins ? availableLogins[0] : '';
+      avLogin = availableLogins
+        ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+        : '';
     } else {
       // If the login has been selected, check if it is available.
       // Updated query could have changed the available logins.
       if (!availableLogins.includes(avLogin)) {
-        avLogin = availableLogins ? availableLogins[0] : '';
+        avLogin = availableLogins
+          ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+          : '';
       }
     }
 
@@ -351,12 +369,13 @@ export async function setConversationTitle(
   });
 }
 
+const TEN_MINUTES = 10 * 60 * 1000;
+
 const logger = Logger.create('assist');
 
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
-  const { conversationId } = useParams<{ conversationId: string }>();
   const { clusterId } = useStickyClusterId();
 
   const [error, setError] = useState<string>(null);
@@ -364,17 +383,60 @@ export function MessagesContextProvider(
   const [responding, setResponding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = cfg.getAssistConversationWebSocketUrl(
-    getHostName(),
-    clusterId,
-    getAccessToken(),
-    props.conversationId
-  );
+  const webSocketRef = useRef<WebSocket>(null);
 
-  const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
-    share: true, // when share is false the websocket tends to disconnect
-    retryOnError: true,
-  });
+  const setupWebSocket = useCallback(() => {
+    if (webSocketRef.current) {
+      webSocketRef.current.close();
+    }
+
+    const socketUrl = cfg.getAssistConversationWebSocketUrl(
+      getHostName(),
+      clusterId,
+      getAccessToken(),
+      props.conversationId
+    );
+
+    webSocketRef.current = new WebSocket(socketUrl);
+
+    webSocketRef.current.onmessage = async (event: MessageEvent) => {
+      const value = JSON.parse(event.data) as ServerMessage;
+
+      // When a streaming message ends, or a non-streaming message arrives
+      if (
+        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
+        value.type === 'COMMAND' ||
+        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
+        value.type === 'CHAT_MESSAGE_ERROR'
+      ) {
+        setResponding(false);
+      }
+
+      convertServerMessage(value, clusterId).then(res => {
+        setMessages(prev => {
+          const curr = [...prev];
+          res(curr);
+          return curr;
+        });
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    setupWebSocket();
+
+    // refresh the websocket connection every 10 minutes to avoid
+    // session timeouts
+    const id = window.setInterval(setupWebSocket, TEN_MINUTES * 0.8);
+
+    return () => {
+      window.clearInterval(id);
+
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+      }
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setMessages([]);
@@ -412,30 +474,6 @@ export function MessagesContextProvider(
     })();
   }, [props.conversationId]);
 
-  useEffect(() => {
-    if (lastMessage !== null) {
-      const value = JSON.parse(lastMessage.data) as ServerMessage;
-
-      // When a streaming message ends, or a non-streaming message arrives
-      if (
-        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
-        value.type === 'COMMAND' ||
-        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
-        value.type === 'CHAT_MESSAGE_ERROR'
-      ) {
-        setResponding(false);
-      }
-
-      convertServerMessage(value, clusterId).then(res => {
-        setMessages(prev => {
-          const curr = [...prev];
-          res(curr);
-          return curr;
-        });
-      });
-    }
-  }, [lastMessage, setMessages, conversationId]);
-
   const send = useCallback(
     async (message: string) => {
       setResponding(true);
@@ -453,7 +491,8 @@ export function MessagesContextProvider(
       setMessages(newMessages);
 
       const data = JSON.stringify({ payload: message });
-      sendMessage(data);
+
+      webSocketRef.current.send(data);
     },
     [messages]
   );
