@@ -874,7 +874,14 @@ func (a *dbAuth) GetAWSIAMCreds(ctx context.Context, sessionCtx *Session) (strin
 		return "", "", "", trace.Wrap(err)
 	}
 
-	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, dbAWS.ExternalID))
+	// ExternalID should only be used once. If the baseSession assumes a role,
+	// the chained sessions should have an empty external ID.
+	awsExternalID := ""
+	if dbAWS.AssumeRoleARN == "" {
+		awsExternalID = dbAWS.ExternalID
+	}
+
+	sess, err := a.cfg.Clients.GetAWSSession(ctx, dbAWS.Region, cloud.WithChainedAssumeRole(baseSession, arn, awsExternalID))
 	if err != nil {
 		return "", "", "", trace.Wrap(err)
 	}

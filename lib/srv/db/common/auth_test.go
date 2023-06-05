@@ -582,6 +582,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 		username             string
 		expectedKeyId        string
 		expectedAssumedRoles []string
+		expectedExternalIDs  []string
 		expectErr            require.ErrorAssertionFunc
 	}{
 		"username is full role ARN": {
@@ -590,6 +591,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 			username:             "arn:aws:iam::123456789012:role/role-name",
 			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
+			expectedExternalIDs:  []string{""},
 			expectErr:            require.NoError,
 		},
 		"username is partial role ARN": {
@@ -601,6 +603,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 			username:             "role/role-name",
 			expectedKeyId:        "arn:aws:iam::222222222222:role/role-name",
 			expectedAssumedRoles: []string{"arn:aws:iam::222222222222:role/role-name"},
+			expectedExternalIDs:  []string{""},
 			expectErr:            require.NoError,
 		},
 		"unable to fetch account ID": {
@@ -625,7 +628,8 @@ func TestGetAWSIAMCreds(t *testing.T) {
 				"arn:aws:iam::222222222222:role/teleport-service-role-external",
 				"arn:aws:iam::222222222222:role/role-name",
 			},
-			expectErr: require.NoError,
+			expectedExternalIDs: []string{"123123", ""},
+			expectErr:           require.NoError,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -645,6 +649,7 @@ func TestGetAWSIAMCreds(t *testing.T) {
 			tt.expectErr(t, err)
 			require.Equal(t, tt.expectedKeyId, keyId)
 			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
+			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsMock.GetAssumedRoleExternalIDs())
 		})
 	}
 }
