@@ -129,7 +129,6 @@ resource "teleport_role" "developer" {
     }
   }
 }
-
 ```
 
 [Get started with the Terraform provider](./dynamic-configuration/terraform-provider.mdx).
@@ -212,6 +211,12 @@ static configuration file:
 |`spec.routing_strategy`|`auth_service.routing_strategy`|
 |`spec.tunnel_strategy`|`auth_service.tunnel_strategy`|
 |`spec.proxy_ping_interval`|`auth_service.proxy_ping_interval`|
+
+#### `ui_config`
+
+|Dynamic resource field|Static configuration field|
+|---|---|
+|`spec.scrollback_lines`|`proxy_service.ui.scrollback_lines`|
 
 ### Origin labels
 
