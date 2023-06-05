@@ -116,14 +116,16 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 
 	go h.runWatchLoop(ctx)
 
-	// Wait for the watch loop to initialize before returning.
+	return h, nil
+}
+
+// WaitInit waits for the watch loop to initialize.
+func (h *HeadlessAuthenticationWatcher) WaitInit(ctx context.Context) error {
 	select {
 	case <-h.running:
 	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
 	}
-
-	return h, nil
+	return trace.Wrap(ctx.Err())
 }
 
 // Done returns a channel that's closed when the watcher is closed.
