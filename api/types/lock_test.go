@@ -70,4 +70,45 @@ func TestLockTargetMatch(t *testing.T) {
 	// Empty target should match no lock.
 	emptyTarget := LockTarget{}
 	require.False(t, emptyTarget.Match(lock))
+	// Test that we still support old locks with only Node field set and that
+	// it only applies to nodes.
+	// For Nodes, LockTarget Node and ServerID fields are both set at the same
+	// time.
+	targetNode := LockTarget{
+		ServerID: "node-uuid",
+		Node:     "node-uuid",
+	}
+	// Create a lock with only Node field set (old lock).
+	lockNode, err := NewLock("some-lock", LockSpecV2{
+		Target: LockTarget{
+			Node: "node-uuid",
+		},
+	},
+	)
+	require.NoError(t, err)
+	// Test that the old lock with only Node field set matches a target generated
+	// from a Node identity (Node and ServerID fields set)
+	require.True(t, targetNode.Match(lockNode))
+
+	// Old locks with Node field should not match new lock targets with ServerID field
+	// set but Node field unset.
+	targetServerID := LockTarget{
+		ServerID: "node-uuid",
+	}
+
+	require.False(t, targetServerID.Match(lockNode))
+
+	// Test if locks with ServerID apply to nodes and other locks with ServerID.
+	lockServerID, err := NewLock("some-lock", LockSpecV2{
+		Target: LockTarget{
+			ServerID: "node-uuid",
+		},
+	},
+	)
+	require.NoError(t, err)
+	// Test that a lock with ServerID field set matches a target generated from a
+	// Node identity (Node and ServerID fields set)
+	require.True(t, targetNode.Match(lockServerID))
+	// Test that a lock with ServerID field set matches any target with ServerID.
+	require.True(t, targetServerID.Match(lockServerID))
 }
