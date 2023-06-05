@@ -88,32 +88,33 @@ export function RequestView({
           minWidth="515px"
           maxWidth="860px"
           flex="1 1 auto"
-          css={`
-            box-shadow: ${props => props.theme.boxShadow[0]};
-          `}
         >
-          {/* First half of this box contains status, roles, expiry, and delete btn */}
-          <Flex
-            p={3}
-            borderTopLeftRadius={2}
-            borderTopRightRadius={2}
+          <Box
             css={`
-              background: ${props =>
-                props.theme.name === 'light'
-                  ? props.theme.colors.spotBackground[0]
-                  : props.theme.colors.levels.elevated};
+              box-shadow: ${props => props.theme.boxShadow[0]};
             `}
           >
-            <Flex alignItems="center">
-              <StateLabel
-                state={request.state}
-                mr={3}
-                px={3}
-                py={1}
-                style={{ fontWeight: 'bold' }}
-              />
-              <Flex flexWrap="wrap" mb={1}>
-                <Flex mt={1} alignItems="center">
+            {/* First half of this box contains status, roles, expiry, and delete btn */}
+            <Flex
+              p={3}
+              borderTopLeftRadius={2}
+              borderTopRightRadius={2}
+              css={`
+                background: ${props =>
+                  props.theme.name === 'light'
+                    ? props.theme.colors.spotBackground[0]
+                    : props.theme.colors.levels.elevated};
+              `}
+            >
+              <Flex alignItems="center">
+                <StateLabel
+                  state={request.state}
+                  mr={3}
+                  px={3}
+                  py={1}
+                  style={{ fontWeight: 'bold' }}
+                />
+                <Flex flexWrap="wrap" alignItems="center">
                   <Text
                     mr={1}
                     typography="body2"
@@ -135,56 +136,56 @@ export function RequestView({
                   >
                     is requesting roles:
                   </Text>
+                  <RolesRequested roles={request.roles} />
                 </Flex>
-                <RolesRequested roles={request.roles} />
+              </Flex>
+              <Flex
+                alignItems="center"
+                justifyContent="flex-end"
+                flexWrap="wrap-reverse"
+                flex="1"
+              >
+                <Text typography="body2" style={{ whiteSpace: 'nowrap' }}>
+                  (expires in {request.expiresDuration})
+                </Text>
+                <ButtonBorder
+                  disabled={!flags.canDelete}
+                  onClick={toggleConfirmDelete}
+                  size="small"
+                  width="60px"
+                  ml={3}
+                >
+                  Delete
+                </ButtonBorder>
               </Flex>
             </Flex>
-            <Flex
-              alignItems="center"
-              justifyContent="flex-end"
-              flexWrap="wrap-reverse"
-              flex="1"
+            {/* Second half of this box contains timestamp & comments*/}
+            <Box
+              bg="levels.surface"
+              p={4}
+              pt={0}
+              borderBottomLeftRadius={2}
+              borderBottomRightRadius={2}
+              style={{ position: 'relative' }}
             >
-              <Text typography="body2" style={{ whiteSpace: 'nowrap' }}>
-                (expires in {request.expiresDuration})
-              </Text>
-              <ButtonBorder
-                disabled={!flags.canDelete}
-                onClick={toggleConfirmDelete}
-                size="small"
-                width="60px"
-                ml={3}
-              >
-                Delete
-              </ButtonBorder>
-            </Flex>
-          </Flex>
-          {/* Second half of this box contains timestamp & comments*/}
-          <Box
-            bg="levels.surface"
-            p={4}
-            pt={0}
-            borderBottomLeftRadius={2}
-            borderBottomRightRadius={2}
-            style={{ position: 'relative' }}
-          >
-            <Timeline />
-            <RequestorTimestamp
-              user={request.user}
-              reason={request.requestReason}
-              createdDuration={request.createdDuration}
-              resources={request.resources}
-            />
-            {request.reviews.length > 0 && (
-              <Reviews reviews={request.reviews} />
-            )}
-            {flags.canReview && (
-              <RequestReview
-                submitReview={submitReview}
-                user={user}
-                attempt={reviewAttempt}
+              <Timeline />
+              <RequestorTimestamp
+                user={request.user}
+                reason={request.requestReason}
+                createdDuration={request.createdDuration}
+                resources={request.resources}
               />
-            )}
+              {request.reviews.length > 0 && (
+                <Reviews reviews={request.reviews} />
+              )}
+              {flags.canReview && (
+                <RequestReview
+                  submitReview={submitReview}
+                  user={user}
+                  attempt={reviewAttempt}
+                />
+              )}
+            </Box>
           </Box>
           {flags.canAssume && (
             <ButtonPrimary
@@ -510,6 +511,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
 
 const StyledTable = styled(Table)`
   width: 90%;
+
   & > tbody > tr > td {
     vertical-align: middle;
   }

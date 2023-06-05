@@ -27,7 +27,7 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
       bg="brand"
       borderTop={1}
       css={`
-        border-color: ${props => props.theme.colors.spotBackground[0]};
+        border-color: ${props => props.theme.colors.spotBackground[1]};
       `}
     >
       <Flex justifyContent="space-between" alignItems="center">
@@ -37,8 +37,8 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
             py={1}
             px={3}
             mr={2}
-            color="text.primaryInverse"
-            bg="light"
+            color="text.primary"
+            bg="text.primaryInverse"
             style={{
               fontWeight: '500',
               overflow: 'hidden',

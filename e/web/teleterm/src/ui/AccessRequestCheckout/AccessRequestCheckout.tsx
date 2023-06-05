@@ -78,7 +78,7 @@ export function AccessRequestCheckout() {
           `}
         >
           <Flex justifyContent="space-between" alignItems="center">
-            <Text typography="h4" color="light" bold>
+            <Text typography="h4" bold>
               {data.length} {pluralize(data.length, 'Resource')} Selected
             </Text>
             <Flex gap={3}>

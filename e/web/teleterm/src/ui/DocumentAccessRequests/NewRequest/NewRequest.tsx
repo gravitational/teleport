@@ -4,6 +4,7 @@ import styled from 'styled-components';
 
 import { Box, Flex, Alert } from 'design';
 import { space, width } from 'design/system';
+import { StyledTableWrapper } from 'design/DataTable';
 
 import { SearchPanel, SearchPagination } from 'shared/components/Search';
 import { ResourceList } from 'e-teleport/Workflow/NewRequest/ResourceList';
@@ -50,6 +51,7 @@ export function NewRequest() {
     nextPage,
     agents,
   } = useNewRequest();
+
   function handleUpdateSelectedResource(kind: ResourceKind) {
     const numAddedAgents =
       Object.keys(addedResources.node).length +
@@ -103,28 +105,30 @@ export function NewRequest() {
             </StyledNavButton>
           ))}
         </Flex>
-        <SearchPanel
-          updateQuery={updateQuery}
-          updateSearch={updateSearch}
-          pageIndicators={pageCount}
-          filter={agentFilter}
-          showSearchBar={true}
-          disableSearch={fetchStatus === 'loading'}
-        />
-        <ResourceList
-          agents={agents}
-          selectedResource={selectedResource}
-          customSort={customSort}
-          onLabelClick={onAgentLabelClick}
-          addedResources={addedResources}
-          addOrRemoveResource={addOrRemoveResource}
-          requestableRoles={requestableRoles}
-          disableRows={fetchStatus === 'loading'}
-        />
-        <SearchPagination
-          nextPage={fetchStatus === 'loading' ? null : nextPage}
-          prevPage={fetchStatus === 'loading' ? null : prevPage}
-        />
+        <StyledTableWrapper borderRadius={3}>
+          <SearchPanel
+            updateQuery={updateQuery}
+            updateSearch={updateSearch}
+            pageIndicators={pageCount}
+            filter={agentFilter}
+            showSearchBar={true}
+            disableSearch={fetchStatus === 'loading'}
+          />
+          <ResourceList
+            agents={agents}
+            selectedResource={selectedResource}
+            customSort={customSort}
+            onLabelClick={onAgentLabelClick}
+            addedResources={addedResources}
+            addOrRemoveResource={addOrRemoveResource}
+            requestableRoles={requestableRoles}
+            disableRows={fetchStatus === 'loading'}
+          />
+          <SearchPagination
+            nextPage={fetchStatus === 'loading' ? null : nextPage}
+            prevPage={fetchStatus === 'loading' ? null : prevPage}
+          />
+        </StyledTableWrapper>
       </StyledMain>
     </Layout>
   );
@@ -145,7 +149,7 @@ const Layout = styled(Box)`
 const StyledNavButton = styled.button(props => {
   return {
     color: props.active
-      ? props.theme.colors.light
+      ? props.theme.colors.text.main
       : props.theme.colors.text.slightlyMuted,
     cursor: 'pointer',
     display: 'inline-flex',
@@ -171,8 +175,6 @@ const StyledNavButton = styled.button(props => {
 });
 
 const StyledMain = styled.div`
-  width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   flex: 1;
