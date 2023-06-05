@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -36,6 +37,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
+
+// alpnHandshakeTestIOTimeout specifies the IO timeout used for
+// IsALPNConnUpgradeRequired.
+const alpnHandshakeTestIOTimeout = 5 * time.Second
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
 // connection upgrade for ALPN connections.
@@ -48,19 +53,28 @@ import (
 // In those cases, the Teleport client should make a HTTP "upgrade" call to the
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
-func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+func IsALPNConnUpgradeRequired(addr string, insecure bool, opts ...DialOption) bool {
 	if result, ok := OverwriteALPNConnUpgradeRequirementByEnv(addr); ok {
 		return result
 	}
 
-	netDialer := &net.Dialer{
-		Timeout: defaults.DefaultIOTimeout,
-	}
+	// Use NewDialer which takes care of ProxyURL, and use a shorter I/O
+	// timeout to avoid blocking caller.
+	baseDialer := NewDialer(
+		context.Background(),
+		defaults.DefaultIdleTimeout,
+		alpnHandshakeTestIOTimeout,
+		append(opts,
+			WithInsecureSkipVerify(insecure),
+			WithALPNConnUpgrade(false),
+		)...,
+	)
+
 	tlsConfig := &tls.Config{
 		NextProtos:         []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
-	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
+	testConn, err := tlsutils.TLSDial(context.TODO(), baseDialer, "tcp", addr, tlsConfig)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
 			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
