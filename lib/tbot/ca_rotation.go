@@ -89,11 +89,12 @@ type channelBroadcaster struct {
 	chanSet map[chan struct{}]struct{}
 }
 
-func (cb *channelBroadcaster) subscribe() (chan struct{}, func()) {
+func (cb *channelBroadcaster) subscribe() (ch chan struct{}, unsubscribe func()) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	ch := make(chan struct{}, 1)
+	ch = make(chan struct{}, 1)
 	cb.chanSet[ch] = struct{}{}
+	// Returns a function that should be called to unsubscribe the channel
 	return ch, func() {
 		cb.mu.Lock()
 		defer cb.mu.Unlock()
