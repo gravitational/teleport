@@ -20,11 +20,14 @@ import (
 	"fmt"
 )
 
+// invalidOutputError represents an error caused by the output of an LLM.
+// These may be used automatically by the agent loop to attempt to correct an output until it is valid.
 type invalidOutputError struct {
 	coarse string
 	detail string
 }
 
+// newInvalidOutputErrorWithParseError creates a new invalidOutputError assuming a JSON parse error.
 func newInvalidOutputErrorWithParseError(err error) *invalidOutputError {
 	return &invalidOutputError{
 		coarse: "json parse error",
@@ -32,6 +35,7 @@ func newInvalidOutputErrorWithParseError(err error) *invalidOutputError {
 	}
 }
 
+// Error returns a string representation of the error. This is used to satisfy the error interface.
 func (o *invalidOutputError) Error() string {
 	return fmt.Sprintf("%v: %v", o.coarse, o.detail)
 }

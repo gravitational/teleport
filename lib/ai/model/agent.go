@@ -68,7 +68,7 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
-	shouldExit := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }
+	tookTooLong := func() bool { return iterations > maxIterations || time.Since(start) > maxElapsedTime }
 	tokensUsed := newTokensUsed_Cl100kBase()
 	state := &executionState{
 		llm:               llm,
@@ -84,7 +84,7 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 
 		// This is intentionally not context-based, as we want to finish the current step before exiting
 		// and the concern is not that we're stuck but that we're taking too long over multiple iterations.
-		if shouldExit() {
+		if tookTooLong() {
 			return nil, trace.Errorf("timeout: agent took too long to finish")
 		}
 

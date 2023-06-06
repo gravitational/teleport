@@ -55,12 +55,19 @@ type CompletionCommand struct {
 	Labels  []Label  `json:"labels,omitempty"`
 }
 
+// TokensUsed is used to track the number of tokens used during a single invocation of the agent.
 type TokensUsed struct {
-	tokenizer  tokenizer.Codec
-	Prompt     int
+	tokenizer tokenizer.Codec
+
+	// Prompt is the number of prompt-class tokens used.
+	Prompt int
+
+	// Completion is the number of completion-class tokens used.
 	Completion int
 }
 
+// newTokensUsed_Cl100kBase creates a new TokensUsed instance with a Cl100kBase tokenizer.
+// This tokenizer is used by GPT-3 and GPT-4.
 func newTokensUsed_Cl100kBase() *TokensUsed {
 	return &TokensUsed{
 		tokenizer:  codec.NewCl100kBase(),
@@ -69,6 +76,7 @@ func newTokensUsed_Cl100kBase() *TokensUsed {
 	}
 }
 
+// AddTokens updates TokensUsed with the tokens used for a single call to an LLM.
 func (t *TokensUsed) AddTokens(prompt []openai.ChatCompletionMessage, completion string) error {
 	for _, message := range prompt {
 		promptTokens, _, err := t.tokenizer.Encode(message.Content)

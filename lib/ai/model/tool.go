@@ -23,18 +23,24 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Tool is an interface that allows the agent to interact with the outside world.
+// It is used to implement things such as vector document retrieval and command execution.
 type Tool interface {
 	Name() string
 	Description() string
 	Run(ctx context.Context, input string) (string, error)
 }
-
 type commandExecutionTool struct{}
 
 type commandExecutionToolInput struct {
-	Command string   `json:"command"`
-	Nodes   []string `json:"nodes"`
-	Labels  []Label  `json:"labels"`
+	// Command is a unix command to execute.
+	Command string `json:"command"`
+
+	// Nodes is a list of hostnames to execute the command on.
+	Nodes []string `json:"nodes"`
+
+	// Labels is a list of labels specifying node groups to execute the command on.
+	Labels []Label `json:"labels"`
 }
 
 func (c *commandExecutionTool) Name() string {
@@ -56,6 +62,11 @@ The input must be a JSON object with the following schema:
 }
 
 func (c *commandExecutionTool) Run(ctx context.Context, input string) (string, error) {
+	// This is stubbed because commandExecutionTool is handled specially.
+	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
+	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
+	//
+	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
 	return "", trace.NotImplemented("not implemented")
 }
 
