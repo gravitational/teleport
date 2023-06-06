@@ -43,7 +43,7 @@
       (system:
         let
           # These versions are not available from nixpkgs
-          golangciLintVersion = "v1.53.1";
+          golangciLintVersion = "v1.53.2";
           rustVersion = "1.68.0";
           gogoVersion = "v1.3.2";
           helmUnittestVersion = "v1.0.16";
@@ -164,6 +164,22 @@
             protoc-gen-gogo = protoc-gen-gogo;
             grpc-tools = grpc-tools;
             rust = rust;
+
+            default = pkgs.stdenv.mkDerivation {
+              name = "all";
+              dontUnpack = true;
+              buildPhase = ''
+                mkdir "$out"
+              '';
+
+              propagatedBuildInputs = [
+                helm
+                golangci-lint
+                protoc-gen-gogo
+                grpc-tools
+                rust
+              ] ++ conditionalInputs;
+            };
           };
       });
 }
