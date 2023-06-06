@@ -2488,6 +2488,73 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh ssh session env", func(t *testing.T) {
+		t.Run("ignore ssh session env without headless", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: false,
+			},
+		}))
+		t.Run("use ssh session env with headless cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+		t.Run("use ssh session env with headless auth connector cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+				Proxy:         "proxy.example.com",
+				Username:      "alice",
+				SiteName:      "root-cluster",
+			},
+		}))
+		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "other.example.com",
+				teleport.SSHTeleportUser:        "bob",
+				teleport.SSHTeleportClusterName: "leaf-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
