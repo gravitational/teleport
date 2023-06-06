@@ -149,6 +149,18 @@ func (b *Bot) Run(ctx context.Context) error {
 		defer unsubscribe()
 		return trace.Wrap(b.renewDestinationsLoop(egCtx, reloadCh))
 	})
+	if b.cfg.ReloadCh != nil {
+		eg.Go(func() error {
+			for {
+				select {
+				case <-egCtx.Done():
+					return nil
+				case <-b.cfg.ReloadCh:
+					reloadBroadcast.broadcast()
+				}
+			}
+		})
+	}
 	if b.cfg.Debug && b.cfg.DiagAddr != "" {
 		eg.Go(func() error {
 			b.log.WithField("addr", b.cfg.DiagAddr).Info(

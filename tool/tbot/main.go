@@ -233,7 +233,10 @@ func onConfigure(
 func onStart(botConfig *config.BotConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go handleSignals(log, cancel)
+
+	reloadCh := make(chan struct{})
+	botConfig.ReloadCh = reloadCh
+	go handleSignals(log, cancel, reloadCh)
 
 	telemetrySentCh := make(chan struct{})
 	go func() {
@@ -277,16 +280,23 @@ func onStart(botConfig *config.BotConfig) error {
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc) {
+func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	for signal := range signals {
-		switch signal {
+	for sig := range signals {
+		switch sig {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, canceling...")
+			log.Info("Received interrupt, triggering shutdown.")
 			cancel()
 			return
+		case syscall.SIGHUP, syscall.SIGUSR1:
+			log.Info("Received reload signal, queueing reload.")
+			select {
+			case reloadCh <- struct{}{}:
+			default:
+				log.Warn("Unable to queue reload, reload already queued.")
+			}
 		}
 	}
 }

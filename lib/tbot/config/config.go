@@ -257,6 +257,10 @@ type BotConfig struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
+
+	// ReloadCh allows a channel to be injected into the bot to trigger a
+	// renewal.
+	ReloadCh <-chan struct{} `yaml:"-"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
