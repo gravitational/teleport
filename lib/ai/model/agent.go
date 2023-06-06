@@ -34,16 +34,19 @@ const (
 	maxElapsedTime    = 5 * time.Minute
 )
 
+// AssistAgent is a global instance of the Assist agent which defines the model responsible for the Assist feature.
 var AssistAgent = &Agent{
 	tools: []Tool{
 		&commandExecutionTool{},
 	},
 }
 
+// Agent is a model storing static state which defines some properties of the chat model.
 type Agent struct {
 	tools []Tool
 }
 
+// AgentAction is a decision to take a single action, typically a tool invocation.
 type AgentAction struct {
 	action string
 	input  string
@@ -264,6 +267,9 @@ func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observation
 	return thoughts
 }
 
+// parseJSONFromModel parses a JSON object from the model output and attempts to sanitize contaminant text
+// to avoid triggering self-correction due to some natural language being bundled with the JSON.
+// The output type is generic and thus the structure of the expected JSON varies depending on T.
 func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	cleaned := strings.TrimSpace(text)
 	if strings.Contains(cleaned, "```json") {
