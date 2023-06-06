@@ -634,12 +634,16 @@
               "slug": "/management/join-services-to-your-cluster/azure/"
             },
             {
-              "title": "Joining Services via Kubernetes ServiceAccount",
+              "title": "Via Kubernetes ServiceAccount",
               "slug": "/management/join-services-to-your-cluster/kubernetes/",
               "forScopes": [
                 "oss",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Via GCP",
+              "slug": "/management/join-services-to-your-cluster/gcp/"
             },
             {
               "title": "Via a Join Token",
