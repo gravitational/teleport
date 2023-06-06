@@ -1265,6 +1265,7 @@ exports[`loaded with CTA 1`] = `
         height="36px"
         href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
+        rel="noreferrer"
         style="text-transform: none;"
         target="blank"
         width="100%"
