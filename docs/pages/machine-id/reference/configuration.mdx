@@ -24,7 +24,8 @@ renewal_interval: "1m"
 # If set, quit after the first renewal.
 oneshot: true
 
-# Onboarding values are only used on first connect.
+# Onboarding values are used on first connect for token joining, and used for
+# each renewal when using delegated joining methods (e.g IAM).
 onboarding:
     # Cluster join method. Can be "token" or "iam".
     join_method: "token"
@@ -47,16 +48,12 @@ onboarding:
         - "(=presets.ca_pin=)"
         - "(=presets.ca_pin=)"
 
-# Storage defines where Machine ID internal data is stored.
+# Storage defines the destination where Machine ID internal data is stored.
 storage:
+    type: directory
     # Directory to store internal bot data. Access to this directory should be
-    # limited.
-    directory: /var/lib/teleport/bot
-    
-    # Alternatively, internal data can be stored in memory. "directory" and
-    # "memory" are mutually exclusive. Note that the bot will not be able to
-    # restart without a new token if data is only stored in memory.
-    memory: true
+    # limited. By default, this value is `/var/lib/teleport/bot`.
+    path: /var/lib/teleport/bot
 
 # Destinations specifies where short-lived certificates are stored.
 destinations:
@@ -157,4 +154,54 @@ storage:
 destinations:
     - directory:
           path: ./tbot-user
+```
+
+## Outputs
+
+### `identity`
+
+### `application`
+
+### `database`
+
+### `kubernetes`
+
+### `ssh_host`
+
+## Destinations
+
+### `directory`
+
+```yaml
+# For a directory destination, type will always be `directory`.
+type: directory
+
+# Configure the path at which to store certificates and other
+# artifacts.
+path: /opt/machine-id
+
+# Configure symlink attack prevention. Requires Linux 5.6+.
+# Possible values:
+#   * try-secure (default): Attempt to securely read and write certificates
+#     without symlinks, but fall back (with a warning) to insecure read
+#     and write if the host doesn't support this.
+#   * secure: Attempt to securely read and write certificates, with a hard error
+#     if unsupported.
+#   * insecure: Quietly allow symlinks in paths.
+symlinks: try-secure
+# Configure ACL use. Requires Linux with a file system that supports ACLs.
+# Possible values:
+#   * try (default on Linux): Attempt to use ACLs, warn at runtime if ACLs
+#     are configured but invalid.
+#   * off (default on non-Linux): Do not attempt to use ACLs.
+#   * required: Always use ACLs, produce a hard error at runtime if ACLs
+#     are invalid.
+acls: try
+```
+
+### `memory`
+
+```yaml
+# For a memory destination, type will always be `directory`.
+type: memory
 ```

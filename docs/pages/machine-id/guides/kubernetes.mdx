@@ -161,7 +161,8 @@ onboarding:
   ca_pins:
   - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
-  directory: /var/lib/teleport/bot
+  type: directory
+  path: /var/lib/teleport/bot
 destinations:
   - directory: /opt/machine-id
     kubernetes_cluster: example-k8s-cluster
