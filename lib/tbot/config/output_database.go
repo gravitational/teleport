@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
@@ -81,7 +82,9 @@ func (o *DatabaseOutput) templates() []template {
 		templates = append(templates, &templateCockroach{})
 	}
 	if o.Subtype == StandardDatabaseSubtype {
-		templates = append(templates, &templateTLS{})
+		templates = append(templates, &templateTLS{
+			caCertType: types.HostCA,
+		})
 	}
 	return templates
 }
