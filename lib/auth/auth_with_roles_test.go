@@ -1208,47 +1208,149 @@ func BenchmarkListNodes(b *testing.B) {
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
-	var values []string
+	var ids []string
 	for i := 0; i < roleCount; i++ {
-		values = append(values, uuid.New().String())
+		ids = append(ids, uuid.New().String())
 	}
 
-	values[0] = "hidden"
+	ids[0] = "hidden"
 
 	var hiddenNodes int
 	// Create test nodes.
 	for i := 0; i < nodeCount; i++ {
 		name := uuid.New().String()
-		val := values[i%len(values)]
-		if val == "hidden" {
+		id := ids[i%len(ids)]
+		if id == "hidden" {
 			hiddenNodes++
 		}
 		node, err := types.NewServerWithLabels(
 			name,
 			types.KindNode,
 			types.ServerSpecV2{},
-			map[string]string{"key": val},
+			map[string]string{
+				"key":   id,
+				"group": "users",
+			},
 		)
 		require.NoError(b, err)
 
 		_, err = srv.Auth().UpsertNode(ctx, node)
 		require.NoError(b, err)
 	}
-
 	testNodes, err := srv.Auth().GetNodes(ctx, defaults.Namespace)
 	require.NoError(b, err)
 	require.Len(b, testNodes, nodeCount)
 
-	var roles []types.Role
-	for _, val := range values {
-		role, err := types.NewRole(fmt.Sprintf("role-%s", val), types.RoleSpecV6{})
-		require.NoError(b, err)
+	for _, tc := range []struct {
+		desc     string
+		editRole func(types.Role, string)
+	}{
+		{
+			desc: "simple labels",
+			editRole: func(r types.Role, id string) {
+				if id == "hidden" {
+					r.SetNodeLabels(types.Deny, types.Labels{"key": {id}})
+				} else {
+					r.SetNodeLabels(types.Allow, types.Labels{"key": {id}})
+				}
+			},
+		},
+		{
+			desc: "simple expression",
+			editRole: func(r types.Role, id string) {
+				if id == "hidden" {
+					err = r.SetLabelMatchers(types.Deny, types.KindNode, types.LabelMatchers{
+						Expression: `labels.key == "hidden"`,
+					})
+					require.NoError(b, err)
+				} else {
+					err := r.SetLabelMatchers(types.Allow, types.KindNode, types.LabelMatchers{
+						Expression: fmt.Sprintf(`labels.key == %q`, id),
+					})
+					require.NoError(b, err)
+				}
+			},
+		},
+		{
+			desc: "labels",
+			editRole: func(r types.Role, id string) {
+				r.SetNodeLabels(types.Allow, types.Labels{
+					"key":   {id},
+					"group": {"{{external.group}}"},
+				})
+				r.SetNodeLabels(types.Deny, types.Labels{"key": {"hidden"}})
+			},
+		},
+		{
+			desc: "expression",
+			editRole: func(r types.Role, id string) {
+				err := r.SetLabelMatchers(types.Allow, types.KindNode, types.LabelMatchers{
+					Expression: fmt.Sprintf(`labels.key == %q && contains(user.spec.traits["group"], labels["group"])`,
+						id),
+				})
+				require.NoError(b, err)
+				err = r.SetLabelMatchers(types.Deny, types.KindNode, types.LabelMatchers{
+					Expression: `labels.key == "hidden"`,
+				})
+				require.NoError(b, err)
+			},
+		},
+		{
+			desc: "complex labels",
+			editRole: func(r types.Role, id string) {
+				r.SetNodeLabels(types.Allow, types.Labels{
+					"key": {"other", id, "another"},
+					"group": {
+						`{{regexp.replace(external.group, "^(.*)$", "$1")}}`,
+						"{{email.local(external.email)}}",
+					},
+				})
+				r.SetNodeLabels(types.Deny, types.Labels{"key": {"hidden"}})
+			},
+		},
+		{
+			desc: "complex expression",
+			editRole: func(r types.Role, id string) {
+				expr := fmt.Sprintf(
+					`(labels.key == "other" || labels.key == %q || labels.key == "another") &&
+					 (contains(email.local(user.spec.traits["email"]), labels["group"]) ||
+						 contains(regexp.replace(user.spec.traits["group"], "^(.*)$", "$1"), labels["group"]))`,
+					id)
+				err := r.SetLabelMatchers(types.Allow, types.KindNode, types.LabelMatchers{
+					Expression: expr,
+				})
+				require.NoError(b, err)
+				err = r.SetLabelMatchers(types.Deny, types.KindNode, types.LabelMatchers{
+					Expression: `labels.key == "hidden"`,
+				})
+				require.NoError(b, err)
+			},
+		},
+	} {
+		b.Run(tc.desc, func(b *testing.B) {
+			benchmarkListNodes(
+				b, ctx,
+				nodeCount, roleCount, hiddenNodes,
+				srv,
+				ids,
+				tc.editRole,
+			)
+		})
+	}
+}
 
-		if val == "hidden" {
-			role.SetNodeLabels(types.Deny, types.Labels{"key": {val}})
-		} else {
-			role.SetNodeLabels(types.Allow, types.Labels{"key": {val}})
-		}
+func benchmarkListNodes(
+	b *testing.B, ctx context.Context,
+	nodeCount, roleCount, hiddenNodes int,
+	srv *TestTLSServer,
+	ids []string,
+	editRole func(r types.Role, id string),
+) {
+	var roles []types.Role
+	for _, id := range ids {
+		role, err := types.NewRole(fmt.Sprintf("role-%s", id), types.RoleSpecV6{})
+		require.NoError(b, err)
+		editRole(role, id)
 		roles = append(roles, role)
 	}
 
@@ -1256,6 +1358,12 @@ func BenchmarkListNodes(b *testing.B) {
 	username := "user"
 
 	user, err := CreateUser(srv.Auth(), username, roles...)
+	require.NoError(b, err)
+	user.SetTraits(map[string][]string{
+		"group": {"users"},
+		"email": {"test@example.com"},
+	})
+	err = srv.Auth().UpsertUser(user)
 	require.NoError(b, err)
 	identity := TestUser(user.GetName())
 	clt, err := srv.NewClient(identity)
