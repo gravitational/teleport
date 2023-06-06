@@ -287,7 +287,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	actualCsp := h.Get("Content-Security-Policy")
 	for k, v := range expectedCspVals {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Containsf(t, actualCsp, expectedCspSubString, "expected '%s' to contain '%s'", actualCsp, expectedCspSubString)
+		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
 
@@ -315,7 +315,7 @@ func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
 	actualCsp := h.Get("Content-Security-Policy")
 	for k, v := range expectedCspVals {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Containsf(t, actualCsp, expectedCspSubString, "expected '%s' to contain '%s'", actualCsp, expectedCspSubString)
+		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
 
@@ -341,6 +341,6 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 	actualCsp := h.Get("Content-Security-Policy")
 	for k, v := range expectedCspVals {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Containsf(t, actualCsp, expectedCspSubString, "expected '%s' to contain '%s'", actualCsp, expectedCspSubString)
+		require.Contains(t, actualCsp, expectedCspSubString)
 	}
 }
