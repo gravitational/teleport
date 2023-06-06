@@ -4017,10 +4017,7 @@ message LockSpecV2 {
 message LockTarget {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
-  // Device was introduced in Teleport 12 and it's reserved to avoid
-  // breaking changes.
-  reserved 8;
-  reserved "Device";
+
   // User specifies the name of a Teleport user.
   string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
 
