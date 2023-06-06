@@ -100,4 +100,26 @@ func init() {
 		}
 		return githubConnector, nil
 	})
+
+	// Register marshaler for Trusted Devices.
+	services.RegisterResourceMarshaler(types.KindDevice, func(resource types.Resource, opts ...services.MarshalOption) ([]byte, error) {
+		device, ok := resource.(*types.DeviceV1)
+		if !ok {
+			return nil, trace.BadParameter("expected Device, got %T", resource)
+		}
+		bytes, err := services.MarshalDevice(device)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+
+	// Register unmarshaler for Trusted Devices.
+	services.RegisterResourceUnmarshaler(types.KindDevice, func(bytes []byte, opts ...services.MarshalOption) (types.Resource, error) {
+		device, err := services.UnmarshalDevice(bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return device, nil
+	})
 }
