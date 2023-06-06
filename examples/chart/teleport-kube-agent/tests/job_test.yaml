@@ -13,19 +13,15 @@ tests:
       - containsDocument:
           kind: ServiceAccount
           apiVersion: v1
-          documentIndex: 0
       - containsDocument:
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
-          documentIndex: 1
       - containsDocument:
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
-          documentIndex: 2
       - containsDocument:
           kind: Job
           apiVersion: batch/v1
-          documentIndex: 3
 
   - it: should set securityContext in post-delete hook
     template: delete_hook.yaml
