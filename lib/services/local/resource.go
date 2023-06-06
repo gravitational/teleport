@@ -103,10 +103,6 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromProvisionToken(r)
 	case types.Lock:
 		item, err = itemFromLock(r)
-	case *types.DeviceV1:
-		// Return empty slice here as bootstrapping devices will be supported with
-		// enterprise resource bootstrapper.
-		return []backend.Item{}, nil
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
