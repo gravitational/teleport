@@ -106,6 +106,31 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 
 If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
 
+## `enterprise`
+
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
+
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  enterprise: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set enterprise=true
+  ```
+
+  </TabItem>
+</Tabs>
+
 ## `roleBindingName`
 
 | Type     | Default value | Required? |
