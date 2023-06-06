@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented (v13.2.0)
 ---
 
 # RFD 116 - RBAC Label Expressions
@@ -235,10 +235,33 @@ Ultimately, performance will be benchmarked for multiple scenarios with the goal
 of staying within 10% of the performance of the existing implementation.
 Benchmarks will be written comparing similar RBAC constraints written with both
 the existing label matchers and the new label expressions.
-Benchmarks will run `ListResources` with 50k unique (simulated) nodes, 64 unique
-roles, and 2k unique users.
+Benchmarks will run `ListResources` with 50k unique (simulated) nodes and 32
+unique roles.
 
-Benchmark results: TBD
+Benchmark results:
+
+```
+$ go test ./lib/auth -bench=. -run=^$ -v -benchtime 1x
+goos: darwin
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/auth
+cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
+BenchmarkListNodes
+BenchmarkListNodes/simple_labels
+BenchmarkListNodes/simple_labels-16                    1        1079886286 ns/op        525128104 B/op   8831939 allocs/op
+BenchmarkListNodes/simple_expression
+BenchmarkListNodes/simple_expression-16                1         770118479 ns/op        432667432 B/op   6514790 allocs/op
+BenchmarkListNodes/labels
+BenchmarkListNodes/labels-16                           1        1931843502 ns/op        741444360 B/op  15159333 allocs/op
+BenchmarkListNodes/expression
+BenchmarkListNodes/expression-16                       1        1040855282 ns/op        509643128 B/op   8120970 allocs/op
+BenchmarkListNodes/complex_labels
+BenchmarkListNodes/complex_labels-16                   1        2274376396 ns/op        792948904 B/op  17084107 allocs/op
+BenchmarkListNodes/complex_expression
+BenchmarkListNodes/complex_expression-16               1        1518800599 ns/op        738532920 B/op  12483748 allocs/op
+PASS
+ok      github.com/gravitational/teleport/lib/auth      11.679s
+```
 
 #### Caching
 
