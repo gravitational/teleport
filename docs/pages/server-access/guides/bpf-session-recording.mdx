@@ -81,6 +81,8 @@ library preloading, and environment variables may not be captured in session rec
 
 ### Linux distributions and supported kernels
 
+Teleport supports enhanced session recording with BPF on `amd64` and `arm64` architectures.
+
 | Distro name             | Distro version | Kernel Version |
 |:------------------------|:---------------|:---------------|
 | Ubuntu "Groovy Gorilla" | 20.10          | 5.8+           |
@@ -202,7 +204,7 @@ Events emitted via Enhanced Session Recording will include the
 If your Teleport cluster uses a file-based event log, you can examine your audit
 log on the Teleport Auth Service host.
 
-<Details title="Is my cluster using a file-based event log?" opened={false}>
+<Details title="Is my cluster using a file-based event log?">
 
 Teleport's session recordings backend is configured via the
 `teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme

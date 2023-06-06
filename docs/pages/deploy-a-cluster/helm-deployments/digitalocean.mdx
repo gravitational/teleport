@@ -16,7 +16,7 @@ cluster to Teleport.
 ## Prerequisites
 
 - DigitalOcean account.
-- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](https://goteleport.com/docs/installation/) client.
+- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](../../installation.mdx) client.
 
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
 
@@ -72,9 +72,9 @@ $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=b
 namespace/teleport-cluster labeled
 ```
 
-Obtain your Teleport Enterprise license file from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-"license" in the namespace you created:
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+Create a secret called "license" in the namespace you created:
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
@@ -246,7 +246,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
+- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

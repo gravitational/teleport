@@ -585,6 +585,13 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		default:
 			return trace.BadParameter("device trust mode %q not supported", dt.Mode)
 		}
+
+		// Ensure configured ekcert_allowed_cas are valid
+		for _, pem := range dt.EKCertAllowedCAs {
+			if err := isValidCertificatePEM(pem); err != nil {
+				return trace.BadParameter("device trust has invalid EKCert allowed CAs entry: %v", err)
+			}
+		}
 	}
 
 	// Make sure the IdP section is populated.
@@ -616,7 +623,7 @@ func (u *U2F) Check() error {
 		return trace.BadParameter("u2f configuration missing app_id")
 	}
 	for _, ca := range u.DeviceAttestationCAs {
-		if err := isValidAttestationCert(ca); err != nil {
+		if err := isValidCertificatePEM(ca); err != nil {
 			return trace.BadParameter("u2f configuration has an invalid attestation CA: %v", err)
 		}
 	}
@@ -661,7 +668,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 		w.AttestationAllowedCAs = u.DeviceAttestationCAs
 	default:
 		for _, pem := range w.AttestationAllowedCAs {
-			if err := isValidAttestationCert(pem); err != nil {
+			if err := isValidCertificatePEM(pem); err != nil {
 				return trace.BadParameter("webauthn allowed CAs entry invalid: %v", err)
 			}
 		}
@@ -669,7 +676,7 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 
 	// AttestationDeniedCAs.
 	for _, pem := range w.AttestationDeniedCAs {
-		if err := isValidAttestationCert(pem); err != nil {
+		if err := isValidCertificatePEM(pem); err != nil {
 			return trace.BadParameter("webauthn denied CAs entry invalid: %v", err)
 		}
 	}
@@ -677,8 +684,8 @@ func (w *Webauthn) CheckAndSetDefaults(u *U2F) error {
 	return nil
 }
 
-func isValidAttestationCert(certOrPath string) error {
-	_, err := tlsutils.ParseCertificatePEM([]byte(certOrPath))
+func isValidCertificatePEM(pem string) error {
+	_, err := tlsutils.ParseCertificatePEM([]byte(pem))
 	return err
 }
 
@@ -787,7 +794,9 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 }
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
+	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.

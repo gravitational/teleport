@@ -142,7 +142,7 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 
 	_, err = p.snsPublisher.Publish(ctx, &sns.PublishInput{
 		TopicArn: aws.String(p.topicARN),
-		Message:  aws.String(string(buf)),
+		Message:  aws.String(base64.StdEncoding.EncodeToString(buf)),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeS3Based)},
 		},

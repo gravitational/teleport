@@ -22,7 +22,7 @@ import '../assets/icomoon/style.css';
 const Icon = styled.span`
   display: inline-block;
   transition: color 0.3s;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   ${space} ${width} ${color} ${fontSize} ${lineHeight};
 `;
 

@@ -223,6 +223,7 @@ func ValidateDatabase(db types.Database) error {
 				db.GetName(), awsMeta.AssumeRoleARN, err)
 		}
 	}
+
 	return nil
 }
 
@@ -594,6 +595,18 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var subnets []string
+	if rdsInstance.DBSubnetGroup != nil {
+		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
+		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
+			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
+				continue
+			}
+			subnets = append(subnets, *s.SubnetIdentifier)
+		}
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
@@ -602,6 +615,7 @@ func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, 
 			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
 			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
 			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
+			Subnets:    subnets,
 		},
 	}, nil
 }
@@ -1086,12 +1100,21 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 		return nil, trace.Wrap(err)
 	}
 
+	// aws.StringValueSlice will return an empty slice is the input slice
+	// is empty, but when cloning protobuf messages a cloned empty slice
+	// will return nil. Keep this behavior so tests comparing cloned
+	// messages don't fail.
+	var userGroupIDs []string
+	if len(cluster.UserGroupIds) != 0 {
+		userGroupIDs = aws.StringValueSlice(cluster.UserGroupIds)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
 			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
+			UserGroupIDs:             userGroupIDs,
 			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
 		},
@@ -1234,7 +1257,6 @@ func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
 func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels := azureTagsToLabels(server.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = server.Location
 	labels[labelEngineVersion] = server.Properties.Version
 	return withLabelsFromAzureResourceID(labels, server.ID)
@@ -1255,7 +1277,6 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 // labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
 func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.RedisVersion)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1264,7 +1285,6 @@ func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, err
 // labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
 func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(cluster.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(cluster.Location)
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
 	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
@@ -1275,7 +1295,6 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 // server.
 func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1285,7 +1304,6 @@ func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) 
 // Azure Managed SQL server.
 func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
@@ -1293,7 +1311,6 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 // labelsFromAzureMySQLFlexServer creates database labels for the provided Azure MySQL flex server.
 func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 
@@ -1318,7 +1335,6 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 // labelsFromAzurePostgresFlexServer creates database labels for the provided Azure postgres flex server.
 func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1389,7 +1405,6 @@ func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endpoi
 // labelsFromAWSMetadata returns labels from provided AWS metadata.
 func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	if meta != nil {
 		labels[labelAccountID] = meta.AccountID
 		labels[labelRegion] = meta.Region

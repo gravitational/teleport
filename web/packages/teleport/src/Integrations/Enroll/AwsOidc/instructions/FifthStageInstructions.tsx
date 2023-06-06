@@ -17,7 +17,7 @@
 import React from 'react';
 
 import Text from 'design/Text';
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 import Box from 'design/Box';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -32,7 +32,10 @@ export function FifthStageInstructions(props: CommonInstructionsProps) {
     "Statement": [
         {
             "Effect": "Allow",
-            "Action": "rds:DescribeDBInstances",
+            "Action": [
+                "rds:DescribeDBInstances",
+                "rds:DescribeDBClusters"
+            ],
             "Resource": "*"
         }
     ]
@@ -59,6 +62,9 @@ export function FifthStageInstructions(props: CommonInstructionsProps) {
 
       <Box mt={5}>
         <ButtonPrimary onClick={() => props.onNext()}>Next</ButtonPrimary>
+        <ButtonSecondary ml={3} onClick={() => props.onPrev()}>
+          Back
+        </ButtonSecondary>
       </Box>
     </InstructionsContainer>
   );

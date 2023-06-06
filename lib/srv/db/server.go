@@ -104,9 +104,9 @@ type Config struct {
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -541,7 +541,6 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		return trace.Wrap(err)
 	}
 	return nil
-
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
@@ -987,6 +986,14 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
 		DataDir:      s.cfg.DataDir,
+		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
+			return &common.UserProvisioner{
+				AuthClient: s.cfg.AuthClient,
+				Backend:    aub,
+				Log:        sessionCtx.Log,
+				Clock:      s.cfg.Clock,
+			}
+		},
 	})
 }
 
@@ -1010,11 +1017,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
 
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
@@ -1028,17 +1030,26 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.NotFound("%q not found among registered databases: %v",
 			identity.RouteToDatabase.ServiceName, registeredDatabases)
 	}
+
+	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
+
 	id := uuid.New().String()
-	return &common.Session{
+	sessionCtx := &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
 		HostID:            s.cfg.HostID,
 		Database:          database,
 		Identity:          identity,
+		AutoCreateUser:    autoCreate,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
+		DatabaseRoles:     databaseRoles,
 		AuthContext:       authContext,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
@@ -1047,7 +1058,10 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 			"db": database.GetName(),
 		}),
 		LockTargets: authContext.LockTargets(),
-	}, nil
+	}
+
+	s.log.Debugf("Session context: %+v.", sessionCtx)
+	return sessionCtx, nil
 }
 
 // fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
@@ -1097,6 +1111,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		}},
 		HostUser: sessionCtx.Identity.Username,
 		Created:  s.cfg.Clock.Now(),
+		HostID:   sessionCtx.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)

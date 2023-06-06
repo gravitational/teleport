@@ -22,6 +22,7 @@ import {
   connectToKube,
   connectToServer,
 } from 'teleterm/ui/services/workspacesService';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export interface SimpleAction {
   type: 'simple-action';
@@ -95,7 +96,9 @@ export function mapToActions(
         searchResult: result,
         parameter: {
           getSuggestions: () =>
-            ctx.resourcesService.getDbUsers(result.resource.uri),
+            retryWithRelogin(ctx, result.resource.uri, () =>
+              ctx.resourcesService.getDbUsers(result.resource.uri)
+            ),
           placeholder: 'Provide db username',
         },
         perform: dbUser => {

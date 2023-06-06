@@ -37,7 +37,7 @@ exports[`render multi bash texts 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -338,7 +338,7 @@ exports[`render multi bash texts with comment 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -649,7 +649,7 @@ exports[`render non bash single text 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -841,7 +841,7 @@ exports[`render single bash text 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
@@ -1038,7 +1038,7 @@ exports[`render single bash text with comment 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;

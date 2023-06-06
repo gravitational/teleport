@@ -20,8 +20,7 @@ import { Box } from 'design';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import * as types from 'teleterm/ui/services/clusters/types';
-
-import { gateway } from 'teleterm/services/tshd/fixtures/mocks';
+import { makeGateway } from 'teleterm/services/tshd/testHelpers';
 
 import {
   ClusterLoginPresentation,
@@ -316,10 +315,21 @@ const TestContainer: React.FC = ({ children }) => (
       css={`
         width: 450px;
         border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surfaceSecondary};
+        background: ${props => props.theme.colors.levels.surface};
       `}
     >
       {children}
     </Box>
   </>
 );
+
+const gateway = makeGateway({
+  uri: '/gateways/gateway1',
+  targetName: 'postgres',
+  targetUri: '/clusters/teleport-local/dbs/postgres',
+  targetUser: 'alice',
+  targetSubresourceName: '',
+  localAddress: 'localhost',
+  localPort: '59116',
+  protocol: 'postgres',
+});

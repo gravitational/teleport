@@ -95,7 +95,7 @@ export default function TrustedClusters() {
           <Info
             ml="4"
             width="240px"
-            color="text.primary"
+            color="text.main"
             style={{ flexShrink: 0 }}
           />
         </Flex>
@@ -135,7 +135,7 @@ const Info = props => (
     <Text typography="subtitle1" mb={2}>
       Please{' '}
       <Link
-        color="text.primary"
+        color="text.main"
         href="https://goteleport.com/docs/setup/admin/trustedclusters/"
         target="_blank"
       >

@@ -124,9 +124,9 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 			command, err := dbcmdCLICommandProvider.GetCommand(gateway)
 
 			require.NoError(t, err)
-			require.NotEmpty(t, command)
-			require.Contains(t, command, tc.targetSubresourceName)
-			require.Contains(t, command, gateway.LocalPort())
+			require.NotEmpty(t, command.Args)
+			require.Contains(t, command.Args[1], tc.targetSubresourceName)
+			require.Contains(t, command.Args[1], gateway.LocalPort())
 		})
 	}
 }

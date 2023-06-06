@@ -49,7 +49,6 @@ AWS-specific APIs.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-
 - An AWS EC2 instance to host a Teleport process, with the Teleport binary
   installed. The host should not have an existing data dir (`/var/lib/teleport`
   by default). Remove the data directory if this instance has previously joined
@@ -117,7 +116,7 @@ metadata:
   # running in your AWS account to use this token
   name: ec2-token
 spec:
-  # use the minimal set of roles required
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
   roles: [Node]
 
   # set the join method allowed for this token

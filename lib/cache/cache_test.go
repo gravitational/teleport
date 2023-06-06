@@ -226,7 +226,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oktaSvc, err := local.NewOktaService(p.backend)
+	oktaSvc, err := local.NewOktaService(p.backend, p.backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1977,20 +1977,14 @@ func TestOktaAssignments(t *testing.T) {
 				},
 				types.OktaAssignmentSpecV1{
 					User: "test-user@test.user",
-					Actions: []*types.OktaAssignmentActionV1{
+					Targets: []*types.OktaAssignmentTargetV1{
 						{
-							Status: types.OktaAssignmentActionV1_PENDING,
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-								Id:   "123456",
-							},
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
 						},
 						{
-							Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_GROUP,
-								Id:   "234567",
-							},
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
 						},
 					},
 				},

@@ -43,7 +43,7 @@ import { AgentStepProps } from '../../types';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   Mark,
   ResourceKind,
   TextIcon,
@@ -125,8 +125,8 @@ export function DownloadScript(props: AgentStepProps) {
         </Text>
 
         <Text mb={3}>
-          - The Teleport SSH Service could not join this Teleport cluster. Check
-          the logs for errors by running <Mark>journalctl -fu teleport</Mark>.
+          - The Teleport Service could not join this Teleport cluster. Check the
+          logs for errors by running <Mark>journalctl -fu teleport</Mark>.
         </Text>
 
         <Text>
@@ -156,11 +156,9 @@ export function DownloadScript(props: AgentStepProps) {
 
   return (
     <>
-      <HeaderWithBackBtn onPrev={props.prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
@@ -170,7 +168,11 @@ export function DownloadScript(props: AgentStepProps) {
         />
       </CommandBox>
       {hint}
-      <ActionButtons onProceed={handleNextStep} disableProceed={!result} />
+      <ActionButtons
+        onProceed={handleNextStep}
+        disableProceed={!result}
+        onPrev={props.prevStep}
+      />
     </>
   );
 }
@@ -186,16 +188,18 @@ const Template = ({
 }) => {
   return (
     <>
-      <HeaderWithBackBtn onPrev={prevStep}>
-        Configure Resource
-      </HeaderWithBackBtn>
+      <Header>Configure Resource</Header>
       <HeaderSubtitle>
-        Install and configure the Teleport SSH Service.
+        Install and configure the Teleport Service.
         <br />
         Run the following command on the server you want to add.
       </HeaderSubtitle>
       <CommandBox>{children}</CommandBox>
-      <ActionButtons onProceed={nextStep} disableProceed={true} />
+      <ActionButtons
+        onProceed={nextStep}
+        disableProceed={true}
+        onPrev={prevStep}
+      />
     </>
   );
 };

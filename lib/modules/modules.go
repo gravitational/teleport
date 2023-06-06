@@ -66,6 +66,10 @@ type Features struct {
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
+	// IsUsageBasedBilling enables some usage-based billing features
+	IsUsageBasedBilling bool
+	// Assist enables Assistant feature
+	Assist bool
 }
 
 // ToProto converts Features into proto.Features
@@ -84,6 +88,8 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:           f.RecoveryCodes,
 		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
+		IsUsageBased:            f.IsUsageBasedBilling,
+		Assist:                  f.Assist,
 	}
 }
 
@@ -96,6 +102,8 @@ type Modules interface {
 	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
+	// SetFeatures set features queried from Cloud
+	SetFeatures(Features)
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
@@ -179,7 +187,13 @@ func (p *defaultModules) Features() Features {
 		App:               true,
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
+		Assist:            true,
 	}
+}
+
+// SetFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {

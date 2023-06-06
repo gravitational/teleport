@@ -55,6 +55,9 @@ type ALPNDialerConfig struct {
 	// CAs when connection upgrade is required. If not provided, it's assumed
 	// the proper CAs are already present in TLSConfig.
 	GetClusterCAs GetClusterCAsFunc
+	// PROXYHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	PROXYHeaderGetter PROXYHeaderGetter
 }
 
 // ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
@@ -132,6 +135,7 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		WithInsecureSkipVerify(d.cfg.TLSConfig.InsecureSkipVerify),
 		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
 		WithALPNConnUpgradePing(shouldALPNConnUpgradeWithPing(tlsConfig)),
+		WithPROXYHeaderGetter(d.cfg.PROXYHeaderGetter),
 	)
 
 	conn, err := dialer.DialContext(ctx, network, addr)

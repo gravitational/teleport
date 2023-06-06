@@ -15,73 +15,68 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, Text, Flex } from 'design';
-import FieldSelect from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
-import { requiredField } from 'shared/components/Validation/rules';
-import Validation, { Validator } from 'shared/components/Validation';
+import { Box, Text, Flex, ButtonSecondary, LabelInput } from 'design';
+import Select, { Option } from 'shared/components/Select';
+import { Refresh as RefreshIcon } from 'design/Icon';
 
 import { awsRegionMap, Regions } from 'teleport/services/integrations';
 
 export function AwsRegionSelector({
   onFetch,
-  disableBtn,
+  onRefresh,
   disableSelector,
   clear,
 }: {
   onFetch(region: Regions): void;
-  disableBtn: boolean;
+  onRefresh(): void;
   disableSelector: boolean;
   clear(): void;
 }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionOption>();
 
-  function handleFetch(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-    onFetch(selectedRegion.value);
-  }
-
   function handleRegionSelect(option: RegionOption) {
     clear();
     setSelectedRegion(option);
+    onFetch(option.value);
   }
 
   return (
-    <Validation>
-      {({ validator }) => (
-        <>
-          <Text mt={4}>
-            Select the AWS Region you would like to see databases for:
-          </Text>
-          <Flex alignItems="center" gap={3} mt={2} mb={3}>
-            <Box width="320px">
-              <FieldSelect
-                label="AWS Region"
-                rule={requiredField('Region is required')}
-                placeholder="Select a Region"
-                isSearchable
-                isSimpleValue
-                value={selectedRegion}
-                onChange={handleRegionSelect}
-                options={options}
-                isDisabled={disableSelector}
-              />
-            </Box>
-            <ButtonPrimary
-              disabled={disableBtn || !selectedRegion}
-              onClick={() => handleFetch(validator)}
-              width="160px"
-              height="40px"
-              mt={1}
-            >
-              Fetch Databases
-            </ButtonPrimary>
-          </Flex>
-        </>
-      )}
-    </Validation>
+    <Box>
+      <Text mt={4}>
+        Select the AWS Region you would like to see databases for:
+      </Text>
+      <Flex alignItems="center" gap={3} mt={2} mb={3}>
+        <Box width="320px" mb={4}>
+          <LabelInput htmlFor={'select'}>AWS Region</LabelInput>
+          <Select
+            inputId="select"
+            isSearchable
+            value={selectedRegion}
+            onChange={handleRegionSelect}
+            options={options}
+            placeholder="Select a region"
+            autoFocus
+            isDisabled={disableSelector}
+          />
+        </Box>
+        <ButtonSecondary
+          onClick={onRefresh}
+          mt={1}
+          title="Refresh database table"
+          height="40px"
+          width="30px"
+          css={`
+            &:disabled {
+              opacity: 0.35;
+              pointer-events: none;
+            }
+          `}
+          disabled={disableSelector || !selectedRegion}
+        >
+          <RefreshIcon fontSize={3} />
+        </ButtonSecondary>
+      </Flex>
+    </Box>
   );
 }
 

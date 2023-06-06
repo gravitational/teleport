@@ -25,11 +25,11 @@ tests:
     values:
       - ../.lint/updater.yaml
     set:
-      image: repo.example.com/gravitaional/teleport-distroless
+      image: repo.example.com/gravitational/teleport-distroless
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--base-image=repo.example.com/gravitaional/teleport-distroless"
+          content: "--base-image=repo.example.com/gravitational/teleport-distroless"
   - it: sets the updater base entreprise image
     values:
       - ../.lint/updater.yaml

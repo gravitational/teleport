@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -298,7 +297,7 @@ func (a *AppV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
-	return proto.Clone(a).(*AppV3)
+	return utils.CloneProtoMsg(a)
 }
 
 // MatchSearch goes through select field values and tries to

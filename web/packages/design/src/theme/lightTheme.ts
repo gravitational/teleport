@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { darken, getContrastRatio } from './utils/colorManipulator';
 import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
@@ -54,13 +54,13 @@ const colors = {
 
   text: {
     // The most important text.
-    primary: '#000000',
-    // Secondary text.
-    secondary: 'rgba(0,0,0,0.56)',
-    // Placeholder text for forms.
-    placeholder: 'rgba(0,0,0,0.24)',
-    // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0,0,0,0.18)',
+    main: '#000000',
+    // Slightly muted text.
+    slightlyMuted: 'rgba(0,0,0,0.72)',
+    // Muted text. Also used as placeholder text in forms.
+    muted: 'rgba(0,0,0,0.54)',
+    // Disabled text.
+    disabled: 'rgba(0,0,0,0.36)',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
     primaryInverse: '#FFFFFF',
@@ -138,6 +138,30 @@ const colors = {
     selected: 'rgba(255, 255, 255, 0.2)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
+  },
+
+  terminal: {
+    foreground: '#000',
+    background: '#F1F2F4', // levels.sunken
+    selectionBackground: 'rgba(0, 0, 0, 0.18)',
+    cursor: '#000',
+    cursorAccent: '#F1F2F4',
+    red: '#9D0A00',
+    green: '#005742',
+    yellow: '#704B00',
+    blue: '#004B89',
+    magenta: '#3D1BB2',
+    cyan: '#015C6E',
+    brightWhite: darken('#F1F2F4', 0.55),
+    white: darken('#F1F2F4', 0.68),
+    brightBlack: darken('#F1F2F4', 0.8),
+    black: '#000',
+    brightRed: '#BF372E',
+    brightGreen: '#007562',
+    brightYellow: '#8F5F00',
+    brightBlue: '#006BB8',
+    brightMagenta: '#5531D4',
+    brightCyan: '#007282',
   },
 
   subtle: blueGrey[50],

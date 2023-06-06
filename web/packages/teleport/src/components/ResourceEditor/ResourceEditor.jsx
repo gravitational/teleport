@@ -86,7 +86,7 @@ export default function ResourceEditor(props) {
           </DialogHeader>
           {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
           {!isNew && (
-            <Text mb="2" typography="h4" color="text.primary">
+            <Text mb="2" typography="h4" color="text.main">
               {name}
             </Text>
           )}

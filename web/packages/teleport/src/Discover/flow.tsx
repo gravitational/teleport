@@ -20,6 +20,8 @@ import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
+import { ResourceSpec } from './SelectResource';
+
 type ViewFunction<T> = (t: T) => View[];
 
 export interface ResourceViewConfig<T = any> {
@@ -41,7 +43,7 @@ export interface ResourceViewConfig<T = any> {
   // by "currentStep" param).
   // Not supplying a function is equivalent to always prompting
   // on exit or changing route.
-  shouldPrompt?: (currentStep: number) => boolean;
+  shouldPrompt?: (currentStep: number, resourceSpec: ResourceSpec) => boolean;
 }
 
 export interface View {

@@ -267,7 +267,7 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 		{
-			name: "user with pod access request that no longer fullfils the role requirements",
+			name: "user with pod access request that no longer fullfills the role requirements",
 			args: args{
 				user:      userWithLimitedAccess,
 				namespace: metav1.NamespaceDefault,
@@ -321,7 +321,13 @@ func TestListPodRBAC(t *testing.T) {
 				testPodName,
 				metav1.GetOptions{},
 			)
-			require.Equal(t, tt.want.getTestPodResult, err)
+
+			if tt.want.getTestPodResult == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.want.getTestPodResult.Error())
+			}
 		})
 	}
 }

@@ -57,6 +57,14 @@ export function displayShortDate(date: Date) {
   }
 }
 
+// displayShortDate accepts a date and returns formatted as 'MM dd, yyyy'
+export function displayUnixShortDate(seconds: number) {
+  // Multiply by 1000 b/c date constructor expects milliseconds.
+  const date = new Date(seconds * 1000);
+
+  return displayShortDate(date);
+}
+
 // displayDateTime accepts a date and returns formatted as 'yyyy-MM-dd HH:mm:ss'
 export function displayDateTime(date: Date) {
   try {

@@ -117,7 +117,7 @@ type AWSOIDCListDatabasesRequest struct {
 	NextToken string `json:"nextToken"`
 }
 
-// AWSOIDCListDatabasesResponse contains a list of databases and a next token is more pages are available.
+// AWSOIDCListDatabasesResponse contains a list of databases and a next token if more pages are available.
 type AWSOIDCListDatabasesResponse struct {
 	// Databases contains the page of Databases
 	Databases []Database `json:"databases"`

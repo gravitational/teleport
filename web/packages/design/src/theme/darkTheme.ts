@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { getContrastRatio, lighten } from './utils/colorManipulator';
 import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
@@ -58,20 +58,20 @@ const colors = {
 
   text: {
     // The most important text.
-    primary: '#FFFFFF',
-    // Secondary text.
-    secondary: 'rgba(255, 255, 255, 0.56)',
-    // Placeholder text for forms.
-    placeholder: 'rgba(255, 255, 255, 0.24)',
-    // Disabled text have even lower visual prominence.
-    disabled: 'rgba(255, 255, 255, 0.18)',
+    main: '#FFFFFF',
+    // Slightly muted text.
+    slightlyMuted: 'rgba(255, 255, 255, 0.72)',
+    // Muted text. Also used as placeholder text in forms.
+    muted: 'rgba(255, 255, 255, 0.54)',
+    // Disabled text.
+    disabled: 'rgba(255, 255, 255, 0.36)',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
     primaryInverse: '#000000',
   },
 
   buttons: {
-    text: 'rgba(255,255,255,0.87)',
+    text: '#FFFFFF',
     textDisabled: 'rgba(255, 255, 255, 0.3)',
     bgDisabled: 'rgba(255, 255, 255, 0.12)',
 
@@ -142,6 +142,30 @@ const colors = {
     selected: 'rgba(255, 255, 255, 0.2)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
+  },
+
+  terminal: {
+    foreground: '#F1F2F4',
+    background: '#010B1C', // bgTerminal
+    selectionBackground: 'rgba(255, 255, 255, 0.18)',
+    cursor: '#FFF',
+    cursorAccent: '#010B1C',
+    red: '#FF6257',
+    green: '#00BFA6',
+    yellow: '#FFAB00',
+    blue: '#009EFF',
+    magenta: '#9F85FF',
+    cyan: '#00D3F0',
+    brightWhite: lighten('#010B1C', 0.89),
+    white: lighten('#010B1C', 0.78),
+    brightBlack: lighten('#010B1C', 0.61),
+    black: '#000',
+    brightRed: '#FF948D',
+    brightGreen: '#2EFFD5',
+    brightYellow: '#FFD98C',
+    brightBlue: '#7BCDFF',
+    brightMagenta: '#B9A6FF',
+    brightCyan: '#74EEFF',
   },
 
   subtle: blueGrey[50],

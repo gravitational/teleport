@@ -143,6 +143,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// Assist is a service that implements the Teleport Assist functionality.
+	Assist services.Assistant
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -222,6 +225,10 @@ type InitConfig struct {
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
+
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -607,6 +614,7 @@ type PresetRoleManager interface {
 // createPresets creates preset resources (eg, roles).
 func createPresets(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
@@ -623,7 +631,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowConditions(currentRole)
+			role, err := services.AddRoleDefaults(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}

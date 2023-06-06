@@ -13,13 +13,8 @@ No specific permissions or IAM policy is required: an IAM role with no attached
 policies is sufficient. No IAM credentials are required on the Teleport Auth
 Service.
 
-<Notice type="warning" scope={["oss", "enterprise"]}>
-
-The IAM join method will not work if TLS is terminated at a load balancer in
-front of your Teleport Proxy Service unless the service using this method is
-connecting directly to the Auth Service.
-
-</Notice>
+Support for joining a cluster with the Proxy Service behind a layer 7 load
+balancer or reverse proxy is available in Teleport 13.0+.
 
 For other methods of joining a Teleport process to a cluster, see [Joining
 Teleport Services to a Cluster](../join-services-to-your-cluster.mdx).
@@ -66,7 +61,7 @@ metadata:
   # running in your AWS account to use this token
   name: iam-token
 spec:
-  # use the minimal set of roles required
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
   roles: [Node]
 
   # set the join method allowed for this token

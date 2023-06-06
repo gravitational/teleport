@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/gravitational/trace"
 
@@ -53,7 +54,7 @@ func (g *UserGroupV1) String() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (g *UserGroupV1) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(g.GetAllLabels()), g.GetName())
+	fieldVals := append(utils.MapToStrings(g.GetAllLabels()), g.GetName(), g.GetMetadata().Description)
 	return MatchSearch(fieldVals, values, nil)
 }
 
@@ -83,6 +84,30 @@ func (g UserGroups) AsResources() []ResourceWithLabels {
 		resources[i] = group
 	}
 	return resources
+}
+
+// SortByCustom custom sorts by given sort criteria.
+func (g UserGroups) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(g, func(i, j int) bool {
+			return stringCompare(g[i].GetName(), g[j].GetName(), isDesc)
+		})
+	case ResourceSpecDescription:
+		sort.SliceStable(g, func(i, j int) bool {
+			return stringCompare(g[i].GetMetadata().Description, g[j].GetMetadata().Description, isDesc)
+		})
+
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindKubeServer)
+	}
+
+	return nil
 }
 
 // Len returns the slice length.

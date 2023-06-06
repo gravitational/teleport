@@ -19,7 +19,7 @@ import React from 'react';
 import Text from 'design/Text';
 import Box from 'design/Box';
 
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 
 import { InstructionsContainer } from './common';
 
@@ -38,11 +38,15 @@ export function ThirdStageInstructions(props: CommonInstructionsProps) {
       </Text>
 
       <Text mt={5}>
-        Select <strong>Assign role</strong> and create a new role
+        Click <strong>Assign role</strong> and select{' '}
+        <strong>Create a new role</strong>
       </Text>
 
       <Box mt={5}>
         <ButtonPrimary onClick={() => props.onNext()}>Next</ButtonPrimary>
+        <ButtonSecondary ml={3} onClick={() => props.onPrev()}>
+          Back
+        </ButtonSecondary>
       </Box>
     </InstructionsContainer>
   );
