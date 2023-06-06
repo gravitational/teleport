@@ -18,11 +18,14 @@
 * CLI
   * Added support for creating Windows desktops via `tctl`. [#27250](https://github.com/gravitational/teleport/pull/27250)
   * Fixed issue with `tctl get all` not returning locks. [#27294](https://github.com/gravitational/teleport/pull/27294)
+  * Added auto-completion for Teleport binaries. See Improve the CLI experience: enable shell completion in https://goteleport.com/docs/reference/cli/
+    to enable. [#27093](https://github.com/gravitational/teleport/pull/27093)
 * Server Access
   * Fixed issue with access requests in headless mode. [#27241](https://github.com/gravitational/teleport/pull/27241)
   * Fixed issue with port forwarding configuration being cached in `tsh` profile. [#27208](https://github.com/gravitational/teleport/pull/27208)
 * Database Access
-  * Added support for automatic database user provisioning for PostgreSQL. [#26555](https://github.com/gravitational/teleport/pull/26555)
+  * Added support for automatic database user provisioning for PostgreSQL. See https://goteleport.com/docs/database-access/rbac/configuring-auto-user-provisioning/
+    to enable. [#26555](https://github.com/gravitational/teleport/pull/26555)
   * Updated Elasticache support to automatically include IAM connect permissions. [#27188](https://github.com/gravitational/teleport/pull/27188)
 * Desktop Access
   * Fixed issue with automatic user creation failing in some cases. [teleport.e#1579](https://github.com/gravitational/teleport.e/pull/1579)
