@@ -46,14 +46,21 @@ type Agent struct {
 	tools []Tool
 }
 
-// AgentAction is a decision to take a single action, typically a tool invocation.
-type AgentAction struct {
+// agentAction is an event type represetning the decision to take a single action, typically a tool invocation.
+type agentAction struct {
+	// The action to take, typically a tool name.
 	action string
-	input  string
-	log    string
+
+	// The input to the action, varies depending on the action.
+	input string
+
+	// The log is either a direct tool response or a thought prompt correlated to the input.
+	log string
 }
 
-type AgentFinish struct {
+// agentFinish is an event type representing the decision to finish a thought
+// loop and return a final text answer to the user.
+type agentFinish struct {
 	// output must be Message or CompletionCommand
 	output any
 }
@@ -62,11 +69,13 @@ type executionState struct {
 	llm               *openai.Client
 	chatHistory       []openai.ChatCompletionMessage
 	humanMessage      openai.ChatCompletionMessage
-	intermediateSteps []AgentAction
+	intermediateSteps []agentAction
 	observations      []string
 	tokensUsed        *TokensUsed
 }
 
+// PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied
+// with or until it times out.
 func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage) (any, error) {
 	log.Trace("entering agent think loop")
 	iterations := 0
@@ -77,7 +86,7 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 		llm:               llm,
 		chatHistory:       chatHistory,
 		humanMessage:      humanMessage,
-		intermediateSteps: make([]AgentAction, 0),
+		intermediateSteps: make([]agentAction, 0),
 		observations:      make([]string, 0),
 		tokensUsed:        tokensUsed,
 	}
@@ -119,11 +128,14 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 	}
 }
 
+// stepOutput represents the inputs and outputs of a single thought step.
 type stepOutput struct {
-	finish      *AgentFinish
-	action      *AgentAction
+	// if the agent is done, finish is set.
+	finish *agentFinish
+
+	// if the agent is not done, action is set together with observation.
+	action      *agentAction
 	observation string
-	tokensUsed  int
 }
 
 func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOutput, error) {
@@ -133,7 +145,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 	action, finish, err := a.plan(ctx, state)
 	if err, ok := trace.Unwrap(err).(*invalidOutputError); ok {
 		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
-		action := &AgentAction{
+		action := &agentAction{
 			action: actionException,
 			input:  observationPrefix + "Invalid or incomplete response",
 			log:    thoughtPrefix + err.Error(),
@@ -165,7 +177,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 
 	if tool == nil {
 		log.Tracef("agent picked an unknown tool %v", action.action)
-		action := &AgentAction{
+		action := &agentAction{
 			action: actionException,
 			input:  observationPrefix + "Unknown tool",
 			log:    thoughtPrefix + "No tool with name " + action.action + " exists.",
@@ -177,7 +189,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 	if tool, ok := tool.(*commandExecutionTool); ok {
 		input, err := tool.parseInput(action.input)
 		if err != nil {
-			action := &AgentAction{
+			action := &agentAction{
 				action: actionException,
 				input:  observationPrefix + "Invalid or incomplete response",
 				log:    thoughtPrefix + err.Error(),
@@ -192,14 +204,14 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 			Labels:  input.Labels,
 		}
 
-		log.Tracef("agent decided on command execution, let's translate to an AgentFinish")
-		return stepOutput{finish: &AgentFinish{output: completion}}, nil
+		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
+		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
 	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
 }
 
-func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *AgentFinish, error) {
+func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {
 	scratchpad := a.constructScratchpad(state.intermediateSteps, state.observations)
 	prompt := a.createPrompt(state.chatHistory, scratchpad, state.humanMessage)
 	resp, err := state.llm.CreateChatCompletion(
@@ -219,7 +231,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 		return nil, nil, trace.Wrap(err)
 	}
 
-	action, finish, err := parseConversationOutput(llmOut)
+	action, finish, err := parsePlanningOutput(llmOut)
 	return action, finish, trace.Wrap(err)
 }
 
@@ -252,7 +264,7 @@ func (a *Agent) createPrompt(chatHistory, agentScratchpad []openai.ChatCompletio
 	return prompt
 }
 
-func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observations []string) []openai.ChatCompletionMessage {
+func (a *Agent) constructScratchpad(intermediateSteps []agentAction, observations []string) []openai.ChatCompletionMessage {
 	var thoughts []openai.ChatCompletionMessage
 	for i, action := range intermediateSteps {
 		thoughts = append(thoughts, openai.ChatCompletionMessage{
@@ -291,12 +303,15 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	return output, nil
 }
 
+// planOutput describes the expected JSON output after asking it to plan it's next action.
 type planOutput struct {
 	Action       string `json:"action"`
 	Action_input any    `json:"action_input"`
 }
 
-func parseConversationOutput(text string) (*AgentAction, *AgentFinish, error) {
+// parsePlanningOutput parses the output of the model after asking it to plan it's next action
+// and returns the appropriate event type or an error.
+func parsePlanningOutput(text string) (*agentAction, *agentFinish, error) {
 	log.Tracef("received planning output: \"%v\"", text)
 	response, err := parseJSONFromModel[planOutput](text)
 	if err != nil {
@@ -309,17 +324,17 @@ func parseConversationOutput(text string) (*AgentAction, *AgentFinish, error) {
 			return nil, nil, trace.Errorf("invalid final answer type %T", response.Action_input)
 		}
 
-		return nil, &AgentFinish{output: &Message{Content: outputString}}, nil
+		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}
 
 	if v, ok := response.Action_input.(string); ok {
-		return &AgentAction{action: response.Action, input: v}, nil, nil
+		return &agentAction{action: response.Action, input: v}, nil, nil
 	} else {
 		input, err := json.Marshal(response.Action_input)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return &AgentAction{action: response.Action, input: string(input)}, nil, nil
+		return &agentAction{action: response.Action, input: string(input)}, nil, nil
 	}
 }
