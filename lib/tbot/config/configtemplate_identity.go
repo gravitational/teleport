@@ -57,8 +57,8 @@ func (t *TemplateIdentity) Describe(destination bot.Destination) []FileDescripti
 
 func (t *TemplateIdentity) Render(
 	ctx context.Context,
-	bot Bot,
-	routedIdentity, _ *identity.Identity,
+	bot provider,
+	identity *identity.Identity,
 	destination *DestinationConfig,
 ) error {
 	dest, err := destination.GetDestination()
@@ -71,7 +71,7 @@ func (t *TemplateIdentity) Render(
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(routedIdentity, hostCAs)
+	key, err := newClientKey(identity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
