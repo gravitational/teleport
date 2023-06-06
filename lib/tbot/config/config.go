@@ -239,6 +239,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
+	Version    Version          `yaml:"version"`
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 
@@ -274,6 +275,10 @@ func (conf *BotConfig) CipherSuites() []uint16 {
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
+	if conf.Version == "" {
+		conf.Version = V2
+	}
+
 	if conf.Storage == nil {
 		conf.Storage = &StorageConfig{}
 	}
@@ -602,7 +607,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	return config, nil
 }
 
-// ReadFromFile reads and parses a YAML config from a file.
+// ReadConfigFromFile reads and parses a YAML config from a file.
 func ReadConfigFromFile(filePath string) (*BotConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -613,15 +618,40 @@ func ReadConfigFromFile(filePath string) (*BotConfig, error) {
 	return ReadConfig(f)
 }
 
-// ReadConfig parses a YAML config file from a Reader.
-func ReadConfig(reader io.Reader) (*BotConfig, error) {
-	var config BotConfig
+type Version string
 
+var (
+	V1 Version = "v1"
+	V2 Version = "v2"
+)
+
+// ReadConfig parses a YAML config file from a Reader.
+func ReadConfig(reader io.ReadSeeker) (*BotConfig, error) {
+	var version struct {
+		Version Version `yaml:"version"`
+	}
 	decoder := yaml.NewDecoder(reader)
-	decoder.KnownFields(true)
-	if err := decoder.Decode(&config); err != nil {
-		return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+	if err := decoder.Decode(&version); err != nil {
+		return nil, trace.BadParameter("failed parsing config file version: %s", strings.Replace(err.Error(), "\n", "", -1))
 	}
 
-	return &config, nil
+	// Reset reader and decoder
+	if _, err := reader.Seek(0, io.SeekStart); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	decoder = yaml.NewDecoder(reader)
+	decoder.KnownFields(true)
+
+	switch version.Version {
+	case V1, "":
+		panic("migration code will be inserted here in follow up PR")
+	case V2:
+		config := &BotConfig{}
+		if err := decoder.Decode(config); err != nil {
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		}
+		return config, nil
+	default:
+		return nil, trace.BadParameter("unrecognized config version %q", version.Version)
+	}
 }

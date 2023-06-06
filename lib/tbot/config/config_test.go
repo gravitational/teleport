@@ -119,6 +119,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 }
 
 const exampleConfigFile = `
+version: v2
 auth_server: auth.example.com
 renewal_interval: 5m
 debug: true
