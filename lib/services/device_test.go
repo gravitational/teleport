@@ -19,9 +19,10 @@ package services
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/stretchr/testify/require"
 )
 
 // TestUnmarshalDevice tests that devices can be successfully
@@ -66,13 +67,13 @@ func TestUnmarshalDevice(t *testing.T) {
 		},
 		{
 			desc:          "fail string as num",
-			errorContains: `cannot unmarshal number`,
+			errorContains: `ReadString: expects " or n, but found 4`,
 			input: `
 {
   "kind": "device",
 	"version": "v1",
 	"metadata": {
-		"name": "secretid"
+		"name": "xdd"
 	},
 	"spec": {
 		"asset_tag": 4,
@@ -89,7 +90,7 @@ func TestUnmarshalDevice(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, "UnmarshalDevice returned unexpected error")
-			require.Equal(t, tc.expected, out, "unmarshalled device  does not match what was expected")
+			require.Equal(t, tc.expected, out, "unmarshalled device does not match what was expected")
 		})
 	}
 }
