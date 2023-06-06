@@ -76,6 +76,9 @@ tests:
       - containsDocument:
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-delete-hook
       - matchSnapshot:
         path: spec.template.spec
 
