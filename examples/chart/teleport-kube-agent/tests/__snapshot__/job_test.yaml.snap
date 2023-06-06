@@ -265,8 +265,9 @@ should create ServiceAccount for post-delete hook by default:
               runAsUser: 9807
           restartPolicy: OnFailure
           serviceAccountName: RELEASE-NAME-delete-hook
-should inherit ServiceAccount name from values if serviceAccount.create is false:
-  1: |
+? should inherit ServiceAccount name from values and not create serviceAccount if
+  serviceAccount.create is false and serviceAccount.name is set
+: 1: |
     containers:
     - args:
       - kube-state
