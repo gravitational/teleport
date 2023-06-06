@@ -252,7 +252,12 @@ container to expose.
 ### Example of running a Teleport container
 
 In this example, we will show you how to run the Teleport Auth and Proxy
-Services on a local Docker container.
+Services on a local Docker container using Teleport Community Edition. 
+
+Since this container uses a self-signed certificate, we do not recommend using
+this configuration to protect any infrastructure outside your workstation. You
+can, however, join other local Docker containers to it using the [token
+method](./management/join-services-to-your-cluster/join-token.mdx).
 
 First, create directories in your home directory to mount to the container. The
 Teleport container will write its configuration and data to these directories:
