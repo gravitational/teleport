@@ -41,10 +41,12 @@ Let's connect to Grafana using Teleport in three steps:
 If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../get-started.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
 </Admonition>
 
-We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
+<Admonition type="note" title="Application Access and DNS for Self-Hosted Clusters">
 
-<Admonition type="note" title="Application Access and DNS">
 (!docs/pages/includes/dns-app-access.mdx!)
+
+Teleport Cloud will automatically provide a subdomain and signed TLS certificate
+for your application under your tenant address.
 </Admonition>
 
 <Tabs>
