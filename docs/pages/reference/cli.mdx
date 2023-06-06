@@ -1484,8 +1484,8 @@ ERROR: proxy jump contains {{proxy}} variable but did not match any of the templ
 
 If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will 
 still attempt to match a template, but will not fail when there is no match.
-Additionally, it will not replace the `proxy` or `cluster` values when explicitly
-set by the client.
+Additionally, it will not replace the `proxy` value when explicitly set by the
+client.
 
 ```bash
 $ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
