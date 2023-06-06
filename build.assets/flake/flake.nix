@@ -53,7 +53,6 @@
           # Package aliases to make reusing these packages easier.
           # The individual package names here have been determined by using
           # https://lazamar.co.uk/nix-versions/
-
           libbpf = libbpfPkgs.legacyPackages.${system}.libbpf;
 
           # pkgs is an alias for the nixpkgs at the system level. This will be used
@@ -152,34 +151,16 @@
             '';
           };
 
-          conditionalInputs = if pkgs.stdenv.isLinux then
-          [
-            libbpf
-          ] else [];
+          conditional = if pkgs.stdenv.isLinux then libbpf else pkgs.hello;
         in
         {
           packages = {
-            helm = helm;
+            conditional = conditional;
             golangci-lint = golangci-lint;
-            protoc-gen-gogo = protoc-gen-gogo;
             grpc-tools = grpc-tools;
+            helm = helm;
+            protoc-gen-gogo = protoc-gen-gogo;
             rust = rust;
-
-            default = pkgs.stdenv.mkDerivation {
-              name = "all";
-              dontUnpack = true;
-              buildPhase = ''
-                mkdir "$out"
-              '';
-
-              propagatedBuildInputs = [
-                helm
-                golangci-lint
-                protoc-gen-gogo
-                grpc-tools
-                rust
-              ] ++ conditionalInputs;
-            };
           };
       });
 }
