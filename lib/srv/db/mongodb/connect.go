@@ -109,7 +109,7 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 		return nil, nil, trace.Wrap(err)
 	}
 
-	serverOptions, err := e.getServerOptions(ctx, sessionCtx)
+	serverOptions, err := e.getServerOptions(ctx, sessionCtx, clientCfg)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -124,8 +124,8 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 }
 
 // getServerOptions constructs server options for connecting to a MongoDB server.
-func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ServerOption, error) {
-	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx)
+func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Session, clientCfg *options.ClientOptions) ([]topology.ServerOption, error) {
+	connectionOptions, err := e.getConnectionOptions(ctx, sessionCtx, clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,7 +137,7 @@ func (e *Engine) getServerOptions(ctx context.Context, sessionCtx *common.Sessio
 }
 
 // getConnectionOptions constructs connection options for connecting to a MongoDB server.
-func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.ConnectionOption, error) {
+func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Session, clientCfg *options.ClientOptions) ([]topology.ConnectionOption, error) {
 	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -163,7 +163,7 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 				// client connecting to Teleport will get an error when they try
 				// to send its own metadata since client metadata is immutable.
 				&handshaker{},
-				&auth.HandshakeOptions{Authenticator: authenticator})
+				&auth.HandshakeOptions{Authenticator: authenticator, HTTPClient: clientCfg.HTTPClient})
 		}),
 	}, nil
 }
