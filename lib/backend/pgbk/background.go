@@ -44,7 +44,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 			}
 
 			if n > 0 {
-				b.log.WithFields(logrus.Fields{"deleted": n, "elapsed": time.Since(t0).String()}).Error("Deleted expired items.")
+				b.log.WithFields(logrus.Fields{"deleted": n, "elapsed": time.Since(t0).String()}).Debug("Deleted expired items.")
 			}
 
 			if n < deleteBatchSize {
@@ -187,7 +187,7 @@ FROM (
 			b.log.WithFields(logrus.Fields{
 				"events":  n,
 				"elapsed": time.Since(t0).String(),
-			}).Error("Fetched change feed events.")
+			}).Debug("Fetched change feed events.")
 		}
 
 		select {
