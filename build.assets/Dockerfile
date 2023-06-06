@@ -10,7 +10,7 @@
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:20.04 AS libfido2
+FROM buildpack-deps:22.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -62,7 +62,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:20.04 AS libbpf
+FROM buildpack-deps:22.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -94,7 +94,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:20.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -146,8 +146,6 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
-        # Used during tag builds to build the RPM package of Connect.
-        rpm \
         softhsm2 \
         sudo \
         tree \
@@ -256,13 +254,6 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
-    chown -R ci /home/ci/.local/share/helm && \
-    helm plugin uninstall unittest && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
