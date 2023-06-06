@@ -121,6 +121,15 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	}
 
+	// Warn about weird non-oneshot configuration.
+	if b.cfg.RenewalInterval > b.cfg.CertificateTTL {
+		b.log.Errorf(
+			"Certificate TTL (%s) is shorter than the renewal interval (%s). This is likely an invalid configuration. Increase the certificate TTL or decrease the renewal interval.",
+			b.cfg.CertificateTTL,
+			b.cfg.RenewalInterval,
+		)
+	}
+
 	reloadBroadcast := channelBroadcaster{
 		chanSet: map[chan struct{}]struct{}{},
 	}

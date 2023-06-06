@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// botIdentityRenewalRetryLimit is the number of permissible consecutive
+// failures in renewing the bot identity before the loop exits fatally.
 const botIdentityRenewalRetryLimit = 7
 
 func (b *Bot) renewBotIdentityLoop(
@@ -48,13 +50,6 @@ func (b *Bot) renewBotIdentityLoop(
 		b.cfg.CertificateTTL,
 		b.cfg.RenewalInterval,
 	)
-	if b.cfg.RenewalInterval > b.cfg.CertificateTTL {
-		b.log.Errorf(
-			"Certificate TTL (%s) is shorter than the renewal interval (%s). The next renewal is likely to fail.",
-			b.cfg.CertificateTTL,
-			b.cfg.RenewalInterval,
-		)
-	}
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
