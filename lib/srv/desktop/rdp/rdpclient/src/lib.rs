@@ -924,7 +924,6 @@ pub unsafe extern "C" fn write_rdp_pointer(
     input_pdu.to_buffer(&mut data).unwrap();
 
     client.tokio_rt.handle().clone().block_on(async {
-        // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
         client.write_all(&data).await.unwrap(); // todo(isaiah): handle error
     });
 
