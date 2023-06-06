@@ -1922,6 +1922,7 @@ export enum CTA {
     CTA_PREMIUM_SUPPORT = 4,
     CTA_TRUSTED_DEVICES = 5,
     CTA_UPGRADE_BANNER = 6,
+    CTA_BILLING_SUMMARY = 7,
 }
 
 export enum IntegrationEnrollKind {
