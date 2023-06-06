@@ -11,7 +11,23 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["go.mod"],
-      "groupName": "Teleport - Go"
+      "groupName": "Teleport - Go",
+      "excludeDepNames": [
+        "github.com/gravitational/ttlmap",
+        "github.com/go-webauthn/webauthn",
+        "go.mongodb.org/mongo-driver",
+        "github.com/aquasecurity/libbpfgo",
+        "github.com/alecthomas/kingpin/v2",
+        "github.com/coreos/go-oidc",
+        "github.com/go-mysql-org/go-mysql",
+        "github.com/go-redis/redis/v9",
+        "github.com/gogo/protobuf",
+        "github.com/julienschmidt/httprouter",
+        "github.com/keys-pub/go-libfido2",
+        "github.com/microsoft/go-mssqldb",
+        "github.com/vulcand/predicate",
+        "golang.org/x/crypto"
+      ]
     },
     {
       "matchManagers": ["gomod"],
