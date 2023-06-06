@@ -1,4 +1,7 @@
-// Copyright 2022 Gravitational, Inc
+//go:build !windows
+// +build !windows
+
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +15,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package client
+package common
 
-var HasTouchIDCredentials = &hasTouchIDCredentials
-
-func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {
-	tc.dtAttemptLoginIgnorePing = val
-}
-
-func (tc *TeleportClient) SetDTAutoEnrollIgnorePing(val bool) {
-	tc.dtAutoEnrollIgnorePing = val
-}
-
-func (tc *TeleportClient) SetDTAuthnRunCeremony(fn DTAuthnRunCeremonyFunc) {
-	tc.DTAuthnRunCeremony = fn
-}
-
-func (tc *TeleportClient) SetDTAutoEnroll(fn dtAutoEnrollFunc) {
-	tc.dtAutoEnroll = fn
+// onDaemonStop implements the "tsh daemon stop" command. It handles graceful shutdown of the daemon
+// on Windows, so it's a noop on other platforms. See daemonstop_windows.go for more details.
+func onDaemonStop(cf *CLIConf) error {
+	return nil
 }
