@@ -5858,8 +5858,7 @@ message AWSMatcher {
   repeated string Regions = 2 [(gogoproto.jsontag) = "regions,omitempty"];
   // AssumeRoleARN is the AWS role to assume for database discovery.
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
-  // ExternalID is the AWS external ID to use when assuming a role for
-  // database discovery in an external AWS account.
+  // Tags are AWS resource Tags to match.
   wrappers.LabelValues Tags = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "tags,omitempty",
@@ -5899,7 +5898,7 @@ message InstallerParams {
   string SSHDConfig = 5 [(gogoproto.jsontag) = "sshd_config,omitempty"];
   // PublicProxyAddr is the address of the proxy the discovered node should use
   // to connect to the cluster. Used only in Azure.
-  string PublicProxyAddr = 6 [(gogoproto.jsontag) = "public,omitempty"];
+  string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
 }
 
 // AWSSSM provides options to use when executing SSM documents
